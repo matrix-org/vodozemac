@@ -36,22 +36,22 @@ use crate::{
 
 pub(super) struct SessionKeys {
     identity_key: Curve25591PublicKey,
-    ephemeral_key: Curve25591PublicKey,
+    base_key: Curve25591PublicKey,
     one_time_key: Curve25591PublicKey,
 }
 
 impl SessionKeys {
     pub fn new(
         identity_key: Curve25591PublicKey,
-        ephemeral_key: Curve25591PublicKey,
+        base_key: Curve25591PublicKey,
         one_time_key: Curve25591PublicKey,
     ) -> Self {
-        Self { identity_key, ephemeral_key, one_time_key }
+        Self { identity_key, base_key, one_time_key }
     }
 }
 
 pub struct Session {
-    session_keys: Option<SessionKeys>,
+    session_keys: SessionKeys,
     sending_ratchet: LocalDoubleRatchet,
     receiving_ratchet: Option<RemoteDoubleRatchet>,
 }
@@ -61,9 +61,26 @@ impl Session {
         let local_ratchet = LocalDoubleRatchet::active(shared_secret);
 
         Self {
-            session_keys: Some(session_keys),
+            session_keys,
             sending_ratchet: local_ratchet,
             receiving_ratchet: None,
+        }
+    }
+
+    pub(super) fn new_remote(
+        shared_secret: RemoteShared3DHSecret,
+        remote_ratchet_key: RemoteRatchetKey,
+        session_keys: SessionKeys,
+    ) -> Self {
+        let (root_key, remote_chain_key) = shared_secret.expand();
+
+        let local_ratchet = LocalDoubleRatchet::inactive(root_key, remote_ratchet_key.clone());
+        let remote_ratchet = RemoteDoubleRatchet::new(remote_ratchet_key, remote_chain_key);
+
+        Self {
+            session_keys,
+            sending_ratchet: local_ratchet,
+            receiving_ratchet: Some(remote_ratchet),
         }
     }
 
@@ -90,22 +107,6 @@ impl Session {
         true
     }
 
-    pub(super) fn new_remote(
-        shared_secret: RemoteShared3DHSecret,
-        remote_ratchet_key: RemoteRatchetKey,
-    ) -> Self {
-        let (root_key, remote_chain_key) = shared_secret.expand();
-
-        let local_ratchet = LocalDoubleRatchet::inactive(root_key, remote_ratchet_key.clone());
-        let remote_ratchet = RemoteDoubleRatchet::new(remote_ratchet_key, remote_chain_key);
-
-        Self {
-            session_keys: None,
-            sending_ratchet: local_ratchet,
-            receiving_ratchet: Some(remote_ratchet),
-        }
-    }
-
     pub fn encrypt(&mut self, plaintext: &str) -> OlmMessage {
         let message = match &mut self.sending_ratchet {
             LocalDoubleRatchet::Inactive(ratchet) => {
@@ -117,11 +118,11 @@ impl Session {
             LocalDoubleRatchet::Active(ratchet) => ratchet.encrypt(plaintext.as_bytes()),
         };
 
-        if let Some(session_keys) = &self.session_keys {
+        if self.receiving_ratchet.is_none() {
             let message = InnerPreKeyMessage::from_parts(
-                &session_keys.one_time_key,
-                &session_keys.ephemeral_key,
-                &session_keys.identity_key,
+                &self.session_keys.one_time_key,
+                &self.session_keys.base_key,
+                &self.session_keys.identity_key,
                 message.into_vec(),
             )
             .into_vec();
@@ -170,7 +171,6 @@ impl Session {
 
             self.sending_ratchet = LocalDoubleRatchet::Inactive(sending_ratchet);
             self.receiving_ratchet = Some(remote_ratchet);
-            self.session_keys = None;
 
             plaintext
         } else if let Some(ref mut remote_ratchet) = self.receiving_ratchet {

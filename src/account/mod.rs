@@ -130,10 +130,13 @@ impl Account {
             &remote_one_time_key,
         );
 
+        let session_keys =
+            SessionKeys::new(remote_identity_key, remote_one_time_key, public_one_time_key);
+
         let message = InnerMessage::from(m);
         let decoded = message.decode().unwrap();
 
-        Session::new_remote(shared_secret, decoded.ratchet_key)
+        Session::new_remote(shared_secret, decoded.ratchet_key, session_keys)
     }
 
     /// Get a reference to the account's public curve25519 key
