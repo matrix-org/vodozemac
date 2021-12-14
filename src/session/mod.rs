@@ -20,19 +20,18 @@ mod messages;
 mod ratchet;
 mod root_key;
 mod session_keys;
-mod shared_secret;
 
-pub use chain_key::{ChainKey, RemoteChainKey};
+use chain_key::RemoteChainKey;
 use double_ratchet::{LocalDoubleRatchet, RemoteDoubleRatchet};
 pub use messages::{OlmMessage as InnerMessage, PreKeyMessage as InnerPreKeyMessage};
 use ratchet::RemoteRatchetKey;
-pub use root_key::{RemoteRootKey, RootKey};
+use root_key::RemoteRootKey;
 pub(crate) use session_keys::SessionKeys;
 use sha2::{Digest, Sha256};
-pub use shared_secret::{RemoteShared3DHSecret, Shared3DHSecret};
 
 use crate::{
     messages::{Message, OlmMessage, PreKeyMessage},
+    shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
     utilities::{decode, encode},
 };
 

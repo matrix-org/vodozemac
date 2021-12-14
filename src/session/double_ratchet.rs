@@ -17,8 +17,8 @@ use super::{
     messages::OlmMessage,
     ratchet::{Ratchet, RatchetPublicKey, RemoteRatchet, RemoteRatchetKey},
     root_key::{RemoteRootKey, RootKey},
-    shared_secret::Shared3DHSecret,
 };
+use crate::shared_secret::Shared3DHSecret;
 
 pub(super) enum LocalDoubleRatchet {
     Inactive(InactiveDoubleRatchet),

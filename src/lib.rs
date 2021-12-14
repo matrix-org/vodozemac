@@ -19,6 +19,7 @@ mod cipher;
 pub mod messages;
 pub mod sas;
 mod session;
+mod shared_secret;
 mod utilities;
 
 pub use account::Account;
