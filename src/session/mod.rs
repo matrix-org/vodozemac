@@ -91,8 +91,10 @@ impl Session {
         let message = match &mut self.sending_ratchet {
             LocalDoubleRatchet::Inactive(ratchet) => {
                 let mut ratchet = ratchet.activate();
+
                 let message = ratchet.encrypt(plaintext.as_bytes());
                 self.sending_ratchet = LocalDoubleRatchet::Active(ratchet);
+
                 message
             }
             LocalDoubleRatchet::Active(ratchet) => ratchet.encrypt(plaintext.as_bytes()),
@@ -110,6 +112,7 @@ impl Session {
             OlmMessage::PreKey(PreKeyMessage { inner: encode(message) })
         } else {
             let message = message.into_vec();
+
             OlmMessage::Normal(Message { inner: encode(message) })
         }
     }

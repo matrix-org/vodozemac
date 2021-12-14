@@ -55,10 +55,11 @@ impl Sas {
         &self.encoded_public_key
     }
 
-    pub fn diffie_hellman(self, other_public_key: String) -> EstablishedSas {
+    pub fn diffie_hellman(self, other_public_key: &str) -> EstablishedSas {
         let mut public_key = [0u8; 32];
         // TODO check the length of the key.
         public_key.copy_from_slice(&decode(other_public_key.as_bytes()).unwrap());
+
         let public_key = PublicKey::from(public_key);
         let shared_secret = self.secret_key.diffie_hellman(&public_key);
 
@@ -93,11 +94,14 @@ impl EstablishedSas {
 
     pub fn verify_mac(&self, input: &str, info: &str, code: &str) -> Result<(), MacError> {
         let mut mac_key = [0u8; 32];
+
         let hkdf: Hkdf<Sha256> = Hkdf::new(None, self.shared_secret.as_bytes());
         hkdf.expand(info.as_bytes(), &mut mac_key).unwrap();
 
         let mut mac = Hmac::<Sha256>::new_from_slice(&mac_key).unwrap();
+
         mac.update(input.as_bytes());
+
         let code = decode(code).unwrap();
         mac.verify_slice(&code)
     }
@@ -115,7 +119,7 @@ mod test {
         let dalek = Sas::new();
 
         olm.set_their_public_key(dalek.public_key().to_string()).unwrap();
-        let established = dalek.diffie_hellman(olm.public_key());
+        let established = dalek.diffie_hellman(&olm.public_key());
 
         assert_eq!(olm.generate_bytes("TEST", 10).unwrap(), established.get_bytes("TEST", 10));
     }
@@ -126,7 +130,7 @@ mod test {
         let dalek = Sas::new();
 
         olm.set_their_public_key(dalek.public_key().to_string()).unwrap();
-        let established = dalek.diffie_hellman(olm.public_key());
+        let established = dalek.diffie_hellman(&olm.public_key());
 
         assert_eq!(olm.calculate_mac("", "").unwrap(), established.calculate_mac("", ""));
 
