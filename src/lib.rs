@@ -16,12 +16,13 @@
 
 mod account;
 mod cipher;
-pub mod messages;
-pub mod sas;
 mod session;
 mod session_keys;
 mod shared_secret;
 mod utilities;
+
+pub mod messages;
+pub mod sas;
 
 pub use account::Account;
 pub use session::Session;
