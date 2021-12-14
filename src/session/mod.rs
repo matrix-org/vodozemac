@@ -16,19 +16,18 @@
 mod chain_key;
 mod double_ratchet;
 mod message_key;
-mod messages;
 mod ratchet;
 mod root_key;
 
 use chain_key::RemoteChainKey;
 use double_ratchet::{LocalDoubleRatchet, RemoteDoubleRatchet};
-pub use messages::{OlmMessage as InnerMessage, PreKeyMessage as InnerPreKeyMessage};
 use ratchet::RemoteRatchetKey;
 use root_key::RemoteRootKey;
 use sha2::{Digest, Sha256};
+use x25519_dalek::PublicKey as Curve25591PublicKey;
 
 use crate::{
-    messages::{Message, OlmMessage, PreKeyMessage},
+    messages::{InnerMessage, InnerPreKeyMessage, Message, OlmMessage, PreKeyMessage},
     session_keys::SessionKeys,
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
     utilities::{decode, encode},
@@ -49,11 +48,12 @@ impl Session {
 
     pub(super) fn new_remote(
         shared_secret: RemoteShared3DHSecret,
-        remote_ratchet_key: RemoteRatchetKey,
+        remote_ratchet_key: Curve25591PublicKey,
         session_keys: SessionKeys,
     ) -> Self {
         let (root_key, remote_chain_key) = shared_secret.expand();
 
+        let remote_ratchet_key = RemoteRatchetKey::from(remote_ratchet_key);
         let root_key = RemoteRootKey::new(root_key);
         let remote_chain_key = RemoteChainKey::new(remote_chain_key);
 
@@ -143,11 +143,12 @@ impl Session {
         let message = InnerMessage::from(message);
         let decoded = message.decode().unwrap();
 
+        let ratchet_key = RemoteRatchetKey::from(decoded.ratchet_key);
+
         // TODO try to use existing message keys.
 
-        if !self.receiving_ratchet.as_ref().map_or(false, |r| r.belongs_to(&decoded.ratchet_key)) {
-            let (sending_ratchet, mut remote_ratchet) =
-                self.sending_ratchet.advance(decoded.ratchet_key);
+        if !self.receiving_ratchet.as_ref().map_or(false, |r| r.belongs_to(&ratchet_key)) {
+            let (sending_ratchet, mut remote_ratchet) = self.sending_ratchet.advance(ratchet_key);
 
             // TODO don't update the state if the message doesn't decrypt
             let plaintext = remote_ratchet.decrypt(&message, &decoded.ciphertext, decoded.mac);

@@ -49,6 +49,18 @@ impl From<[u8; 32]> for RemoteRatchetKey {
     }
 }
 
+impl From<Curve25591PublicKey> for RemoteRatchetKey {
+    fn from(key: Curve25591PublicKey) -> Self {
+        RemoteRatchetKey(key)
+    }
+}
+
+impl AsRef<Curve25591PublicKey> for RatchetPublicKey {
+    fn as_ref(&self) -> &Curve25591PublicKey {
+        &self.0
+    }
+}
+
 impl From<&RatchetKey> for RatchetPublicKey {
     fn from(r: &RatchetKey) -> Self {
         RatchetPublicKey(Curve25591PublicKey::from(&r.0))

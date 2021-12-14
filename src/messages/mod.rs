@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+mod inner;
+
+pub use inner::{OlmMessage as InnerMessage, PreKeyMessage as InnerPreKeyMessage};
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Message {
     pub(super) inner: String,

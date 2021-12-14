@@ -22,8 +22,8 @@ use types::{Curve25519Keypair, Ed25519Keypair, KeyId, OneTimeKeys};
 use x25519_dalek::{PublicKey as Curve25591PublicKey, StaticSecret as Curve25591SecretKey};
 
 use crate::{
-    messages::PreKeyMessage,
-    session::{InnerMessage, InnerPreKeyMessage, Session},
+    messages::{InnerMessage, InnerPreKeyMessage, PreKeyMessage},
+    session::Session,
     session_keys::SessionKeys,
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
     utilities::{decode, encode},

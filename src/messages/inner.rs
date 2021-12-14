@@ -15,7 +15,6 @@
 use prost::Message;
 use x25519_dalek::PublicKey as Curve25591PublicKey;
 
-use super::ratchet::{RatchetPublicKey, RemoteRatchetKey};
 use crate::cipher::Mac;
 
 trait Encode {
@@ -123,7 +122,7 @@ impl OlmMessage {
         key.copy_from_slice(&inner.ratchet_key);
         mac.copy_from_slice(&self.inner[self.inner.len() - 8..]);
 
-        let key = RemoteRatchetKey::from(key);
+        let key = Curve25591PublicKey::from(key);
         let chain_index = inner.chain_index;
         let ciphertext = inner.ciphertext;
 
@@ -132,7 +131,7 @@ impl OlmMessage {
         Ok(message)
     }
 
-    fn from_parts_untyped(ratchet_key: Vec<u8>, index: u64, ciphertext: Vec<u8>) -> Self {
+    fn from_parts_untyped(ratchet_key: &[u8], index: u64, ciphertext: Vec<u8>) -> Self {
         // Prost optimizes away the chain index if it's 0, libolm can't decode
         // this, so encode our messages the pedestrian way instead.
         let index = index.encode();
@@ -143,7 +142,7 @@ impl OlmMessage {
             [Self::VERSION].as_ref(),
             Self::RATCHET_TAG.as_ref(),
             &ratchet_len,
-            &ratchet_key,
+            ratchet_key,
             Self::INDEX_TAG.as_ref(),
             &index,
             Self::CIPHER_TAG.as_ref(),
@@ -156,12 +155,8 @@ impl OlmMessage {
         Self { inner: message }
     }
 
-    pub(super) fn from_parts(
-        ratchet_key: RatchetPublicKey,
-        index: u64,
-        ciphertext: Vec<u8>,
-    ) -> Self {
-        Self::from_parts_untyped(ratchet_key.to_vec(), index, ciphertext)
+    pub fn from_parts(ratchet_key: &Curve25591PublicKey, index: u64, ciphertext: Vec<u8>) -> Self {
+        Self::from_parts_untyped(ratchet_key.as_bytes(), index, ciphertext)
     }
 }
 
@@ -281,7 +276,7 @@ impl From<Vec<u8>> for PreKeyMessage {
 }
 
 pub(crate) struct DecodedMessage {
-    pub ratchet_key: RemoteRatchetKey,
+    pub ratchet_key: Curve25591PublicKey,
     pub chain_index: u64,
     pub ciphertext: Vec<u8>,
     pub mac: [u8; 8],
@@ -321,8 +316,7 @@ mod test {
         let ratchet_key = b"ratchetkey";
         let ciphertext = b"ciphertext";
 
-        let mut encoded =
-            OlmMessage::from_parts_untyped(ratchet_key.to_vec(), 1, ciphertext.to_vec());
+        let mut encoded = OlmMessage::from_parts_untyped(ratchet_key, 1, ciphertext.to_vec());
 
         assert_eq!(encoded.as_payload_bytes(), message.as_ref());
         encoded.append_mac_bytes(b"MACHEREE");

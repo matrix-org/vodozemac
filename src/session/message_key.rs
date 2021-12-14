@@ -1,5 +1,8 @@
-use super::{messages::OlmMessage, ratchet::RatchetPublicKey};
-use crate::cipher::{Cipher, Mac};
+use super::ratchet::RatchetPublicKey;
+use crate::{
+    cipher::{Cipher, Mac},
+    messages::InnerMessage,
+};
 
 pub(super) struct MessageKey {
     key: [u8; 32],
@@ -17,11 +20,11 @@ impl MessageKey {
         Self { key, ratchet_key, index }
     }
 
-    fn construct_message(self, ciphertext: Vec<u8>) -> OlmMessage {
-        OlmMessage::from_parts(self.ratchet_key, self.index, ciphertext)
+    fn construct_message(self, ciphertext: Vec<u8>) -> InnerMessage {
+        InnerMessage::from_parts(self.ratchet_key.as_ref(), self.index, ciphertext)
     }
 
-    pub fn encrypt(self, plaintext: &[u8]) -> OlmMessage {
+    pub fn encrypt(self, plaintext: &[u8]) -> InnerMessage {
         let cipher = Cipher::new(&self.key);
 
         let ciphertext = cipher.encrypt(plaintext);
@@ -42,7 +45,7 @@ impl RemoteMessageKey {
 
     pub fn decrypt(
         self,
-        message: &OlmMessage,
+        message: &InnerMessage,
         ciphertext: &[u8],
         mac: [u8; Mac::TRUNCATED_LEN],
     ) -> Vec<u8> {

@@ -14,11 +14,10 @@
 
 use super::{
     chain_key::{ChainKey, RemoteChainKey},
-    messages::OlmMessage,
     ratchet::{Ratchet, RatchetPublicKey, RemoteRatchet, RemoteRatchetKey},
     root_key::{RemoteRootKey, RootKey},
 };
-use crate::shared_secret::Shared3DHSecret;
+use crate::{messages::InnerMessage, shared_secret::Shared3DHSecret};
 
 pub(super) enum LocalDoubleRatchet {
     Inactive(InactiveDoubleRatchet),
@@ -96,7 +95,7 @@ impl DoubleRatchet {
         RatchetPublicKey::from(self.dh_ratchet.ratchet_key())
     }
 
-    pub fn encrypt(&mut self, plaintext: &[u8]) -> OlmMessage {
+    pub fn encrypt(&mut self, plaintext: &[u8]) -> InnerMessage {
         let message_key = self.hkdf_ratchet.create_message_key(self.ratchet_key());
 
         message_key.encrypt(plaintext)
@@ -115,7 +114,7 @@ impl RemoteDoubleRatchet {
         RemoteDoubleRatchet { dh_ratchet: remote_ratchet, hkdf_ratchet: chain_key }
     }
 
-    pub fn decrypt(&mut self, message: &OlmMessage, ciphertext: &[u8], mac: [u8; 8]) -> Vec<u8> {
+    pub fn decrypt(&mut self, message: &InnerMessage, ciphertext: &[u8], mac: [u8; 8]) -> Vec<u8> {
         let message_key = self.hkdf_ratchet.create_message_key();
         message_key.decrypt(message, ciphertext, mac)
     }
