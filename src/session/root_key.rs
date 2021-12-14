@@ -9,10 +9,12 @@ use super::{
 const ADVANCEMENT_SEED: &[u8; 11] = b"OLM_RATCHET";
 
 #[derive(PartialEq, Debug)]
-pub struct RootKey(pub [u8; 32]);
+pub(crate) struct RootKey {
+    pub key: [u8; 32],
+}
 
 #[derive(PartialEq, Debug)]
-pub struct RemoteRootKey {
+pub(crate) struct RemoteRootKey {
     pub key: [u8; 32],
 }
 
@@ -43,9 +45,9 @@ impl RemoteRootKey {
         let output = diffie_hellman(&self.key, &ratchet_key, remote_ratchet_key);
 
         let mut chain_key = ChainKey::new([0u8; 32]);
-        let mut root_key = RootKey([0u8; 32]);
+        let mut root_key = RootKey::new([0u8; 32]);
 
-        root_key.0.copy_from_slice(&output[..32]);
+        root_key.key.copy_from_slice(&output[..32]);
         chain_key.fill(&output[32..]);
 
         (root_key, chain_key, ratchet_key)
@@ -54,7 +56,7 @@ impl RemoteRootKey {
 
 impl RootKey {
     pub(super) fn new(bytes: [u8; 32]) -> Self {
-        Self(bytes)
+        Self { key: bytes }
     }
 
     pub(super) fn advance(
@@ -62,10 +64,10 @@ impl RootKey {
         old_ratchet_key: &RatchetKey,
         remote_ratchet_key: &RemoteRatchetKey,
     ) -> (RemoteRootKey, RemoteChainKey) {
-        let output = diffie_hellman(&self.0, old_ratchet_key, remote_ratchet_key);
+        let output = diffie_hellman(&self.key, old_ratchet_key, remote_ratchet_key);
 
         let mut chain_key = RemoteChainKey::new([0u8; 32]);
-        let mut root_key = RemoteRootKey { key: [0u8; 32] };
+        let mut root_key = RemoteRootKey::new([0u8; 32]);
 
         root_key.key.copy_from_slice(&output[..32]);
         chain_key.fill(&output[32..]);
