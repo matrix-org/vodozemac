@@ -15,6 +15,7 @@
 #![allow(dead_code)]
 
 mod account;
+mod cipher;
 mod sas;
 mod session;
 mod utilities;

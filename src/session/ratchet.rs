@@ -1,5 +1,4 @@
 use rand::thread_rng;
-
 use x25519_dalek::{
     PublicKey as Curve25591PublicKey, SharedSecret, StaticSecret as Curve25591SecretKey,
 };
@@ -65,17 +64,11 @@ impl Ratchet {
     pub fn new(root_key: RootKey) -> Self {
         let ratchet_key = RatchetKey::new();
 
-        Self {
-            root_key,
-            ratchet_key,
-        }
+        Self { root_key, ratchet_key }
     }
 
     pub fn new_with_ratchet_key(root_key: RootKey, ratchet_key: RatchetKey) -> Self {
-        Self {
-            root_key,
-            ratchet_key,
-        }
+        Self { root_key, ratchet_key }
     }
 
     pub fn advance(

@@ -14,16 +14,13 @@
 
 use std::collections::HashMap;
 
-use rand::thread_rng;
-
+use dashmap::DashMap;
 use ed25519_dalek::{Keypair, PublicKey as Ed25519PublicKey};
+use rand::thread_rng;
 use x25519_dalek::{PublicKey as Curve25591PublicKey, StaticSecret as Curve25591SecretKey};
 
-use dashmap::DashMap;
-
-use crate::utilities::encode;
-
 use super::session::{OlmMessage, PrekeyMessage, Session, SessionKeys, Shared3DHSecret};
+use crate::utilities::encode;
 
 struct Ed25519Keypair {
     inner: Keypair,
@@ -36,10 +33,7 @@ impl Ed25519Keypair {
         let keypair = Keypair::generate(&mut rng);
         let encoded_public_key = encode(keypair.public.as_bytes());
 
-        Self {
-            inner: keypair,
-            encoded_public_key,
-        }
+        Self { inner: keypair, encoded_public_key }
     }
 }
 
@@ -56,11 +50,7 @@ impl Curve25519Keypair {
         let public_key = Curve25591PublicKey::from(&secret_key);
         let encoded_public_key = encode(public_key.as_bytes());
 
-        Self {
-            secret_key,
-            public_key,
-            encoded_public_key,
-        }
+        Self { secret_key, public_key, encoded_public_key }
     }
 }
 
@@ -145,14 +135,9 @@ impl Account {
         identity_key: &Curve25591PublicKey,
         one_time_key: &Curve25591PublicKey,
     ) -> Shared3DHSecret {
-        let first_secret = self
-            .diffie_helman_key
-            .secret_key
-            .diffie_hellman(one_time_key);
+        let first_secret = self.diffie_helman_key.secret_key.diffie_hellman(one_time_key);
         let second_secret = base_key.diffie_hellman(identity_key);
         let third_secret = base_key.diffie_hellman(one_time_key);
-
-        
 
         Shared3DHSecret::new(first_secret, second_secret, third_secret)
     }
@@ -178,10 +163,7 @@ impl Account {
         let message = PrekeyMessage::from(message);
         let (public_one_time_key, base_key, identity_key, m) = message.decode().unwrap();
 
-        let one_time_key = self
-            .one_time_keys
-            .get_secret_key(public_one_time_key)
-            .unwrap();
+        let one_time_key = self.one_time_keys.get_secret_key(public_one_time_key).unwrap();
 
         let first_secret = one_time_key.diffie_hellman(&identity_key);
         let second_secret = self.diffie_helman_key.secret_key.diffie_hellman(&base_key);
@@ -225,9 +207,10 @@ impl Account {
 
 #[cfg(test)]
 mod test {
+    use olm_rs::{account::OlmAccount, session::OlmMessage};
+
     use super::{Account, Curve25591PublicKey};
     use crate::utilities::{decode, encode};
-    use olm_rs::{account::OlmAccount, session::OlmMessage};
 
     #[test]
     fn test_encryption() {
@@ -236,13 +219,8 @@ mod test {
 
         bob.generate_one_time_keys(1);
 
-        let one_time_key = bob
-            .parsed_one_time_keys()
-            .curve25519()
-            .values()
-            .cloned()
-            .next()
-            .unwrap();
+        let one_time_key =
+            bob.parsed_one_time_keys().curve25519().values().cloned().next().unwrap();
 
         let one_time_key_raw = decode(one_time_key).unwrap();
         let mut one_time_key = [0u8; 32];
@@ -268,9 +246,7 @@ mod test {
             let session = bob
                 .create_inbound_session_from(alice.curve25519_key_encoded(), m)
                 .expect("Can't create an Olm session");
-            let plaintext = session
-                .decrypt(olm_message)
-                .expect("Can't decrypt ciphertext");
+            let plaintext = session.decrypt(olm_message).expect("Can't decrypt ciphertext");
             assert_eq!(message, plaintext);
 
             let second_text = "Here's another secret to everybody";
@@ -278,9 +254,7 @@ mod test {
             let olm_message = encode(olm_message);
             let olm_message = OlmMessage::from_type_and_ciphertext(0, olm_message).unwrap();
 
-            let plaintext = session
-                .decrypt(olm_message)
-                .expect("Can't decrypt second ciphertext");
+            let plaintext = session.decrypt(olm_message).expect("Can't decrypt second ciphertext");
             assert_eq!(second_text, plaintext);
 
             let reply_plain = "Yes, take this, it's dangerous out there";
@@ -301,9 +275,7 @@ mod test {
             let olm_message = encode(olm_message);
             let olm_message = OlmMessage::from_type_and_ciphertext(1, olm_message).unwrap();
 
-            let plaintext = session
-                .decrypt(olm_message)
-                .expect("Can't decrypt second ciphertext");
+            let plaintext = session.decrypt(olm_message).expect("Can't decrypt second ciphertext");
             assert_eq!(last_text, plaintext);
         } else {
             unreachable!();
@@ -319,9 +291,8 @@ mod test {
 
         let one_time_key = bob.one_time_keys().values().cloned().next().unwrap();
 
-        let alice_session = alice
-            .create_outbound_session(bob.curve25519_key_encoded(), &one_time_key)
-            .unwrap();
+        let alice_session =
+            alice.create_outbound_session(bob.curve25519_key_encoded(), &one_time_key).unwrap();
 
         let text = "It's a secret to everybody";
         let (_, message) = alice_session.encrypt(text).to_tuple();

@@ -16,6 +16,7 @@ use prost::Message;
 use x25519_dalek::PublicKey as Curve25591PublicKey;
 
 use super::ratchet::{RatchetPublicKey, RemoteRatchetKey};
+use crate::cipher::Mac;
 
 trait Encode {
     fn encode(self) -> Vec<u8>;
@@ -89,16 +90,21 @@ impl OlmMessage {
 
     pub fn as_payload_bytes(&self) -> &[u8] {
         let end = self.inner.len();
-        &self.inner[..end - 8]
+        &self.inner[..end - Mac::TRUNCATED_LEN]
     }
 
     pub fn into_vec(self) -> Vec<u8> {
         self.inner
     }
 
-    pub fn append_mac(&mut self, mac: &[u8]) {
+    pub(crate) fn append_mac(&mut self, mac: Mac) {
+        let truncated = mac.truncate();
+        self.append_mac_bytes(&truncated)
+    }
+
+    fn append_mac_bytes(&mut self, mac: &[u8; 8]) {
         let end = self.inner.len();
-        self.inner[end - 8..].copy_from_slice(&mac[0..8]);
+        self.inner[end - Mac::TRUNCATED_LEN..].copy_from_slice(mac);
     }
 
     pub(crate) fn decode(&self) -> Result<DecodedMessage, ()> {
@@ -110,7 +116,7 @@ impl OlmMessage {
 
         let inner = InnerMessage::decode(&self.inner[1..self.inner.len() - 8]).unwrap();
 
-        let mut mac = [0u8; 8];
+        let mut mac = [0u8; Mac::TRUNCATED_LEN];
 
         mac.copy_from_slice(&self.inner[self.inner.len() - 8..]);
 
@@ -121,12 +127,7 @@ impl OlmMessage {
         let chain_index = inner.chain_index;
         let ciphertext = inner.ciphertext;
 
-        let decoded = DecodedMessage {
-            ratchet_key: key,
-            chain_index,
-            ciphertext,
-            mac,
-        };
+        let decoded = DecodedMessage { ratchet_key: key, chain_index, ciphertext, mac };
 
         Ok(decoded)
     }
@@ -148,7 +149,7 @@ impl OlmMessage {
             Self::CIPHER_TAG.as_ref(),
             &ciphertext_len,
             &ciphertext,
-            &[0u8; 8],
+            &[0u8; Mac::TRUNCATED_LEN],
         ]
         .concat();
 
@@ -168,7 +169,7 @@ pub(crate) struct DecodedMessage {
     pub ratchet_key: RemoteRatchetKey,
     pub chain_index: u64,
     pub ciphertext: Vec<u8>,
-    pub mac: [u8; 8],
+    pub mac: [u8; Mac::TRUNCATED_LEN],
 }
 
 #[derive(Clone, Debug)]
@@ -221,15 +222,7 @@ impl PrekeyMessage {
 
     pub fn decode(
         self,
-    ) -> Result<
-        (
-            Curve25591PublicKey,
-            Curve25591PublicKey,
-            Curve25591PublicKey,
-            Vec<u8>,
-        ),
-        (),
-    > {
+    ) -> Result<(Curve25591PublicKey, Curve25591PublicKey, Curve25591PublicKey, Vec<u8>), ()> {
         let version = *self.inner.get(0).unwrap();
 
         if version != Self::VERSION {
@@ -259,12 +252,7 @@ impl PrekeyMessage {
         identity_key: Vec<u8>,
         message: Vec<u8>,
     ) -> Self {
-        let message = InnerPreKeyMessage {
-            one_time_key,
-            base_key,
-            identity_key,
-            message,
-        };
+        let message = InnerPreKeyMessage { one_time_key, base_key, identity_key, message };
 
         let mut output: Vec<u8> = vec![0u8; message.encoded_len() + 1];
         output[0] = Self::VERSION;
@@ -319,7 +307,7 @@ mod test {
             OlmMessage::from_parts_untyped(ratchet_key.to_vec(), 1, ciphertext.to_vec());
 
         assert_eq!(encoded.as_payload_bytes(), message.as_ref());
-        encoded.append_mac(b"MACHEREE");
+        encoded.append_mac_bytes(b"MACHEREE");
         assert_eq!(encoded.as_payload_bytes(), message.as_ref());
         assert_eq!(encoded.as_bytes(), message_mac.as_ref());
     }

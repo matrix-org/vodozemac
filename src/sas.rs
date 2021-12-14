@@ -15,7 +15,7 @@
 #![allow(dead_code)]
 
 use hkdf::Hkdf;
-use hmac::{crypto_mac::MacError, Hmac, Mac, NewMac};
+use hmac::{digest::MacError, Hmac, Mac};
 use rand::thread_rng;
 use sha2::Sha256;
 use x25519_dalek::{EphemeralSecret, PublicKey, SharedSecret};
@@ -42,11 +42,7 @@ impl Sas {
         let public_key = PublicKey::from(&secret_key);
         let encoded_public_key = encode(public_key.as_bytes());
 
-        Self {
-            secret_key,
-            public_key,
-            encoded_public_key,
-        }
+        Self { secret_key, public_key, encoded_public_key }
     }
 
     pub fn public_key(&self) -> &str {
@@ -97,28 +93,25 @@ impl EstablishedSas {
         let mut mac = Hmac::<Sha256>::new_from_slice(&mac_key).unwrap();
         mac.update(input.as_bytes());
         let code = decode(code).unwrap();
-        mac.verify(&code)
+        mac.verify_slice(&code)
     }
 }
 
 #[cfg(test)]
 mod test {
-    use super::Sas;
     use olm_rs::sas::OlmSas;
+
+    use super::Sas;
 
     #[test]
     fn generate_bytes() {
         let mut olm = OlmSas::new();
         let dalek = Sas::new();
 
-        olm.set_their_public_key(dalek.public_key().to_string())
-            .unwrap();
+        olm.set_their_public_key(dalek.public_key().to_string()).unwrap();
         let established = dalek.diffie_hellman(olm.public_key());
 
-        assert_eq!(
-            olm.generate_bytes("TEST", 10).unwrap(),
-            established.get_bytes("TEST", 10)
-        );
+        assert_eq!(olm.generate_bytes("TEST", 10).unwrap(), established.get_bytes("TEST", 10));
     }
 
     #[test]
@@ -126,14 +119,10 @@ mod test {
         let mut olm = OlmSas::new();
         let dalek = Sas::new();
 
-        olm.set_their_public_key(dalek.public_key().to_string())
-            .unwrap();
+        olm.set_their_public_key(dalek.public_key().to_string()).unwrap();
         let established = dalek.diffie_hellman(olm.public_key());
 
-        assert_eq!(
-            olm.calculate_mac("", "").unwrap(),
-            established.calculate_mac("", "")
-        );
+        assert_eq!(olm.calculate_mac("", "").unwrap(), established.calculate_mac("", ""));
 
         let olm_mac = olm.calculate_mac("", "").unwrap();
 

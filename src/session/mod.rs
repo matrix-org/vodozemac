@@ -19,16 +19,14 @@ mod messages;
 mod ratchet;
 mod root_key;
 
-use hkdf::Hkdf;
-use sha2::Sha256;
-
-use x25519_dalek::{PublicKey as Curve25591PublicKey, SharedSecret};
-
 use chain_key::{ChainKey, RemoteChainKey};
+use hkdf::Hkdf;
 use message_key::MessageKey;
 pub(super) use messages::{DecodedMessage, OlmMessage, PrekeyMessage};
 use ratchet::{Ratchet, RatchetPublicKey, RemoteRatchet};
 use root_key::RootKey;
+use sha2::Sha256;
+use x25519_dalek::{PublicKey as Curve25591PublicKey, SharedSecret};
 
 use self::{ratchet::RemoteRatchetKey, root_key::RemoteRootKey};
 
@@ -91,11 +89,7 @@ impl SessionKeys {
         ephemeral_key: Curve25591PublicKey,
         one_time_key: Curve25591PublicKey,
     ) -> Self {
-        Self {
-            identity_key,
-            ephemeral_key,
-            one_time_key,
-        }
+        Self { identity_key, ephemeral_key, one_time_key }
     }
 }
 
@@ -180,11 +174,7 @@ impl Session {
 
         // TODO try to use existing message keys.
 
-        if !self
-            .receiving_ratchet
-            .as_ref()
-            .map_or(false, |r| r.belongs_to(&decoded.ratchet_key))
-        {
+        if !self.receiving_ratchet.as_ref().map_or(false, |r| r.belongs_to(&decoded.ratchet_key)) {
             let (sending_ratchet, chain_key, receiving_ratchet, mut receiving_chain_key) =
                 self.sending_ratchet.advance(decoded.ratchet_key.clone());
 
