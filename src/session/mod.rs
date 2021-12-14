@@ -19,6 +19,7 @@ mod message_key;
 mod messages;
 mod ratchet;
 mod root_key;
+mod session_keys;
 mod shared_secret;
 
 pub use chain_key::{ChainKey, RemoteChainKey};
@@ -26,30 +27,14 @@ use double_ratchet::{LocalDoubleRatchet, RemoteDoubleRatchet};
 pub use messages::{OlmMessage as InnerMessage, PreKeyMessage as InnerPreKeyMessage};
 use ratchet::RemoteRatchetKey;
 pub use root_key::{RemoteRootKey, RootKey};
+pub(crate) use session_keys::SessionKeys;
 use sha2::{Digest, Sha256};
 pub use shared_secret::{RemoteShared3DHSecret, Shared3DHSecret};
-use x25519_dalek::PublicKey as Curve25591PublicKey;
 
 use crate::{
     messages::{Message, OlmMessage, PreKeyMessage},
     utilities::{decode, encode},
 };
-
-pub(super) struct SessionKeys {
-    identity_key: Curve25591PublicKey,
-    base_key: Curve25591PublicKey,
-    one_time_key: Curve25591PublicKey,
-}
-
-impl SessionKeys {
-    pub fn new(
-        identity_key: Curve25591PublicKey,
-        base_key: Curve25591PublicKey,
-        one_time_key: Curve25591PublicKey,
-    ) -> Self {
-        Self { identity_key, base_key, one_time_key }
-    }
-}
 
 pub struct Session {
     session_keys: SessionKeys,
@@ -70,6 +55,9 @@ impl Session {
         session_keys: SessionKeys,
     ) -> Self {
         let (root_key, remote_chain_key) = shared_secret.expand();
+
+        let root_key = RemoteRootKey::new(root_key);
+        let remote_chain_key = RemoteChainKey::new(remote_chain_key);
 
         let local_ratchet = LocalDoubleRatchet::inactive(root_key, remote_ratchet_key.clone());
         let remote_ratchet = RemoteDoubleRatchet::new(remote_ratchet_key, remote_chain_key);

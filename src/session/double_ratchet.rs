@@ -16,7 +16,7 @@ use super::{
     chain_key::{ChainKey, RemoteChainKey},
     messages::OlmMessage,
     ratchet::{Ratchet, RatchetPublicKey, RemoteRatchet, RemoteRatchetKey},
-    root_key::RemoteRootKey,
+    root_key::{RemoteRootKey, RootKey},
     shared_secret::Shared3DHSecret,
 };
 
@@ -28,6 +28,9 @@ pub(super) enum LocalDoubleRatchet {
 impl LocalDoubleRatchet {
     pub fn active(shared_secret: Shared3DHSecret) -> Self {
         let (root_key, chain_key) = shared_secret.expand();
+
+        let root_key = RootKey::new(root_key);
+        let chain_key = ChainKey::new(chain_key);
 
         let local_ratchet = Ratchet::new(root_key);
 
