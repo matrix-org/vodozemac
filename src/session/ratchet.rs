@@ -10,7 +10,7 @@ use super::{
 
 pub(super) struct RatchetKey(Curve25591SecretKey);
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub(super) struct RatchetPublicKey(Curve25591PublicKey);
 
 #[derive(Clone, Debug, Hash, PartialEq)]

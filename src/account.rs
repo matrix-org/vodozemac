@@ -12,10 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::{
-    hash_map::{Keys, Values},
-    HashMap,
-};
+use std::collections::HashMap;
 
 use dashmap::DashMap;
 use ed25519_dalek::{Keypair, PublicKey as Ed25519PublicKey, Signer};
@@ -30,52 +27,6 @@ use crate::{
     },
     utilities::{decode, encode},
 };
-
-#[derive(Debug, Clone, PartialEq)]
-#[allow(missing_docs)]
-pub struct IdentityKeys {
-    keys: HashMap<String, String>,
-}
-
-impl IdentityKeys {
-    #[allow(missing_docs)]
-    pub fn keys(&self) -> Keys<'_, String, String> {
-        self.keys.keys()
-    }
-
-    #[allow(missing_docs)]
-    pub fn values(&self) -> Values<'_, String, String> {
-        self.keys.values()
-    }
-
-    #[allow(missing_docs)]
-    pub fn curve25519(&self) -> &str {
-        self.keys.get("curve25519").unwrap()
-    }
-
-    #[allow(missing_docs)]
-    pub fn ed25519(&self) -> &str {
-        self.keys.get("ed25519").unwrap()
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-#[allow(missing_docs)]
-pub struct ParsedOneTimeKeys {
-    keys: HashMap<String, HashMap<String, String>>,
-}
-
-impl ParsedOneTimeKeys {
-    #[allow(missing_docs)]
-    pub fn get(&self, key: &str) -> Option<&HashMap<String, String>> {
-        self.keys.get(key)
-    }
-
-    #[allow(missing_docs)]
-    pub fn curve25519(&self) -> &HashMap<String, String> {
-        self.keys.get("curve25519").unwrap()
-    }
-}
 
 struct Ed25519Keypair {
     inner: Keypair,
@@ -278,17 +229,6 @@ impl Account {
         &self.diffie_helman_key.encoded_public_key
     }
 
-    pub fn identity_keys(&self) -> IdentityKeys {
-        IdentityKeys {
-            keys: vec![
-                ("ed25519".to_string(), self.signing_key.encoded_public_key.clone()),
-                ("curve25519".to_string(), self.diffie_helman_key.encoded_public_key.clone()),
-            ]
-            .into_iter()
-            .collect(),
-        }
-    }
-
     pub fn generate_one_time_keys(&mut self, count: usize) {
         self.one_time_keys.generate(count);
     }
@@ -299,17 +239,6 @@ impl Account {
             .iter()
             .map(|i| (i.key().clone(), encode(i.value().as_bytes())))
             .collect()
-    }
-
-    pub fn parsed_one_time_keys(&self) -> ParsedOneTimeKeys {
-        let keys: HashMap<String, String> =
-            self.one_time_keys().into_iter().map(|(k, v)| (k.into(), v)).collect();
-
-        let mut key_map = HashMap::new();
-
-        key_map.insert("curve25519".to_owned(), keys);
-
-        ParsedOneTimeKeys { keys: key_map }
     }
 
     pub fn mark_keys_as_published(&self) {
