@@ -26,6 +26,7 @@ use double_ratchet::{LocalDoubleRatchet, RemoteDoubleRatchet};
 pub use messages::{OlmMessage as InnerMessage, PreKeyMessage as InnerPreKeyMessage};
 use ratchet::RemoteRatchetKey;
 pub use root_key::{RemoteRootKey, RootKey};
+use sha2::{Digest, Sha256};
 pub use shared_secret::{RemoteShared3DHSecret, Shared3DHSecret};
 use x25519_dalek::PublicKey as Curve25591PublicKey;
 
@@ -60,11 +61,7 @@ impl Session {
     pub(super) fn new(shared_secret: Shared3DHSecret, session_keys: SessionKeys) -> Self {
         let local_ratchet = LocalDoubleRatchet::active(shared_secret);
 
-        Self {
-            session_keys,
-            sending_ratchet: local_ratchet,
-            receiving_ratchet: None,
-        }
+        Self { session_keys, sending_ratchet: local_ratchet, receiving_ratchet: None }
     }
 
     pub(super) fn new_remote(
@@ -93,9 +90,16 @@ impl Session {
         todo!()
     }
 
-    pub fn session_id(&self) -> &str {
-        // TODO
-        "SESSION_ID"
+    pub fn session_id(&self) -> String {
+        let sha = Sha256::new();
+
+        let digest = sha
+            .chain_update(self.session_keys.identity_key.as_bytes())
+            .chain_update(self.session_keys.base_key.as_bytes())
+            .chain_update(self.session_keys.one_time_key.as_bytes())
+            .finalize();
+
+        encode(digest)
     }
 
     pub fn matches_inbound_session_from(

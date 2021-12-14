@@ -197,6 +197,8 @@ mod test {
             let session = bob
                 .create_inbound_session_from(alice.curve25519_key_encoded(), m)
                 .expect("Can't create an Olm session");
+            assert_eq!(alice_session.session_id(), session.session_id());
+
             let plaintext = session.decrypt(olm_message).expect("Can't decrypt ciphertext");
             assert_eq!(message, plaintext);
 
@@ -252,6 +254,8 @@ mod test {
         } else {
             panic!("Got invalid message type from olm_rs");
         };
+
+        assert_eq!(alice_session.session_id(), session.session_id());
 
         let decrypted = session.decrypt(&message);
 
