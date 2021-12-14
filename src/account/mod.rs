@@ -12,10 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+mod types;
+
+use types::{OneTimeKeys, Ed25519Keypair, Curve25519Keypair, KeyId};
+
 use std::collections::HashMap;
 
-use dashmap::DashMap;
-use ed25519_dalek::{Keypair, PublicKey as Ed25519PublicKey, Signer};
+use ed25519_dalek::PublicKey as Ed25519PublicKey;
 use rand::thread_rng;
 use x25519_dalek::{PublicKey as Curve25591PublicKey, StaticSecret as Curve25591SecretKey};
 
@@ -27,96 +30,6 @@ use crate::{
     },
     utilities::{decode, encode},
 };
-
-struct Ed25519Keypair {
-    inner: Keypair,
-    encoded_public_key: String,
-}
-
-impl Ed25519Keypair {
-    fn new() -> Self {
-        let mut rng = thread_rng();
-        let keypair = Keypair::generate(&mut rng);
-        let encoded_public_key = encode(keypair.public.as_bytes());
-
-        Self { inner: keypair, encoded_public_key }
-    }
-
-    fn sign(&self, message: &str) -> String {
-        let signature = self.inner.sign(message.as_bytes());
-        encode(signature.to_bytes())
-    }
-}
-
-struct Curve25519Keypair {
-    secret_key: Curve25591SecretKey,
-    public_key: Curve25591PublicKey,
-    encoded_public_key: String,
-}
-
-impl Curve25519Keypair {
-    fn new() -> Self {
-        let mut rng = thread_rng();
-        let secret_key = Curve25591SecretKey::new(&mut rng);
-        let public_key = Curve25591PublicKey::from(&secret_key);
-        let encoded_public_key = encode(public_key.as_bytes());
-
-        Self { secret_key, public_key, encoded_public_key }
-    }
-}
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct KeyId(String);
-
-impl From<KeyId> for String {
-    fn from(value: KeyId) -> String {
-        value.0
-    }
-}
-
-struct OneTimeKeys {
-    key_id: u64,
-    public_keys: DashMap<KeyId, Curve25591PublicKey>,
-    private_keys: DashMap<KeyId, Curve25591SecretKey>,
-    reverse_public_keys: DashMap<Curve25591PublicKey, KeyId>,
-}
-
-impl OneTimeKeys {
-    fn new() -> Self {
-        Self {
-            key_id: 0,
-            public_keys: DashMap::new(),
-            private_keys: DashMap::new(),
-            reverse_public_keys: DashMap::new(),
-        }
-    }
-
-    fn mark_as_published(&self) {
-        self.public_keys.clear();
-    }
-
-    fn get_secret_key(&self, public_key: Curve25591PublicKey) -> Option<Curve25591SecretKey> {
-        self.reverse_public_keys
-            .remove(&public_key)
-            .and_then(|(_, key_id)| self.private_keys.remove(&key_id).map(|(_, v)| v))
-    }
-
-    fn generate(&mut self, count: usize) {
-        let mut rng = thread_rng();
-
-        for _ in 0..count {
-            let key_id = KeyId(encode(self.key_id.to_le_bytes()));
-            let secret_key = Curve25591SecretKey::new(&mut rng);
-            let public_key = Curve25591PublicKey::from(&secret_key);
-
-            self.private_keys.insert(key_id.clone(), secret_key);
-            self.public_keys.insert(key_id.clone(), public_key);
-            self.reverse_public_keys.insert(public_key, key_id);
-
-            self.key_id += 1;
-        }
-    }
-}
 
 pub struct Account {
     signing_key: Ed25519Keypair,
@@ -157,7 +70,7 @@ impl Account {
 
     /// Get a reference to the account's public ed25519 key
     pub fn ed25519_key(&self) -> &Ed25519PublicKey {
-        &self.signing_key.inner.public
+        self.signing_key.public_key()
     }
 
     pub fn create_outbound_session(&self, identity_key: &str, one_time_key: &str) -> Session {
@@ -181,7 +94,7 @@ impl Account {
         let public_base_key = Curve25591PublicKey::from(&base_key);
 
         let shared_secret = Shared3DHSecret::new(
-            &self.diffie_helman_key.secret_key,
+            self.diffie_helman_key.secret_key(),
             &base_key,
             &identity_key,
             &one_time_key,
@@ -206,7 +119,7 @@ impl Account {
         let one_time_key = self.one_time_keys.get_secret_key(public_one_time_key).unwrap();
 
         let shared_secret = RemoteShared3DHSecret::new(
-            &self.diffie_helman_key.secret_key,
+            self.diffie_helman_key.secret_key(),
             &one_time_key,
             &remote_identity_key,
             &remote_one_time_key,
@@ -220,13 +133,13 @@ impl Account {
 
     /// Get a reference to the account's public curve25519 key
     pub fn curve25519_key(&self) -> &Curve25591PublicKey {
-        &self.diffie_helman_key.public_key
+        self.diffie_helman_key.public_key()
     }
 
     /// Get a reference to the account's public curve25519 key as an unpadded
     /// base64 encoded string.
     pub fn curve25519_key_encoded(&self) -> &str {
-        &self.diffie_helman_key.encoded_public_key
+        self.diffie_helman_key.public_key_encoded()
     }
 
     pub fn generate_one_time_keys(&mut self, count: usize) {
