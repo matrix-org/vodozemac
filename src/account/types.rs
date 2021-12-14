@@ -59,11 +59,11 @@ impl Curve25519Keypair {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub struct KeyId(String);
+pub struct KeyId(u64);
 
 impl From<KeyId> for String {
     fn from(value: KeyId) -> String {
-        value.0
+        encode(value.0.to_le_bytes())
     }
 }
 
@@ -98,7 +98,7 @@ impl OneTimeKeys {
         let mut rng = thread_rng();
 
         for _ in 0..count {
-            let key_id = KeyId(encode(self.key_id.to_le_bytes()));
+            let key_id = KeyId(self.key_id);
             let secret_key = Curve25591SecretKey::new(&mut rng);
             let public_key = Curve25591PublicKey::from(&secret_key);
 
