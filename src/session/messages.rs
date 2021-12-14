@@ -114,11 +114,13 @@ impl OlmMessage {
             return Err(());
         }
 
-        let inner = InnerMessage::decode(&self.inner[1..self.inner.len() - Mac::TRUNCATED_LEN]).unwrap();
+        let inner =
+            InnerMessage::decode(&self.inner[1..self.inner.len() - Mac::TRUNCATED_LEN]).unwrap();
 
         let mut key = [0u8; 32];
-        key.copy_from_slice(&inner.ratchet_key);
         let mut mac = [0u8; Mac::TRUNCATED_LEN];
+
+        key.copy_from_slice(&inner.ratchet_key);
         mac.copy_from_slice(&self.inner[self.inner.len() - 8..]);
 
         let key = RemoteRatchetKey::from(key);

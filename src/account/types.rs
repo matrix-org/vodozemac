@@ -1,5 +1,5 @@
 use dashmap::DashMap;
-use ed25519_dalek::{Keypair, Signer, PublicKey as Ed25519PublicKey};
+use ed25519_dalek::{Keypair, PublicKey as Ed25519PublicKey, Signer};
 use rand::thread_rng;
 use x25519_dalek::{PublicKey as Curve25591PublicKey, StaticSecret as Curve25591SecretKey};
 

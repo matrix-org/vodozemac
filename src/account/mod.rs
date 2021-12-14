@@ -14,12 +14,11 @@
 
 mod types;
 
-use types::{OneTimeKeys, Ed25519Keypair, Curve25519Keypair, KeyId};
-
 use std::collections::HashMap;
 
 use ed25519_dalek::PublicKey as Ed25519PublicKey;
 use rand::thread_rng;
+use types::{Curve25519Keypair, Ed25519Keypair, KeyId, OneTimeKeys};
 use x25519_dalek::{PublicKey as Curve25591PublicKey, StaticSecret as Curve25591SecretKey};
 
 use crate::{
@@ -107,7 +106,7 @@ impl Account {
 
     pub fn create_inbound_session_from(
         &self,
-        _their_identity_key: &str,
+        their_identity_key: &Curve25591PublicKey,
         message: &PreKeyMessage,
     ) -> Session {
         let message = decode(&message.inner).unwrap();
@@ -116,6 +115,12 @@ impl Account {
         let (public_one_time_key, remote_one_time_key, remote_identity_key, m) =
             message.decode().unwrap();
 
+        if their_identity_key != &remote_identity_key {
+            // TODO turn this into an error
+            panic!("Missmatched identity keys");
+        }
+
+        // TODO this one should be an error as well.
         let one_time_key = self.one_time_keys.get_secret_key(public_one_time_key).unwrap();
 
         let shared_secret = RemoteShared3DHSecret::new(
@@ -164,6 +169,7 @@ mod test {
     use olm_rs::{account::OlmAccount, session::OlmMessage};
 
     use super::Account;
+    use crate::utilities::decode;
 
     #[test]
     fn test_encryption() {
@@ -234,8 +240,12 @@ mod test {
 
         let message: crate::messages::OlmMessage = alice_session.encrypt(text).into();
 
+        let mut identity_key = [0u8; 32];
+        identity_key.copy_from_slice(&decode(alice.parsed_identity_keys().curve25519()).unwrap());
+        let identity_key = x25519_dalek::PublicKey::from(identity_key);
+
         let mut session = if let crate::messages::OlmMessage::PreKey(m) = &message {
-            bob.create_inbound_session_from(alice.parsed_identity_keys().curve25519(), m)
+            bob.create_inbound_session_from(&identity_key, m)
         } else {
             panic!("Got invalid message type from olm_rs");
         };
