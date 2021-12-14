@@ -14,68 +14,25 @@
 // limitations under the License.
 
 mod chain_key;
+mod double_ratchet;
 mod message_key;
 mod messages;
 mod ratchet;
 mod root_key;
+mod shared_secret;
 
-use chain_key::{ChainKey, RemoteChainKey};
-use hkdf::Hkdf;
-use message_key::MessageKey;
-pub(super) use messages::{DecodedMessage, OlmMessage, PrekeyMessage};
-use ratchet::{Ratchet, RatchetPublicKey, RemoteRatchet};
-use root_key::RootKey;
-use sha2::Sha256;
-use x25519_dalek::{PublicKey as Curve25591PublicKey, SharedSecret};
+pub use chain_key::{ChainKey, RemoteChainKey};
+use double_ratchet::{LocalDoubleRatchet, RemoteDoubleRatchet};
+pub use messages::{OlmMessage as InnerMessage, PreKeyMessage as InnerPreKeyMessage};
+use ratchet::RemoteRatchetKey;
+pub use root_key::{RemoteRootKey, RootKey};
+pub use shared_secret::{RemoteShared3DHSecret, Shared3DHSecret};
+use x25519_dalek::PublicKey as Curve25591PublicKey;
 
-use self::{ratchet::RemoteRatchetKey, root_key::RemoteRootKey};
-
-pub(super) struct Shared3DHSecret([u8; 96]);
-
-impl Shared3DHSecret {
-    pub fn new(first: SharedSecret, second: SharedSecret, third: SharedSecret) -> Self {
-        let mut secret = Self([0u8; 96]);
-
-        secret.0[0..32].copy_from_slice(first.as_bytes());
-        secret.0[32..64].copy_from_slice(second.as_bytes());
-        secret.0[64..96].copy_from_slice(third.as_bytes());
-
-        secret
-    }
-
-    fn expand(self) -> ([u8; 32], [u8; 32]) {
-        let hkdf: Hkdf<Sha256> = Hkdf::new(Some(&[0]), &self.0);
-        let mut root_key = [0u8; 32];
-        let mut chain_key = [0u8; 32];
-
-        // TODO zeroize this.
-        let mut expanded_keys = [0u8; 64];
-
-        hkdf.expand(b"OLM_ROOT", &mut expanded_keys).unwrap();
-
-        root_key.copy_from_slice(&expanded_keys[0..32]);
-        chain_key.copy_from_slice(&expanded_keys[32..64]);
-
-        (root_key, chain_key)
-    }
-
-    fn expand_into_remote_sub_keys(self) -> (RemoteRootKey, RemoteChainKey) {
-        let (root_key, chain_key) = self.expand();
-        let root_key = RemoteRootKey::new(root_key);
-        let chain_key = RemoteChainKey::new(chain_key);
-
-        (root_key, chain_key)
-    }
-
-    fn expand_into_sub_keys(self) -> (RootKey, ChainKey) {
-        let (root_key, chain_key) = self.expand();
-
-        let root_key = RootKey::new(root_key);
-        let chain_key = ChainKey::new(chain_key);
-
-        (root_key, chain_key)
-    }
-}
+use crate::{
+    messages::{Message, OlmMessage, PreKeyMessage},
+    utilities::{decode, encode},
+};
 
 pub(super) struct SessionKeys {
     identity_key: Curve25591PublicKey,
@@ -84,7 +41,7 @@ pub(super) struct SessionKeys {
 }
 
 impl SessionKeys {
-    pub(super) fn new(
+    pub fn new(
         identity_key: Curve25591PublicKey,
         ephemeral_key: Curve25591PublicKey,
         one_time_key: Curve25591PublicKey,
@@ -95,104 +52,129 @@ impl SessionKeys {
 
 pub struct Session {
     session_keys: Option<SessionKeys>,
-    sending_ratchet: Ratchet,
-    chain_key: ChainKey,
-    receiving_ratchet: Option<RemoteRatchet>,
-    receiving_chain_key: Option<RemoteChainKey>,
+    sending_ratchet: LocalDoubleRatchet,
+    receiving_ratchet: Option<RemoteDoubleRatchet>,
 }
 
 impl Session {
     pub(super) fn new(shared_secret: Shared3DHSecret, session_keys: SessionKeys) -> Self {
-        let (root_key, chain_key) = shared_secret.expand_into_sub_keys();
-
-        let local_ratchet = Ratchet::new(root_key);
+        let local_ratchet = LocalDoubleRatchet::active(shared_secret);
 
         Self {
             session_keys: Some(session_keys),
             sending_ratchet: local_ratchet,
-            chain_key,
             receiving_ratchet: None,
-            receiving_chain_key: None,
         }
     }
 
+    pub fn pickle(&self) -> String {
+        // TODO
+        "SESSION_PICKLE".to_string()
+    }
+
+    pub fn unpickle(_pickle: String) -> Self {
+        todo!()
+    }
+
+    pub fn session_id(&self) -> &str {
+        // TODO
+        "SESSION_ID"
+    }
+
+    pub fn matches_inbound_session_from(
+        &self,
+        _their_identity_key: &str,
+        _message: &PreKeyMessage,
+    ) -> bool {
+        // TODO
+        true
+    }
+
     pub(super) fn new_remote(
-        shared_secret: Shared3DHSecret,
+        shared_secret: RemoteShared3DHSecret,
         remote_ratchet_key: RemoteRatchetKey,
     ) -> Self {
-        let (root_key, remote_chain_key) = shared_secret.expand_into_remote_sub_keys();
+        let (root_key, remote_chain_key) = shared_secret.expand();
 
-        let (root_key, chain_key, ratchet_key) = root_key.advance(&remote_ratchet_key);
-        let local_ratchet = Ratchet::new_with_ratchet_key(root_key, ratchet_key);
-
-        let remote_ratchet = RemoteRatchet::new(remote_ratchet_key);
+        let local_ratchet = LocalDoubleRatchet::inactive(root_key, remote_ratchet_key.clone());
+        let remote_ratchet = RemoteDoubleRatchet::new(remote_ratchet_key, remote_chain_key);
 
         Self {
             session_keys: None,
             sending_ratchet: local_ratchet,
-            chain_key,
             receiving_ratchet: Some(remote_ratchet),
-            receiving_chain_key: Some(remote_chain_key),
         }
     }
 
-    fn ratchet_key(&self) -> RatchetPublicKey {
-        RatchetPublicKey::from(self.sending_ratchet.ratchet_key())
-    }
-
-    fn create_message_key(&mut self) -> MessageKey {
-        self.chain_key.create_message_key(self.ratchet_key())
-    }
-
-    pub fn encrypt(&mut self, plaintext: &[u8]) -> Vec<u8> {
-        let message_key = self.create_message_key();
-        let message = message_key.encrypt(plaintext);
+    pub fn encrypt(&mut self, plaintext: &str) -> OlmMessage {
+        let message = match &mut self.sending_ratchet {
+            LocalDoubleRatchet::Inactive(ratchet) => {
+                let mut ratchet = ratchet.activate();
+                let message = ratchet.encrypt(plaintext.as_bytes());
+                self.sending_ratchet = LocalDoubleRatchet::Active(ratchet);
+                message
+            }
+            LocalDoubleRatchet::Active(ratchet) => ratchet.encrypt(plaintext.as_bytes()),
+        };
 
         if let Some(session_keys) = &self.session_keys {
-            PrekeyMessage::from_parts_untyped_prost(
-                session_keys.one_time_key.as_bytes().to_vec(),
-                session_keys.ephemeral_key.as_bytes().to_vec(),
-                session_keys.identity_key.as_bytes().to_vec(),
+            let message = InnerPreKeyMessage::from_parts(
+                &session_keys.one_time_key,
+                &session_keys.ephemeral_key,
+                &session_keys.identity_key,
                 message.into_vec(),
             )
-            .inner
+            .into_vec();
+
+            OlmMessage::PreKey(PreKeyMessage { inner: encode(message) })
         } else {
-            message.into_vec()
+            let message = message.into_vec();
+            OlmMessage::Normal(Message { inner: encode(message) })
         }
     }
 
-    pub fn decrypt_prekey(&mut self, message: Vec<u8>) -> Vec<u8> {
-        let message = PrekeyMessage::from(message);
-        let (_, _, _, message) = message.decode().unwrap();
+    pub fn decrypt(&mut self, message: &OlmMessage) -> String {
+        let decrypted = match message {
+            OlmMessage::Normal(m) => {
+                let message = decode(&m.inner).unwrap();
+                self.decrypt_normal(message)
+            }
+            OlmMessage::PreKey(m) => {
+                let message = decode(&m.inner).unwrap();
+                self.decrypt_prekey(message)
+            }
+        };
 
-        self.decrypt(message)
+        String::from_utf8_lossy(&decrypted).to_string()
     }
 
-    pub fn decrypt(&mut self, message: Vec<u8>) -> Vec<u8> {
-        let message = OlmMessage::from(message);
+    fn decrypt_prekey(&mut self, message: Vec<u8>) -> Vec<u8> {
+        let message = InnerPreKeyMessage::from(message);
+        let (_, _, _, message) = message.decode().unwrap();
+
+        self.decrypt_normal(message)
+    }
+
+    fn decrypt_normal(&mut self, message: Vec<u8>) -> Vec<u8> {
+        let message = InnerMessage::from(message);
         let decoded = message.decode().unwrap();
 
         // TODO try to use existing message keys.
 
         if !self.receiving_ratchet.as_ref().map_or(false, |r| r.belongs_to(&decoded.ratchet_key)) {
-            let (sending_ratchet, chain_key, receiving_ratchet, mut receiving_chain_key) =
-                self.sending_ratchet.advance(decoded.ratchet_key.clone());
-
-            let message_key = receiving_chain_key.create_message_key();
+            let (sending_ratchet, mut remote_ratchet) =
+                self.sending_ratchet.advance(decoded.ratchet_key);
 
             // TODO don't update the state if the message doesn't decrypt
-            let plaintext = message_key.decrypt(&message, &decoded);
+            let plaintext = remote_ratchet.decrypt(&message, &decoded.ciphertext, decoded.mac);
 
-            self.sending_ratchet = sending_ratchet;
-            self.chain_key = chain_key;
-            self.receiving_ratchet = Some(receiving_ratchet);
-            self.receiving_chain_key = Some(receiving_chain_key);
+            self.sending_ratchet = LocalDoubleRatchet::Inactive(sending_ratchet);
+            self.receiving_ratchet = Some(remote_ratchet);
             self.session_keys = None;
 
             plaintext
-        } else if let Some(ref mut remote_chain_key) = self.receiving_chain_key {
-            let message_key = remote_chain_key.create_message_key();
-            message_key.decrypt(&message, &decoded)
+        } else if let Some(ref mut remote_ratchet) = self.receiving_ratchet {
+            remote_ratchet.decrypt(&message, &decoded.ciphertext, decoded.mac)
         } else {
             todo!()
         }

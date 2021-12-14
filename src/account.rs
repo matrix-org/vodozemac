@@ -12,15 +12,70 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
+use std::collections::{
+    hash_map::{Keys, Values},
+    HashMap,
+};
 
 use dashmap::DashMap;
-use ed25519_dalek::{Keypair, PublicKey as Ed25519PublicKey};
+use ed25519_dalek::{Keypair, PublicKey as Ed25519PublicKey, Signer};
 use rand::thread_rng;
 use x25519_dalek::{PublicKey as Curve25591PublicKey, StaticSecret as Curve25591SecretKey};
 
-use super::session::{OlmMessage, PrekeyMessage, Session, SessionKeys, Shared3DHSecret};
-use crate::utilities::encode;
+use crate::{
+    messages::PreKeyMessage,
+    session::{
+        InnerMessage, InnerPreKeyMessage, RemoteShared3DHSecret, Session, SessionKeys,
+        Shared3DHSecret,
+    },
+    utilities::{decode, encode},
+};
+
+#[derive(Debug, Clone, PartialEq)]
+#[allow(missing_docs)]
+pub struct IdentityKeys {
+    keys: HashMap<String, String>,
+}
+
+impl IdentityKeys {
+    #[allow(missing_docs)]
+    pub fn keys(&self) -> Keys<'_, String, String> {
+        self.keys.keys()
+    }
+
+    #[allow(missing_docs)]
+    pub fn values(&self) -> Values<'_, String, String> {
+        self.keys.values()
+    }
+
+    #[allow(missing_docs)]
+    pub fn curve25519(&self) -> &str {
+        self.keys.get("curve25519").unwrap()
+    }
+
+    #[allow(missing_docs)]
+    pub fn ed25519(&self) -> &str {
+        self.keys.get("ed25519").unwrap()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+#[allow(missing_docs)]
+pub struct ParsedOneTimeKeys {
+    keys: HashMap<String, HashMap<String, String>>,
+}
+
+impl ParsedOneTimeKeys {
+    #[allow(missing_docs)]
+    pub fn get(&self, key: &str) -> Option<&HashMap<String, String>> {
+        self.keys.get(key)
+    }
+
+    #[allow(missing_docs)]
+    pub fn curve25519(&self) -> &HashMap<String, String> {
+        self.keys.get("curve25519").unwrap()
+    }
+}
 
 struct Ed25519Keypair {
     inner: Keypair,
@@ -34,6 +89,11 @@ impl Ed25519Keypair {
         let encoded_public_key = encode(keypair.public.as_bytes());
 
         Self { inner: keypair, encoded_public_key }
+    }
+
+    fn sign(&self, message: &str) -> String {
+        let signature = self.inner.sign(message.as_bytes());
+        encode(signature.to_bytes())
     }
 }
 
@@ -56,6 +116,12 @@ impl Curve25519Keypair {
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct KeyId(String);
+
+impl From<KeyId> for String {
+    fn from(value: KeyId) -> String {
+        value.0
+    }
+}
 
 struct OneTimeKeys {
     key_id: u64,
@@ -84,7 +150,7 @@ impl OneTimeKeys {
             .and_then(|(_, key_id)| self.private_keys.remove(&key_id).map(|(_, v)| v))
     }
 
-    fn generate(&self, count: usize) {
+    fn generate(&mut self, count: usize) {
         let mut rng = thread_rng();
 
         for _ in 0..count {
@@ -95,6 +161,8 @@ impl OneTimeKeys {
             self.private_keys.insert(key_id.clone(), secret_key);
             self.public_keys.insert(key_id.clone(), public_key);
             self.reverse_public_keys.insert(public_key, key_id);
+
+            self.key_id += 1;
         }
     }
 }
@@ -106,6 +174,7 @@ pub struct Account {
 }
 
 impl Account {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
             signing_key: Ed25519Keypair::new(),
@@ -114,64 +183,85 @@ impl Account {
         }
     }
 
-    pub fn from_pickle() -> Self {
-        todo!()
+    pub fn unpickle() -> Self {
+        // TODO
+        Self::new()
     }
 
     pub fn from_libolm_pickle() -> Self {
         todo!()
     }
 
-    pub fn pickle() {}
+    pub fn pickle(&self) -> String {
+        "TEST_PICKLE".to_string()
+    }
+
+    pub fn sign(&self, message: &str) -> String {
+        self.signing_key.sign(message)
+    }
+
+    pub fn max_number_of_one_time_keys(&self) -> usize {
+        50
+    }
 
     /// Get a reference to the account's public ed25519 key
     pub fn ed25519_key(&self) -> &Ed25519PublicKey {
         &self.signing_key.inner.public
     }
 
-    fn calculate_shared_secret(
-        &self,
-        base_key: &Curve25591SecretKey,
-        identity_key: &Curve25591PublicKey,
-        one_time_key: &Curve25591PublicKey,
-    ) -> Shared3DHSecret {
-        let first_secret = self.diffie_helman_key.secret_key.diffie_hellman(one_time_key);
-        let second_secret = base_key.diffie_hellman(identity_key);
-        let third_secret = base_key.diffie_hellman(one_time_key);
+    pub fn create_outbound_session(&self, identity_key: &str, one_time_key: &str) -> Session {
+        let mut id_key = [0u8; 32];
+        let mut one_time = [0u8; 32];
 
-        Shared3DHSecret::new(first_secret, second_secret, third_secret)
-    }
+        // TODO check the length of the string
 
-    pub fn tripple_diffie_hellman(
-        &self,
-        identity_key: &Curve25591PublicKey,
-        one_time_key: Curve25591PublicKey,
-    ) -> Session {
+        let identity_key = decode(identity_key).unwrap();
+        let one_time_key = decode(one_time_key).unwrap();
+
+        id_key.copy_from_slice(&identity_key);
+        one_time.copy_from_slice(&one_time_key);
+
+        let identity_key = Curve25591PublicKey::from(id_key);
+        let one_time_key = Curve25591PublicKey::from(one_time);
+
         let rng = thread_rng();
 
         let base_key = Curve25591SecretKey::new(rng);
         let public_base_key = Curve25591PublicKey::from(&base_key);
 
-        let shared_secret = self.calculate_shared_secret(&base_key, identity_key, &one_time_key);
+        let shared_secret = Shared3DHSecret::new(
+            &self.diffie_helman_key.secret_key,
+            &base_key,
+            &identity_key,
+            &one_time_key,
+        );
 
         let session_keys = SessionKeys::new(*self.curve25519_key(), public_base_key, one_time_key);
 
         Session::new(shared_secret, session_keys)
     }
 
-    pub fn session(&self, message: Vec<u8>) -> Session {
-        let message = PrekeyMessage::from(message);
-        let (public_one_time_key, base_key, identity_key, m) = message.decode().unwrap();
+    pub fn create_inbound_session_from(
+        &self,
+        _their_identity_key: &str,
+        message: &PreKeyMessage,
+    ) -> Session {
+        let message = decode(&message.inner).unwrap();
+        let message = InnerPreKeyMessage::from(message);
+
+        let (public_one_time_key, remote_one_time_key, remote_identity_key, m) =
+            message.decode().unwrap();
 
         let one_time_key = self.one_time_keys.get_secret_key(public_one_time_key).unwrap();
 
-        let first_secret = one_time_key.diffie_hellman(&identity_key);
-        let second_secret = self.diffie_helman_key.secret_key.diffie_hellman(&base_key);
-        let third_secret = one_time_key.diffie_hellman(&base_key);
+        let shared_secret = RemoteShared3DHSecret::new(
+            &self.diffie_helman_key.secret_key,
+            &one_time_key,
+            &remote_identity_key,
+            &remote_one_time_key,
+        );
 
-        let shared_secret = Shared3DHSecret::new(first_secret, second_secret, third_secret);
-
-        let message = OlmMessage::from(m);
+        let message = InnerMessage::from(m);
         let decoded = message.decode().unwrap();
 
         Session::new_remote(shared_secret, decoded.ratchet_key)
@@ -188,7 +278,18 @@ impl Account {
         &self.diffie_helman_key.encoded_public_key
     }
 
-    pub fn generate_one_time_keys(&self, count: usize) {
+    pub fn identity_keys(&self) -> IdentityKeys {
+        IdentityKeys {
+            keys: vec![
+                ("ed25519".to_string(), self.signing_key.encoded_public_key.clone()),
+                ("curve25519".to_string(), self.diffie_helman_key.encoded_public_key.clone()),
+            ]
+            .into_iter()
+            .collect(),
+        }
+    }
+
+    pub fn generate_one_time_keys(&mut self, count: usize) {
         self.one_time_keys.generate(count);
     }
 
@@ -200,6 +301,17 @@ impl Account {
             .collect()
     }
 
+    pub fn parsed_one_time_keys(&self) -> ParsedOneTimeKeys {
+        let keys: HashMap<String, String> =
+            self.one_time_keys().into_iter().map(|(k, v)| (k.into(), v)).collect();
+
+        let mut key_map = HashMap::new();
+
+        key_map.insert("curve25519".to_owned(), keys);
+
+        ParsedOneTimeKeys { keys: key_map }
+    }
+
     pub fn mark_keys_as_published(&self) {
         self.one_time_keys.mark_as_published();
     }
@@ -209,8 +321,7 @@ impl Account {
 mod test {
     use olm_rs::{account::OlmAccount, session::OlmMessage};
 
-    use super::{Account, Curve25591PublicKey};
-    use crate::utilities::{decode, encode};
+    use super::Account;
 
     #[test]
     fn test_encryption() {
@@ -222,24 +333,13 @@ mod test {
         let one_time_key =
             bob.parsed_one_time_keys().curve25519().values().cloned().next().unwrap();
 
-        let one_time_key_raw = decode(one_time_key).unwrap();
-        let mut one_time_key = [0u8; 32];
-        one_time_key.copy_from_slice(&one_time_key_raw);
-
-        let identity_key_raw = decode(bob.parsed_identity_keys().curve25519()).unwrap();
-        let mut identity_key = [0u8; 32];
-        identity_key.copy_from_slice(&identity_key_raw);
-
-        let one_time_key = Curve25591PublicKey::from(one_time_key);
-        let identity_key = Curve25591PublicKey::from(identity_key);
-
-        let mut alice_session = alice.tripple_diffie_hellman(&identity_key, one_time_key);
+        let identity_keys = bob.parsed_identity_keys();
+        let mut alice_session =
+            alice.create_outbound_session(identity_keys.curve25519(), &one_time_key);
 
         let message = "It's a secret to everybody";
 
-        let olm_message = alice_session.encrypt(message.as_bytes());
-        let olm_message = encode(olm_message);
-        let olm_message = OlmMessage::from_type_and_ciphertext(0, olm_message).unwrap();
+        let olm_message: OlmMessage = alice_session.encrypt(message).into();
         bob.mark_keys_as_published();
 
         if let OlmMessage::PreKey(m) = olm_message.clone() {
@@ -250,30 +350,24 @@ mod test {
             assert_eq!(message, plaintext);
 
             let second_text = "Here's another secret to everybody";
-            let olm_message = alice_session.encrypt(second_text.as_bytes());
-            let olm_message = encode(olm_message);
-            let olm_message = OlmMessage::from_type_and_ciphertext(0, olm_message).unwrap();
+            let olm_message = alice_session.encrypt(second_text).into();
 
             let plaintext = session.decrypt(olm_message).expect("Can't decrypt second ciphertext");
             assert_eq!(second_text, plaintext);
 
             let reply_plain = "Yes, take this, it's dangerous out there";
-            let (_, reply) = session.encrypt(reply_plain).to_tuple();
-            let reply = decode(reply).unwrap();
-            let plaintext = String::from_utf8(alice_session.decrypt(reply)).unwrap();
+            let reply = session.encrypt(reply_plain).into();
+            let plaintext = alice_session.decrypt(&reply);
 
             assert_eq!(&plaintext, reply_plain);
 
             let another_reply = "Last one";
-            let (_, reply) = session.encrypt(another_reply).to_tuple();
-            let reply = decode(reply).unwrap();
-            let plaintext = String::from_utf8(alice_session.decrypt(reply)).unwrap();
+            let reply = session.encrypt(another_reply).into();
+            let plaintext = alice_session.decrypt(&reply);
             assert_eq!(&plaintext, another_reply);
 
             let last_text = "Nope, I'll have the last word";
-            let olm_message = alice_session.encrypt(last_text.as_bytes());
-            let olm_message = encode(olm_message);
-            let olm_message = OlmMessage::from_type_and_ciphertext(1, olm_message).unwrap();
+            let olm_message = alice_session.encrypt(last_text).into();
 
             let plaintext = session.decrypt(olm_message).expect("Can't decrypt second ciphertext");
             assert_eq!(last_text, plaintext);
@@ -285,7 +379,7 @@ mod test {
     #[test]
     fn test_inbound_session_creation() {
         let alice = OlmAccount::new();
-        let bob = Account::new();
+        let mut bob = Account::new();
 
         bob.generate_one_time_keys(1);
 
@@ -295,28 +389,16 @@ mod test {
             alice.create_outbound_session(bob.curve25519_key_encoded(), &one_time_key).unwrap();
 
         let text = "It's a secret to everybody";
-        let (_, message) = alice_session.encrypt(text).to_tuple();
-        let message = decode(message).unwrap();
 
-        let mut session = bob.session(message.clone());
+        let message: crate::messages::OlmMessage = alice_session.encrypt(text).into();
 
-        let decrypted = session.decrypt_prekey(message);
+        let mut session = if let crate::messages::OlmMessage::PreKey(m) = &message {
+            bob.create_inbound_session_from(alice.parsed_identity_keys().curve25519(), m)
+        } else {
+            panic!("Got invalid message type from olm_rs");
+        };
 
-        assert_eq!(text, String::from_utf8(decrypted).unwrap());
-
-        let text = "Another secret";
-        let (_, message) = alice_session.encrypt(text).to_tuple();
-        let message = decode(message).unwrap();
-
-        let decrypted = session.decrypt_prekey(message);
-
-        assert_eq!(text, String::from_utf8(decrypted).unwrap());
-
-        let text = "My first reply";
-
-        let message = session.encrypt(text.as_bytes());
-        let message = OlmMessage::from_type_and_ciphertext(1, encode(message)).unwrap();
-        let decrypted = alice_session.decrypt(message).unwrap();
+        let decrypted = session.decrypt(&message);
 
         assert_eq!(text, decrypted);
     }

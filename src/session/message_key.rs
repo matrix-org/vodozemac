@@ -1,5 +1,5 @@
-use super::{messages::OlmMessage, DecodedMessage, RatchetPublicKey};
-use crate::cipher::Cipher;
+use super::{messages::OlmMessage, ratchet::RatchetPublicKey};
+use crate::cipher::{Cipher, Mac};
 
 pub(super) struct MessageKey {
     key: [u8; 32],
@@ -40,10 +40,15 @@ impl RemoteMessageKey {
         Self { key, index }
     }
 
-    pub fn decrypt(self, message: &OlmMessage, decoded_message: &DecodedMessage) -> Vec<u8> {
+    pub fn decrypt(
+        self,
+        message: &OlmMessage,
+        ciphertext: &[u8],
+        mac: [u8; Mac::TRUNCATED_LEN],
+    ) -> Vec<u8> {
         let cipher = Cipher::new(&self.key);
 
-        cipher.verify_mac(message.as_payload_bytes(), &decoded_message.mac).expect("Invalid MAC");
-        cipher.decrypt(&decoded_message.ciphertext).expect("Couldn't decrypt")
+        cipher.verify_mac(message.as_payload_bytes(), &mac).expect("Invalid MAC");
+        cipher.decrypt(ciphertext).expect("Couldn't decrypt")
     }
 }

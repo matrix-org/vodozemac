@@ -8,9 +8,12 @@ use super::{
 
 const ADVANCEMENT_SEED: &[u8; 11] = b"OLM_RATCHET";
 
-pub(super) struct RootKey([u8; 32]);
-pub(super) struct RemoteRootKey {
-    key: [u8; 32],
+#[derive(PartialEq, Debug)]
+pub struct RootKey(pub [u8; 32]);
+
+#[derive(PartialEq, Debug)]
+pub struct RemoteRootKey {
+    pub key: [u8; 32],
 }
 
 fn diffie_hellman(
@@ -32,7 +35,10 @@ impl RemoteRootKey {
         Self { key: bytes }
     }
 
-    pub fn advance(self, remote_ratchet_key: &RemoteRatchetKey) -> (RootKey, ChainKey, RatchetKey) {
+    pub(super) fn advance(
+        &self,
+        remote_ratchet_key: &RemoteRatchetKey,
+    ) -> (RootKey, ChainKey, RatchetKey) {
         let ratchet_key = RatchetKey::new();
         let output = diffie_hellman(&self.key, &ratchet_key, remote_ratchet_key);
 
@@ -51,7 +57,7 @@ impl RootKey {
         Self(bytes)
     }
 
-    pub fn advance(
+    pub(super) fn advance(
         &self,
         old_ratchet_key: &RatchetKey,
         remote_ratchet_key: &RemoteRatchetKey,

@@ -4,8 +4,8 @@ use x25519_dalek::{
 };
 
 use super::{
-    chain_key::{ChainKey, RemoteChainKey},
-    root_key::RootKey,
+    chain_key::RemoteChainKey,
+    root_key::{RemoteRootKey, RootKey},
 };
 
 pub(super) struct RatchetKey(Curve25591SecretKey);
@@ -74,15 +74,13 @@ impl Ratchet {
     pub fn advance(
         &self,
         remote_key: RemoteRatchetKey,
-    ) -> (Ratchet, ChainKey, RemoteRatchet, RemoteChainKey) {
+    ) -> (RemoteRootKey, RemoteRatchet, RemoteChainKey) {
         let (remote_root_key, remote_chain_key) =
             self.root_key.advance(&self.ratchet_key, &remote_key);
 
-        let (root_key, chain_key, ratchet_key) = remote_root_key.advance(&remote_key);
         let remote_ratchet = RemoteRatchet(remote_key);
-        let new_ratchet = Ratchet::new_with_ratchet_key(root_key, ratchet_key);
 
-        (new_ratchet, chain_key, remote_ratchet, remote_chain_key)
+        (remote_root_key, remote_ratchet, remote_chain_key)
     }
 
     pub fn ratchet_key(&self) -> &RatchetKey {

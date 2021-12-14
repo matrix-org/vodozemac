@@ -34,6 +34,12 @@ pub struct EstablishedSas {
     encoded_public_key: String,
 }
 
+impl Default for Sas {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Sas {
     pub fn new() -> Self {
         let rng = thread_rng();

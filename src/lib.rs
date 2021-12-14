@@ -16,6 +16,10 @@
 
 mod account;
 mod cipher;
-mod sas;
+pub mod messages;
+pub mod sas;
 mod session;
 mod utilities;
+
+pub use account::Account;
+pub use session::Session;

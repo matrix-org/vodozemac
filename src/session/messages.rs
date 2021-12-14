@@ -90,7 +90,7 @@ impl OlmMessage {
 
     pub fn as_payload_bytes(&self) -> &[u8] {
         let end = self.inner.len();
-        &self.inner[..end - Mac::TRUNCATED_LEN]
+        &self.inner[..end - 8]
     }
 
     pub fn into_vec(self) -> Vec<u8> {
@@ -102,7 +102,7 @@ impl OlmMessage {
         self.append_mac_bytes(&truncated)
     }
 
-    fn append_mac_bytes(&mut self, mac: &[u8; 8]) {
+    fn append_mac_bytes(&mut self, mac: &[u8; Mac::TRUNCATED_LEN]) {
         let end = self.inner.len();
         self.inner[end - Mac::TRUNCATED_LEN..].copy_from_slice(mac);
     }
@@ -114,22 +114,20 @@ impl OlmMessage {
             return Err(());
         }
 
-        let inner = InnerMessage::decode(&self.inner[1..self.inner.len() - 8]).unwrap();
-
-        let mut mac = [0u8; Mac::TRUNCATED_LEN];
-
-        mac.copy_from_slice(&self.inner[self.inner.len() - 8..]);
+        let inner = InnerMessage::decode(&self.inner[1..self.inner.len() - Mac::TRUNCATED_LEN]).unwrap();
 
         let mut key = [0u8; 32];
         key.copy_from_slice(&inner.ratchet_key);
+        let mut mac = [0u8; Mac::TRUNCATED_LEN];
+        mac.copy_from_slice(&self.inner[self.inner.len() - 8..]);
 
         let key = RemoteRatchetKey::from(key);
         let chain_index = inner.chain_index;
         let ciphertext = inner.ciphertext;
 
-        let decoded = DecodedMessage { ratchet_key: key, chain_index, ciphertext, mac };
+        let message = DecodedMessage { ratchet_key: key, chain_index, ciphertext, mac };
 
-        Ok(decoded)
+        Ok(message)
     }
 
     fn from_parts_untyped(ratchet_key: Vec<u8>, index: u64, ciphertext: Vec<u8>) -> Self {
@@ -165,19 +163,12 @@ impl OlmMessage {
     }
 }
 
-pub(crate) struct DecodedMessage {
-    pub ratchet_key: RemoteRatchetKey,
-    pub chain_index: u64,
-    pub ciphertext: Vec<u8>,
-    pub mac: [u8; Mac::TRUNCATED_LEN],
-}
-
 #[derive(Clone, Debug)]
-pub(crate) struct PrekeyMessage {
+pub struct PreKeyMessage {
     pub(super) inner: Vec<u8>,
 }
 
-impl PrekeyMessage {
+impl PreKeyMessage {
     const VERSION: u8 = 3;
 
     const ONE_TIME_KEY_TAG: &'static [u8; 1] = b"\x0A";
@@ -189,7 +180,7 @@ impl PrekeyMessage {
         self.inner.as_ref()
     }
 
-    pub(super) fn from_parts_untyped(
+    fn from_parts_untyped(
         one_time_key: Vec<u8>,
         base_key: Vec<u8>,
         identity_key: Vec<u8>,
@@ -246,7 +237,25 @@ impl PrekeyMessage {
         Ok((one_time_key, base_key, identity_key, inner.message))
     }
 
-    pub(super) fn from_parts_untyped_prost(
+    pub fn from_parts(
+        one_time_key: &Curve25591PublicKey,
+        base_key: &Curve25591PublicKey,
+        identity_key: &Curve25591PublicKey,
+        message: Vec<u8>,
+    ) -> Self {
+        Self::from_parts_untyped_prost(
+            one_time_key.as_bytes().to_vec(),
+            base_key.as_bytes().to_vec(),
+            identity_key.as_bytes().to_vec(),
+            message,
+        )
+    }
+
+    pub fn into_vec(self) -> Vec<u8> {
+        self.inner
+    }
+
+    fn from_parts_untyped_prost(
         one_time_key: Vec<u8>,
         base_key: Vec<u8>,
         identity_key: Vec<u8>,
@@ -263,10 +272,17 @@ impl PrekeyMessage {
     }
 }
 
-impl From<Vec<u8>> for PrekeyMessage {
+impl From<Vec<u8>> for PreKeyMessage {
     fn from(bytes: Vec<u8>) -> Self {
         Self { inner: bytes }
     }
+}
+
+pub(crate) struct DecodedMessage {
+    pub ratchet_key: RemoteRatchetKey,
+    pub chain_index: u64,
+    pub ciphertext: Vec<u8>,
+    pub mac: [u8; 8],
 }
 
 #[derive(Clone, Message, PartialEq)]
