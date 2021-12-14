@@ -23,7 +23,8 @@ use x25519_dalek::{PublicKey as Curve25591PublicKey, StaticSecret as Curve25591S
 
 use crate::{
     messages::PreKeyMessage,
-    session::{InnerMessage, InnerPreKeyMessage, Session, SessionKeys},
+    session::{InnerMessage, InnerPreKeyMessage, Session},
+    session_keys::SessionKeys,
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
     utilities::{decode, encode},
 };

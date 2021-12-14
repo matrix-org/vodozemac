@@ -1,9 +1,9 @@
 use x25519_dalek::PublicKey as Curve25591PublicKey;
 
 pub(crate) struct SessionKeys {
-    pub(super) identity_key: Curve25591PublicKey,
-    pub(super) base_key: Curve25591PublicKey,
-    pub(super) one_time_key: Curve25591PublicKey,
+    pub(crate) identity_key: Curve25591PublicKey,
+    pub(crate) base_key: Curve25591PublicKey,
+    pub(crate) one_time_key: Curve25591PublicKey,
 }
 
 impl SessionKeys {
