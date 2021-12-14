@@ -82,8 +82,7 @@ impl Session {
     }
 
     pub fn pickle(&self) -> String {
-        // TODO
-        "SESSION_PICKLE".to_string()
+        todo!()
     }
 
     pub fn unpickle(_pickle: String) -> Self {
@@ -100,15 +99,6 @@ impl Session {
             .finalize();
 
         encode(digest)
-    }
-
-    pub fn matches_inbound_session_from(
-        &self,
-        _their_identity_key: &str,
-        _message: &PreKeyMessage,
-    ) -> bool {
-        // TODO
-        true
     }
 
     pub fn encrypt(&mut self, plaintext: &str) -> OlmMessage {
