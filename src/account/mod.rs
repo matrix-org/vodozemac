@@ -35,7 +35,7 @@ use crate::{
 
 pub struct Account {
     signing_key: Ed25519Keypair,
-    diffie_helman_key: Curve25519Keypair,
+    diffie_hellman_key: Curve25519Keypair,
     one_time_keys: OneTimeKeys,
     fallback_keys: FallbackKeys,
 }
@@ -44,7 +44,7 @@ impl Account {
     pub fn new() -> Self {
         Self {
             signing_key: Ed25519Keypair::new(),
-            diffie_helman_key: Curve25519Keypair::new(),
+            diffie_hellman_key: Curve25519Keypair::new(),
             one_time_keys: OneTimeKeys::new(),
             fallback_keys: FallbackKeys::new(),
         }
@@ -57,13 +57,13 @@ impl Account {
 
     /// Get a reference to the account's public curve25519 key
     pub fn curve25519_key(&self) -> &Curve25519PublicKey {
-        self.diffie_helman_key.public_key()
+        self.diffie_hellman_key.public_key()
     }
 
     /// Get a reference to the account's public curve25519 key as an unpadded
     /// base64 encoded string.
     pub fn curve25519_key_encoded(&self) -> &str {
-        self.diffie_helman_key.public_key_encoded()
+        self.diffie_hellman_key.public_key_encoded()
     }
 
     pub fn sign(&self, message: &str) -> String {
@@ -108,7 +108,7 @@ impl Account {
         let public_base_key = Curve25519PublicKey::from(&base_key);
 
         let shared_secret = Shared3DHSecret::new(
-            self.diffie_helman_key.secret_key(),
+            self.diffie_hellman_key.secret_key(),
             &base_key,
             &identity_key,
             &one_time_key,
@@ -152,7 +152,7 @@ impl Account {
         let one_time_key = self.find_one_time_key(&public_one_time_key).unwrap();
 
         let shared_secret = RemoteShared3DHSecret::new(
-            self.diffie_helman_key.secret_key(),
+            self.diffie_hellman_key.secret_key(),
             one_time_key,
             &remote_identity_key,
             &remote_one_time_key,
