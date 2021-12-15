@@ -34,9 +34,17 @@ use crate::{
 };
 
 pub struct Account {
+    /// A permanent Ed25519 key used for signing. Also known as the fingerprint
+    /// key.
     signing_key: Ed25519Keypair,
+    /// The permanent Curve25519 key used for 3DH. Also known as the sender key
+    /// or the identity key.
     diffie_hellman_key: Curve25519Keypair,
+    /// The ephemeral (one-time) Curve25519 keys used as part of the 3DH.
     one_time_keys: OneTimeKeys,
+    /// The ephemeral Curve25519 keys used in lieu of a one-time key as part of
+    /// the 3DH, in case we run out of those. We keep track of both the current
+    /// and the previous fallback key in any given moment.
     fallback_keys: FallbackKeys,
 }
 
