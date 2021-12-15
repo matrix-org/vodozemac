@@ -83,32 +83,14 @@ impl Ratchet {
         Self { root_key, ratchet_key }
     }
 
-    pub fn advance(
-        &self,
-        remote_key: RemoteRatchetKey,
-    ) -> (RemoteRootKey, RemoteRatchet, RemoteChainKey) {
+    pub fn advance(&self, remote_key: RemoteRatchetKey) -> (RemoteRootKey, RemoteChainKey) {
         let (remote_root_key, remote_chain_key) =
             self.root_key.advance(&self.ratchet_key, &remote_key);
 
-        let remote_ratchet = RemoteRatchet(remote_key);
-
-        (remote_root_key, remote_ratchet, remote_chain_key)
+        (remote_root_key, remote_chain_key)
     }
 
     pub fn ratchet_key(&self) -> &RatchetKey {
         &self.ratchet_key
-    }
-}
-
-#[derive(Clone, Debug, Hash)]
-pub(super) struct RemoteRatchet(RemoteRatchetKey);
-
-impl RemoteRatchet {
-    pub fn new(remote_ratchet_key: RemoteRatchetKey) -> Self {
-        Self(remote_ratchet_key)
-    }
-
-    pub fn belongs_to(&self, remote_key: &RemoteRatchetKey) -> bool {
-        &self.0 == remote_key
     }
 }

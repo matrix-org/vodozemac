@@ -21,7 +21,7 @@ mod root_key;
 
 use arrayvec::ArrayVec;
 use chain_key::RemoteChainKey;
-use double_ratchet::{LocalDoubleRatchet, RemoteDoubleRatchet};
+use double_ratchet::{LocalDoubleRatchet, ReceiverChain};
 use ratchet::RemoteRatchetKey;
 use root_key::RemoteRootKey;
 use sha2::{Digest, Sha256};
@@ -34,18 +34,18 @@ use crate::{
     utilities::{decode, encode},
 };
 
-const MAX_REMOTE_RATCHETS: usize = 5;
+const MAX_RECEIVING_CHAINS: usize = 5;
 
-struct RatchetStore {
-    inner: ArrayVec<RemoteDoubleRatchet, MAX_REMOTE_RATCHETS>,
+struct ChainStore {
+    inner: ArrayVec<ReceiverChain, MAX_RECEIVING_CHAINS>,
 }
 
-impl RatchetStore {
+impl ChainStore {
     fn new() -> Self {
         Self { inner: ArrayVec::new() }
     }
 
-    fn push(&mut self, ratchet: RemoteDoubleRatchet) {
+    fn push(&mut self, ratchet: ReceiverChain) {
         if self.inner.is_full() {
             self.inner.pop_at(0);
         }
@@ -57,12 +57,12 @@ impl RatchetStore {
         self.inner.is_empty()
     }
 
-    fn find_ratchet(&mut self, ratchet_key: &RemoteRatchetKey) -> Option<&mut RemoteDoubleRatchet> {
+    fn find_ratchet(&mut self, ratchet_key: &RemoteRatchetKey) -> Option<&mut ReceiverChain> {
         self.inner.iter_mut().find(|r| r.belongs_to(ratchet_key))
     }
 }
 
-impl Default for RatchetStore {
+impl Default for ChainStore {
     fn default() -> Self {
         Self::new()
     }
@@ -71,18 +71,14 @@ impl Default for RatchetStore {
 pub struct Session {
     session_keys: SessionKeys,
     sending_ratchet: LocalDoubleRatchet,
-    receiving_ratchets: RatchetStore,
+    receiving_chains: ChainStore,
 }
 
 impl Session {
     pub(super) fn new(shared_secret: Shared3DHSecret, session_keys: SessionKeys) -> Self {
         let local_ratchet = LocalDoubleRatchet::active(shared_secret);
 
-        Self {
-            session_keys,
-            sending_ratchet: local_ratchet,
-            receiving_ratchets: Default::default(),
-        }
+        Self { session_keys, sending_ratchet: local_ratchet, receiving_chains: Default::default() }
     }
 
     pub(super) fn new_remote(
@@ -97,12 +93,12 @@ impl Session {
         let remote_chain_key = RemoteChainKey::new(remote_chain_key);
 
         let local_ratchet = LocalDoubleRatchet::inactive(root_key, remote_ratchet_key.clone());
-        let remote_ratchet = RemoteDoubleRatchet::new(remote_ratchet_key, remote_chain_key);
+        let remote_ratchet = ReceiverChain::new(remote_ratchet_key, remote_chain_key);
 
-        let mut ratchet_store = RatchetStore::new();
+        let mut ratchet_store = ChainStore::new();
         ratchet_store.push(remote_ratchet);
 
-        Self { session_keys, sending_ratchet: local_ratchet, receiving_ratchets: ratchet_store }
+        Self { session_keys, sending_ratchet: local_ratchet, receiving_chains: ratchet_store }
     }
 
     pub fn pickle(&self) -> String {
@@ -138,7 +134,7 @@ impl Session {
             LocalDoubleRatchet::Active(ratchet) => ratchet.encrypt(plaintext.as_bytes()),
         };
 
-        if self.receiving_ratchets.is_empty() {
+        if self.receiving_chains.is_empty() {
             let message = InnerPreKeyMessage::from_parts(
                 &self.session_keys.one_time_key,
                 &self.session_keys.base_key,
@@ -184,7 +180,7 @@ impl Session {
         let ratchet_key = RemoteRatchetKey::from(decoded.ratchet_key);
 
         // TODO try to use existing message keys.
-        if let Some(ratchet) = self.receiving_ratchets.find_ratchet(&ratchet_key) {
+        if let Some(ratchet) = self.receiving_chains.find_ratchet(&ratchet_key) {
             ratchet.decrypt(&message, &decoded.ciphertext, decoded.mac)
         } else {
             let (sending_ratchet, mut remote_ratchet) = self.sending_ratchet.advance(ratchet_key);
@@ -193,7 +189,7 @@ impl Session {
             let plaintext = remote_ratchet.decrypt(&message, &decoded.ciphertext, decoded.mac);
 
             self.sending_ratchet = LocalDoubleRatchet::Inactive(sending_ratchet);
-            self.receiving_ratchets.push(remote_ratchet);
+            self.receiving_chains.push(remote_ratchet);
 
             plaintext
         }

@@ -14,7 +14,7 @@
 
 use super::{
     chain_key::{ChainKey, RemoteChainKey},
-    ratchet::{Ratchet, RatchetPublicKey, RemoteRatchet, RemoteRatchetKey},
+    ratchet::{Ratchet, RatchetPublicKey, RemoteRatchetKey},
     root_key::{RemoteRootKey, RootKey},
 };
 use crate::{messages::InnerMessage, shared_secret::Shared3DHSecret};
@@ -44,10 +44,7 @@ impl LocalDoubleRatchet {
         Self::Inactive(ratchet)
     }
 
-    pub fn advance(
-        &self,
-        ratchet_key: RemoteRatchetKey,
-    ) -> (InactiveDoubleRatchet, RemoteDoubleRatchet) {
+    pub fn advance(&self, ratchet_key: RemoteRatchetKey) -> (InactiveDoubleRatchet, ReceiverChain) {
         if let LocalDoubleRatchet::Active(ratchet) = self {
             ratchet.advance(ratchet_key)
         } else {
@@ -77,16 +74,11 @@ pub(super) struct DoubleRatchet {
 }
 
 impl DoubleRatchet {
-    pub fn advance(
-        &self,
-        ratchet_key: RemoteRatchetKey,
-    ) -> (InactiveDoubleRatchet, RemoteDoubleRatchet) {
-        let (root_key, remote_ratchet, remote_chain) = self.dh_ratchet.advance(ratchet_key.clone());
+    pub fn advance(&self, ratchet_key: RemoteRatchetKey) -> (InactiveDoubleRatchet, ReceiverChain) {
+        let (root_key, remote_chain) = self.dh_ratchet.advance(ratchet_key.clone());
 
-        let ratchet = InactiveDoubleRatchet { root_key, ratchet_key };
-
-        let remote_ratchet =
-            RemoteDoubleRatchet { dh_ratchet: remote_ratchet, hkdf_ratchet: remote_chain };
+        let ratchet = InactiveDoubleRatchet { root_key, ratchet_key: ratchet_key.clone() };
+        let remote_ratchet = ReceiverChain { ratchet_key, hkdf_ratchet: remote_chain };
 
         (ratchet, remote_ratchet)
     }
@@ -102,16 +94,14 @@ impl DoubleRatchet {
     }
 }
 
-pub(super) struct RemoteDoubleRatchet {
-    dh_ratchet: RemoteRatchet,
+pub(super) struct ReceiverChain {
+    ratchet_key: RemoteRatchetKey,
     hkdf_ratchet: RemoteChainKey,
 }
 
-impl RemoteDoubleRatchet {
+impl ReceiverChain {
     pub fn new(ratchet_key: RemoteRatchetKey, chain_key: RemoteChainKey) -> Self {
-        let remote_ratchet = RemoteRatchet::new(ratchet_key);
-
-        RemoteDoubleRatchet { dh_ratchet: remote_ratchet, hkdf_ratchet: chain_key }
+        ReceiverChain { ratchet_key, hkdf_ratchet: chain_key }
     }
 
     pub fn decrypt(&mut self, message: &InnerMessage, ciphertext: &[u8], mac: [u8; 8]) -> Vec<u8> {
@@ -120,6 +110,6 @@ impl RemoteDoubleRatchet {
     }
 
     pub fn belongs_to(&self, ratchet_key: &RemoteRatchetKey) -> bool {
-        self.dh_ratchet.belongs_to(ratchet_key)
+        &self.ratchet_key == ratchet_key
     }
 }

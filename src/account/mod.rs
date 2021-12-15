@@ -12,17 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod types;
 mod fallback_keys;
 mod one_time_keys;
+mod types;
 
 use std::collections::HashMap;
 
 use ed25519_dalek::PublicKey as Ed25519PublicKey;
-use rand::thread_rng;
-use types::{Curve25519Keypair, Ed25519Keypair, KeyId};
 use fallback_keys::FallbackKeys;
 use one_time_keys::OneTimeKeys;
+use rand::thread_rng;
+use types::{Curve25519Keypair, Ed25519Keypair, KeyId};
 use x25519_dalek::{PublicKey as Curve25519PublicKey, StaticSecret as Curve25519SecretKey};
 
 use crate::{
