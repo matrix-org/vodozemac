@@ -17,12 +17,24 @@ use x25519_dalek::PublicKey as Curve25519PublicKey;
 
 use crate::cipher::Mac;
 
+// The integer encoding logic here has been taken from the integer-encoding[1]
+// crate and is under the MIT license.
+//
+// The MIT License (MIT)
+//
+// Copyright (c) 2016 Google Inc. (lewinb@google.com) -- though not an official
+// Google product or in any way related!
+// Copyright (c) 2018-2020 Lewin Bormann (lbo@spheniscida.de)
+//
+// [1]: https://github.com/dermesser/integer-encoding-rs
 trait Encode {
     fn encode(self) -> Vec<u8>;
 }
 
+/// Most-significant byte, == 0x80
 const MSB: u8 = 0b1000_0000;
 
+/// How many bytes an integer uses when being encoded as a VarInt.
 #[inline]
 fn required_encoded_space_unsigned(mut v: u64) -> usize {
     if v == 0 {
