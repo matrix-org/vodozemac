@@ -59,6 +59,7 @@ impl ChainStore {
         self.inner.is_empty()
     }
 
+    #[cfg(test)]
     pub fn len(&self) -> usize {
         self.inner.len()
     }

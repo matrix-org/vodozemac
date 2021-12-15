@@ -28,16 +28,6 @@ impl RatchetKey {
     }
 }
 
-impl RatchetPublicKey {
-    pub fn as_bytes(&self) -> &[u8] {
-        self.0.as_bytes()
-    }
-
-    pub fn to_vec(&self) -> Vec<u8> {
-        self.0.to_bytes().to_vec()
-    }
-}
-
 impl From<[u8; 32]> for RatchetPublicKey {
     fn from(bytes: [u8; 32]) -> Self {
         RatchetPublicKey(Curve25519PublicKey::from(bytes))

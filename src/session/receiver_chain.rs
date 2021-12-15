@@ -37,10 +37,6 @@ impl MessageKeyStore {
         self.inner.push(message_key)
     }
 
-    fn len(&self) -> usize {
-        self.inner.len()
-    }
-
     fn merge(&mut self, mut store: MessageKeyStore) {
         for key in store.inner.drain(..) {
             self.push(key);

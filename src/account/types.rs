@@ -22,6 +22,10 @@ impl Ed25519Keypair {
         &self.inner.public
     }
 
+    pub fn public_key_encoded(&self) -> &str {
+        &self.encoded_public_key
+    }
+
     pub fn sign(&self, message: &str) -> String {
         let signature = self.inner.sign(message.as_bytes());
         encode(signature.to_bytes())

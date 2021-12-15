@@ -16,7 +16,7 @@ use hkdf::Hkdf;
 use hmac::{digest::MacError, Hmac, Mac};
 use rand::thread_rng;
 use sha2::Sha256;
-use x25519_dalek::{EphemeralSecret, PublicKey, SharedSecret};
+use x25519_dalek::{EphemeralSecret, PublicKey as Curve25519PublicKey, SharedSecret};
 
 use crate::utilities::{decode, encode};
 
@@ -24,14 +24,12 @@ type HmacSha256Key = [u8; 32];
 
 pub struct Sas {
     secret_key: EphemeralSecret,
-    public_key: PublicKey,
+    public_key: Curve25519PublicKey,
     encoded_public_key: String,
 }
 
 pub struct EstablishedSas {
     shared_secret: SharedSecret,
-    public_key: PublicKey,
-    encoded_public_key: String,
 }
 
 impl Default for Sas {
@@ -45,13 +43,17 @@ impl Sas {
         let rng = thread_rng();
 
         let secret_key = EphemeralSecret::new(rng);
-        let public_key = PublicKey::from(&secret_key);
+        let public_key = Curve25519PublicKey::from(&secret_key);
         let encoded_public_key = encode(public_key.as_bytes());
 
         Self { secret_key, public_key, encoded_public_key }
     }
 
-    pub fn public_key(&self) -> &str {
+    pub fn public_key(&self) -> &Curve25519PublicKey {
+        &self.public_key
+    }
+
+    pub fn public_key_encoded(&self) -> &str {
         &self.encoded_public_key
     }
 
@@ -62,14 +64,10 @@ impl Sas {
         // TODO turn the unrwap into an error.
         public_key.copy_from_slice(&decode(other_public_key.as_bytes()).unwrap());
 
-        let public_key = PublicKey::from(public_key);
+        let public_key = Curve25519PublicKey::from(public_key);
         let shared_secret = self.secret_key.diffie_hellman(&public_key);
 
-        EstablishedSas {
-            shared_secret,
-            public_key: self.public_key,
-            encoded_public_key: self.encoded_public_key,
-        }
+        EstablishedSas { shared_secret }
     }
 }
 
@@ -105,14 +103,14 @@ impl EstablishedSas {
         encode(mac.finalize().into_bytes())
     }
 
-    pub fn verify_mac(&self, input: &str, info: &str, code: &str) -> Result<(), MacError> {
+    pub fn verify_mac(&self, input: &str, info: &str, tag: &str) -> Result<(), MacError> {
         // TODO turn this into an error.
-        let code = decode(code).unwrap();
+        let tag = decode(tag).unwrap();
 
         let mut mac = self.get_mac(info);
         mac.update(input.as_bytes());
 
-        mac.verify_slice(&code)
+        mac.verify_slice(&tag)
     }
 }
 
@@ -127,7 +125,7 @@ mod test {
         let mut olm = OlmSas::new();
         let dalek = Sas::new();
 
-        olm.set_their_public_key(dalek.public_key().to_string()).unwrap();
+        olm.set_their_public_key(dalek.public_key_encoded().to_string()).unwrap();
         let established = dalek.diffie_hellman(&olm.public_key());
 
         assert_eq!(olm.generate_bytes("TEST", 10).unwrap(), established.get_bytes("TEST", 10));
@@ -138,7 +136,7 @@ mod test {
         let mut olm = OlmSas::new();
         let dalek = Sas::new();
 
-        olm.set_their_public_key(dalek.public_key().to_string()).unwrap();
+        olm.set_their_public_key(dalek.public_key_encoded().to_string()).unwrap();
         let established = dalek.diffie_hellman(&olm.public_key());
 
         assert_eq!(olm.calculate_mac("", "").unwrap(), established.calculate_mac("", ""));

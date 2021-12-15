@@ -63,6 +63,12 @@ impl Account {
         self.signing_key.public_key()
     }
 
+    /// Get a reference to the account's public ed25519 key as an unpadded
+    /// base64 encoded string.
+    pub fn ed25519_key_encoded(&self) -> &str {
+        self.signing_key.public_key_encoded()
+    }
+
     /// Get a reference to the account's public curve25519 key
     pub fn curve25519_key(&self) -> &Curve25519PublicKey {
         self.diffie_hellman_key.public_key()
