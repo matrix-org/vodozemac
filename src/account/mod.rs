@@ -201,6 +201,10 @@ impl Account {
         }
     }
 
+    pub fn forget_fallback_key(&mut self) -> bool {
+        self.fallback_keys.forget_previous_fallback_key().is_some()
+    }
+
     pub fn mark_keys_as_published(&mut self) {
         self.one_time_keys.mark_as_published();
         self.fallback_keys.mark_as_published();

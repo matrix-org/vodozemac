@@ -71,7 +71,7 @@ impl FallbackKeys {
             .map(|f| f.secret_key())
     }
 
-    pub fn remove_previous_fallback_key(&mut self) -> Option<FallbackKey> {
+    pub fn forget_previous_fallback_key(&mut self) -> Option<FallbackKey> {
         self.previous_fallback_key.take()
     }
 
