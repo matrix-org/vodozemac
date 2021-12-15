@@ -18,7 +18,7 @@ use std::collections::HashMap;
 
 use ed25519_dalek::PublicKey as Ed25519PublicKey;
 use rand::thread_rng;
-use types::{Curve25519Keypair, Ed25519Keypair, KeyId, OneTimeKeys};
+use types::{Curve25519Keypair, Ed25519Keypair, FallbackKeys, KeyId, OneTimeKeys};
 use x25519_dalek::{PublicKey as Curve25591PublicKey, StaticSecret as Curve25591SecretKey};
 
 use crate::{
@@ -33,6 +33,7 @@ pub struct Account {
     signing_key: Ed25519Keypair,
     diffie_helman_key: Curve25519Keypair,
     one_time_keys: OneTimeKeys,
+    fallback_keys: FallbackKeys,
 }
 
 impl Account {
@@ -42,6 +43,7 @@ impl Account {
             signing_key: Ed25519Keypair::new(),
             diffie_helman_key: Curve25519Keypair::new(),
             one_time_keys: OneTimeKeys::new(),
+            fallback_keys: FallbackKeys::new(),
         }
     }
 
@@ -103,8 +105,24 @@ impl Account {
         Session::new(shared_secret, session_keys)
     }
 
-    pub fn create_inbound_session_from(
+    pub fn find_one_time_key(
         &self,
+        public_key: &Curve25591PublicKey,
+    ) -> Option<&Curve25591SecretKey> {
+        self.one_time_keys
+            .get_secret_key(public_key)
+            .or_else(|| self.fallback_keys.get_secret_key(public_key))
+    }
+
+    pub fn remove_one_time_key(
+        &mut self,
+        public_key: &Curve25591PublicKey,
+    ) -> Option<Curve25591SecretKey> {
+        self.one_time_keys.remove_secret_key(public_key)
+    }
+
+    pub fn create_inbound_session_from(
+        &mut self,
         their_identity_key: &Curve25591PublicKey,
         message: &PreKeyMessage,
     ) -> Session {
@@ -120,7 +138,7 @@ impl Account {
         }
 
         // TODO this one should be an error as well.
-        let one_time_key = self.one_time_keys.get_secret_key(public_one_time_key).unwrap();
+        let one_time_key = self.find_one_time_key(&public_one_time_key).unwrap();
 
         let shared_secret = RemoteShared3DHSecret::new(
             self.diffie_helman_key.secret_key(),
@@ -135,7 +153,11 @@ impl Account {
         let message = InnerMessage::from(m);
         let decoded = message.decode().unwrap();
 
-        Session::new_remote(shared_secret, decoded.ratchet_key, session_keys)
+        let session = Session::new_remote(shared_secret, decoded.ratchet_key, session_keys);
+
+        self.remove_one_time_key(&public_one_time_key);
+
+        session
     }
 
     /// Get a reference to the account's public curve25519 key
@@ -157,12 +179,27 @@ impl Account {
         self.one_time_keys
             .public_keys
             .iter()
-            .map(|i| (i.key().clone(), encode(i.value().as_bytes())))
+            .map(|(key_id, key)| (*key_id, encode(key.as_bytes())))
             .collect()
     }
 
-    pub fn mark_keys_as_published(&self) {
+    pub fn generate_fallback_key(&mut self) {
+        self.fallback_keys.generate_fallback_key()
+    }
+
+    pub fn fallback_keys(&self) -> HashMap<KeyId, String> {
+        let fallback_key = self.fallback_keys.unpublished_fallback_key();
+
+        if let Some(fallback_key) = fallback_key {
+            HashMap::from([(fallback_key.key_id(), encode(fallback_key.public_key().as_bytes()))])
+        } else {
+            HashMap::new()
+        }
+    }
+
+    pub fn mark_keys_as_published(&mut self) {
         self.one_time_keys.mark_as_published();
+        self.fallback_keys.mark_as_published();
     }
 }
 
@@ -255,6 +292,42 @@ mod test {
         };
 
         assert_eq!(alice_session.session_id(), session.session_id());
+        assert!(bob.one_time_keys.private_keys.is_empty());
+
+        let decrypted = session.decrypt(&message);
+
+        assert_eq!(text, decrypted);
+    }
+
+    #[test]
+    fn test_inbound_session_creation_using_fallback_keys() {
+        let alice = OlmAccount::new();
+        let mut bob = Account::new();
+
+        bob.generate_fallback_key();
+
+        let one_time_key = bob.fallback_keys().values().cloned().next().unwrap();
+        assert!(bob.one_time_keys.private_keys.is_empty());
+
+        let alice_session =
+            alice.create_outbound_session(bob.curve25519_key_encoded(), &one_time_key).unwrap();
+
+        let text = "It's a secret to everybody";
+
+        let message: crate::messages::OlmMessage = alice_session.encrypt(text).into();
+
+        let mut identity_key = [0u8; 32];
+        identity_key.copy_from_slice(&decode(alice.parsed_identity_keys().curve25519()).unwrap());
+        let identity_key = x25519_dalek::PublicKey::from(identity_key);
+
+        let mut session = if let crate::messages::OlmMessage::PreKey(m) = &message {
+            bob.create_inbound_session_from(&identity_key, m)
+        } else {
+            panic!("Got invalid message type from olm_rs");
+        };
+
+        assert_eq!(alice_session.session_id(), session.session_id());
+        assert!(bob.fallback_keys.fallback_key.is_some());
 
         let decrypted = session.decrypt(&message);
 
