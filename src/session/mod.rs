@@ -24,7 +24,7 @@ use double_ratchet::{LocalDoubleRatchet, RemoteDoubleRatchet};
 use ratchet::RemoteRatchetKey;
 use root_key::RemoteRootKey;
 use sha2::{Digest, Sha256};
-use x25519_dalek::PublicKey as Curve25591PublicKey;
+use x25519_dalek::PublicKey as Curve25519PublicKey;
 
 use crate::{
     messages::{InnerMessage, InnerPreKeyMessage, Message, OlmMessage, PreKeyMessage},
@@ -48,7 +48,7 @@ impl Session {
 
     pub(super) fn new_remote(
         shared_secret: RemoteShared3DHSecret,
-        remote_ratchet_key: Curve25591PublicKey,
+        remote_ratchet_key: Curve25519PublicKey,
         session_keys: SessionKeys,
     ) -> Self {
         let (root_key, remote_chain_key) = shared_secret.expand();

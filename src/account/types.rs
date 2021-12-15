@@ -1,6 +1,6 @@
 use ed25519_dalek::{Keypair, PublicKey as Ed25519PublicKey, Signer};
 use rand::thread_rng;
-use x25519_dalek::{PublicKey as Curve25591PublicKey, StaticSecret as Curve25591SecretKey};
+use x25519_dalek::{PublicKey as Curve25519PublicKey, StaticSecret as Curve25519SecretKey};
 
 use crate::utilities::encode;
 
@@ -29,26 +29,26 @@ impl Ed25519Keypair {
 }
 
 pub(super) struct Curve25519Keypair {
-    secret_key: Curve25591SecretKey,
-    public_key: Curve25591PublicKey,
+    secret_key: Curve25519SecretKey,
+    public_key: Curve25519PublicKey,
     encoded_public_key: String,
 }
 
 impl Curve25519Keypair {
     pub fn new() -> Self {
         let mut rng = thread_rng();
-        let secret_key = Curve25591SecretKey::new(&mut rng);
-        let public_key = Curve25591PublicKey::from(&secret_key);
+        let secret_key = Curve25519SecretKey::new(&mut rng);
+        let public_key = Curve25519PublicKey::from(&secret_key);
         let encoded_public_key = encode(public_key.as_bytes());
 
         Self { secret_key, public_key, encoded_public_key }
     }
 
-    pub fn secret_key(&self) -> &Curve25591SecretKey {
+    pub fn secret_key(&self) -> &Curve25519SecretKey {
         &self.secret_key
     }
 
-    pub fn public_key(&self) -> &Curve25591PublicKey {
+    pub fn public_key(&self) -> &Curve25519PublicKey {
         &self.public_key
     }
 

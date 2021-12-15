@@ -23,7 +23,7 @@ use rand::thread_rng;
 use types::{Curve25519Keypair, Ed25519Keypair, KeyId};
 use fallback_keys::FallbackKeys;
 use one_time_keys::OneTimeKeys;
-use x25519_dalek::{PublicKey as Curve25591PublicKey, StaticSecret as Curve25591SecretKey};
+use x25519_dalek::{PublicKey as Curve25519PublicKey, StaticSecret as Curve25519SecretKey};
 
 use crate::{
     messages::{InnerMessage, InnerPreKeyMessage, PreKeyMessage},
@@ -89,13 +89,13 @@ impl Account {
         id_key.copy_from_slice(&identity_key);
         one_time.copy_from_slice(&one_time_key);
 
-        let identity_key = Curve25591PublicKey::from(id_key);
-        let one_time_key = Curve25591PublicKey::from(one_time);
+        let identity_key = Curve25519PublicKey::from(id_key);
+        let one_time_key = Curve25519PublicKey::from(one_time);
 
         let rng = thread_rng();
 
-        let base_key = Curve25591SecretKey::new(rng);
-        let public_base_key = Curve25591PublicKey::from(&base_key);
+        let base_key = Curve25519SecretKey::new(rng);
+        let public_base_key = Curve25519PublicKey::from(&base_key);
 
         let shared_secret = Shared3DHSecret::new(
             self.diffie_helman_key.secret_key(),
@@ -111,8 +111,8 @@ impl Account {
 
     pub fn find_one_time_key(
         &self,
-        public_key: &Curve25591PublicKey,
-    ) -> Option<&Curve25591SecretKey> {
+        public_key: &Curve25519PublicKey,
+    ) -> Option<&Curve25519SecretKey> {
         self.one_time_keys
             .get_secret_key(public_key)
             .or_else(|| self.fallback_keys.get_secret_key(public_key))
@@ -120,14 +120,14 @@ impl Account {
 
     pub fn remove_one_time_key(
         &mut self,
-        public_key: &Curve25591PublicKey,
-    ) -> Option<Curve25591SecretKey> {
+        public_key: &Curve25519PublicKey,
+    ) -> Option<Curve25519SecretKey> {
         self.one_time_keys.remove_secret_key(public_key)
     }
 
     pub fn create_inbound_session_from(
         &mut self,
-        their_identity_key: &Curve25591PublicKey,
+        their_identity_key: &Curve25519PublicKey,
         message: &PreKeyMessage,
     ) -> Session {
         let message = decode(&message.inner).unwrap();
@@ -165,7 +165,7 @@ impl Account {
     }
 
     /// Get a reference to the account's public curve25519 key
-    pub fn curve25519_key(&self) -> &Curve25591PublicKey {
+    pub fn curve25519_key(&self) -> &Curve25519PublicKey {
         self.diffie_helman_key.public_key()
     }
 

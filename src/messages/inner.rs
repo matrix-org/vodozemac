@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use prost::Message;
-use x25519_dalek::PublicKey as Curve25591PublicKey;
+use x25519_dalek::PublicKey as Curve25519PublicKey;
 
 use crate::cipher::Mac;
 
@@ -122,7 +122,7 @@ impl OlmMessage {
         key.copy_from_slice(&inner.ratchet_key);
         mac.copy_from_slice(&self.inner[self.inner.len() - 8..]);
 
-        let key = Curve25591PublicKey::from(key);
+        let key = Curve25519PublicKey::from(key);
         let chain_index = inner.chain_index;
         let ciphertext = inner.ciphertext;
 
@@ -155,7 +155,7 @@ impl OlmMessage {
         Self { inner: message }
     }
 
-    pub fn from_parts(ratchet_key: &Curve25591PublicKey, index: u64, ciphertext: Vec<u8>) -> Self {
+    pub fn from_parts(ratchet_key: &Curve25519PublicKey, index: u64, ciphertext: Vec<u8>) -> Self {
         Self::from_parts_untyped(ratchet_key.as_bytes(), index, ciphertext)
     }
 }
@@ -210,7 +210,7 @@ impl PreKeyMessage {
 
     pub fn decode(
         self,
-    ) -> Result<(Curve25591PublicKey, Curve25591PublicKey, Curve25591PublicKey, Vec<u8>), ()> {
+    ) -> Result<(Curve25519PublicKey, Curve25519PublicKey, Curve25519PublicKey, Vec<u8>), ()> {
         let version = *self.inner.get(0).unwrap();
 
         if version != Self::VERSION {
@@ -227,17 +227,17 @@ impl PreKeyMessage {
         base_key.copy_from_slice(&inner.base_key);
         identity_key.copy_from_slice(&inner.identity_key);
 
-        let one_time_key = Curve25591PublicKey::from(one_time_key);
-        let base_key = Curve25591PublicKey::from(base_key);
-        let identity_key = Curve25591PublicKey::from(identity_key);
+        let one_time_key = Curve25519PublicKey::from(one_time_key);
+        let base_key = Curve25519PublicKey::from(base_key);
+        let identity_key = Curve25519PublicKey::from(identity_key);
 
         Ok((one_time_key, base_key, identity_key, inner.message))
     }
 
     pub fn from_parts(
-        one_time_key: &Curve25591PublicKey,
-        base_key: &Curve25591PublicKey,
-        identity_key: &Curve25591PublicKey,
+        one_time_key: &Curve25519PublicKey,
+        base_key: &Curve25519PublicKey,
+        identity_key: &Curve25519PublicKey,
         message: Vec<u8>,
     ) -> Self {
         Self::from_parts_untyped_prost(
@@ -276,7 +276,7 @@ impl From<Vec<u8>> for PreKeyMessage {
 }
 
 pub(crate) struct DecodedMessage {
-    pub ratchet_key: Curve25591PublicKey,
+    pub ratchet_key: Curve25519PublicKey,
     pub chain_index: u64,
     pub ciphertext: Vec<u8>,
     pub mac: [u8; 8],

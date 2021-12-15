@@ -1,27 +1,27 @@
 use rand::thread_rng;
-use x25519_dalek::{PublicKey as Curve25591PublicKey, StaticSecret as Curve25591SecretKey};
+use x25519_dalek::{PublicKey as Curve25519PublicKey, StaticSecret as Curve25519SecretKey};
 
 use super::types::KeyId;
 
 pub(super) struct FallbackKey {
     key_id: KeyId,
-    key: Curve25591SecretKey,
+    key: Curve25519SecretKey,
     published: bool,
 }
 
 impl FallbackKey {
     fn new(key_id: KeyId) -> Self {
         let mut rng = thread_rng();
-        let key = Curve25591SecretKey::new(&mut rng);
+        let key = Curve25519SecretKey::new(&mut rng);
 
         Self { key_id, key, published: false }
     }
 
-    pub fn public_key(&self) -> Curve25591PublicKey {
-        Curve25591PublicKey::from(&self.key)
+    pub fn public_key(&self) -> Curve25519PublicKey {
+        Curve25519PublicKey::from(&self.key)
     }
 
-    pub fn secret_key(&self) -> &Curve25591SecretKey {
+    pub fn secret_key(&self) -> &Curve25519SecretKey {
         &self.key
     }
 
@@ -61,7 +61,7 @@ impl FallbackKeys {
         self.fallback_key = Some(FallbackKey::new(key_id))
     }
 
-    pub fn get_secret_key(&self, public_key: &Curve25591PublicKey) -> Option<&Curve25591SecretKey> {
+    pub fn get_secret_key(&self, public_key: &Curve25519PublicKey) -> Option<&Curve25519SecretKey> {
         self.fallback_key
             .as_ref()
             .filter(|f| f.public_key() == *public_key)

@@ -1,6 +1,6 @@
 use rand::thread_rng;
 use x25519_dalek::{
-    PublicKey as Curve25591PublicKey, SharedSecret, StaticSecret as Curve25591SecretKey,
+    PublicKey as Curve25519PublicKey, SharedSecret, StaticSecret as Curve25519SecretKey,
 };
 
 use super::{
@@ -8,18 +8,18 @@ use super::{
     root_key::{RemoteRootKey, RootKey},
 };
 
-pub(super) struct RatchetKey(Curve25591SecretKey);
+pub(super) struct RatchetKey(Curve25519SecretKey);
 
 #[derive(Debug, PartialEq)]
-pub(super) struct RatchetPublicKey(Curve25591PublicKey);
+pub(super) struct RatchetPublicKey(Curve25519PublicKey);
 
 #[derive(Clone, Debug, Hash, PartialEq)]
-pub struct RemoteRatchetKey(Curve25591PublicKey);
+pub struct RemoteRatchetKey(Curve25519PublicKey);
 
 impl RatchetKey {
     pub fn new() -> Self {
         let rng = thread_rng();
-        Self(Curve25591SecretKey::new(rng))
+        Self(Curve25519SecretKey::new(rng))
     }
 
     pub fn diffie_hellman(&self, other: &RemoteRatchetKey) -> SharedSecret {
@@ -39,31 +39,31 @@ impl RatchetPublicKey {
 
 impl From<[u8; 32]> for RatchetPublicKey {
     fn from(bytes: [u8; 32]) -> Self {
-        RatchetPublicKey(Curve25591PublicKey::from(bytes))
+        RatchetPublicKey(Curve25519PublicKey::from(bytes))
     }
 }
 
 impl From<[u8; 32]> for RemoteRatchetKey {
     fn from(bytes: [u8; 32]) -> Self {
-        RemoteRatchetKey(Curve25591PublicKey::from(bytes))
+        RemoteRatchetKey(Curve25519PublicKey::from(bytes))
     }
 }
 
-impl From<Curve25591PublicKey> for RemoteRatchetKey {
-    fn from(key: Curve25591PublicKey) -> Self {
+impl From<Curve25519PublicKey> for RemoteRatchetKey {
+    fn from(key: Curve25519PublicKey) -> Self {
         RemoteRatchetKey(key)
     }
 }
 
-impl AsRef<Curve25591PublicKey> for RatchetPublicKey {
-    fn as_ref(&self) -> &Curve25591PublicKey {
+impl AsRef<Curve25519PublicKey> for RatchetPublicKey {
+    fn as_ref(&self) -> &Curve25519PublicKey {
         &self.0
     }
 }
 
 impl From<&RatchetKey> for RatchetPublicKey {
     fn from(r: &RatchetKey) -> Self {
-        RatchetPublicKey(Curve25591PublicKey::from(&r.0))
+        RatchetPublicKey(Curve25519PublicKey::from(&r.0))
     }
 }
 
