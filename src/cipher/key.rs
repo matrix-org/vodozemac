@@ -1,12 +1,10 @@
 use aes::{cipher::generic_array::GenericArray, Aes256, NewBlockCipher};
 use block_modes::{block_padding::Pkcs7, BlockMode, Cbc};
 use hkdf::Hkdf;
-use hmac::Hmac;
 use sha2::Sha256;
 use zeroize::Zeroize;
 
 type Aes256Cbc = Cbc<Aes256, Pkcs7>;
-type HmacSha256 = Hmac<Sha256>;
 
 type Aes256Key = GenericArray<u8, <Aes256 as NewBlockCipher>::KeySize>;
 type Aes256Iv = GenericArray<u8, <Aes256Cbc as BlockMode<Aes256, Pkcs7>>::IvSize>;
@@ -22,14 +20,14 @@ impl Drop for ExpandedKeys {
 }
 
 impl ExpandedKeys {
-    const HMAC_INFO: &'static [u8] = b"OLM_KEYS";
+    const HKDF_INFO: &'static [u8] = b"OLM_KEYS";
 
     fn new(message_key: &[u8; 32]) -> Self {
         let mut expanded_keys = [0u8; 80];
 
         let hkdf: Hkdf<Sha256> = Hkdf::new(Some(&[0]), message_key);
 
-        hkdf.expand(Self::HMAC_INFO, &mut expanded_keys).expect("Can't expand message key");
+        hkdf.expand(Self::HKDF_INFO, &mut expanded_keys).expect("Can't expand message key");
 
         Self(expanded_keys)
     }

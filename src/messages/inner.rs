@@ -21,8 +21,7 @@ trait Encode {
     fn encode(self) -> Vec<u8>;
 }
 
-pub const MSB: u8 = 0b1000_0000;
-const DROP_MSB: u8 = 0b0111_1111;
+const MSB: u8 = 0b1000_0000;
 
 #[inline]
 fn required_encoded_space_unsigned(mut v: u64) -> usize {
@@ -168,44 +167,8 @@ pub struct PreKeyMessage {
 impl PreKeyMessage {
     const VERSION: u8 = 3;
 
-    const ONE_TIME_KEY_TAG: &'static [u8; 1] = b"\x0A";
-    const BASE_KEY_TAG: &'static [u8; 1] = b"\x12";
-    const IDENTITY_KEY_TAG: &'static [u8; 1] = b"\x1A";
-    const MESSAGE_TAG: &'static [u8; 1] = b"\x22";
-
     pub fn as_bytes(&self) -> &[u8] {
         self.inner.as_ref()
-    }
-
-    fn from_parts_untyped(
-        one_time_key: Vec<u8>,
-        base_key: Vec<u8>,
-        identity_key: Vec<u8>,
-        message: Vec<u8>,
-    ) -> Self {
-        let one_time_key_len = one_time_key.len().encode();
-        let base_key_len = base_key.len().encode();
-        let identity_key_len = identity_key.len().encode();
-        let message_len = message.len().encode();
-
-        let message = [
-            [Self::VERSION].as_ref(),
-            Self::ONE_TIME_KEY_TAG,
-            one_time_key_len.as_slice(),
-            &one_time_key,
-            Self::BASE_KEY_TAG,
-            base_key_len.as_slice(),
-            &base_key,
-            Self::IDENTITY_KEY_TAG,
-            identity_key_len.as_slice(),
-            &identity_key,
-            Self::MESSAGE_TAG,
-            message_len.as_slice(),
-            &message,
-        ]
-        .concat();
-
-        Self { inner: message }
     }
 
     pub fn decode(
