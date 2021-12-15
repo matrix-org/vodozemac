@@ -1,4 +1,4 @@
-// Copyright 2021 Damir Jelić
+// Copyright 2021 Damir Jelić, Denis Kasak
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,8 +16,9 @@ use hkdf::Hkdf;
 use hmac::{digest::MacError, Hmac, Mac};
 use rand::thread_rng;
 use sha2::Sha256;
-use x25519_dalek::{EphemeralSecret, PublicKey as Curve25519PublicKey, SharedSecret};
+use x25519_dalek::{EphemeralSecret, SharedSecret};
 
+use crate::Curve25519PublicKey;
 use crate::utilities::{base64_decode, base64_encode};
 
 type HmacSha256Key = [u8; 32];
@@ -65,7 +66,7 @@ impl Sas {
         public_key.copy_from_slice(&base64_decode(other_public_key.as_bytes()).unwrap());
 
         let public_key = Curve25519PublicKey::from(public_key);
-        let shared_secret = self.secret_key.diffie_hellman(&public_key);
+        let shared_secret = self.secret_key.diffie_hellman(&public_key.inner);
 
         EstablishedSas { shared_secret }
     }

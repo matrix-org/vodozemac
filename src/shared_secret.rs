@@ -1,7 +1,9 @@
 use hkdf::Hkdf;
 use sha2::Sha256;
-use x25519_dalek::{PublicKey, SharedSecret, StaticSecret};
+use x25519_dalek::{SharedSecret, StaticSecret};
 use zeroize::Zeroize;
+
+use crate::Curve25519PublicKey as PublicKey;
 
 #[derive(Zeroize)]
 pub struct Shared3DHSecret([u8; 96]);
@@ -60,9 +62,9 @@ impl RemoteShared3DHSecret {
         remote_identity_key: &PublicKey,
         remote_one_time_key: &PublicKey,
     ) -> Self {
-        let first_secret = one_time_key.diffie_hellman(remote_identity_key);
-        let second_secret = identity_key.diffie_hellman(remote_one_time_key);
-        let third_secret = one_time_key.diffie_hellman(remote_one_time_key);
+        let first_secret = one_time_key.diffie_hellman(&remote_identity_key.inner);
+        let second_secret = identity_key.diffie_hellman(&remote_one_time_key.inner);
+        let third_secret = one_time_key.diffie_hellman(&remote_one_time_key.inner);
 
         Self(merge_secrets(first_secret, second_secret, third_secret))
     }
@@ -79,9 +81,9 @@ impl Shared3DHSecret {
         remote_identity_key: &PublicKey,
         remote_one_time_key: &PublicKey,
     ) -> Self {
-        let first_secret = identity_key.diffie_hellman(remote_one_time_key);
-        let second_secret = one_time_key.diffie_hellman(remote_identity_key);
-        let third_secret = one_time_key.diffie_hellman(remote_one_time_key);
+        let first_secret = identity_key.diffie_hellman(&remote_one_time_key.inner);
+        let second_secret = one_time_key.diffie_hellman(&remote_identity_key.inner);
+        let third_secret = one_time_key.diffie_hellman(&remote_one_time_key.inner);
 
         Self(merge_secrets(first_secret, second_secret, third_secret))
     }
@@ -94,9 +96,10 @@ impl Shared3DHSecret {
 #[cfg(test)]
 mod test {
     use rand::thread_rng;
-    use x25519_dalek::{PublicKey, StaticSecret};
+    use x25519_dalek::StaticSecret;
 
     use super::{RemoteShared3DHSecret, Shared3DHSecret};
+    use crate::Curve25519PublicKey as PublicKey;
 
     #[test]
     fn tripple_diffie_hellman() {

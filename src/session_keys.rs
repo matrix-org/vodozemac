@@ -1,4 +1,4 @@
-use x25519_dalek::PublicKey as Curve25519PublicKey;
+use crate::Curve25519PublicKey;
 
 pub(crate) struct SessionKeys {
     pub(crate) identity_key: Curve25519PublicKey,

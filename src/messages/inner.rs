@@ -13,9 +13,8 @@
 // limitations under the License.
 
 use prost::Message;
-use x25519_dalek::PublicKey as Curve25519PublicKey;
 
-use crate::cipher::Mac;
+use crate::{cipher::Mac, Curve25519PublicKey};
 
 // The integer encoding logic here has been taken from the integer-encoding[1]
 // crate and is under the MIT license.

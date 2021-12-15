@@ -1,8 +1,25 @@
+// Copyright 2021 Denis Kasak, Damir Jelić
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+use std::{error::Error, fmt::Display};
+
 use ed25519_dalek::{Keypair, PublicKey as Ed25519PublicKey, Signer};
 use rand::thread_rng;
-use x25519_dalek::{PublicKey as Curve25519PublicKey, StaticSecret as Curve25519SecretKey};
+use x25519_dalek::{PublicKey, StaticSecret as Curve25519SecretKey, EphemeralSecret};
+use zeroize::Zeroize;
 
-use crate::utilities::base64_encode;
+use crate::utilities::{base64_decode, base64_encode, DecodeError};
 
 pub(super) struct Ed25519Keypair {
     inner: Keypair,
@@ -69,3 +86,81 @@ impl From<KeyId> for String {
         base64_encode(value.0.to_le_bytes())
     }
 }
+
+#[derive(PartialEq, Eq, Hash, Copy, Clone, Debug, Zeroize)]
+pub struct Curve25519PublicKey {
+    pub(crate) inner: PublicKey,
+}
+
+impl Curve25519PublicKey {
+    pub fn new(private_key: [u8; 32]) -> Curve25519PublicKey {
+        Self { inner: PublicKey::from(private_key) }
+    }
+
+    /// Convert this public key to a byte array.
+    #[inline]
+    pub fn to_bytes(&self) -> [u8; 32] {
+        self.inner.to_bytes()
+    }
+
+    /// View this public key as a byte array.
+    #[inline]
+    pub fn as_bytes(&self) -> &[u8; 32] {
+        self.inner.as_bytes()
+    }
+
+    pub fn from_base64(base64_key: &str) -> Result<Curve25519PublicKey, Curve25519KeyError> {
+        match base64_decode(base64_key) {
+            Ok(key_vec) => {
+                if key_vec.len() == 32 {
+                    let mut key = [0u8; 32];
+                    key.copy_from_slice(&key_vec);
+                    Ok(Self::from(key))
+                } else {
+                    Err(Curve25519KeyError::InvalidKeyLength)
+                }
+            }
+
+            Err(e) => Err(Curve25519KeyError::Base64Error(e)),
+        }
+    }
+}
+
+impl From<[u8; 32]> for Curve25519PublicKey {
+    fn from(bytes: [u8; 32]) -> Curve25519PublicKey {
+        Curve25519PublicKey { inner: PublicKey::from(bytes) }
+    }
+}
+
+impl<'a> From<&'a Curve25519SecretKey> for Curve25519PublicKey {
+    fn from(secret: &'a Curve25519SecretKey) -> Curve25519PublicKey {
+        Curve25519PublicKey { inner: PublicKey::from(secret) }
+    }
+}
+
+impl<'a> From<&'a EphemeralSecret> for Curve25519PublicKey {
+    fn from(secret: &'a EphemeralSecret) -> Curve25519PublicKey {
+        Curve25519PublicKey { inner: PublicKey::from(secret) }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Curve25519KeyError {
+    Base64Error(DecodeError),
+    InvalidKeyLength,
+}
+
+impl Display for Curve25519KeyError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Curve25519KeyError::Base64Error(err) => {
+                write!(f, "Error parsing Curve25519 key from base64: {}", err)
+            }
+            Curve25519KeyError::InvalidKeyLength => {
+                write!(f, "Error parsing Curve25519 key from base64: invalid number of bytes")
+            }
+        }
+    }
+}
+
+impl Error for Curve25519KeyError {}

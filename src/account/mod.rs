@@ -23,8 +23,9 @@ use fallback_keys::FallbackKeys;
 use one_time_keys::OneTimeKeys;
 use rand::thread_rng;
 use types::{Curve25519Keypair, Ed25519Keypair, KeyId};
-use x25519_dalek::{PublicKey as Curve25519PublicKey, StaticSecret as Curve25519SecretKey};
+use x25519_dalek::StaticSecret as Curve25519SecretKey;
 
+pub use crate::account::types::Curve25519PublicKey;
 use crate::{
     messages::{InnerMessage, InnerPreKeyMessage, PreKeyMessage},
     session::Session,
@@ -101,21 +102,11 @@ impl Account {
         50
     }
 
-    pub fn create_outbound_session(&self, identity_key: &str, one_time_key: &str) -> Session {
-        let mut id_key = [0u8; 32];
-        let mut one_time = [0u8; 32];
-
-        // TODO check the length of the string
-
-        let identity_key = base64_decode(identity_key).unwrap();
-        let one_time_key = base64_decode(one_time_key).unwrap();
-
-        id_key.copy_from_slice(&identity_key);
-        one_time.copy_from_slice(&one_time_key);
-
-        let identity_key = Curve25519PublicKey::from(id_key);
-        let one_time_key = Curve25519PublicKey::from(one_time);
-
+    pub fn create_outbound_session(
+        &self,
+        identity_key: Curve25519PublicKey,
+        one_time_key: Curve25519PublicKey,
+    ) -> Session {
         let rng = thread_rng();
 
         let base_key = Curve25519SecretKey::new(rng);
@@ -159,7 +150,7 @@ impl Account {
 
         if their_identity_key != &remote_identity_key {
             // TODO turn this into an error
-            panic!("Missmatched identity keys");
+            panic!("Mismatched identity keys");
         }
 
         // TODO this one should be an error as well.
@@ -205,7 +196,10 @@ impl Account {
         let fallback_key = self.fallback_keys.unpublished_fallback_key();
 
         if let Some(fallback_key) = fallback_key {
-            HashMap::from([(fallback_key.key_id(), base64_encode(fallback_key.public_key().as_bytes()))])
+            HashMap::from([(
+                fallback_key.key_id(),
+                base64_encode(fallback_key.public_key().as_bytes()),
+            )])
         } else {
             HashMap::new()
         }
@@ -232,7 +226,7 @@ mod test {
     use olm_rs::{account::OlmAccount, session::OlmMessage};
 
     use super::Account;
-    use crate::utilities::base64_decode;
+    use crate::{utilities::base64_decode, Curve25519PublicKey as PublicKey};
 
     #[test]
     fn test_encryption() {
@@ -245,8 +239,9 @@ mod test {
             bob.parsed_one_time_keys().curve25519().values().cloned().next().unwrap();
 
         let identity_keys = bob.parsed_identity_keys();
-        let mut alice_session =
-            alice.create_outbound_session(identity_keys.curve25519(), &one_time_key);
+        let curve25519_key = PublicKey::from_base64(identity_keys.curve25519()).unwrap();
+        let one_time_key = PublicKey::from_base64(&one_time_key).unwrap();
+        let mut alice_session = alice.create_outbound_session(curve25519_key, one_time_key);
 
         let message = "It's a secret to everybody";
 
@@ -306,8 +301,9 @@ mod test {
         let message: crate::messages::OlmMessage = alice_session.encrypt(text).into();
 
         let mut identity_key = [0u8; 32];
-        identity_key.copy_from_slice(&base64_decode(alice.parsed_identity_keys().curve25519()).unwrap());
-        let identity_key = x25519_dalek::PublicKey::from(identity_key);
+        identity_key
+            .copy_from_slice(&base64_decode(alice.parsed_identity_keys().curve25519()).unwrap());
+        let identity_key = PublicKey::from(identity_key);
 
         let mut session = if let crate::messages::OlmMessage::PreKey(m) = &message {
             bob.create_inbound_session_from(&identity_key, m)
@@ -341,8 +337,9 @@ mod test {
         let message: crate::messages::OlmMessage = alice_session.encrypt(text).into();
 
         let mut identity_key = [0u8; 32];
-        identity_key.copy_from_slice(&base64_decode(alice.parsed_identity_keys().curve25519()).unwrap());
-        let identity_key = x25519_dalek::PublicKey::from(identity_key);
+        identity_key
+            .copy_from_slice(&base64_decode(alice.parsed_identity_keys().curve25519()).unwrap());
+        let identity_key = PublicKey::from(identity_key);
 
         let mut session = if let crate::messages::OlmMessage::PreKey(m) = &message {
             bob.create_inbound_session_from(&identity_key, m)

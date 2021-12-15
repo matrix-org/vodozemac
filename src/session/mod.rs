@@ -27,13 +27,13 @@ use ratchet::RemoteRatchetKey;
 use receiver_chain::ReceiverChain;
 use root_key::RemoteRootKey;
 use sha2::{Digest, Sha256};
-use x25519_dalek::PublicKey as Curve25519PublicKey;
 
 use crate::{
     messages::{InnerMessage, InnerPreKeyMessage, Message, OlmMessage, PreKeyMessage},
     session_keys::SessionKeys,
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
     utilities::{base64_decode, base64_encode},
+    Curve25519PublicKey,
 };
 
 const MAX_RECEIVING_CHAINS: usize = 5;
@@ -211,6 +211,7 @@ mod test {
 
     use super::Session;
     use crate::Account;
+    use crate::Curve25519PublicKey;
 
     fn sessions() -> (Account, OlmAccount, Session, OlmSession) {
         let alice = Account::new();
@@ -221,8 +222,9 @@ mod test {
             bob.parsed_one_time_keys().curve25519().values().cloned().next().unwrap();
 
         let identity_keys = bob.parsed_identity_keys();
-        let mut alice_session =
-            alice.create_outbound_session(identity_keys.curve25519(), &one_time_key);
+        let curve25519_key = Curve25519PublicKey::from_base64(identity_keys.curve25519()).unwrap();
+        let one_time_key = Curve25519PublicKey::from_base64(&one_time_key).unwrap();
+        let mut alice_session = alice.create_outbound_session(curve25519_key, one_time_key);
 
         let message = "It's a secret to everybody";
 

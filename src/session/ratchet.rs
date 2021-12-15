@@ -1,13 +1,12 @@
 use rand::thread_rng;
-use x25519_dalek::{
-    PublicKey as Curve25519PublicKey, SharedSecret, StaticSecret as Curve25519SecretKey,
-};
+use x25519_dalek::{SharedSecret, StaticSecret as Curve25519SecretKey};
 use zeroize::Zeroize;
 
 use super::{
     chain_key::RemoteChainKey,
     root_key::{RemoteRootKey, RootKey},
 };
+use crate::Curve25519PublicKey;
 
 pub(super) struct RatchetKey(Curve25519SecretKey);
 
@@ -24,7 +23,7 @@ impl RatchetKey {
     }
 
     pub fn diffie_hellman(&self, other: &RemoteRatchetKey) -> SharedSecret {
-        self.0.diffie_hellman(&other.0)
+        self.0.diffie_hellman(&other.0.inner)
     }
 }
 

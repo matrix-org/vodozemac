@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 
 use rand::thread_rng;
-use x25519_dalek::{PublicKey as Curve25519PublicKey, StaticSecret as Curve25519SecretKey};
+use x25519_dalek::StaticSecret as Curve25519SecretKey;
 
 use super::types::KeyId;
+use crate::Curve25519PublicKey;
 
 pub(super) struct OneTimeKeys {
     key_id: u64,
