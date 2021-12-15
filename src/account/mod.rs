@@ -30,7 +30,7 @@ use crate::{
     session::Session,
     session_keys::SessionKeys,
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
-    utilities::{decode, encode},
+    utilities::{base64_decode, base64_encode},
 };
 
 pub struct Account {
@@ -107,8 +107,8 @@ impl Account {
 
         // TODO check the length of the string
 
-        let identity_key = decode(identity_key).unwrap();
-        let one_time_key = decode(one_time_key).unwrap();
+        let identity_key = base64_decode(identity_key).unwrap();
+        let one_time_key = base64_decode(one_time_key).unwrap();
 
         id_key.copy_from_slice(&identity_key);
         one_time.copy_from_slice(&one_time_key);
@@ -151,7 +151,7 @@ impl Account {
         their_identity_key: &Curve25519PublicKey,
         message: &PreKeyMessage,
     ) -> Session {
-        let message = decode(&message.inner).unwrap();
+        let message = base64_decode(&message.inner).unwrap();
         let message = InnerPreKeyMessage::from(message);
 
         let (public_one_time_key, remote_one_time_key, remote_identity_key, m) =
@@ -193,7 +193,7 @@ impl Account {
         self.one_time_keys
             .public_keys
             .iter()
-            .map(|(key_id, key)| (*key_id, encode(key.as_bytes())))
+            .map(|(key_id, key)| (*key_id, base64_encode(key.as_bytes())))
             .collect()
     }
 
@@ -205,7 +205,7 @@ impl Account {
         let fallback_key = self.fallback_keys.unpublished_fallback_key();
 
         if let Some(fallback_key) = fallback_key {
-            HashMap::from([(fallback_key.key_id(), encode(fallback_key.public_key().as_bytes()))])
+            HashMap::from([(fallback_key.key_id(), base64_encode(fallback_key.public_key().as_bytes()))])
         } else {
             HashMap::new()
         }
@@ -232,7 +232,7 @@ mod test {
     use olm_rs::{account::OlmAccount, session::OlmMessage};
 
     use super::Account;
-    use crate::utilities::decode;
+    use crate::utilities::base64_decode;
 
     #[test]
     fn test_encryption() {
@@ -306,7 +306,7 @@ mod test {
         let message: crate::messages::OlmMessage = alice_session.encrypt(text).into();
 
         let mut identity_key = [0u8; 32];
-        identity_key.copy_from_slice(&decode(alice.parsed_identity_keys().curve25519()).unwrap());
+        identity_key.copy_from_slice(&base64_decode(alice.parsed_identity_keys().curve25519()).unwrap());
         let identity_key = x25519_dalek::PublicKey::from(identity_key);
 
         let mut session = if let crate::messages::OlmMessage::PreKey(m) = &message {
@@ -341,7 +341,7 @@ mod test {
         let message: crate::messages::OlmMessage = alice_session.encrypt(text).into();
 
         let mut identity_key = [0u8; 32];
-        identity_key.copy_from_slice(&decode(alice.parsed_identity_keys().curve25519()).unwrap());
+        identity_key.copy_from_slice(&base64_decode(alice.parsed_identity_keys().curve25519()).unwrap());
         let identity_key = x25519_dalek::PublicKey::from(identity_key);
 
         let mut session = if let crate::messages::OlmMessage::PreKey(m) = &message {

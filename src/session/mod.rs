@@ -33,7 +33,7 @@ use crate::{
     messages::{InnerMessage, InnerPreKeyMessage, Message, OlmMessage, PreKeyMessage},
     session_keys::SessionKeys,
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
-    utilities::{decode, encode},
+    utilities::{base64_decode, base64_encode},
 };
 
 const MAX_RECEIVING_CHAINS: usize = 5;
@@ -125,7 +125,7 @@ impl Session {
             .chain_update(self.session_keys.one_time_key.as_bytes())
             .finalize();
 
-        encode(digest)
+        base64_encode(digest)
     }
 
     // Did we ever receive and decrypt a message from the other side.
@@ -139,7 +139,7 @@ impl Session {
         if self.has_received_message() {
             let message = message.into_vec();
 
-            OlmMessage::Normal(Message { inner: encode(message) })
+            OlmMessage::Normal(Message { inner: base64_encode(message) })
         } else {
             let message = InnerPreKeyMessage::from_parts(
                 &self.session_keys.one_time_key,
@@ -149,18 +149,18 @@ impl Session {
             )
             .into_vec();
 
-            OlmMessage::PreKey(PreKeyMessage { inner: encode(message) })
+            OlmMessage::PreKey(PreKeyMessage { inner: base64_encode(message) })
         }
     }
 
     pub fn decrypt(&mut self, message: &OlmMessage) -> String {
         let decrypted = match message {
             OlmMessage::Normal(m) => {
-                let message = decode(&m.inner).unwrap();
+                let message = base64_decode(&m.inner).unwrap();
                 self.decrypt_normal(message)
             }
             OlmMessage::PreKey(m) => {
-                let message = decode(&m.inner).unwrap();
+                let message = base64_decode(&m.inner).unwrap();
                 self.decrypt_prekey(message)
             }
         };

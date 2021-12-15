@@ -18,7 +18,7 @@ use rand::thread_rng;
 use sha2::Sha256;
 use x25519_dalek::{EphemeralSecret, PublicKey as Curve25519PublicKey, SharedSecret};
 
-use crate::utilities::{decode, encode};
+use crate::utilities::{base64_decode, base64_encode};
 
 type HmacSha256Key = [u8; 32];
 
@@ -44,7 +44,7 @@ impl Sas {
 
         let secret_key = EphemeralSecret::new(rng);
         let public_key = Curve25519PublicKey::from(&secret_key);
-        let encoded_public_key = encode(public_key.as_bytes());
+        let encoded_public_key = base64_encode(public_key.as_bytes());
 
         Self { secret_key, public_key, encoded_public_key }
     }
@@ -62,7 +62,7 @@ impl Sas {
 
         // TODO check the length of the key.
         // TODO turn the unrwap into an error.
-        public_key.copy_from_slice(&decode(other_public_key.as_bytes()).unwrap());
+        public_key.copy_from_slice(&base64_decode(other_public_key.as_bytes()).unwrap());
 
         let public_key = Curve25519PublicKey::from(public_key);
         let shared_secret = self.secret_key.diffie_hellman(&public_key);
@@ -100,12 +100,12 @@ impl EstablishedSas {
 
         mac.update(input.as_ref());
 
-        encode(mac.finalize().into_bytes())
+        base64_encode(mac.finalize().into_bytes())
     }
 
     pub fn verify_mac(&self, input: &str, info: &str, tag: &str) -> Result<(), MacError> {
         // TODO turn this into an error.
-        let tag = decode(tag).unwrap();
+        let tag = base64_decode(tag).unwrap();
 
         let mut mac = self.get_mac(info);
         mac.update(input.as_bytes());
