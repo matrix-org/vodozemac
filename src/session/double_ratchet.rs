@@ -19,11 +19,6 @@ use super::{
 };
 use crate::{messages::InnerMessage, shared_secret::Shared3DHSecret};
 
-enum DoubleRatchetState {
-    Inactive(InactiveDoubleRatchet),
-    Active(ActiveDoubleRatchet),
-}
-
 pub(super) struct DoubleRatchet {
     inner: DoubleRatchetState,
 }
@@ -52,24 +47,52 @@ impl DoubleRatchet {
         let ratchet =
             ActiveDoubleRatchet { dh_ratchet: Ratchet::new(root_key), hkdf_ratchet: chain_key };
 
-        Self { inner: DoubleRatchetState::Active(ratchet) }
+        Self { inner: ratchet.into() }
     }
 
     pub fn inactive(root_key: RemoteRootKey, ratchet_key: RemoteRatchetKey) -> Self {
         let ratchet = InactiveDoubleRatchet { root_key, ratchet_key };
 
-        Self { inner: DoubleRatchetState::Inactive(ratchet) }
+        Self { inner: ratchet.into() }
     }
 
-    pub fn advance(&self, ratchet_key: RemoteRatchetKey) -> (DoubleRatchet, ReceiverChain) {
-        if let DoubleRatchetState::Active(ratchet) = &self.inner {
-            let (ratchet, receiver_chain) = ratchet.advance(ratchet_key);
+    pub fn advance(&mut self, ratchet_key: RemoteRatchetKey) -> (DoubleRatchet, ReceiverChain) {
+        let (ratchet, receiver_chain) = match &self.inner {
+            DoubleRatchetState::Active(r) => r.advance(ratchet_key),
+            DoubleRatchetState::Inactive(r) => {
+                let ratchet = r.activate();
+                // Advancing an inactive ratchet shouldn't be possible since the
+                // other side didn't receive yet our new ratchet key.
+                //
+                // This will likely end up in a decryption error but for
+                // consistency sake and avoiding the leakage of our internal
+                // state it's better to error out there.
+                let ret = ratchet.advance(ratchet_key);
 
-            (Self { inner: DoubleRatchetState::Inactive(ratchet) }, receiver_chain)
-        } else {
-            // TODO turn this into an error
-            panic!("Can't advance an inactive ratchet");
-        }
+                self.inner = ratchet.into();
+
+                ret
+            }
+        };
+
+        (Self { inner: DoubleRatchetState::Inactive(ratchet) }, receiver_chain)
+    }
+}
+
+enum DoubleRatchetState {
+    Inactive(InactiveDoubleRatchet),
+    Active(ActiveDoubleRatchet),
+}
+
+impl From<InactiveDoubleRatchet> for DoubleRatchetState {
+    fn from(r: InactiveDoubleRatchet) -> Self {
+        Self::Inactive(r)
+    }
+}
+
+impl From<ActiveDoubleRatchet> for DoubleRatchetState {
+    fn from(r: ActiveDoubleRatchet) -> Self {
+        Self::Active(r)
     }
 }
 
