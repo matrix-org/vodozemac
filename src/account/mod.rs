@@ -41,7 +41,6 @@ pub struct Account {
 }
 
 impl Account {
-    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
             signing_key: Ed25519Keypair::new(),
@@ -51,7 +50,27 @@ impl Account {
         }
     }
 
-    pub fn unpickle() -> Self {
+    /// Get a reference to the account's public ed25519 key
+    pub fn ed25519_key(&self) -> &Ed25519PublicKey {
+        self.signing_key.public_key()
+    }
+
+    /// Get a reference to the account's public curve25519 key
+    pub fn curve25519_key(&self) -> &Curve25519PublicKey {
+        self.diffie_helman_key.public_key()
+    }
+
+    /// Get a reference to the account's public curve25519 key as an unpadded
+    /// base64 encoded string.
+    pub fn curve25519_key_encoded(&self) -> &str {
+        self.diffie_helman_key.public_key_encoded()
+    }
+
+    pub fn sign(&self, message: &str) -> String {
+        self.signing_key.sign(message)
+    }
+
+    pub fn from_pickle() -> Self {
         // TODO
         Self::new()
     }
@@ -64,17 +83,8 @@ impl Account {
         "TEST_PICKLE".to_string()
     }
 
-    pub fn sign(&self, message: &str) -> String {
-        self.signing_key.sign(message)
-    }
-
     pub fn max_number_of_one_time_keys(&self) -> usize {
         50
-    }
-
-    /// Get a reference to the account's public ed25519 key
-    pub fn ed25519_key(&self) -> &Ed25519PublicKey {
-        self.signing_key.public_key()
     }
 
     pub fn create_outbound_session(&self, identity_key: &str, one_time_key: &str) -> Session {
@@ -109,16 +119,13 @@ impl Account {
         Session::new(shared_secret, session_keys)
     }
 
-    pub fn find_one_time_key(
-        &self,
-        public_key: &Curve25519PublicKey,
-    ) -> Option<&Curve25519SecretKey> {
+    fn find_one_time_key(&self, public_key: &Curve25519PublicKey) -> Option<&Curve25519SecretKey> {
         self.one_time_keys
             .get_secret_key(public_key)
             .or_else(|| self.fallback_keys.get_secret_key(public_key))
     }
 
-    pub fn remove_one_time_key(
+    fn remove_one_time_key(
         &mut self,
         public_key: &Curve25519PublicKey,
     ) -> Option<Curve25519SecretKey> {
@@ -164,17 +171,6 @@ impl Account {
         session
     }
 
-    /// Get a reference to the account's public curve25519 key
-    pub fn curve25519_key(&self) -> &Curve25519PublicKey {
-        self.diffie_helman_key.public_key()
-    }
-
-    /// Get a reference to the account's public curve25519 key as an unpadded
-    /// base64 encoded string.
-    pub fn curve25519_key_encoded(&self) -> &str {
-        self.diffie_helman_key.public_key_encoded()
-    }
-
     pub fn generate_one_time_keys(&mut self, count: usize) {
         self.one_time_keys.generate(count);
     }
@@ -208,6 +204,12 @@ impl Account {
     pub fn mark_keys_as_published(&mut self) {
         self.one_time_keys.mark_as_published();
         self.fallback_keys.mark_as_published();
+    }
+}
+
+impl Default for Account {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
