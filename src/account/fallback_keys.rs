@@ -50,7 +50,7 @@ impl FallbackKeys {
     }
 
     pub fn mark_as_published(&mut self) {
-        self.fallback_key.as_mut().map(|f| f.mark_as_published());
+        if let Some(f) = self.fallback_key.as_mut() { f.mark_as_published() }
     }
 
     pub fn generate_fallback_key(&mut self) {

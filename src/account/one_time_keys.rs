@@ -27,7 +27,7 @@ impl OneTimeKeys {
     }
 
     pub fn get_secret_key(&self, public_key: &Curve25591PublicKey) -> Option<&Curve25591SecretKey> {
-        self.reverse_public_keys.get(public_key).and_then(|key_id| self.private_keys.get(&key_id))
+        self.reverse_public_keys.get(public_key).and_then(|key_id| self.private_keys.get(key_id))
     }
 
     pub fn remove_secret_key(
@@ -47,8 +47,8 @@ impl OneTimeKeys {
             let secret_key = Curve25591SecretKey::new(&mut rng);
             let public_key = Curve25591PublicKey::from(&secret_key);
 
-            self.private_keys.insert(key_id.clone(), secret_key);
-            self.public_keys.insert(key_id.clone(), public_key);
+            self.private_keys.insert(key_id, secret_key);
+            self.public_keys.insert(key_id, public_key);
             self.reverse_public_keys.insert(public_key, key_id);
 
             self.key_id += 1;

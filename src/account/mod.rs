@@ -146,7 +146,7 @@ impl Account {
 
         let shared_secret = RemoteShared3DHSecret::new(
             self.diffie_helman_key.secret_key(),
-            &one_time_key,
+            one_time_key,
             &remote_identity_key,
             &remote_one_time_key,
         );
