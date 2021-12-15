@@ -79,7 +79,7 @@ struct InactiveDoubleRatchet {
 }
 
 impl InactiveDoubleRatchet {
-    pub fn activate(&self) -> ActiveDoubleRatchet {
+    fn activate(&self) -> ActiveDoubleRatchet {
         let (root_key, chain_key, ratchet_key) = self.root_key.advance(&self.ratchet_key);
         let dh_ratchet = Ratchet::new_with_ratchet_key(root_key, ratchet_key);
 
@@ -93,7 +93,7 @@ struct ActiveDoubleRatchet {
 }
 
 impl ActiveDoubleRatchet {
-    pub fn advance(&self, ratchet_key: RemoteRatchetKey) -> (InactiveDoubleRatchet, ReceiverChain) {
+    fn advance(&self, ratchet_key: RemoteRatchetKey) -> (InactiveDoubleRatchet, ReceiverChain) {
         let (root_key, remote_chain) = self.dh_ratchet.advance(ratchet_key.clone());
 
         let ratchet = InactiveDoubleRatchet { root_key, ratchet_key: ratchet_key.clone() };
@@ -102,11 +102,11 @@ impl ActiveDoubleRatchet {
         (ratchet, remote_ratchet)
     }
 
-    pub fn ratchet_key(&self) -> RatchetPublicKey {
+    fn ratchet_key(&self) -> RatchetPublicKey {
         RatchetPublicKey::from(self.dh_ratchet.ratchet_key())
     }
 
-    pub fn encrypt(&mut self, plaintext: &[u8]) -> InnerMessage {
+    fn encrypt(&mut self, plaintext: &[u8]) -> InnerMessage {
         let message_key = self.hkdf_ratchet.create_message_key(self.ratchet_key());
 
         message_key.encrypt(plaintext)
