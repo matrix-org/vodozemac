@@ -1,6 +1,7 @@
 use hkdf::Hkdf;
 use sha2::Sha256;
 use x25519_dalek::{PublicKey, SharedSecret, StaticSecret};
+use zeroize::Zeroize;
 
 pub struct Shared3DHSecret([u8; 96]);
 pub struct RemoteShared3DHSecret([u8; 96]);
@@ -10,13 +11,15 @@ fn expand(shared_secret: [u8; 96]) -> ([u8; 32], [u8; 32]) {
     let mut root_key = [0u8; 32];
     let mut chain_key = [0u8; 32];
 
-    // TODO zeroize this.
     let mut expanded_keys = [0u8; 64];
 
     hkdf.expand(b"OLM_ROOT", &mut expanded_keys).unwrap();
 
     root_key.copy_from_slice(&expanded_keys[0..32]);
     chain_key.copy_from_slice(&expanded_keys[32..64]);
+
+    // XXX: Consider separating this out into a separate type with a Drop impl.
+    expanded_keys.zeroize();
 
     (root_key, chain_key)
 }
