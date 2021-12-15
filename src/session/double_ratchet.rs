@@ -121,9 +121,9 @@ impl ActiveDoubleRatchet {
         let (root_key, remote_chain) = self.dh_ratchet.advance(ratchet_key.clone());
 
         let ratchet = InactiveDoubleRatchet { root_key, ratchet_key: ratchet_key.clone() };
-        let remote_ratchet = ReceiverChain::new(ratchet_key, remote_chain);
+        let receiver_chain = ReceiverChain::new(ratchet_key, remote_chain);
 
-        (ratchet, remote_ratchet)
+        (ratchet, receiver_chain)
     }
 
     fn ratchet_key(&self) -> RatchetPublicKey {
