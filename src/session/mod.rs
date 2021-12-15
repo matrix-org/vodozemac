@@ -121,10 +121,19 @@ impl Session {
         encode(digest)
     }
 
+    // Did we ever receive and decrypt a message from the other side.
+    fn has_received_message(&self) -> bool {
+        !self.receiving_chains.is_empty()
+    }
+
     pub fn encrypt(&mut self, plaintext: &str) -> OlmMessage {
         let message = self.sending_ratchet.encrypt(plaintext);
 
-        if self.receiving_chains.is_empty() {
+        if self.has_received_message() {
+            let message = message.into_vec();
+
+            OlmMessage::Normal(Message { inner: encode(message) })
+        } else {
             let message = InnerPreKeyMessage::from_parts(
                 &self.session_keys.one_time_key,
                 &self.session_keys.base_key,
@@ -134,10 +143,6 @@ impl Session {
             .into_vec();
 
             OlmMessage::PreKey(PreKeyMessage { inner: encode(message) })
-        } else {
-            let message = message.into_vec();
-
-            OlmMessage::Normal(Message { inner: encode(message) })
         }
     }
 
