@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![allow(dead_code)]
-
 use hkdf::Hkdf;
 use hmac::{digest::MacError, Hmac, Mac};
 use rand::thread_rng;
@@ -21,6 +19,8 @@ use sha2::Sha256;
 use x25519_dalek::{EphemeralSecret, PublicKey, SharedSecret};
 
 use crate::utilities::{decode, encode};
+
+type HmacSha256Key = [u8; 32];
 
 pub struct Sas {
     secret_key: EphemeralSecret,
@@ -57,7 +57,9 @@ impl Sas {
 
     pub fn diffie_hellman(self, other_public_key: &str) -> EstablishedSas {
         let mut public_key = [0u8; 32];
+
         // TODO check the length of the key.
+        // TODO turn the unrwap into an error.
         public_key.copy_from_slice(&decode(other_public_key.as_bytes()).unwrap());
 
         let public_key = PublicKey::from(public_key);
@@ -73,36 +75,43 @@ impl Sas {
 
 impl EstablishedSas {
     pub fn get_bytes(&self, info: &str, count: usize) -> Vec<u8> {
-        let hkdf: Hkdf<Sha256> = Hkdf::new(None, self.shared_secret.as_bytes());
         let mut output = vec![0u8; count];
-        hkdf.expand(info.as_bytes(), &mut output[0..count]).unwrap();
+        let hkdf: Hkdf<Sha256> = Hkdf::new(None, self.shared_secret.as_bytes());
+
+        hkdf.expand(info.as_bytes(), &mut output[0..count]).expect("Can't generate the SAS bytes");
 
         output
     }
 
-    pub fn calculate_mac(&self, input: &str, info: &str) -> String {
+    fn get_mac_key(&self, info: &str) -> HmacSha256Key {
         let mut mac_key = [0u8; 32];
-        let hkdf: Hkdf<Sha256> = Hkdf::new(None, self.shared_secret.as_bytes());
-        hkdf.expand(info.as_bytes(), &mut mac_key).unwrap();
 
-        let mut mac = Hmac::<Sha256>::new_from_slice(&mac_key).unwrap();
+        let hkdf: Hkdf<Sha256> = Hkdf::new(None, self.shared_secret.as_bytes());
+        hkdf.expand(info.as_bytes(), &mut mac_key).expect("Can't expand the MAC key");
+
+        mac_key
+    }
+
+    fn get_mac(&self, info: &str) -> Hmac<Sha256> {
+        let mac_key = self.get_mac_key(info);
+        Hmac::<Sha256>::new_from_slice(&mac_key).expect("Can't create a HMAC object")
+    }
+
+    pub fn calculate_mac(&self, input: &str, info: &str) -> String {
+        let mut mac = self.get_mac(info);
+
         mac.update(input.as_ref());
 
-        let output = mac.finalize().into_bytes();
-        encode(output)
+        encode(mac.finalize().into_bytes())
     }
 
     pub fn verify_mac(&self, input: &str, info: &str, code: &str) -> Result<(), MacError> {
-        let mut mac_key = [0u8; 32];
+        // TODO turn this into an error.
+        let code = decode(code).unwrap();
 
-        let hkdf: Hkdf<Sha256> = Hkdf::new(None, self.shared_secret.as_bytes());
-        hkdf.expand(info.as_bytes(), &mut mac_key).unwrap();
-
-        let mut mac = Hmac::<Sha256>::new_from_slice(&mac_key).unwrap();
-
+        let mut mac = self.get_mac(info);
         mac.update(input.as_bytes());
 
-        let code = decode(code).unwrap();
         mac.verify_slice(&code)
     }
 }
