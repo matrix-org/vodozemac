@@ -19,6 +19,7 @@ mod message_key;
 mod ratchet;
 mod root_key;
 
+use arrayvec::ArrayVec;
 use chain_key::RemoteChainKey;
 use double_ratchet::{LocalDoubleRatchet, RemoteDoubleRatchet};
 use ratchet::RemoteRatchetKey;
@@ -33,17 +34,55 @@ use crate::{
     utilities::{decode, encode},
 };
 
+const MAX_REMOTE_RATCHETS: usize = 5;
+
+struct RatchetStore {
+    inner: ArrayVec<RemoteDoubleRatchet, MAX_REMOTE_RATCHETS>,
+}
+
+impl RatchetStore {
+    fn new() -> Self {
+        Self { inner: ArrayVec::new() }
+    }
+
+    fn push(&mut self, ratchet: RemoteDoubleRatchet) {
+        if self.inner.is_full() {
+            self.inner.pop_at(0);
+        }
+
+        self.inner.push(ratchet)
+    }
+
+    fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
+    fn find_ratchet(&mut self, ratchet_key: &RemoteRatchetKey) -> Option<&mut RemoteDoubleRatchet> {
+        self.inner.iter_mut().find(|r| r.belongs_to(ratchet_key))
+    }
+}
+
+impl Default for RatchetStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub struct Session {
     session_keys: SessionKeys,
     sending_ratchet: LocalDoubleRatchet,
-    receiving_ratchet: Option<RemoteDoubleRatchet>,
+    receiving_ratchets: RatchetStore,
 }
 
 impl Session {
     pub(super) fn new(shared_secret: Shared3DHSecret, session_keys: SessionKeys) -> Self {
         let local_ratchet = LocalDoubleRatchet::active(shared_secret);
 
-        Self { session_keys, sending_ratchet: local_ratchet, receiving_ratchet: None }
+        Self {
+            session_keys,
+            sending_ratchet: local_ratchet,
+            receiving_ratchets: Default::default(),
+        }
     }
 
     pub(super) fn new_remote(
@@ -60,11 +99,10 @@ impl Session {
         let local_ratchet = LocalDoubleRatchet::inactive(root_key, remote_ratchet_key.clone());
         let remote_ratchet = RemoteDoubleRatchet::new(remote_ratchet_key, remote_chain_key);
 
-        Self {
-            session_keys,
-            sending_ratchet: local_ratchet,
-            receiving_ratchet: Some(remote_ratchet),
-        }
+        let mut ratchet_store = RatchetStore::new();
+        ratchet_store.push(remote_ratchet);
+
+        Self { session_keys, sending_ratchet: local_ratchet, receiving_ratchets: ratchet_store }
     }
 
     pub fn pickle(&self) -> String {
@@ -100,7 +138,7 @@ impl Session {
             LocalDoubleRatchet::Active(ratchet) => ratchet.encrypt(plaintext.as_bytes()),
         };
 
-        if self.receiving_ratchet.is_none() {
+        if self.receiving_ratchets.is_empty() {
             let message = InnerPreKeyMessage::from_parts(
                 &self.session_keys.one_time_key,
                 &self.session_keys.base_key,
@@ -146,21 +184,18 @@ impl Session {
         let ratchet_key = RemoteRatchetKey::from(decoded.ratchet_key);
 
         // TODO try to use existing message keys.
-
-        if !self.receiving_ratchet.as_ref().map_or(false, |r| r.belongs_to(&ratchet_key)) {
+        if let Some(ratchet) = self.receiving_ratchets.find_ratchet(&ratchet_key) {
+            ratchet.decrypt(&message, &decoded.ciphertext, decoded.mac)
+        } else {
             let (sending_ratchet, mut remote_ratchet) = self.sending_ratchet.advance(ratchet_key);
 
             // TODO don't update the state if the message doesn't decrypt
             let plaintext = remote_ratchet.decrypt(&message, &decoded.ciphertext, decoded.mac);
 
             self.sending_ratchet = LocalDoubleRatchet::Inactive(sending_ratchet);
-            self.receiving_ratchet = Some(remote_ratchet);
+            self.receiving_ratchets.push(remote_ratchet);
 
             plaintext
-        } else if let Some(ref mut remote_ratchet) = self.receiving_ratchet {
-            remote_ratchet.decrypt(&message, &decoded.ciphertext, decoded.mac)
-        } else {
-            todo!()
         }
     }
 }
