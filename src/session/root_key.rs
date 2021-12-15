@@ -1,3 +1,4 @@
+use zeroize::Zeroize;
 use hkdf::Hkdf;
 use sha2::Sha256;
 
@@ -8,12 +9,26 @@ use super::{
 
 const ADVANCEMENT_SEED: &[u8; 11] = b"OLM_RATCHET";
 
+#[derive(Zeroize)]
 pub(crate) struct RootKey {
     pub key: [u8; 32],
 }
 
+impl Drop for RootKey {
+    fn drop(&mut self) {
+        self.key.zeroize()
+    }
+}
+
+#[derive(Zeroize)]
 pub(crate) struct RemoteRootKey {
     pub key: [u8; 32],
+}
+
+impl Drop for RemoteRootKey {
+    fn drop(&mut self) {
+        self.key.zeroize()
+    }
 }
 
 fn diffie_hellman(

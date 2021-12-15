@@ -10,7 +10,7 @@ type Aes256Key = GenericArray<u8, <Aes256 as NewBlockCipher>::KeySize>;
 type Aes256Iv = GenericArray<u8, <Aes256Cbc as BlockMode<Aes256, Pkcs7>>::IvSize>;
 type HmacSha256Key = [u8; 32];
 
-#[derive(Clone, Zeroize)]
+#[derive(Zeroize)]
 struct ExpandedKeys([u8; 80]);
 
 impl Drop for ExpandedKeys {
@@ -45,7 +45,7 @@ impl ExpandedKeys {
     }
 }
 
-#[derive(Clone, Zeroize)]
+#[derive(Zeroize)]
 pub(super) struct CipherKeys {
     aes_key: [u8; 32],
     aes_iv: [u8; 16],
