@@ -8,12 +8,10 @@ use super::{
 
 const ADVANCEMENT_SEED: &[u8; 11] = b"OLM_RATCHET";
 
-#[derive(PartialEq, Debug)]
 pub(crate) struct RootKey {
     pub key: [u8; 32],
 }
 
-#[derive(PartialEq, Debug)]
 pub(crate) struct RemoteRootKey {
     pub key: [u8; 32],
 }
