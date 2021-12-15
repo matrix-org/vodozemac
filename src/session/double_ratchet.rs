@@ -19,34 +19,53 @@ use super::{
 };
 use crate::{messages::InnerMessage, shared_secret::Shared3DHSecret};
 
-pub(super) enum LocalDoubleRatchet {
+enum DoubleRatchetState {
     Inactive(InactiveDoubleRatchet),
-    Active(DoubleRatchet),
+    Active(ActiveDoubleRatchet),
 }
 
-impl LocalDoubleRatchet {
+pub(super) struct DoubleRatchet {
+    inner: DoubleRatchetState,
+}
+
+impl DoubleRatchet {
+    pub fn encrypt(&mut self, plaintext: &str) -> InnerMessage {
+        match &mut self.inner {
+            DoubleRatchetState::Inactive(ratchet) => {
+                let mut ratchet = ratchet.activate();
+
+                let message = ratchet.encrypt(plaintext.as_bytes());
+                self.inner = DoubleRatchetState::Active(ratchet);
+
+                message
+            }
+            DoubleRatchetState::Active(ratchet) => ratchet.encrypt(plaintext.as_bytes()),
+        }
+    }
+
     pub fn active(shared_secret: Shared3DHSecret) -> Self {
         let (root_key, chain_key) = shared_secret.expand();
 
         let root_key = RootKey::new(root_key);
         let chain_key = ChainKey::new(chain_key);
 
-        let local_ratchet = Ratchet::new(root_key);
+        let ratchet =
+            ActiveDoubleRatchet { dh_ratchet: Ratchet::new(root_key), hkdf_ratchet: chain_key };
 
-        let local_ratchet = DoubleRatchet { dh_ratchet: local_ratchet, hkdf_ratchet: chain_key };
-
-        LocalDoubleRatchet::Active(local_ratchet)
+        Self { inner: DoubleRatchetState::Active(ratchet) }
     }
 
     pub fn inactive(root_key: RemoteRootKey, ratchet_key: RemoteRatchetKey) -> Self {
         let ratchet = InactiveDoubleRatchet { root_key, ratchet_key };
 
-        Self::Inactive(ratchet)
+        Self { inner: DoubleRatchetState::Inactive(ratchet) }
     }
 
-    pub fn advance(&self, ratchet_key: RemoteRatchetKey) -> (InactiveDoubleRatchet, ReceiverChain) {
-        if let LocalDoubleRatchet::Active(ratchet) = self {
-            ratchet.advance(ratchet_key)
+    pub fn advance(&self, ratchet_key: RemoteRatchetKey) -> (DoubleRatchet, ReceiverChain) {
+        if let DoubleRatchetState::Active(ratchet) = &self.inner {
+            let (ratchet, receiver_chain) = ratchet.advance(ratchet_key);
+
+            (Self { inner: DoubleRatchetState::Inactive(ratchet) }, receiver_chain)
         } else {
             // TODO turn this into an error
             panic!("Can't advance an inactive ratchet");
@@ -54,26 +73,26 @@ impl LocalDoubleRatchet {
     }
 }
 
-pub(super) struct InactiveDoubleRatchet {
+struct InactiveDoubleRatchet {
     root_key: RemoteRootKey,
     ratchet_key: RemoteRatchetKey,
 }
 
 impl InactiveDoubleRatchet {
-    pub fn activate(&self) -> DoubleRatchet {
+    pub fn activate(&self) -> ActiveDoubleRatchet {
         let (root_key, chain_key, ratchet_key) = self.root_key.advance(&self.ratchet_key);
         let dh_ratchet = Ratchet::new_with_ratchet_key(root_key, ratchet_key);
 
-        DoubleRatchet { dh_ratchet, hkdf_ratchet: chain_key }
+        ActiveDoubleRatchet { dh_ratchet, hkdf_ratchet: chain_key }
     }
 }
 
-pub(super) struct DoubleRatchet {
+struct ActiveDoubleRatchet {
     dh_ratchet: Ratchet,
     hkdf_ratchet: ChainKey,
 }
 
-impl DoubleRatchet {
+impl ActiveDoubleRatchet {
     pub fn advance(&self, ratchet_key: RemoteRatchetKey) -> (InactiveDoubleRatchet, ReceiverChain) {
         let (root_key, remote_chain) = self.dh_ratchet.advance(ratchet_key.clone());
 

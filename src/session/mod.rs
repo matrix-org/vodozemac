@@ -21,7 +21,7 @@ mod root_key;
 
 use arrayvec::ArrayVec;
 use chain_key::RemoteChainKey;
-use double_ratchet::{LocalDoubleRatchet, ReceiverChain};
+use double_ratchet::{DoubleRatchet, ReceiverChain};
 use ratchet::RemoteRatchetKey;
 use root_key::RemoteRootKey;
 use sha2::{Digest, Sha256};
@@ -70,13 +70,13 @@ impl Default for ChainStore {
 
 pub struct Session {
     session_keys: SessionKeys,
-    sending_ratchet: LocalDoubleRatchet,
+    sending_ratchet: DoubleRatchet,
     receiving_chains: ChainStore,
 }
 
 impl Session {
     pub(super) fn new(shared_secret: Shared3DHSecret, session_keys: SessionKeys) -> Self {
-        let local_ratchet = LocalDoubleRatchet::active(shared_secret);
+        let local_ratchet = DoubleRatchet::active(shared_secret);
 
         Self { session_keys, sending_ratchet: local_ratchet, receiving_chains: Default::default() }
     }
@@ -92,7 +92,7 @@ impl Session {
         let root_key = RemoteRootKey::new(root_key);
         let remote_chain_key = RemoteChainKey::new(remote_chain_key);
 
-        let local_ratchet = LocalDoubleRatchet::inactive(root_key, remote_ratchet_key.clone());
+        let local_ratchet = DoubleRatchet::inactive(root_key, remote_ratchet_key.clone());
         let remote_ratchet = ReceiverChain::new(remote_ratchet_key, remote_chain_key);
 
         let mut ratchet_store = ChainStore::new();
@@ -122,17 +122,7 @@ impl Session {
     }
 
     pub fn encrypt(&mut self, plaintext: &str) -> OlmMessage {
-        let message = match &mut self.sending_ratchet {
-            LocalDoubleRatchet::Inactive(ratchet) => {
-                let mut ratchet = ratchet.activate();
-
-                let message = ratchet.encrypt(plaintext.as_bytes());
-                self.sending_ratchet = LocalDoubleRatchet::Active(ratchet);
-
-                message
-            }
-            LocalDoubleRatchet::Active(ratchet) => ratchet.encrypt(plaintext.as_bytes()),
-        };
+        let message = self.sending_ratchet.encrypt(plaintext);
 
         if self.receiving_chains.is_empty() {
             let message = InnerPreKeyMessage::from_parts(
@@ -188,7 +178,7 @@ impl Session {
             // TODO don't update the state if the message doesn't decrypt
             let plaintext = remote_ratchet.decrypt(&message, &decoded.ciphertext, decoded.mac);
 
-            self.sending_ratchet = LocalDoubleRatchet::Inactive(sending_ratchet);
+            self.sending_ratchet = sending_ratchet;
             self.receiving_chains.push(remote_ratchet);
 
             plaintext
