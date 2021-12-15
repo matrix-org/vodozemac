@@ -59,8 +59,12 @@ impl RemoteMessageKey {
         Self { key, index }
     }
 
+    pub fn chain_index(&self) -> u64 {
+        self.index
+    }
+
     pub fn decrypt(
-        self,
+        &self,
         message: &InnerMessage,
         ciphertext: &[u8],
         mac: [u8; Mac::TRUNCATED_LEN],

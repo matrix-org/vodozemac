@@ -24,7 +24,7 @@ fn expand_chain_key(key: &[u8; 32]) -> [u8; 32] {
 }
 
 #[derive(Zeroize)]
-pub struct ChainKey {
+pub(super) struct ChainKey {
     key: [u8; 32],
     index: u64,
 }
@@ -35,8 +35,8 @@ impl Drop for ChainKey {
     }
 }
 
-#[derive(Zeroize)]
-pub struct RemoteChainKey {
+#[derive(Clone, Zeroize)]
+pub(super) struct RemoteChainKey {
     key: [u8; 32],
     index: u64,
 }
@@ -52,11 +52,15 @@ impl RemoteChainKey {
         Self { key: bytes, index: 0 }
     }
 
-    pub(super) fn fill(&mut self, key: &[u8]) {
+    pub fn chain_index(&self) -> u64 {
+        self.index
+    }
+
+    pub fn fill(&mut self, key: &[u8]) {
         self.key.copy_from_slice(key);
     }
 
-    fn advance(&mut self) {
+    pub fn advance(&mut self) {
         let mut mac = Hmac::<Sha256>::new_from_slice(&self.key).unwrap();
         mac.update(ADVANCEMENT_SEED);
 
@@ -65,7 +69,7 @@ impl RemoteChainKey {
         self.index += 1;
     }
 
-    pub(super) fn create_message_key(&mut self) -> RemoteMessageKey {
+    pub fn create_message_key(&mut self) -> RemoteMessageKey {
         let key = expand_chain_key(&self.key);
         let message_key = RemoteMessageKey::new(key, self.index);
 
@@ -76,15 +80,15 @@ impl RemoteChainKey {
 }
 
 impl ChainKey {
-    pub(super) fn new(bytes: [u8; 32]) -> Self {
+    pub fn new(bytes: [u8; 32]) -> Self {
         Self { key: bytes, index: 0 }
     }
 
-    pub(super) fn fill(&mut self, key: &[u8]) {
+    pub fn fill(&mut self, key: &[u8]) {
         self.key.copy_from_slice(key);
     }
 
-    fn advance(&mut self) {
+    pub fn advance(&mut self) {
         let mut mac = Hmac::<Sha256>::new_from_slice(&self.key).unwrap();
         mac.update(ADVANCEMENT_SEED);
 
@@ -93,7 +97,7 @@ impl ChainKey {
         self.index += 1;
     }
 
-    pub(super) fn create_message_key(&mut self, ratchet_key: RatchetPublicKey) -> MessageKey {
+    pub fn create_message_key(&mut self, ratchet_key: RatchetPublicKey) -> MessageKey {
         let key = expand_chain_key(&self.key);
         let message_key = MessageKey::new(key, ratchet_key, self.index);
 

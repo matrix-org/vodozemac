@@ -17,14 +17,14 @@ mod chain_key;
 mod double_ratchet;
 mod message_key;
 mod ratchet;
-mod root_key;
 mod receiver_chain;
+mod root_key;
 
 use arrayvec::ArrayVec;
 use chain_key::RemoteChainKey;
 use double_ratchet::DoubleRatchet;
-use receiver_chain::ReceiverChain;
 use ratchet::RemoteRatchetKey;
+use receiver_chain::ReceiverChain;
 use root_key::RemoteRootKey;
 use sha2::{Digest, Sha256};
 use x25519_dalek::PublicKey as Curve25519PublicKey;
@@ -57,6 +57,10 @@ impl ChainStore {
 
     fn is_empty(&self) -> bool {
         self.inner.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.inner.len()
     }
 
     fn find_ratchet(&mut self, ratchet_key: &RemoteRatchetKey) -> Option<&mut ReceiverChain> {
@@ -176,19 +180,98 @@ impl Session {
 
         let ratchet_key = RemoteRatchetKey::from(decoded.ratchet_key);
 
-        // TODO try to use existing message keys.
         if let Some(ratchet) = self.receiving_chains.find_ratchet(&ratchet_key) {
-            ratchet.decrypt(&message, &decoded.ciphertext, decoded.mac)
+            ratchet.decrypt(&message, decoded.chain_index, &decoded.ciphertext, decoded.mac)
         } else {
             let (sending_ratchet, mut remote_ratchet) = self.sending_ratchet.advance(ratchet_key);
 
             // TODO don't update the state if the message doesn't decrypt
-            let plaintext = remote_ratchet.decrypt(&message, &decoded.ciphertext, decoded.mac);
+            let plaintext = remote_ratchet.decrypt(
+                &message,
+                decoded.chain_index,
+                &decoded.ciphertext,
+                decoded.mac,
+            );
 
             self.sending_ratchet = sending_ratchet;
             self.receiving_chains.push(remote_ratchet);
 
             plaintext
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use olm_rs::{
+        account::OlmAccount,
+        session::{OlmMessage, OlmSession},
+    };
+
+    use super::Session;
+    use crate::Account;
+
+    fn sessions() -> (Account, OlmAccount, Session, OlmSession) {
+        let alice = Account::new();
+        let bob = OlmAccount::new();
+        bob.generate_one_time_keys(1);
+
+        let one_time_key =
+            bob.parsed_one_time_keys().curve25519().values().cloned().next().unwrap();
+
+        let identity_keys = bob.parsed_identity_keys();
+        let mut alice_session =
+            alice.create_outbound_session(identity_keys.curve25519(), &one_time_key);
+
+        let message = "It's a secret to everybody";
+
+        let olm_message: OlmMessage = alice_session.encrypt(message).into();
+        bob.mark_keys_as_published();
+
+        if let OlmMessage::PreKey(m) = olm_message {
+            let session = bob
+                .create_inbound_session_from(alice.curve25519_key_encoded(), m)
+                .expect("Can't create an Olm session");
+
+            (alice, bob, alice_session, session)
+        } else {
+            panic!("Invalid message type");
+        }
+    }
+
+    #[test]
+    fn out_of_order_decryption() {
+        let (_, _, mut alice_session, bob_session) = sessions();
+
+        let message_1 = bob_session.encrypt("Message 1").into();
+        let message_2 = bob_session.encrypt("Message 2").into();
+        let message_3 = bob_session.encrypt("Message 3").into();
+
+        assert_eq!("Message 3", alice_session.decrypt(&message_3));
+        assert_eq!("Message 2", alice_session.decrypt(&message_2));
+        assert_eq!("Message 1", alice_session.decrypt(&message_1));
+    }
+
+    #[test]
+    fn more_out_of_order_decryption() {
+        let (_, _, mut alice_session, bob_session) = sessions();
+
+        let message_1 = bob_session.encrypt("Message 1").into();
+        let message_2 = bob_session.encrypt("Message 2").into();
+        let message_3 = bob_session.encrypt("Message 3").into();
+
+        assert_eq!("Message 1", alice_session.decrypt(&message_1));
+
+        assert_eq!(alice_session.receiving_chains.len(), 1);
+
+        let message_4 = alice_session.encrypt("Message 4").into();
+        assert_eq!("Message 4", bob_session.decrypt(message_4).unwrap());
+
+        let message_5 = bob_session.encrypt("Message 5").into();
+        assert_eq!("Message 5", alice_session.decrypt(&message_5));
+        assert_eq!("Message 3", alice_session.decrypt(&message_3));
+        assert_eq!("Message 2", alice_session.decrypt(&message_2));
+
+        assert_eq!(alice_session.receiving_chains.len(), 2);
     }
 }
