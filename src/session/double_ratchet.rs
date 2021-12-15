@@ -13,8 +13,9 @@
 // limitations under the License.
 
 use super::{
-    chain_key::{ChainKey, RemoteChainKey},
+    chain_key::ChainKey,
     ratchet::{Ratchet, RatchetPublicKey, RemoteRatchetKey},
+    receiver_chain::ReceiverChain,
     root_key::{RemoteRootKey, RootKey},
 };
 use crate::{messages::InnerMessage, shared_secret::Shared3DHSecret};
@@ -120,7 +121,7 @@ impl ActiveDoubleRatchet {
         let (root_key, remote_chain) = self.dh_ratchet.advance(ratchet_key.clone());
 
         let ratchet = InactiveDoubleRatchet { root_key, ratchet_key: ratchet_key.clone() };
-        let remote_ratchet = ReceiverChain { ratchet_key, hkdf_ratchet: remote_chain };
+        let remote_ratchet = ReceiverChain::new(ratchet_key, remote_chain);
 
         (ratchet, remote_ratchet)
     }
@@ -133,25 +134,5 @@ impl ActiveDoubleRatchet {
         let message_key = self.hkdf_ratchet.create_message_key(self.ratchet_key());
 
         message_key.encrypt(plaintext)
-    }
-}
-
-pub(super) struct ReceiverChain {
-    ratchet_key: RemoteRatchetKey,
-    hkdf_ratchet: RemoteChainKey,
-}
-
-impl ReceiverChain {
-    pub fn new(ratchet_key: RemoteRatchetKey, chain_key: RemoteChainKey) -> Self {
-        ReceiverChain { ratchet_key, hkdf_ratchet: chain_key }
-    }
-
-    pub fn decrypt(&mut self, message: &InnerMessage, ciphertext: &[u8], mac: [u8; 8]) -> Vec<u8> {
-        let message_key = self.hkdf_ratchet.create_message_key();
-        message_key.decrypt(message, ciphertext, mac)
-    }
-
-    pub fn belongs_to(&self, ratchet_key: &RemoteRatchetKey) -> bool {
-        &self.ratchet_key == ratchet_key
     }
 }

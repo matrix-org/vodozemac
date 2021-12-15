@@ -18,10 +18,12 @@ mod double_ratchet;
 mod message_key;
 mod ratchet;
 mod root_key;
+mod receiver_chain;
 
 use arrayvec::ArrayVec;
 use chain_key::RemoteChainKey;
-use double_ratchet::{DoubleRatchet, ReceiverChain};
+use double_ratchet::DoubleRatchet;
+use receiver_chain::ReceiverChain;
 use ratchet::RemoteRatchetKey;
 use root_key::RemoteRootKey;
 use sha2::{Digest, Sha256};
