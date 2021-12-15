@@ -1,6 +1,6 @@
-use zeroize::Zeroize;
 use hkdf::Hkdf;
 use sha2::Sha256;
+use zeroize::Zeroize;
 
 use super::{
     chain_key::{ChainKey, RemoteChainKey},

@@ -1,5 +1,6 @@
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
+use zeroize::Zeroize;
 
 use super::{
     message_key::{MessageKey, RemoteMessageKey},
@@ -22,15 +23,28 @@ fn expand_chain_key(key: &[u8; 32]) -> [u8; 32] {
     key
 }
 
+#[derive(Zeroize)]
 pub struct ChainKey {
     key: [u8; 32],
     index: u64,
 }
 
-#[derive(Debug)]
+impl Drop for ChainKey {
+    fn drop(&mut self) {
+        self.key.zeroize()
+    }
+}
+
+#[derive(Zeroize)]
 pub struct RemoteChainKey {
     key: [u8; 32],
     index: u64,
+}
+
+impl Drop for RemoteChainKey {
+    fn drop(&mut self) {
+        self.key.zeroize()
+    }
 }
 
 impl RemoteChainKey {

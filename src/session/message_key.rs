@@ -1,18 +1,34 @@
+use zeroize::Zeroize;
+
 use super::ratchet::RatchetPublicKey;
 use crate::{
     cipher::{Cipher, Mac},
     messages::InnerMessage,
 };
 
+#[derive(Zeroize)]
 pub(super) struct MessageKey {
     key: [u8; 32],
     ratchet_key: RatchetPublicKey,
     index: u64,
 }
 
+impl Drop for MessageKey {
+    fn drop(&mut self) {
+        self.key.zeroize()
+    }
+}
+
+#[derive(Zeroize)]
 pub(super) struct RemoteMessageKey {
     pub key: [u8; 32],
     pub index: u64,
+}
+
+impl Drop for RemoteMessageKey {
+    fn drop(&mut self) {
+        self.key.zeroize()
+    }
 }
 
 impl MessageKey {

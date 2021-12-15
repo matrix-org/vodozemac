@@ -3,8 +3,23 @@ use sha2::Sha256;
 use x25519_dalek::{PublicKey, SharedSecret, StaticSecret};
 use zeroize::Zeroize;
 
+#[derive(Zeroize)]
 pub struct Shared3DHSecret([u8; 96]);
+
+impl Drop for Shared3DHSecret {
+    fn drop(&mut self) {
+        self.0.zeroize()
+    }
+}
+
+#[derive(Zeroize)]
 pub struct RemoteShared3DHSecret([u8; 96]);
+
+impl Drop for RemoteShared3DHSecret {
+    fn drop(&mut self) {
+        self.0.zeroize()
+    }
+}
 
 fn expand(shared_secret: [u8; 96]) -> ([u8; 32], [u8; 32]) {
     let hkdf: Hkdf<Sha256> = Hkdf::new(Some(&[0]), &shared_secret);
