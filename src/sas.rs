@@ -16,8 +16,8 @@ use hkdf::Hkdf;
 use hmac::{digest::MacError, Hmac, Mac};
 use rand::thread_rng;
 use sha2::Sha256;
-use x25519_dalek::{EphemeralSecret, SharedSecret};
 use thiserror::Error;
+use x25519_dalek::{EphemeralSecret, SharedSecret};
 
 use crate::{
     utilities::{base64_decode, base64_encode},
