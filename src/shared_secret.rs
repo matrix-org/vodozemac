@@ -30,12 +30,12 @@ fn expand(shared_secret: [u8; 96]) -> ([u8; 32], [u8; 32]) {
 
     let mut expanded_keys = [0u8; 64];
 
-    hkdf.expand(b"OLM_ROOT", &mut expanded_keys).unwrap();
+    hkdf.expand(b"OLM_ROOT", &mut expanded_keys)
+        .expect("Can't expand the shared 3DH secret into the Olm root");
 
     root_key.copy_from_slice(&expanded_keys[0..32]);
     chain_key.copy_from_slice(&expanded_keys[32..64]);
 
-    // XXX: Consider separating this out into a separate type with a Drop impl.
     expanded_keys.zeroize();
 
     (root_key, chain_key)
