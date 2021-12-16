@@ -20,7 +20,7 @@ use x25519_dalek::{EphemeralSecret, SharedSecret};
 
 use crate::{
     utilities::{base64_decode, base64_encode},
-    Curve25519PublicKey,
+    Curve25519PublicKey, Curve25519KeyError,
 };
 
 type HmacSha256Key = [u8; 32];
@@ -60,17 +60,22 @@ impl Sas {
         &self.encoded_public_key
     }
 
-    pub fn diffie_hellman(self, other_public_key: &str) -> EstablishedSas {
-        let mut public_key = [0u8; 32];
-
-        // TODO check the length of the key.
-        // TODO turn the unrwap into an error.
-        public_key.copy_from_slice(&base64_decode(other_public_key.as_bytes()).unwrap());
-
-        let public_key = Curve25519PublicKey::from(public_key);
-        let shared_secret = self.secret_key.diffie_hellman(&public_key.inner);
+    /// Establishes a SAS secret by performing a DH handshake with another
+    /// public key.
+    pub fn diffie_hellman(self, other_public_key: Curve25519PublicKey) -> EstablishedSas {
+        let shared_secret = self.secret_key.diffie_hellman(&other_public_key.inner);
 
         EstablishedSas { shared_secret }
+    }
+
+    /// Establishes a SAS secret by performing a DH handshake with another
+    /// public key in "raw", base64-encoded form.
+    pub fn diffie_hellman_with_raw(self, other_public_key: &str) -> Result<EstablishedSas, Curve25519KeyError> {
+        let other_public_key = Curve25519PublicKey::from_base64(other_public_key)?;
+
+        let shared_secret = self.secret_key.diffie_hellman(&other_public_key.inner);
+
+        Ok(EstablishedSas { shared_secret })
     }
 }
 
@@ -129,7 +134,7 @@ mod test {
         let dalek = Sas::new();
 
         olm.set_their_public_key(dalek.public_key_encoded().to_string()).unwrap();
-        let established = dalek.diffie_hellman(&olm.public_key());
+        let established = dalek.diffie_hellman_with_raw(&olm.public_key()).unwrap();
 
         assert_eq!(olm.generate_bytes("TEST", 10).unwrap(), established.get_bytes("TEST", 10));
     }
@@ -142,7 +147,7 @@ mod test {
         let dalek = Sas::new();
 
         olm.set_their_public_key(dalek.public_key_encoded().to_string()).unwrap();
-        let established = dalek.diffie_hellman(&olm.public_key());
+        let established = dalek.diffie_hellman_with_raw(&olm.public_key()).unwrap();
 
         assert_eq!(olm.calculate_mac("", "").unwrap(), established.calculate_mac("", ""));
 

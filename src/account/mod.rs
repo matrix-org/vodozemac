@@ -25,7 +25,7 @@ use rand::thread_rng;
 use types::{Curve25519Keypair, Ed25519Keypair, KeyId};
 use x25519_dalek::StaticSecret as Curve25519SecretKey;
 
-pub use crate::account::types::Curve25519PublicKey;
+pub use crate::account::types::{Curve25519PublicKey, Curve25519KeyError};
 use crate::{
     messages::{InnerMessage, InnerPreKeyMessage, PreKeyMessage},
     session::Session,

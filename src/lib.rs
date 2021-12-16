@@ -35,4 +35,4 @@ pub mod sas;
 pub use account::Account;
 pub use session::Session;
 
-pub use crate::account::Curve25519PublicKey;
+pub use crate::account::{Curve25519KeyError, Curve25519PublicKey};
