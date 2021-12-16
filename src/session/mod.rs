@@ -219,6 +219,7 @@ impl Session {
 
 #[cfg(test)]
 mod test {
+    use anyhow::{bail, Result};
     use olm_rs::{
         account::OlmAccount,
         session::{OlmMessage, OlmSession},
@@ -227,17 +228,22 @@ mod test {
     use super::Session;
     use crate::{Account, Curve25519PublicKey};
 
-    fn sessions() -> (Account, OlmAccount, Session, OlmSession) {
+    fn sessions() -> Result<(Account, OlmAccount, Session, OlmSession)> {
         let alice = Account::new();
         let bob = OlmAccount::new();
         bob.generate_one_time_keys(1);
 
-        let one_time_key =
-            bob.parsed_one_time_keys().curve25519().values().cloned().next().unwrap();
+        let one_time_key = bob
+            .parsed_one_time_keys()
+            .curve25519()
+            .values()
+            .cloned()
+            .next()
+            .expect("Couldn't find a one-time key");
 
         let identity_keys = bob.parsed_identity_keys();
-        let curve25519_key = Curve25519PublicKey::from_base64(identity_keys.curve25519()).unwrap();
-        let one_time_key = Curve25519PublicKey::from_base64(&one_time_key).unwrap();
+        let curve25519_key = Curve25519PublicKey::from_base64(identity_keys.curve25519())?;
+        let one_time_key = Curve25519PublicKey::from_base64(&one_time_key)?;
         let mut alice_session = alice.create_outbound_session(curve25519_key, one_time_key);
 
         let message = "It's a secret to everybody";
@@ -246,49 +252,51 @@ mod test {
         bob.mark_keys_as_published();
 
         if let OlmMessage::PreKey(m) = olm_message {
-            let session = bob
-                .create_inbound_session_from(alice.curve25519_key_encoded(), m)
-                .expect("Can't create an Olm session");
+            let session = bob.create_inbound_session_from(alice.curve25519_key_encoded(), m)?;
 
-            (alice, bob, alice_session, session)
+            Ok((alice, bob, alice_session, session))
         } else {
-            panic!("Invalid message type");
+            bail!("Invalid message type");
         }
     }
 
     #[test]
-    fn out_of_order_decryption() {
-        let (_, _, mut alice_session, bob_session) = sessions();
+    fn out_of_order_decryption() -> Result<()> {
+        let (_, _, mut alice_session, bob_session) = sessions()?;
 
         let message_1 = bob_session.encrypt("Message 1").into();
         let message_2 = bob_session.encrypt("Message 2").into();
         let message_3 = bob_session.encrypt("Message 3").into();
 
-        assert_eq!("Message 3", alice_session.decrypt(&message_3).unwrap());
-        assert_eq!("Message 2", alice_session.decrypt(&message_2).unwrap());
-        assert_eq!("Message 1", alice_session.decrypt(&message_1).unwrap());
+        assert_eq!("Message 3", alice_session.decrypt(&message_3)?);
+        assert_eq!("Message 2", alice_session.decrypt(&message_2)?);
+        assert_eq!("Message 1", alice_session.decrypt(&message_1)?);
+
+        Ok(())
     }
 
     #[test]
-    fn more_out_of_order_decryption() {
-        let (_, _, mut alice_session, bob_session) = sessions();
+    fn more_out_of_order_decryption() -> Result<()> {
+        let (_, _, mut alice_session, bob_session) = sessions()?;
 
         let message_1 = bob_session.encrypt("Message 1").into();
         let message_2 = bob_session.encrypt("Message 2").into();
         let message_3 = bob_session.encrypt("Message 3").into();
 
-        assert_eq!("Message 1", alice_session.decrypt(&message_1).unwrap());
+        assert_eq!("Message 1", alice_session.decrypt(&message_1)?);
 
         assert_eq!(alice_session.receiving_chains.len(), 1);
 
         let message_4 = alice_session.encrypt("Message 4").into();
-        assert_eq!("Message 4", bob_session.decrypt(message_4).unwrap());
+        assert_eq!("Message 4", bob_session.decrypt(message_4)?);
 
         let message_5 = bob_session.encrypt("Message 5").into();
-        assert_eq!("Message 5", alice_session.decrypt(&message_5).unwrap());
-        assert_eq!("Message 3", alice_session.decrypt(&message_3).unwrap());
-        assert_eq!("Message 2", alice_session.decrypt(&message_2).unwrap());
+        assert_eq!("Message 5", alice_session.decrypt(&message_5)?);
+        assert_eq!("Message 3", alice_session.decrypt(&message_3)?);
+        assert_eq!("Message 2", alice_session.decrypt(&message_2)?);
 
         assert_eq!(alice_session.receiving_chains.len(), 2);
+
+        Ok(())
     }
 }
