@@ -17,6 +17,7 @@ use hmac::{digest::MacError, Hmac, Mac};
 use rand::thread_rng;
 use sha2::Sha256;
 use x25519_dalek::{EphemeralSecret, SharedSecret};
+use thiserror::Error;
 
 use crate::{
     utilities::{base64_decode, base64_encode},
@@ -24,6 +25,14 @@ use crate::{
 };
 
 type HmacSha256Key = [u8; 32];
+
+#[derive(Debug, Error)]
+pub enum SasError {
+    #[error("The SAS MAC wasn't valid base64: {0}")]
+    Base64(#[from] base64::DecodeError),
+    #[error("The SAS MAC validation didn't succeed: {0}")]
+    Mac(#[from] MacError),
+}
 
 pub struct Sas {
     secret_key: EphemeralSecret,
@@ -83,9 +92,13 @@ impl Sas {
 }
 
 impl EstablishedSas {
+    fn get_hkdf(&self) -> Hkdf<Sha256> {
+        Hkdf::new(None, self.shared_secret.as_bytes())
+    }
+
     pub fn get_bytes(&self, info: &str, count: usize) -> Vec<u8> {
         let mut output = vec![0u8; count];
-        let hkdf: Hkdf<Sha256> = Hkdf::new(None, self.shared_secret.as_bytes());
+        let hkdf = self.get_hkdf();
 
         hkdf.expand(info.as_bytes(), &mut output[0..count]).expect("Can't generate the SAS bytes");
 
@@ -94,8 +107,8 @@ impl EstablishedSas {
 
     fn get_mac_key(&self, info: &str) -> HmacSha256Key {
         let mut mac_key = [0u8; 32];
+        let hkdf = self.get_hkdf();
 
-        let hkdf: Hkdf<Sha256> = Hkdf::new(None, self.shared_secret.as_bytes());
         hkdf.expand(info.as_bytes(), &mut mac_key).expect("Can't expand the MAC key");
 
         mac_key
@@ -114,14 +127,13 @@ impl EstablishedSas {
         base64_encode(mac.finalize().into_bytes())
     }
 
-    pub fn verify_mac(&self, input: &str, info: &str, tag: &str) -> Result<(), MacError> {
-        // TODO turn this into an error.
-        let tag = base64_decode(tag).unwrap();
+    pub fn verify_mac(&self, input: &str, info: &str, tag: &str) -> Result<(), SasError> {
+        let tag = base64_decode(tag)?;
 
         let mut mac = self.get_mac(info);
         mac.update(input.as_bytes());
 
-        mac.verify_slice(&tag)
+        Ok(mac.verify_slice(&tag)?)
     }
 }
 
