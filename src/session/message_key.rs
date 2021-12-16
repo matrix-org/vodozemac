@@ -95,8 +95,12 @@ impl RemoteMessageKey {
 
 #[derive(Error, Debug)]
 pub enum OlmDecryptionError {
-    #[error("Failed decrypting Olm message, invalid MAC: {}", .0)]
+    #[error("Failed decrypting Olm message, invalid MAC: {0}")]
     InvalidMAC(#[from] MacError),
-    #[error("Failed decrypting Olm message, invalid ciphertext: {}", .0)]
+    #[error("Failed decrypting Olm message, invalid ciphertext: {0}")]
     InvalidCiphertext(#[from] BlockModeError),
+    #[error("The message key with the given key can't be created, message index: {0}")]
+    MissingMessageKey(u64),
+    #[error("The message gap was too big, got {0}, max allowed {}")]
+    TooBigMessageGap(u64, u64),
 }

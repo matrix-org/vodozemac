@@ -84,18 +84,19 @@ impl ReceiverChain {
         ciphertext: &[u8],
         mac: [u8; 8],
     ) -> Result<Vec<u8>, OlmDecryptionError> {
-        if chain_index.saturating_sub(self.hkdf_ratchet.chain_index()) > MAX_MESSAGE_GAP {
-            todo!()
+        let message_gap = chain_index.saturating_sub(self.hkdf_ratchet.chain_index());
+
+        if message_gap > MAX_MESSAGE_GAP {
+            Err(OlmDecryptionError::TooBigMessageGap(message_gap, MAX_MESSAGE_GAP))
         } else if self.hkdf_ratchet.chain_index() > chain_index {
             if let Some(message_key) = self.skipped_message_keys.get_message_key(chain_index) {
                 let plaintext = message_key.decrypt(message, ciphertext, mac)?;
 
-                // TODO only remove the message key if decryption succeeds.
                 self.skipped_message_keys.remove_message_key(chain_index);
 
                 Ok(plaintext)
             } else {
-                todo!()
+                Err(OlmDecryptionError::MissingMessageKey(chain_index))
             }
         } else {
             let mut ratchet = self.hkdf_ratchet.clone();
@@ -113,13 +114,12 @@ impl ReceiverChain {
 
             // Create now our desired message key
             let message_key = ratchet.create_message_key();
-            let plaintext = message_key.decrypt(message, ciphertext, mac);
+            let plaintext = message_key.decrypt(message, ciphertext, mac)?;
 
-            // TODO if decryption fails, don't update our ratchet
             self.hkdf_ratchet = ratchet;
             self.skipped_message_keys.merge(skipped_keys);
 
-            plaintext
+            Ok(plaintext)
         }
     }
 
