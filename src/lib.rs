@@ -18,6 +18,7 @@
     trivial_casts,
     trivial_numeric_casts,
     unsafe_code,
+    unsafe_op_in_unsafe_fn,
     unused_extern_crates,
     unused_import_braces,
     unused_qualifications

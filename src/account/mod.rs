@@ -101,19 +101,6 @@ impl Account {
         self.signing_key.sign(message)
     }
 
-    pub fn from_pickle() -> Self {
-        // TODO
-        Self::new()
-    }
-
-    pub fn from_libolm_pickle() -> Self {
-        todo!()
-    }
-
-    pub fn pickle(&self) -> String {
-        "TEST_PICKLE".to_string()
-    }
-
     pub fn max_number_of_one_time_keys(&self) -> usize {
         50
     }

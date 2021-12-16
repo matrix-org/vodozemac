@@ -127,14 +127,6 @@ impl Session {
         Self { session_keys, sending_ratchet: local_ratchet, receiving_chains: ratchet_store }
     }
 
-    pub fn pickle(&self) -> String {
-        todo!()
-    }
-
-    pub fn unpickle(_pickle: String) -> Self {
-        todo!()
-    }
-
     pub fn session_id(&self) -> String {
         let sha = Sha256::new();
 
