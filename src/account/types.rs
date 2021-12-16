@@ -109,6 +109,7 @@ impl Curve25519PublicKey {
         self.inner.as_bytes()
     }
 
+    /// Instantiate a Curve25519 public key from an unpadded base64 representation.
     pub fn from_base64(base64_key: &str) -> Result<Curve25519PublicKey, Curve25519KeyError> {
         match base64_decode(base64_key) {
             Ok(key_vec) => {
@@ -123,6 +124,11 @@ impl Curve25519PublicKey {
 
             Err(e) => Err(Curve25519KeyError::Base64Error(e)),
         }
+    }
+
+    /// Serialize a Curve25519 public key to an unpadded base64 representation.
+    pub fn to_base64(&self) -> String {
+        base64_encode(self.inner.as_bytes())
     }
 }
 
