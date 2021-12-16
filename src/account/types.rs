@@ -54,6 +54,8 @@ pub(super) struct Curve25519Keypair {
     encoded_public_key: String,
 }
 
+const CURVE25519_PUBLIC_KEY_LEN: usize = 32;
+
 impl Curve25519Keypair {
     pub fn new() -> Self {
         let mut rng = thread_rng();
@@ -92,13 +94,13 @@ pub struct Curve25519PublicKey {
 }
 
 impl Curve25519PublicKey {
-    pub fn new(private_key: [u8; 32]) -> Curve25519PublicKey {
+    pub fn new(private_key: [u8; CURVE25519_PUBLIC_KEY_LEN]) -> Curve25519PublicKey {
         Self { inner: PublicKey::from(private_key) }
     }
 
     /// Convert this public key to a byte array.
     #[inline]
-    pub fn to_bytes(&self) -> [u8; 32] {
+    pub fn to_bytes(&self) -> [u8; CURVE25519_PUBLIC_KEY_LEN] {
         self.inner.to_bytes()
     }
 
@@ -112,13 +114,14 @@ impl Curve25519PublicKey {
     /// representation.
     pub fn from_base64(base64_key: &str) -> Result<Curve25519PublicKey, Curve25519KeyError> {
         let key_vec = base64_decode(base64_key)?;
+        let key_len = key_vec.len();
 
-        if key_vec.len() == 32 {
-            let mut key = [0u8; 32];
+        if key_len == CURVE25519_PUBLIC_KEY_LEN {
+            let mut key = [0u8; CURVE25519_PUBLIC_KEY_LEN];
             key.copy_from_slice(&key_vec);
             Ok(Self::from(key))
         } else {
-            Err(Curve25519KeyError::InvalidKeyLength)
+            Err(Curve25519KeyError::InvalidKeyLength(key_len))
         }
     }
 
@@ -128,8 +131,8 @@ impl Curve25519PublicKey {
     }
 }
 
-impl From<[u8; 32]> for Curve25519PublicKey {
-    fn from(bytes: [u8; 32]) -> Curve25519PublicKey {
+impl From<[u8; CURVE25519_PUBLIC_KEY_LEN]> for Curve25519PublicKey {
+    fn from(bytes: [u8; CURVE25519_PUBLIC_KEY_LEN]) -> Curve25519PublicKey {
         Curve25519PublicKey { inner: PublicKey::from(bytes) }
     }
 }
@@ -150,8 +153,10 @@ impl<'a> From<&'a EphemeralSecret> for Curve25519PublicKey {
 pub enum Curve25519KeyError {
     #[error("Failed decoding curve25519 key from base64: {}", .0)]
     Base64Error(#[from] DecodeError),
-    #[error("Failed decoding curve25519 key from base64: Invalid number of bytes for curve25519.")]
-    InvalidKeyLength,
+    #[error("Failed decoding curve25519 key from base64: \
+             Invalid number of bytes for curve25519, expected {}, got {}.",
+            CURVE25519_PUBLIC_KEY_LEN, .0)]
+    InvalidKeyLength(usize),
 }
 
 #[cfg(test)]
@@ -185,7 +190,7 @@ mod tests {
         let base64_payload = "aaaa";
         assert!(matches!(
             Curve25519PublicKey::from_base64(base64_payload),
-            Err(Curve25519KeyError::InvalidKeyLength)
+            Err(Curve25519KeyError::InvalidKeyLength(..))
         ));
     }
 
