@@ -38,8 +38,8 @@ impl Cipher {
     }
 
     fn get_hmac(&self) -> HmacSha256 {
-        // We don't use HmacSha256::new() here because new() expects a 64 byte
-        // large Hmac key, the Olm spec defines a 32 byte long one instead.
+        // We don't use HmacSha256::new() here because it expects a 64-byte
+        // large HMAC key while the Olm spec defines a 32-byte one instead.
         //
         // https://gitlab.matrix.org/matrix-org/olm/-/blob/master/docs/olm.md#version-1
         HmacSha256::new_from_slice(self.keys.mac_key()).expect("Invalid HMAC key size")
