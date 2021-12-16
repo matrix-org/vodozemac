@@ -1,5 +1,5 @@
 use hmac::{Hmac, Mac};
-use sha2::Sha256;
+use sha2::{digest::CtOutput, Sha256};
 use zeroize::Zeroize;
 
 use super::{
@@ -21,6 +21,14 @@ fn expand_chain_key(key: &[u8; 32]) -> [u8; 32] {
     key.copy_from_slice(output.as_slice());
 
     key
+}
+
+fn advance(key: &[u8; 32]) -> CtOutput<Hmac<Sha256>> {
+    let mut mac = Hmac::<Sha256>::new_from_slice(key)
+        .expect("Coulnd't create a valid Hmac object to advance the ratchet");
+    mac.update(ADVANCEMENT_SEED);
+
+    mac.finalize()
 }
 
 #[derive(Zeroize)]
@@ -61,10 +69,7 @@ impl RemoteChainKey {
     }
 
     pub fn advance(&mut self) {
-        let mut mac = Hmac::<Sha256>::new_from_slice(&self.key).unwrap();
-        mac.update(ADVANCEMENT_SEED);
-
-        let output = mac.finalize().into_bytes();
+        let output = advance(&self.key).into_bytes();
         self.key.copy_from_slice(output.as_slice());
         self.index += 1;
     }
@@ -89,10 +94,7 @@ impl ChainKey {
     }
 
     pub fn advance(&mut self) {
-        let mut mac = Hmac::<Sha256>::new_from_slice(&self.key).unwrap();
-        mac.update(ADVANCEMENT_SEED);
-
-        let output = mac.finalize().into_bytes();
+        let output = advance(&self.key).into_bytes();
         self.key.copy_from_slice(output.as_slice());
         self.index += 1;
     }
