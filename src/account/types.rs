@@ -146,23 +146,55 @@ impl<'a> From<&'a EphemeralSecret> for Curve25519PublicKey {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Error, Debug, Clone)]
 pub enum Curve25519KeyError {
-    Base64Error(DecodeError),
+    #[error("base64 decoding error")]
+    Base64Error(#[from] DecodeError),
+    #[error("invalid number of bytes")]
     InvalidKeyLength,
 }
 
-impl Display for Curve25519KeyError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Curve25519KeyError::Base64Error(err) => {
-                write!(f, "Error parsing Curve25519 key from base64: {}", err)
-            }
-            Curve25519KeyError::InvalidKeyLength => {
-                write!(f, "Error parsing Curve25519 key from base64: invalid number of bytes")
-            }
-        }
+#[cfg(test)]
+mod tests {
+    use super::{Curve25519KeyError, Curve25519PublicKey};
+    use crate::utilities::DecodeError;
+
+    #[test]
+    fn decoding_invalid_base64_fails() {
+        let base64_payload = "a";
+        assert!(matches!(
+            Curve25519PublicKey::from_base64(base64_payload),
+            Err(Curve25519KeyError::Base64Error(DecodeError::InvalidLength))
+        ));
+
+        let base64_payload = "a ";
+        assert!(matches!(
+            Curve25519PublicKey::from_base64(base64_payload),
+            Err(Curve25519KeyError::Base64Error(DecodeError::InvalidByte(..)))
+        ));
+
+        let base64_payload = "aZ";
+        assert!(matches!(
+            Curve25519PublicKey::from_base64(base64_payload),
+            Err(Curve25519KeyError::Base64Error(DecodeError::InvalidLastSymbol(..)))
+        ));
+    }
+
+    #[test]
+    fn decoding_incorrect_num_of_bytes_fails() {
+        let base64_payload = "aaaa";
+        assert!(matches!(
+            Curve25519PublicKey::from_base64(base64_payload),
+            Err(Curve25519KeyError::InvalidKeyLength)
+        ));
+    }
+
+    #[test]
+    fn decoding_of_correct_num_of_bytes_succeeds() {
+        let base64_payload = "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA";
+        assert!(matches!(
+            Curve25519PublicKey::from_base64(base64_payload),
+            Ok(..)
+        ));
     }
 }
-
-impl Error for Curve25519KeyError {}
