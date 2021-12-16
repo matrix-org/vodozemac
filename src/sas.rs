@@ -127,34 +127,43 @@ impl EstablishedSas {
 
 #[cfg(test)]
 mod test {
+    use anyhow::Result;
     use olm_rs::sas::OlmSas;
 
     use super::Sas;
 
     #[test]
-    fn generate_bytes() {
+    fn generate_bytes() -> Result<()> {
         let mut olm = OlmSas::new();
         let dalek = Sas::new();
 
-        olm.set_their_public_key(dalek.public_key_encoded().to_string()).unwrap();
-        let established = dalek.diffie_hellman_with_raw(&olm.public_key()).unwrap();
+        olm.set_their_public_key(dalek.public_key_encoded().to_string())
+            .expect("Couldn't set the public key for libolm");
+        let established = dalek.diffie_hellman_with_raw(&olm.public_key())?;
 
-        assert_eq!(olm.generate_bytes("TEST", 10).unwrap(), established.get_bytes("TEST", 10));
+        assert_eq!(
+            olm.generate_bytes("TEST", 10).expect("libolm coulnd't generate SAS bytes"),
+            established.get_bytes("TEST", 10)
+        );
+
+        Ok(())
     }
 
     #[test]
     // Allowed to fail due to https://gitlab.matrix.org/matrix-org/olm/-/merge_requests/16
-    fn calculate_mac() {
+    fn calculate_mac() -> Result<()> {
         let mut olm = OlmSas::new();
         let dalek = Sas::new();
 
-        olm.set_their_public_key(dalek.public_key_encoded().to_string()).unwrap();
-        let established = dalek.diffie_hellman_with_raw(&olm.public_key()).unwrap();
+        olm.set_their_public_key(dalek.public_key_encoded().to_string())
+            .expect("Couldn't set the public key for libolm");
+        let established = dalek.diffie_hellman_with_raw(&olm.public_key())?;
 
-        assert_eq!(olm.calculate_mac("", "").unwrap(), established.calculate_mac("", ""));
+        let olm_mac = olm.calculate_mac("", "").expect("libolm couldn't calculate a MAC");
+        assert_eq!(olm_mac, established.calculate_mac("", ""));
 
-        let olm_mac = olm.calculate_mac("", "").unwrap();
+        established.verify_mac("", "", olm_mac.as_str())?;
 
-        established.verify_mac("", "", olm_mac.as_str()).unwrap()
+        Ok(())
     }
 }

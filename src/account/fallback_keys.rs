@@ -89,26 +89,27 @@ mod test {
 
     #[test]
     fn fallback_key_fetching() {
+        let err = "Missing fallback key";
         let mut fallback_keys = FallbackKeys::new();
 
         fallback_keys.generate_fallback_key();
 
-        let public_key = fallback_keys.fallback_key.as_ref().unwrap().public_key();
-        let secret_bytes = fallback_keys.fallback_key.as_ref().unwrap().key.to_bytes();
+        let public_key = fallback_keys.fallback_key.as_ref().expect(err).public_key();
+        let secret_bytes = fallback_keys.fallback_key.as_ref().expect(err).key.to_bytes();
 
-        let fetched_key = fallback_keys.get_secret_key(&public_key).unwrap();
+        let fetched_key = fallback_keys.get_secret_key(&public_key).expect(err);
 
         assert_eq!(secret_bytes, fetched_key.to_bytes());
 
         fallback_keys.generate_fallback_key();
 
-        let fetched_key = fallback_keys.get_secret_key(&public_key).unwrap();
+        let fetched_key = fallback_keys.get_secret_key(&public_key).expect(err);
         assert_eq!(secret_bytes, fetched_key.to_bytes());
 
-        let public_key = fallback_keys.fallback_key.as_ref().unwrap().public_key();
-        let secret_bytes = fallback_keys.fallback_key.as_ref().unwrap().key.to_bytes();
+        let public_key = fallback_keys.fallback_key.as_ref().expect(err).public_key();
+        let secret_bytes = fallback_keys.fallback_key.as_ref().expect(err).key.to_bytes();
 
-        let fetched_key = fallback_keys.get_secret_key(&public_key).unwrap();
+        let fetched_key = fallback_keys.get_secret_key(&public_key).expect(err);
 
         assert_eq!(secret_bytes, fetched_key.to_bytes());
     }
