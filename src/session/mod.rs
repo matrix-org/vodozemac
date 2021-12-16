@@ -205,7 +205,6 @@ impl Session {
         } else {
             let (sending_ratchet, mut remote_ratchet) = self.sending_ratchet.advance(ratchet_key);
 
-            // TODO don't update the state if the message doesn't decrypt
             let plaintext = remote_ratchet.decrypt(
                 &message,
                 decoded.chain_index,
