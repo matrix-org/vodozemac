@@ -17,6 +17,7 @@
     trivial_casts,
     trivial_numeric_casts,
     unused_extern_crates,
+    clippy::unwrap_used,
     unused_import_braces,
     unused_qualifications
 )]
