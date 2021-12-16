@@ -110,6 +110,7 @@ impl OlmMessage {
     const INDEX_TAG: &'static [u8; 1] = b"\x10";
     const CIPHER_TAG: &'static [u8; 1] = b"\x22";
 
+    #[cfg(test)]
     pub fn as_bytes(&self) -> &[u8] {
         self.inner.as_ref()
     }
@@ -207,10 +208,6 @@ pub struct PreKeyMessage {
 
 impl PreKeyMessage {
     const VERSION: u8 = 3;
-
-    pub fn as_bytes(&self) -> &[u8] {
-        self.inner.as_ref()
-    }
 
     pub fn decode(
         self,
