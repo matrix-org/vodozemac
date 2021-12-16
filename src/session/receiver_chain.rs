@@ -14,7 +14,11 @@
 
 use arrayvec::ArrayVec;
 
-use super::{chain_key::RemoteChainKey, message_key::RemoteMessageKey, ratchet::RemoteRatchetKey};
+use super::{
+    chain_key::RemoteChainKey,
+    message_key::{OlmDecryptionError, RemoteMessageKey},
+    ratchet::RemoteRatchetKey,
+};
 use crate::messages::InnerMessage;
 
 const MAX_MESSAGE_GAP: u64 = 2000;
@@ -79,17 +83,17 @@ impl ReceiverChain {
         chain_index: u64,
         ciphertext: &[u8],
         mac: [u8; 8],
-    ) -> Vec<u8> {
+    ) -> Result<Vec<u8>, OlmDecryptionError> {
         if chain_index.saturating_sub(self.hkdf_ratchet.chain_index()) > MAX_MESSAGE_GAP {
             todo!()
         } else if self.hkdf_ratchet.chain_index() > chain_index {
             if let Some(message_key) = self.skipped_message_keys.get_message_key(chain_index) {
-                let plaintext = message_key.decrypt(message, ciphertext, mac);
+                let plaintext = message_key.decrypt(message, ciphertext, mac)?;
 
                 // TODO only remove the message key if decryption succeeds.
                 self.skipped_message_keys.remove_message_key(chain_index);
 
-                plaintext
+                Ok(plaintext)
             } else {
                 todo!()
             }

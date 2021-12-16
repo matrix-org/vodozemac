@@ -1,3 +1,6 @@
+use block_modes::BlockModeError;
+use hmac::digest::MacError;
+use thiserror::Error;
 use zeroize::Zeroize;
 
 use super::ratchet::RatchetPublicKey;
@@ -68,10 +71,18 @@ impl RemoteMessageKey {
         message: &InnerMessage,
         ciphertext: &[u8],
         mac: [u8; Mac::TRUNCATED_LEN],
-    ) -> Vec<u8> {
+    ) -> Result<Vec<u8>, OlmDecryptionError> {
         let cipher = Cipher::new(&self.key);
 
-        cipher.verify_mac(message.as_payload_bytes(), &mac).expect("Invalid MAC");
-        cipher.decrypt(ciphertext).expect("Couldn't decrypt")
+        cipher.verify_mac(message.as_payload_bytes(), &mac)?;
+        Ok(cipher.decrypt(ciphertext)?)
     }
+}
+
+#[derive(Error, Debug)]
+pub enum OlmDecryptionError {
+    #[error("Failed decrypting Olm message, invalid MAC: {}", .0)]
+    InvalidMAC(#[from] MacError),
+    #[error("Failed decrypting Olm message, invalid ciphertext: {}", .0)]
+    InvalidCiphertext(#[from] BlockModeError),
 }

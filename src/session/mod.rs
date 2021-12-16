@@ -28,6 +28,7 @@ use receiver_chain::ReceiverChain;
 use root_key::RemoteRootKey;
 use sha2::{Digest, Sha256};
 
+use self::message_key::OlmDecryptionError;
 use crate::{
     messages::{InnerMessage, InnerPreKeyMessage, Message, OlmMessage, PreKeyMessage},
     session_keys::SessionKeys,
@@ -153,36 +154,36 @@ impl Session {
         }
     }
 
-    pub fn decrypt(&mut self, message: &OlmMessage) -> String {
+    pub fn decrypt(&mut self, message: &OlmMessage) -> Result<String, OlmDecryptionError> {
         let decrypted = match message {
             OlmMessage::Normal(m) => {
                 let message = base64_decode(&m.inner).unwrap();
-                self.decrypt_normal(message)
+                self.decrypt_normal(message)?
             }
             OlmMessage::PreKey(m) => {
                 let message = base64_decode(&m.inner).unwrap();
-                self.decrypt_prekey(message)
+                self.decrypt_prekey(message)?
             }
         };
 
-        String::from_utf8_lossy(&decrypted).to_string()
+        Ok(String::from_utf8_lossy(&decrypted).to_string())
     }
 
-    fn decrypt_prekey(&mut self, message: Vec<u8>) -> Vec<u8> {
+    fn decrypt_prekey(&mut self, message: Vec<u8>) -> Result<Vec<u8>, OlmDecryptionError> {
         let message = InnerPreKeyMessage::from(message);
         let (_, _, _, message) = message.decode().unwrap();
 
-        self.decrypt_normal(message)
+        Ok(self.decrypt_normal(message)?)
     }
 
-    fn decrypt_normal(&mut self, message: Vec<u8>) -> Vec<u8> {
+    fn decrypt_normal(&mut self, message: Vec<u8>) -> Result<Vec<u8>, OlmDecryptionError> {
         let message = InnerMessage::from(message);
         let decoded = message.decode().unwrap();
 
         let ratchet_key = RemoteRatchetKey::from(decoded.ratchet_key);
 
         if let Some(ratchet) = self.receiving_chains.find_ratchet(&ratchet_key) {
-            ratchet.decrypt(&message, decoded.chain_index, &decoded.ciphertext, decoded.mac)
+            Ok(ratchet.decrypt(&message, decoded.chain_index, &decoded.ciphertext, decoded.mac)?)
         } else {
             let (sending_ratchet, mut remote_ratchet) = self.sending_ratchet.advance(ratchet_key);
 
@@ -192,12 +193,12 @@ impl Session {
                 decoded.chain_index,
                 &decoded.ciphertext,
                 decoded.mac,
-            );
+            )?;
 
             self.sending_ratchet = sending_ratchet;
             self.receiving_chains.push(remote_ratchet);
 
-            plaintext
+            Ok(plaintext)
         }
     }
 }
@@ -249,9 +250,9 @@ mod test {
         let message_2 = bob_session.encrypt("Message 2").into();
         let message_3 = bob_session.encrypt("Message 3").into();
 
-        assert_eq!("Message 3", alice_session.decrypt(&message_3));
-        assert_eq!("Message 2", alice_session.decrypt(&message_2));
-        assert_eq!("Message 1", alice_session.decrypt(&message_1));
+        assert_eq!("Message 3", alice_session.decrypt(&message_3).unwrap());
+        assert_eq!("Message 2", alice_session.decrypt(&message_2).unwrap());
+        assert_eq!("Message 1", alice_session.decrypt(&message_1).unwrap());
     }
 
     #[test]
@@ -262,7 +263,7 @@ mod test {
         let message_2 = bob_session.encrypt("Message 2").into();
         let message_3 = bob_session.encrypt("Message 3").into();
 
-        assert_eq!("Message 1", alice_session.decrypt(&message_1));
+        assert_eq!("Message 1", alice_session.decrypt(&message_1).unwrap());
 
         assert_eq!(alice_session.receiving_chains.len(), 1);
 
@@ -270,9 +271,9 @@ mod test {
         assert_eq!("Message 4", bob_session.decrypt(message_4).unwrap());
 
         let message_5 = bob_session.encrypt("Message 5").into();
-        assert_eq!("Message 5", alice_session.decrypt(&message_5));
-        assert_eq!("Message 3", alice_session.decrypt(&message_3));
-        assert_eq!("Message 2", alice_session.decrypt(&message_2));
+        assert_eq!("Message 5", alice_session.decrypt(&message_5).unwrap());
+        assert_eq!("Message 3", alice_session.decrypt(&message_3).unwrap());
+        assert_eq!("Message 2", alice_session.decrypt(&message_2).unwrap());
 
         assert_eq!(alice_session.receiving_chains.len(), 2);
     }

@@ -249,35 +249,37 @@ mod test {
         bob.mark_keys_as_published();
 
         if let OlmMessage::PreKey(m) = olm_message.clone() {
-            let session = bob
+            let libolm_session = bob
                 .create_inbound_session_from(alice.curve25519_key_encoded(), m)
                 .expect("Can't create an Olm session");
-            assert_eq!(alice_session.session_id(), session.session_id());
+            assert_eq!(alice_session.session_id(), libolm_session.session_id());
 
-            let plaintext = session.decrypt(olm_message).expect("Can't decrypt ciphertext");
+            let plaintext = libolm_session.decrypt(olm_message).expect("Can't decrypt ciphertext");
             assert_eq!(message, plaintext);
 
             let second_text = "Here's another secret to everybody";
             let olm_message = alice_session.encrypt(second_text).into();
 
-            let plaintext = session.decrypt(olm_message).expect("Can't decrypt second ciphertext");
+            let plaintext =
+                libolm_session.decrypt(olm_message).expect("Can't decrypt second ciphertext");
             assert_eq!(second_text, plaintext);
 
             let reply_plain = "Yes, take this, it's dangerous out there";
-            let reply = session.encrypt(reply_plain).into();
-            let plaintext = alice_session.decrypt(&reply);
+            let reply = libolm_session.encrypt(reply_plain).into();
+            let plaintext = alice_session.decrypt(&reply).unwrap();
 
             assert_eq!(&plaintext, reply_plain);
 
             let another_reply = "Last one";
-            let reply = session.encrypt(another_reply).into();
-            let plaintext = alice_session.decrypt(&reply);
+            let reply = libolm_session.encrypt(another_reply).into();
+            let plaintext = alice_session.decrypt(&reply).unwrap();
             assert_eq!(&plaintext, another_reply);
 
             let last_text = "Nope, I'll have the last word";
             let olm_message = alice_session.encrypt(last_text).into();
 
-            let plaintext = session.decrypt(olm_message).expect("Can't decrypt second ciphertext");
+            let plaintext =
+                libolm_session.decrypt(olm_message).expect("Can't decrypt second ciphertext");
             assert_eq!(last_text, plaintext);
         } else {
             unreachable!();
@@ -314,7 +316,7 @@ mod test {
         assert_eq!(alice_session.session_id(), session.session_id());
         assert!(bob.one_time_keys.private_keys.is_empty());
 
-        let decrypted = session.decrypt(&message);
+        let decrypted = session.decrypt(&message).unwrap();
 
         assert_eq!(text, decrypted);
     }
@@ -350,7 +352,7 @@ mod test {
         assert_eq!(alice_session.session_id(), session.session_id());
         assert!(bob.fallback_keys.fallback_key.is_some());
 
-        let decrypted = session.decrypt(&message);
+        let decrypted = session.decrypt(&message).unwrap();
 
         assert_eq!(text, decrypted);
     }
