@@ -20,14 +20,23 @@ impl Drop for ExpandedKeys {
 }
 
 impl ExpandedKeys {
-    const HKDF_INFO: &'static [u8] = b"OLM_KEYS";
+    const OLM_HKDF_INFO: &'static [u8] = b"OLM_KEYS";
+    const MEGOLM_HKDF_INFO: &'static [u8] = b"MEGOLM_KEYS";
 
     fn new(message_key: &[u8; 32]) -> Self {
+        Self::new_helper(message_key, Self::OLM_HKDF_INFO)
+    }
+
+    fn new_megolm(message_key: &[u8; 128]) -> Self {
+        Self::new_helper(message_key, Self::MEGOLM_HKDF_INFO)
+    }
+
+    fn new_helper(message_key: &[u8], info: &[u8]) -> Self {
         let mut expanded_keys = [0u8; 80];
 
         let hkdf: Hkdf<Sha256> = Hkdf::new(Some(&[0]), message_key);
 
-        hkdf.expand(Self::HKDF_INFO, &mut expanded_keys).expect("Can't expand message key");
+        hkdf.expand(info, &mut expanded_keys).expect("Can't expand message key");
 
         Self(expanded_keys)
     }
@@ -62,8 +71,19 @@ impl Drop for CipherKeys {
 
 impl CipherKeys {
     pub fn new(message_key: &[u8; 32]) -> Self {
-        let expanded_key = ExpandedKeys::new(message_key);
-        let (aes_key, aes_iv, mac_key) = expanded_key.split();
+        let expanded_keys = ExpandedKeys::new(message_key);
+
+        Self::new_helper(expanded_keys)
+    }
+
+    pub fn new_megolm(message_key: &[u8; 128]) -> Self {
+        let expanded_keys = ExpandedKeys::new_megolm(message_key);
+
+        Self::new_helper(expanded_keys)
+    }
+
+    fn new_helper(expanded_keys: ExpandedKeys) -> Self {
+        let (aes_key, aes_iv, mac_key) = expanded_keys.split();
 
         Self { aes_key, aes_iv, mac_key }
     }

@@ -30,6 +30,7 @@ mod session;
 mod session_keys;
 mod shared_secret;
 mod utilities;
+mod megolm;
 
 pub mod messages;
 pub mod sas;

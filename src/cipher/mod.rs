@@ -33,6 +33,13 @@ impl Cipher {
         Self { keys }
     }
 
+    #[allow(dead_code)]
+    pub fn new_megolm(&key: &[u8; 128]) -> Self {
+        let keys = CipherKeys::new_megolm(&key);
+
+        Self { keys }
+    }
+
     fn get_cipher(&self) -> Aes256Cbc {
         Aes256Cbc::new_fix(self.keys.aes_key(), self.keys.iv())
     }

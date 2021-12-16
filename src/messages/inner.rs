@@ -43,7 +43,7 @@ pub enum DecodeError {
 // Copyright (c) 2018-2020 Lewin Bormann (lbo@spheniscida.de)
 //
 // [1]: https://github.com/dermesser/integer-encoding-rs
-trait Encode {
+pub(crate) trait Encode {
     fn encode(self) -> Vec<u8>;
 }
 
