@@ -20,7 +20,6 @@
     unused_import_braces,
     unused_qualifications
 )]
-#![feature(allow_fail)]
 
 mod account;
 mod cipher;
