@@ -25,7 +25,7 @@ use rand::thread_rng;
 use types::{Curve25519Keypair, Ed25519Keypair, KeyId};
 use x25519_dalek::StaticSecret as Curve25519SecretKey;
 
-pub use crate::account::types::{Curve25519PublicKey, Curve25519KeyError};
+pub use crate::account::types::{Curve25519KeyError, Curve25519PublicKey};
 use crate::{
     messages::{InnerMessage, InnerPreKeyMessage, PreKeyMessage},
     session::Session,
@@ -34,6 +34,7 @@ use crate::{
     utilities::{base64_decode, base64_encode},
 };
 
+/// An olm account manages all cryptographic keys used on a device.
 pub struct Account {
     /// A permanent Ed25519 key used for signing. Also known as the fingerprint
     /// key.
@@ -50,6 +51,7 @@ pub struct Account {
 }
 
 impl Account {
+    /// Create a new Account with new random identity keys.
     pub fn new() -> Self {
         Self {
             signing_key: Ed25519Keypair::new(),
@@ -81,6 +83,7 @@ impl Account {
         self.diffie_hellman_key.public_key_encoded()
     }
 
+    /// Sign the given message using our ed25519 identity key.
     pub fn sign(&self, message: &str) -> String {
         self.signing_key.sign(message)
     }
@@ -102,6 +105,7 @@ impl Account {
         50
     }
 
+    /// Create a `Session` with the given identity key and one-time key.
     pub fn create_outbound_session(
         &self,
         identity_key: Curve25519PublicKey,
@@ -137,7 +141,8 @@ impl Account {
         self.one_time_keys.remove_secret_key(public_key)
     }
 
-    pub fn create_inbound_session_from(
+    /// Create a `Session` from the given pre-key message and identity key
+    pub fn create_inbound_session(
         &mut self,
         their_identity_key: &Curve25519PublicKey,
         message: &PreKeyMessage,
@@ -176,10 +181,15 @@ impl Account {
         session
     }
 
+    /// Generates the supplied number of one time keys.
     pub fn generate_one_time_keys(&mut self, count: usize) {
         self.one_time_keys.generate(count);
     }
 
+    /// Get the currently unpublished one-time keys.
+    ///
+    /// The one-time keys should be published to a server and marked as
+    /// published using the `mark_keys_as_published()` method.
     pub fn one_time_keys(&self) -> HashMap<KeyId, String> {
         self.one_time_keys
             .public_keys
@@ -188,11 +198,20 @@ impl Account {
             .collect()
     }
 
+    /// Generate a single new fallback key.
+    ///
+    /// The fallback key will be used by other users to establish a `Session` if
+    /// all the one-time keys on the server have been used up.
     pub fn generate_fallback_key(&mut self) {
         self.fallback_keys.generate_fallback_key()
     }
 
-    pub fn fallback_keys(&self) -> HashMap<KeyId, String> {
+    /// Get the currently unpublished fallback key.
+    ///
+    /// The fallback key should be published just like the one-time keys, after
+    /// it has been successfully published it needs to be marked as published
+    /// using the `mark_keys_as_published()` method as well.
+    pub fn fallback_key(&self) -> HashMap<KeyId, String> {
         let fallback_key = self.fallback_keys.unpublished_fallback_key();
 
         if let Some(fallback_key) = fallback_key {
@@ -205,10 +224,13 @@ impl Account {
         }
     }
 
+    /// The `Account` stores at most two private parts of the fallback key. This
+    /// method lets us forget the previously used fallback key.
     pub fn forget_fallback_key(&mut self) -> bool {
         self.fallback_keys.forget_previous_fallback_key().is_some()
     }
 
+    /// Mark all currently unpublished one-time and fallback keys as published.
     pub fn mark_keys_as_published(&mut self) {
         self.one_time_keys.mark_as_published();
         self.fallback_keys.mark_as_published();
@@ -308,7 +330,7 @@ mod test {
         let identity_key = PublicKey::from(identity_key);
 
         let mut session = if let crate::messages::OlmMessage::PreKey(m) = &message {
-            bob.create_inbound_session_from(&identity_key, m)
+            bob.create_inbound_session(&identity_key, m)
         } else {
             panic!("Got invalid message type from olm_rs");
         };
@@ -328,7 +350,7 @@ mod test {
 
         bob.generate_fallback_key();
 
-        let one_time_key = bob.fallback_keys().values().cloned().next().unwrap();
+        let one_time_key = bob.fallback_key().values().cloned().next().unwrap();
         assert!(bob.one_time_keys.private_keys.is_empty());
 
         let alice_session =
@@ -344,7 +366,7 @@ mod test {
         let identity_key = PublicKey::from(identity_key);
 
         let mut session = if let crate::messages::OlmMessage::PreKey(m) = &message {
-            bob.create_inbound_session_from(&identity_key, m)
+            bob.create_inbound_session(&identity_key, m)
         } else {
             panic!("Got invalid message type from olm_rs");
         };
