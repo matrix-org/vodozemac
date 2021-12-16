@@ -102,7 +102,7 @@ mod test {
     use crate::Curve25519PublicKey as PublicKey;
 
     #[test]
-    fn tripple_diffie_hellman() {
+    fn triple_diffie_hellman() {
         let mut rng = thread_rng();
 
         let alice_identity = StaticSecret::new(&mut rng);
