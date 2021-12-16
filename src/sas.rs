@@ -18,8 +18,10 @@ use rand::thread_rng;
 use sha2::Sha256;
 use x25519_dalek::{EphemeralSecret, SharedSecret};
 
-use crate::Curve25519PublicKey;
-use crate::utilities::{base64_decode, base64_encode};
+use crate::{
+    utilities::{base64_decode, base64_encode},
+    Curve25519PublicKey,
+};
 
 type HmacSha256Key = [u8; 32];
 

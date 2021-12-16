@@ -210,8 +210,7 @@ mod test {
     };
 
     use super::Session;
-    use crate::Account;
-    use crate::Curve25519PublicKey;
+    use crate::{Account, Curve25519PublicKey};
 
     fn sessions() -> (Account, OlmAccount, Session, OlmSession) {
         let alice = Account::new();

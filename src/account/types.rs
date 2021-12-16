@@ -16,7 +16,7 @@ use std::{error::Error, fmt::Display};
 
 use ed25519_dalek::{Keypair, PublicKey as Ed25519PublicKey, Signer};
 use rand::thread_rng;
-use x25519_dalek::{PublicKey, StaticSecret as Curve25519SecretKey, EphemeralSecret};
+use x25519_dalek::{EphemeralSecret, PublicKey, StaticSecret as Curve25519SecretKey};
 use zeroize::Zeroize;
 
 use crate::utilities::{base64_decode, base64_encode, DecodeError};
