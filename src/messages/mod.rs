@@ -116,12 +116,10 @@ impl From<OlmMessage> for LibolmMessage {
         let ciphertext = value.ciphertext().to_owned();
 
         match value {
-            OlmMessage::Normal(_) => {
-                LibolmMessage::from_type_and_ciphertext(1, ciphertext).unwrap()
-            }
-            OlmMessage::PreKey(_) => {
-                LibolmMessage::from_type_and_ciphertext(0, ciphertext).unwrap()
-            }
+            OlmMessage::Normal(_) => LibolmMessage::from_type_and_ciphertext(1, ciphertext)
+                .expect("Can't create a valid libolm message"),
+            OlmMessage::PreKey(_) => LibolmMessage::from_type_and_ciphertext(0, ciphertext)
+                .expect("Can't create a valid libolm pre-key message"),
         }
     }
 }

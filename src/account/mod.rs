@@ -245,24 +245,30 @@ impl Default for Account {
 
 #[cfg(test)]
 mod test {
+    use anyhow::{bail, Result};
     use olm_rs::{account::OlmAccount, session::OlmMessage};
 
     use super::Account;
-    use crate::{utilities::base64_decode, Curve25519PublicKey as PublicKey};
+    use crate::Curve25519PublicKey as PublicKey;
 
     #[test]
-    fn test_encryption() {
+    fn test_encryption() -> Result<()> {
         let alice = Account::new();
         let bob = OlmAccount::new();
 
         bob.generate_one_time_keys(1);
 
-        let one_time_key =
-            bob.parsed_one_time_keys().curve25519().values().cloned().next().unwrap();
+        let one_time_key = bob
+            .parsed_one_time_keys()
+            .curve25519()
+            .values()
+            .cloned()
+            .next()
+            .expect("Didn't find a valid one-time key");
 
         let identity_keys = bob.parsed_identity_keys();
-        let curve25519_key = PublicKey::from_base64(identity_keys.curve25519()).unwrap();
-        let one_time_key = PublicKey::from_base64(&one_time_key).unwrap();
+        let curve25519_key = PublicKey::from_base64(identity_keys.curve25519())?;
+        let one_time_key = PublicKey::from_base64(&one_time_key)?;
         let mut alice_session = alice.create_outbound_session(curve25519_key, one_time_key);
 
         let message = "It's a secret to everybody";
@@ -271,111 +277,107 @@ mod test {
         bob.mark_keys_as_published();
 
         if let OlmMessage::PreKey(m) = olm_message.clone() {
-            let libolm_session = bob
-                .create_inbound_session_from(alice.curve25519_key_encoded(), m)
-                .expect("Can't create an Olm session");
+            let libolm_session =
+                bob.create_inbound_session_from(alice.curve25519_key_encoded(), m)?;
             assert_eq!(alice_session.session_id(), libolm_session.session_id());
 
-            let plaintext = libolm_session.decrypt(olm_message).expect("Can't decrypt ciphertext");
+            let plaintext = libolm_session.decrypt(olm_message)?;
             assert_eq!(message, plaintext);
 
             let second_text = "Here's another secret to everybody";
             let olm_message = alice_session.encrypt(second_text).into();
 
-            let plaintext =
-                libolm_session.decrypt(olm_message).expect("Can't decrypt second ciphertext");
+            let plaintext = libolm_session.decrypt(olm_message)?;
             assert_eq!(second_text, plaintext);
 
             let reply_plain = "Yes, take this, it's dangerous out there";
             let reply = libolm_session.encrypt(reply_plain).into();
-            let plaintext = alice_session.decrypt(&reply).unwrap();
+            let plaintext = alice_session.decrypt(&reply)?;
 
             assert_eq!(&plaintext, reply_plain);
 
             let another_reply = "Last one";
             let reply = libolm_session.encrypt(another_reply).into();
-            let plaintext = alice_session.decrypt(&reply).unwrap();
+            let plaintext = alice_session.decrypt(&reply)?;
             assert_eq!(&plaintext, another_reply);
 
             let last_text = "Nope, I'll have the last word";
             let olm_message = alice_session.encrypt(last_text).into();
 
-            let plaintext =
-                libolm_session.decrypt(olm_message).expect("Can't decrypt second ciphertext");
+            let plaintext = libolm_session.decrypt(olm_message)?;
             assert_eq!(last_text, plaintext);
         } else {
-            unreachable!();
+            bail!("Received a invalid message type {:?}", olm_message);
         }
+
+        Ok(())
     }
 
     #[test]
-    fn test_inbound_session_creation() {
+    fn test_inbound_session_creation() -> Result<()> {
         let alice = OlmAccount::new();
         let mut bob = Account::new();
 
         bob.generate_one_time_keys(1);
 
-        let one_time_key = bob.one_time_keys().values().cloned().next().unwrap();
+        let one_time_key =
+            bob.one_time_keys().values().cloned().next().expect("Didn't find a valid one-time key");
 
         let alice_session =
-            alice.create_outbound_session(bob.curve25519_key_encoded(), &one_time_key).unwrap();
+            alice.create_outbound_session(bob.curve25519_key_encoded(), &one_time_key)?;
 
         let text = "It's a secret to everybody";
+        let message = alice_session.encrypt(text).into();
 
-        let message: crate::messages::OlmMessage = alice_session.encrypt(text).into();
-
-        let mut identity_key = [0u8; 32];
-        identity_key
-            .copy_from_slice(&base64_decode(alice.parsed_identity_keys().curve25519()).unwrap());
-        let identity_key = PublicKey::from(identity_key);
+        let identity_key = PublicKey::from_base64(alice.parsed_identity_keys().curve25519())?;
 
         let mut session = if let crate::messages::OlmMessage::PreKey(m) = &message {
             bob.create_inbound_session(&identity_key, m)
         } else {
-            panic!("Got invalid message type from olm_rs");
+            bail!("Got invalid message type from olm_rs {:?}", message);
         };
 
         assert_eq!(alice_session.session_id(), session.session_id());
         assert!(bob.one_time_keys.private_keys.is_empty());
 
-        let decrypted = session.decrypt(&message).unwrap();
-
+        let decrypted = session.decrypt(&message)?;
         assert_eq!(text, decrypted);
+
+        Ok(())
     }
 
     #[test]
-    fn test_inbound_session_creation_using_fallback_keys() {
+    fn test_inbound_session_creation_using_fallback_keys() -> Result<()> {
         let alice = OlmAccount::new();
         let mut bob = Account::new();
 
         bob.generate_fallback_key();
 
-        let one_time_key = bob.fallback_key().values().cloned().next().unwrap();
+        let one_time_key =
+            bob.fallback_key().values().cloned().next().expect("Didn't find a valid fallback key");
         assert!(bob.one_time_keys.private_keys.is_empty());
 
         let alice_session =
-            alice.create_outbound_session(bob.curve25519_key_encoded(), &one_time_key).unwrap();
+            alice.create_outbound_session(bob.curve25519_key_encoded(), &one_time_key)?;
 
         let text = "It's a secret to everybody";
 
-        let message: crate::messages::OlmMessage = alice_session.encrypt(text).into();
-
-        let mut identity_key = [0u8; 32];
-        identity_key
-            .copy_from_slice(&base64_decode(alice.parsed_identity_keys().curve25519()).unwrap());
-        let identity_key = PublicKey::from(identity_key);
+        let message = alice_session.encrypt(text).into();
+        let identity_key = PublicKey::from_base64(alice.parsed_identity_keys().curve25519())?;
 
         let mut session = if let crate::messages::OlmMessage::PreKey(m) = &message {
             bob.create_inbound_session(&identity_key, m)
         } else {
-            panic!("Got invalid message type from olm_rs");
+            bail!("Got invalid message type from olm_rs");
         };
 
         assert_eq!(alice_session.session_id(), session.session_id());
         assert!(bob.fallback_keys.fallback_key.is_some());
 
-        let decrypted = session.decrypt(&message).unwrap();
+        let decrypted = session.decrypt(&message)?;
 
         assert_eq!(text, decrypted);
+
+        Ok(())
     }
 }
