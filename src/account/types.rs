@@ -94,6 +94,8 @@ pub struct Curve25519PublicKey {
 }
 
 impl Curve25519PublicKey {
+    pub const KEY_LENGTH: usize = CURVE25519_PUBLIC_KEY_LEN;
+
     pub fn new(private_key: [u8; CURVE25519_PUBLIC_KEY_LEN]) -> Curve25519PublicKey {
         Self { inner: PublicKey::from(private_key) }
     }

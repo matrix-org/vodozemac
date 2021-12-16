@@ -13,8 +13,25 @@
 // limitations under the License.
 
 use prost::Message;
+use thiserror::Error;
 
 use crate::{cipher::Mac, Curve25519PublicKey};
+
+#[derive(Error, Debug)]
+pub enum DecodeError {
+    #[error("The message didn't contain a version")]
+    MissingVersion,
+    #[error("The message was too short, it didn't contain a valid payload")]
+    MessageToShort(usize),
+    #[error("The message didn't have a valid version, expected {0}, got {1}")]
+    InvalidVersion(u8, u8),
+    #[error("The message contained a public key with an invalid size, expected {0}, got {1}")]
+    InvalidKeyLength(usize, usize),
+    #[error("The message contained a MAC with an invalid size, expected {0}, got {1}")]
+    InvalidMacLength(usize, usize),
+    #[error(transparent)]
+    ProtoBufError(#[from] prost::DecodeError),
+}
 
 // The integer encoding logic here has been taken from the integer-encoding[1]
 // crate and is under the MIT license.
@@ -116,29 +133,42 @@ impl OlmMessage {
         self.inner[end - Mac::TRUNCATED_LEN..].copy_from_slice(mac);
     }
 
-    pub(crate) fn decode(&self) -> Result<DecodedMessage, ()> {
-        let version = *self.inner.get(0).unwrap();
+    pub(crate) fn decode(&self) -> Result<DecodedMessage, DecodeError> {
+        let version = *self.inner.get(0).ok_or(DecodeError::MissingVersion)?;
 
         if version != Self::VERSION {
-            return Err(());
+            Err(DecodeError::InvalidVersion(Self::VERSION, version))
+        } else if self.inner.len() < Mac::TRUNCATED_LEN + 2 {
+            Err(DecodeError::MessageToShort(self.inner.len()))
+        } else {
+            let inner =
+                InnerMessage::decode(&self.inner[1..self.inner.len() - Mac::TRUNCATED_LEN])?;
+
+            let mut key = [0u8; Curve25519PublicKey::KEY_LENGTH];
+            let mut mac = [0u8; Mac::TRUNCATED_LEN];
+
+            let mac_slice = &self.inner[self.inner.len() - Mac::TRUNCATED_LEN..];
+
+            if inner.ratchet_key.len() != Curve25519PublicKey::KEY_LENGTH {
+                Err(DecodeError::InvalidKeyLength(
+                    Curve25519PublicKey::KEY_LENGTH,
+                    inner.ratchet_key.len(),
+                ))
+            } else if mac_slice.len() != Mac::TRUNCATED_LEN {
+                Err(DecodeError::InvalidMacLength(Mac::TRUNCATED_LEN, mac_slice.len()))
+            } else {
+                key.copy_from_slice(&inner.ratchet_key);
+                mac.copy_from_slice(mac_slice);
+
+                let key = Curve25519PublicKey::from(key);
+                let chain_index = inner.chain_index;
+                let ciphertext = inner.ciphertext;
+
+                let message = DecodedMessage { ratchet_key: key, chain_index, ciphertext, mac };
+
+                Ok(message)
+            }
         }
-
-        let inner =
-            InnerMessage::decode(&self.inner[1..self.inner.len() - Mac::TRUNCATED_LEN]).unwrap();
-
-        let mut key = [0u8; 32];
-        let mut mac = [0u8; Mac::TRUNCATED_LEN];
-
-        key.copy_from_slice(&inner.ratchet_key);
-        mac.copy_from_slice(&self.inner[self.inner.len() - 8..]);
-
-        let key = Curve25519PublicKey::from(key);
-        let chain_index = inner.chain_index;
-        let ciphertext = inner.ciphertext;
-
-        let message = DecodedMessage { ratchet_key: key, chain_index, ciphertext, mac };
-
-        Ok(message)
     }
 
     fn from_parts_untyped(ratchet_key: &[u8], index: u64, ciphertext: Vec<u8>) -> Self {
@@ -184,28 +214,46 @@ impl PreKeyMessage {
 
     pub fn decode(
         self,
-    ) -> Result<(Curve25519PublicKey, Curve25519PublicKey, Curve25519PublicKey, Vec<u8>), ()> {
-        let version = *self.inner.get(0).unwrap();
+    ) -> Result<(Curve25519PublicKey, Curve25519PublicKey, Curve25519PublicKey, Vec<u8>), DecodeError>
+    {
+        let version = *self.inner.get(0).ok_or(DecodeError::MissingVersion)?;
 
         if version != Self::VERSION {
-            return Err(());
+            Err(DecodeError::InvalidVersion(Self::VERSION, version))
+        } else {
+            let inner = InnerPreKeyMessage::decode(&self.inner[1..self.inner.len()])?;
+
+            let mut one_time_key = [0u8; 32];
+            let mut base_key = [0u8; 32];
+            let mut identity_key = [0u8; 32];
+
+            if inner.one_time_key.len() != Curve25519PublicKey::KEY_LENGTH {
+                Err(DecodeError::InvalidKeyLength(
+                    Curve25519PublicKey::KEY_LENGTH,
+                    inner.one_time_key.len(),
+                ))
+            } else if inner.identity_key.len() != Curve25519PublicKey::KEY_LENGTH {
+                Err(DecodeError::InvalidKeyLength(
+                    Curve25519PublicKey::KEY_LENGTH,
+                    inner.one_time_key.len(),
+                ))
+            } else if inner.base_key.len() != Curve25519PublicKey::KEY_LENGTH {
+                Err(DecodeError::InvalidKeyLength(
+                    Curve25519PublicKey::KEY_LENGTH,
+                    inner.one_time_key.len(),
+                ))
+            } else {
+                one_time_key.copy_from_slice(&inner.one_time_key);
+                base_key.copy_from_slice(&inner.base_key);
+                identity_key.copy_from_slice(&inner.identity_key);
+
+                let one_time_key = Curve25519PublicKey::from(one_time_key);
+                let base_key = Curve25519PublicKey::from(base_key);
+                let identity_key = Curve25519PublicKey::from(identity_key);
+
+                Ok((one_time_key, base_key, identity_key, inner.message))
+            }
         }
-
-        let inner = InnerPreKeyMessage::decode(&self.inner[1..self.inner.len()]).unwrap();
-
-        let mut one_time_key = [0u8; 32];
-        let mut base_key = [0u8; 32];
-        let mut identity_key = [0u8; 32];
-
-        one_time_key.copy_from_slice(&inner.one_time_key);
-        base_key.copy_from_slice(&inner.base_key);
-        identity_key.copy_from_slice(&inner.identity_key);
-
-        let one_time_key = Curve25519PublicKey::from(one_time_key);
-        let base_key = Curve25519PublicKey::from(base_key);
-        let identity_key = Curve25519PublicKey::from(identity_key);
-
-        Ok((one_time_key, base_key, identity_key, inner.message))
     }
 
     pub fn from_parts(
@@ -237,7 +285,9 @@ impl PreKeyMessage {
         let mut output: Vec<u8> = vec![0u8; message.encoded_len() + 1];
         output[0] = Self::VERSION;
 
-        message.encode(&mut output[1..].as_mut()).unwrap();
+        message
+            .encode(&mut output[1..].as_mut())
+            .expect("Couldn't encode our message into a protobuf");
 
         Self { inner: output }
     }

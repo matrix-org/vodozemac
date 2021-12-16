@@ -32,7 +32,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 use crate::{
-    messages::{InnerMessage, InnerPreKeyMessage, Message, OlmMessage, PreKeyMessage},
+    messages::{DecodeError, InnerMessage, InnerPreKeyMessage, Message, OlmMessage, PreKeyMessage},
     session_keys::SessionKeys,
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
     utilities::{base64_decode, base64_encode},
@@ -84,6 +84,8 @@ pub enum DecryptionError {
     MissingMessageKey(u64),
     #[error("The message gap was too big, got {0}, max allowed {}")]
     TooBigMessageGap(u64, u64),
+    #[error("The message couldn't be decoded: {0}")]
+    DecodeError(#[from] DecodeError),
 }
 
 impl Default for ChainStore {
@@ -187,14 +189,14 @@ impl Session {
 
     fn decrypt_prekey(&mut self, message: Vec<u8>) -> Result<Vec<u8>, DecryptionError> {
         let message = InnerPreKeyMessage::from(message);
-        let (_, _, _, message) = message.decode().unwrap();
+        let (_, _, _, message) = message.decode()?;
 
         self.decrypt_normal(message)
     }
 
     fn decrypt_normal(&mut self, message: Vec<u8>) -> Result<Vec<u8>, DecryptionError> {
         let message = InnerMessage::from(message);
-        let decoded = message.decode().unwrap();
+        let decoded = message.decode()?;
 
         let ratchet_key = RemoteRatchetKey::from(decoded.ratchet_key);
 
