@@ -12,12 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use block_modes::BlockModeError;
-use hmac::digest::MacError;
-use thiserror::Error;
 use zeroize::Zeroize;
 
-use super::ratchet::RatchetPublicKey;
+use super::{ratchet::RatchetPublicKey, DecryptionError};
 use crate::{
     cipher::{Cipher, Mac},
     messages::InnerMessage,
@@ -91,16 +88,4 @@ impl RemoteMessageKey {
         cipher.verify_mac(message.as_payload_bytes(), &mac)?;
         Ok(cipher.decrypt(ciphertext)?)
     }
-}
-
-#[derive(Error, Debug)]
-pub enum DecryptionError {
-    #[error("Failed decrypting Olm message, invalid MAC: {0}")]
-    InvalidMAC(#[from] MacError),
-    #[error("Failed decrypting Olm message, invalid ciphertext: {0}")]
-    InvalidCiphertext(#[from] BlockModeError),
-    #[error("The message key with the given key can't be created, message index: {0}")]
-    MissingMessageKey(u64),
-    #[error("The message gap was too big, got {0}, max allowed {}")]
-    TooBigMessageGap(u64, u64),
 }

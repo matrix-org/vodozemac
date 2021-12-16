@@ -21,14 +21,16 @@ mod receiver_chain;
 mod root_key;
 
 use arrayvec::ArrayVec;
+use block_modes::BlockModeError;
 use chain_key::RemoteChainKey;
 use double_ratchet::DoubleRatchet;
+use hmac::digest::MacError;
 use ratchet::RemoteRatchetKey;
 use receiver_chain::ReceiverChain;
 use root_key::RemoteRootKey;
 use sha2::{Digest, Sha256};
+use thiserror::Error;
 
-use self::message_key::DecryptionError;
 use crate::{
     messages::{InnerMessage, InnerPreKeyMessage, Message, OlmMessage, PreKeyMessage},
     session_keys::SessionKeys,
@@ -68,6 +70,18 @@ impl ChainStore {
     fn find_ratchet(&mut self, ratchet_key: &RemoteRatchetKey) -> Option<&mut ReceiverChain> {
         self.inner.iter_mut().find(|r| r.belongs_to(ratchet_key))
     }
+}
+
+#[derive(Error, Debug)]
+pub enum DecryptionError {
+    #[error("Failed decrypting Olm message, invalid MAC: {0}")]
+    InvalidMAC(#[from] MacError),
+    #[error("Failed decrypting Olm message, invalid ciphertext: {0}")]
+    InvalidCiphertext(#[from] BlockModeError),
+    #[error("The message key with the given key can't be created, message index: {0}")]
+    MissingMessageKey(u64),
+    #[error("The message gap was too big, got {0}, max allowed {}")]
+    TooBigMessageGap(u64, u64),
 }
 
 impl Default for ChainStore {

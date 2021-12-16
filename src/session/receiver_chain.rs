@@ -15,9 +15,8 @@
 use arrayvec::ArrayVec;
 
 use super::{
-    chain_key::RemoteChainKey,
-    message_key::{DecryptionError, RemoteMessageKey},
-    ratchet::RemoteRatchetKey,
+    chain_key::RemoteChainKey, message_key::RemoteMessageKey, ratchet::RemoteRatchetKey,
+    DecryptionError,
 };
 use crate::messages::InnerMessage;
 
