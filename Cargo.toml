@@ -16,6 +16,7 @@ pkcs7 = "0.3.0"
 prost = "0.9.0"
 rand = "0.7"
 sha2 = "0.10.0"
+thiserror = "1.0.26"
 x25519-dalek = "1.2.0"
 zeroize = "1.3"
 

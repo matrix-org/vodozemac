@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::{error::Error, fmt::Display};
-
 use ed25519_dalek::{Keypair, PublicKey as Ed25519PublicKey, Signer};
 use rand::thread_rng;
+use thiserror::Error;
 use x25519_dalek::{EphemeralSecret, PublicKey, StaticSecret as Curve25519SecretKey};
 use zeroize::Zeroize;
 
@@ -109,20 +108,17 @@ impl Curve25519PublicKey {
         self.inner.as_bytes()
     }
 
-    /// Instantiate a Curve25519 public key from an unpadded base64 representation.
+    /// Instantiate a Curve25519 public key from an unpadded base64
+    /// representation.
     pub fn from_base64(base64_key: &str) -> Result<Curve25519PublicKey, Curve25519KeyError> {
-        match base64_decode(base64_key) {
-            Ok(key_vec) => {
-                if key_vec.len() == 32 {
-                    let mut key = [0u8; 32];
-                    key.copy_from_slice(&key_vec);
-                    Ok(Self::from(key))
-                } else {
-                    Err(Curve25519KeyError::InvalidKeyLength)
-                }
-            }
+        let key_vec = base64_decode(base64_key)?;
 
-            Err(e) => Err(Curve25519KeyError::Base64Error(e)),
+        if key_vec.len() == 32 {
+            let mut key = [0u8; 32];
+            key.copy_from_slice(&key_vec);
+            Ok(Self::from(key))
+        } else {
+            Err(Curve25519KeyError::InvalidKeyLength)
         }
     }
 
