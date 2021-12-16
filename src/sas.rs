@@ -20,7 +20,7 @@ use x25519_dalek::{EphemeralSecret, SharedSecret};
 
 use crate::{
     utilities::{base64_decode, base64_encode},
-    Curve25519PublicKey, Curve25519KeyError,
+    Curve25519KeyError, Curve25519PublicKey,
 };
 
 type HmacSha256Key = [u8; 32];
@@ -70,7 +70,10 @@ impl Sas {
 
     /// Establishes a SAS secret by performing a DH handshake with another
     /// public key in "raw", base64-encoded form.
-    pub fn diffie_hellman_with_raw(self, other_public_key: &str) -> Result<EstablishedSas, Curve25519KeyError> {
+    pub fn diffie_hellman_with_raw(
+        self,
+        other_public_key: &str,
+    ) -> Result<EstablishedSas, Curve25519KeyError> {
         let other_public_key = Curve25519PublicKey::from_base64(other_public_key)?;
 
         let shared_secret = self.secret_key.diffie_hellman(&other_public_key.inner);
