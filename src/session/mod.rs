@@ -189,7 +189,7 @@ impl Session {
         let message = InnerPreKeyMessage::from(message);
         let (_, _, _, message) = message.decode().unwrap();
 
-        Ok(self.decrypt_normal(message)?)
+        self.decrypt_normal(message)
     }
 
     fn decrypt_normal(&mut self, message: Vec<u8>) -> Result<Vec<u8>, DecryptionError> {
