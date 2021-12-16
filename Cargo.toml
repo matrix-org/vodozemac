@@ -1,14 +1,24 @@
 [package]
+authors = [
+    "Damir Jelić <poljar@termina.org.uk>",
+    "Denis Kasak <dkasak@termina.org.uk",
+]
 name = "vodozemac"
+description = "A Rust implementation of Olm and Megolm"
 version = "0.1.0"
 edition = "2021"
+keywords = ["matrix", "chat", "messaging", "olm"]
+license = "Apache-2.0"
+rust-version = "1.56"
 
 [dependencies]
 aes = "0.7.5"
 arrayvec = "0.7.2"
 base64 = "0.13.0"
 block-modes = "0.8.1"
-ed25519-dalek = { version = "1.0.1", default-features = false, features = ["rand"] }
+ed25519-dalek = { version = "1.0.1", default-features = false, features = [
+    "rand",
+] }
 hkdf = "0.12.0"
 hmac = "0.12.0"
 pkcs7 = "0.3.0"
