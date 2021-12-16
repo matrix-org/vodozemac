@@ -235,12 +235,12 @@ impl PreKeyMessage {
             } else if inner.identity_key.len() != Curve25519PublicKey::KEY_LENGTH {
                 Err(DecodeError::InvalidKeyLength(
                     Curve25519PublicKey::KEY_LENGTH,
-                    inner.one_time_key.len(),
+                    inner.identity_key.len(),
                 ))
             } else if inner.base_key.len() != Curve25519PublicKey::KEY_LENGTH {
                 Err(DecodeError::InvalidKeyLength(
                     Curve25519PublicKey::KEY_LENGTH,
-                    inner.one_time_key.len(),
+                    inner.base_key.len(),
                 ))
             } else {
                 one_time_key.copy_from_slice(&inner.one_time_key);
