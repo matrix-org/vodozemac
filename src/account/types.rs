@@ -148,9 +148,9 @@ impl<'a> From<&'a EphemeralSecret> for Curve25519PublicKey {
 
 #[derive(Error, Debug, Clone)]
 pub enum Curve25519KeyError {
-    #[error("base64 decoding error")]
+    #[error("Failed decoding curve25519 key from base64: {}", .0)]
     Base64Error(#[from] DecodeError),
-    #[error("invalid number of bytes")]
+    #[error("Failed decoding curve25519 key from base64: Invalid number of bytes for curve25519.")]
     InvalidKeyLength,
 }
 
