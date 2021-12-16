@@ -13,11 +13,12 @@
 // limitations under the License.
 
 #![deny(
+    clippy::unwrap_used,
     dead_code,
     trivial_casts,
     trivial_numeric_casts,
+    unsafe_code,
     unused_extern_crates,
-    clippy::unwrap_used,
     unused_import_braces,
     unused_qualifications
 )]
