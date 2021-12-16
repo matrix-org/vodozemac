@@ -1,10 +1,10 @@
 use aes::{cipher::generic_array::GenericArray, Aes256, NewBlockCipher};
-use block_modes::{block_padding::Pkcs7, BlockMode, Cbc};
+use block_modes::{block_padding::Pkcs7, BlockMode};
 use hkdf::Hkdf;
 use sha2::Sha256;
 use zeroize::Zeroize;
 
-type Aes256Cbc = Cbc<Aes256, Pkcs7>;
+use super::Aes256Cbc;
 
 type Aes256Key = GenericArray<u8, <Aes256 as NewBlockCipher>::KeySize>;
 type Aes256Iv = GenericArray<u8, <Aes256Cbc as BlockMode<Aes256, Pkcs7>>::IvSize>;
