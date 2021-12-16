@@ -85,7 +85,7 @@ impl RemoteMessageKey {
         message: &InnerMessage,
         ciphertext: &[u8],
         mac: [u8; Mac::TRUNCATED_LEN],
-    ) -> Result<Vec<u8>, OlmDecryptionError> {
+    ) -> Result<Vec<u8>, DecryptionError> {
         let cipher = Cipher::new(&self.key);
 
         cipher.verify_mac(message.as_payload_bytes(), &mac)?;
@@ -94,7 +94,7 @@ impl RemoteMessageKey {
 }
 
 #[derive(Error, Debug)]
-pub enum OlmDecryptionError {
+pub enum DecryptionError {
     #[error("Failed decrypting Olm message, invalid MAC: {0}")]
     InvalidMAC(#[from] MacError),
     #[error("Failed decrypting Olm message, invalid ciphertext: {0}")]

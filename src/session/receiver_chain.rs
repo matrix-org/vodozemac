@@ -16,7 +16,7 @@ use arrayvec::ArrayVec;
 
 use super::{
     chain_key::RemoteChainKey,
-    message_key::{OlmDecryptionError, RemoteMessageKey},
+    message_key::{DecryptionError, RemoteMessageKey},
     ratchet::RemoteRatchetKey,
 };
 use crate::messages::InnerMessage;
@@ -83,11 +83,11 @@ impl ReceiverChain {
         chain_index: u64,
         ciphertext: &[u8],
         mac: [u8; 8],
-    ) -> Result<Vec<u8>, OlmDecryptionError> {
+    ) -> Result<Vec<u8>, DecryptionError> {
         let message_gap = chain_index.saturating_sub(self.hkdf_ratchet.chain_index());
 
         if message_gap > MAX_MESSAGE_GAP {
-            Err(OlmDecryptionError::TooBigMessageGap(message_gap, MAX_MESSAGE_GAP))
+            Err(DecryptionError::TooBigMessageGap(message_gap, MAX_MESSAGE_GAP))
         } else if self.hkdf_ratchet.chain_index() > chain_index {
             if let Some(message_key) = self.skipped_message_keys.get_message_key(chain_index) {
                 let plaintext = message_key.decrypt(message, ciphertext, mac)?;
@@ -96,7 +96,7 @@ impl ReceiverChain {
 
                 Ok(plaintext)
             } else {
-                Err(OlmDecryptionError::MissingMessageKey(chain_index))
+                Err(DecryptionError::MissingMessageKey(chain_index))
             }
         } else {
             let mut ratchet = self.hkdf_ratchet.clone();

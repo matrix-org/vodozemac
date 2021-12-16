@@ -28,7 +28,7 @@ use receiver_chain::ReceiverChain;
 use root_key::RemoteRootKey;
 use sha2::{Digest, Sha256};
 
-use self::message_key::OlmDecryptionError;
+use self::message_key::DecryptionError;
 use crate::{
     messages::{InnerMessage, InnerPreKeyMessage, Message, OlmMessage, PreKeyMessage},
     session_keys::SessionKeys,
@@ -154,7 +154,7 @@ impl Session {
         }
     }
 
-    pub fn decrypt(&mut self, message: &OlmMessage) -> Result<String, OlmDecryptionError> {
+    pub fn decrypt(&mut self, message: &OlmMessage) -> Result<String, DecryptionError> {
         let decrypted = match message {
             OlmMessage::Normal(m) => {
                 let message = base64_decode(&m.inner).unwrap();
@@ -169,14 +169,14 @@ impl Session {
         Ok(String::from_utf8_lossy(&decrypted).to_string())
     }
 
-    fn decrypt_prekey(&mut self, message: Vec<u8>) -> Result<Vec<u8>, OlmDecryptionError> {
+    fn decrypt_prekey(&mut self, message: Vec<u8>) -> Result<Vec<u8>, DecryptionError> {
         let message = InnerPreKeyMessage::from(message);
         let (_, _, _, message) = message.decode().unwrap();
 
         Ok(self.decrypt_normal(message)?)
     }
 
-    fn decrypt_normal(&mut self, message: Vec<u8>) -> Result<Vec<u8>, OlmDecryptionError> {
+    fn decrypt_normal(&mut self, message: Vec<u8>) -> Result<Vec<u8>, DecryptionError> {
         let message = InnerMessage::from(message);
         let decoded = message.decode().unwrap();
 
