@@ -22,19 +22,32 @@ use ed25519_dalek::PublicKey as Ed25519PublicKey;
 use fallback_keys::FallbackKeys;
 use one_time_keys::OneTimeKeys;
 use rand::thread_rng;
+use thiserror::Error;
 use types::{Curve25519Keypair, Ed25519Keypair, KeyId};
 use x25519_dalek::StaticSecret as Curve25519SecretKey;
 
 pub use crate::account::types::{Curve25519KeyError, Curve25519PublicKey};
 use crate::{
-    messages::{InnerMessage, InnerPreKeyMessage, PreKeyMessage},
+    messages::{DecodeError, InnerMessage, InnerPreKeyMessage, PreKeyMessage},
     session::Session,
     session_keys::SessionKeys,
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
     utilities::{base64_decode, base64_encode},
 };
 
-/// An olm account manages all cryptographic keys used on a device.
+#[derive(Error, Debug)]
+pub enum SessionCreationError {
+    #[error("The pre-key message wasn't valid base64: {0}")]
+    Base64(#[from] base64::DecodeError),
+    #[error("The pre-key message couldn't be decoded: {0}")]
+    DecodeError(#[from] DecodeError),
+    #[error("The pre-key message contained an unknown one-time key")]
+    MissingOneTimeKey,
+    #[error("The given identity key doesn't match the one in the pre-key message")]
+    MismatchedIdentityKey,
+}
+
+/// An Olm account manages all cryptographic keys used on a device.
 pub struct Account {
     /// A permanent Ed25519 key used for signing. Also known as the fingerprint
     /// key.
@@ -146,39 +159,39 @@ impl Account {
         &mut self,
         their_identity_key: &Curve25519PublicKey,
         message: &PreKeyMessage,
-    ) -> Session {
-        let message = base64_decode(&message.inner).unwrap();
+    ) -> Result<Session, SessionCreationError> {
+        let message = base64_decode(&message.inner)?;
         let message = InnerPreKeyMessage::from(message);
 
         let (public_one_time_key, remote_one_time_key, remote_identity_key, m) =
-            message.decode().unwrap();
+            message.decode()?;
 
         if their_identity_key != &remote_identity_key {
-            // TODO turn this into an error
-            panic!("Mismatched identity keys");
+            Err(SessionCreationError::MismatchedIdentityKey)
+        } else {
+            let one_time_key = self
+                .find_one_time_key(&public_one_time_key)
+                .ok_or(SessionCreationError::MissingOneTimeKey)?;
+
+            let shared_secret = RemoteShared3DHSecret::new(
+                self.diffie_hellman_key.secret_key(),
+                one_time_key,
+                &remote_identity_key,
+                &remote_one_time_key,
+            );
+
+            let session_keys =
+                SessionKeys::new(remote_identity_key, remote_one_time_key, public_one_time_key);
+
+            let message = InnerMessage::from(m);
+            let decoded = message.decode()?;
+
+            let session = Session::new_remote(shared_secret, decoded.ratchet_key, session_keys);
+
+            self.remove_one_time_key(&public_one_time_key);
+
+            Ok(session)
         }
-
-        // TODO this one should be an error as well.
-        let one_time_key = self.find_one_time_key(&public_one_time_key).unwrap();
-
-        let shared_secret = RemoteShared3DHSecret::new(
-            self.diffie_hellman_key.secret_key(),
-            one_time_key,
-            &remote_identity_key,
-            &remote_one_time_key,
-        );
-
-        let session_keys =
-            SessionKeys::new(remote_identity_key, remote_one_time_key, public_one_time_key);
-
-        let message = InnerMessage::from(m);
-        let decoded = message.decode().unwrap();
-
-        let session = Session::new_remote(shared_secret, decoded.ratchet_key, session_keys);
-
-        self.remove_one_time_key(&public_one_time_key);
-
-        session
     }
 
     /// Generates the supplied number of one time keys.
@@ -332,7 +345,7 @@ mod test {
         let identity_key = PublicKey::from_base64(alice.parsed_identity_keys().curve25519())?;
 
         let mut session = if let crate::messages::OlmMessage::PreKey(m) = &message {
-            bob.create_inbound_session(&identity_key, m)
+            bob.create_inbound_session(&identity_key, m)?
         } else {
             bail!("Got invalid message type from olm_rs {:?}", message);
         };
@@ -366,7 +379,7 @@ mod test {
         let identity_key = PublicKey::from_base64(alice.parsed_identity_keys().curve25519())?;
 
         let mut session = if let crate::messages::OlmMessage::PreKey(m) = &message {
-            bob.create_inbound_session(&identity_key, m)
+            bob.create_inbound_session(&identity_key, m)?
         } else {
             bail!("Got invalid message type from olm_rs");
         };
