@@ -74,6 +74,8 @@ impl ChainStore {
 
 #[derive(Error, Debug)]
 pub enum DecryptionError {
+    #[error("The message wasn't valid base64: {0}")]
+    Base64(#[from] base64::DecodeError),
     #[error("Failed decrypting Olm message, invalid MAC: {0}")]
     InvalidMAC(#[from] MacError),
     #[error("Failed decrypting Olm message, invalid ciphertext: {0}")]
@@ -171,11 +173,11 @@ impl Session {
     pub fn decrypt(&mut self, message: &OlmMessage) -> Result<String, DecryptionError> {
         let decrypted = match message {
             OlmMessage::Normal(m) => {
-                let message = base64_decode(&m.inner).unwrap();
+                let message = base64_decode(&m.inner)?;
                 self.decrypt_normal(message)?
             }
             OlmMessage::PreKey(m) => {
-                let message = base64_decode(&m.inner).unwrap();
+                let message = base64_decode(&m.inner)?;
                 self.decrypt_prekey(message)?
             }
         };
