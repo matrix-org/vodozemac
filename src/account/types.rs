@@ -192,9 +192,6 @@ mod tests {
     #[test]
     fn decoding_of_correct_num_of_bytes_succeeds() {
         let base64_payload = "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA";
-        assert!(matches!(
-            Curve25519PublicKey::from_base64(base64_payload),
-            Ok(..)
-        ));
+        assert!(matches!(Curve25519PublicKey::from_base64(base64_payload), Ok(..)));
     }
 }
