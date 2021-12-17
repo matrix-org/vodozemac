@@ -33,38 +33,19 @@ impl Drop for Ratchet {
     }
 }
 
-struct RatchetPart<'a> {
-    part: &'a mut [u8],
-    advancement_seed: &'static [u8; 1],
-}
+struct RatchetPart<'a>(&'a mut [u8]);
 
 impl<'a> RatchetPart<'a> {
-    fn r_0(part: &'a mut [u8]) -> Self {
-        Self { part, advancement_seed: ADVANCEMENT_SEEDS[0] }
-    }
-
-    fn r_1(part: &'a mut [u8]) -> Self {
-        Self { part, advancement_seed: ADVANCEMENT_SEEDS[1] }
-    }
-
-    fn r_2(part: &'a mut [u8]) -> Self {
-        Self { part, advancement_seed: ADVANCEMENT_SEEDS[2] }
-    }
-
-    fn r_3(part: &'a mut [u8]) -> Self {
-        Self { part, advancement_seed: ADVANCEMENT_SEEDS[3] }
-    }
-
-    fn hash(&self) -> CtOutput<Hmac<Sha256>> {
+    fn hash(&self, seed: &[u8]) -> CtOutput<Hmac<Sha256>> {
         let mut hmac =
-            Hmac::<Sha256>::new_from_slice(self.part).expect("Can't create a HMAC object");
-        hmac.update(self.advancement_seed);
+            Hmac::<Sha256>::new_from_slice(self.0).expect("Can't create a HMAC object");
+        hmac.update(seed);
 
         hmac.finalize()
     }
 
     fn update(&mut self, new_part: &[u8]) {
-        self.part.copy_from_slice(new_part);
+        self.0.copy_from_slice(new_part);
     }
 }
 
@@ -85,12 +66,12 @@ impl<'a> RatchetParts<'a> {
             _ => unreachable!(),
         };
 
-        let result = from.hash();
+        let result = from.hash(ADVANCEMENT_SEEDS[to]);
 
         let to = match to {
             0 => &mut self.r_0,
             1 => &mut self.r_1,
-            2 => &mut self.r_3,
+            2 => &mut self.r_2,
             3 => &mut self.r_3,
             _ => unreachable!(),
         };
@@ -126,10 +107,10 @@ impl Ratchet {
         let (r_0, r_1) = top.split_at_mut(32);
         let (r_2, r_3) = bottom.split_at_mut(32);
 
-        let r_0 = RatchetPart::r_0(r_0);
-        let r_1 = RatchetPart::r_1(r_1);
-        let r_2 = RatchetPart::r_2(r_2);
-        let r_3 = RatchetPart::r_3(r_3);
+        let r_0 = RatchetPart(r_0);
+        let r_1 = RatchetPart(r_1);
+        let r_2 = RatchetPart(r_2);
+        let r_3 = RatchetPart(r_3);
 
         RatchetParts { r_0, r_1, r_2, r_3 }
     }
@@ -141,7 +122,7 @@ impl Ratchet {
         self.counter += 1;
 
         // figure out how much we need to rekey
-        while h < 4 {
+        while h < Self::RATCHET_PART_COUNT {
             if (self.counter & mask) == 0 {
                 break;
             }
@@ -150,11 +131,14 @@ impl Ratchet {
             mask >>= 8;
         }
 
-        // now update R(h)...R(3) based on R(h)
-        for i in Self::RATCHET_PART_COUNT - 1..h + 1 {
-            let mut parts = self.as_parts();
+        let mut i = Self::RATCHET_PART_COUNT - 1;
 
+        // now update R(h)...R(3) based on R(h)
+        while i >= h {
+            let mut parts = self.as_parts();
             parts.update(h, i);
+
+            i -= 1;
         }
     }
 
