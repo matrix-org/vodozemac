@@ -1,3 +1,5 @@
+A Rust implementation of Olm and Megolm
+
 vodozemac is a Rust implementation of
 [libolm](https://gitlab.matrix.org/matrix-org/olm), a cryptographic library
 used for end-to-end encryption in [Matrix](https://matrix.org). At its core,
@@ -49,31 +51,38 @@ the other side. This completes the establishment of the Olm communication
 channel.
 
 ```rust
-    let alice = Account::new();
-    let mut bob = Account::new();
+    use anyhow::Result;
+    use vodozemac::{Account, messages::OlmMessage};
 
-    bob.generate_one_time_keys(1);
-    let bob_otk = *bob.one_time_keys().iter().next().unwrap().1;
+    fn main() -> Result<()> {
+        let alice = Account::new();
+        let mut bob = Account::new();
 
-    let mut alice_session = alice.create_outbound_session(*bob.curve25519_key(), bob_otk);
+        bob.generate_one_time_keys(1);
+        let bob_otk = *bob.one_time_keys().values().next().unwrap();
 
-    bob.mark_keys_as_published();
+        let mut alice_session = alice.create_outbound_session(*bob.curve25519_key(), bob_otk);
 
-    let message = "Keep it between us, OK?";
-    let alice_msg: OlmMessage = alice_session.encrypt(message).into();
+        bob.mark_keys_as_published();
 
-    if let OlmMessage::PreKey(m) = alice_msg.clone() {
-        let mut bob_session = bob.create_inbound_session(alice.curve25519_key(), &m)?;
-        assert_eq!(alice_session.session_id(), bob_session.session_id());
+        let message = "Keep it between us, OK?";
+        let alice_msg: OlmMessage = alice_session.encrypt(message).into();
 
-        let what_bob_received = bob_session.decrypt(&alice_msg)?;
-        assert_eq!(message, what_bob_received);
+        if let OlmMessage::PreKey(m) = alice_msg.clone() {
+            let mut bob_session = bob.create_inbound_session(alice.curve25519_key(), &m)?;
+            assert_eq!(alice_session.session_id(), bob_session.session_id());
 
-        let bob_reply = "Yes. Take this, it's dangerous out there!";
-        let bob_encrypted_reply = bob_session.encrypt(bob_reply).into();
+            let what_bob_received = bob_session.decrypt(&alice_msg)?;
+            assert_eq!(message, what_bob_received);
 
-        let what_alice_received = alice_session.decrypt(&bob_encrypted_reply)?;
-        assert_eq!(&what_alice_received, bob_reply);
+            let bob_reply = "Yes. Take this, it's dangerous out there!";
+            let bob_encrypted_reply = bob_session.encrypt(bob_reply).into();
+
+            let what_alice_received = alice_session.decrypt(&bob_encrypted_reply)?;
+            assert_eq!(&what_alice_received, bob_reply);
+        }
+
+        Ok(())
     }
 ```
 

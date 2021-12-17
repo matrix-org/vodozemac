@@ -24,6 +24,8 @@
     unused_qualifications
 )]
 
+#![doc = include_str!("../README.md")]
+
 mod account;
 mod cipher;
 mod session;
