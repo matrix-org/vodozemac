@@ -37,8 +37,7 @@ struct RatchetPart<'a>(&'a mut [u8]);
 
 impl<'a> RatchetPart<'a> {
     fn hash(&self, seed: &[u8]) -> CtOutput<Hmac<Sha256>> {
-        let mut hmac =
-            Hmac::<Sha256>::new_from_slice(self.0).expect("Can't create a HMAC object");
+        let mut hmac = Hmac::<Sha256>::new_from_slice(self.0).expect("Can't create a HMAC object");
         hmac.update(seed);
 
         hmac.finalize()

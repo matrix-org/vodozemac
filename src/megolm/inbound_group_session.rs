@@ -16,9 +16,8 @@ use std::io::{Cursor, Read};
 
 use ed25519_dalek::{PublicKey, Signature, Verifier, PUBLIC_KEY_LENGTH, SIGNATURE_LENGTH};
 
-use crate::{cipher::Cipher, utilities::base64_decode};
-
 use super::{message::MegolmMessage, ratchet::Ratchet, SESSION_KEY_VERSION};
+use crate::{cipher::Cipher, utilities::base64_decode};
 
 pub struct InboundGroupSession {
     initial_ratchet: Ratchet,
