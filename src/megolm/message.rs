@@ -17,7 +17,8 @@ use prost::Message;
 
 use crate::{
     cipher::Mac,
-    messages::{DecodeError, Encode},
+    messages::DecodeError,
+    utilities::VarInt,
 };
 
 const VERSION: u8 = 3;
@@ -122,8 +123,8 @@ impl InnerMegolmMessage {
     fn encode_manual(&self) -> Vec<u8> {
         // Prost optimizes away the chain index if it's 0, libolm can't decode
         // this, so encode our messages the pedestrian way instead.
-        let index = self.message_index.encode();
-        let ciphertext_len = self.ciphertext.len().encode();
+        let index = self.message_index.to_var_int();
+        let ciphertext_len = self.ciphertext.len().to_var_int();
 
         [
             [VERSION].as_ref(),

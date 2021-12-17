@@ -16,7 +16,7 @@ use ed25519_dalek::SignatureError;
 use prost::Message;
 use thiserror::Error;
 
-use crate::{cipher::Mac, Curve25519PublicKey};
+use crate::{cipher::Mac, Curve25519PublicKey, utilities::VarInt};
 
 #[derive(Error, Debug)]
 pub enum DecodeError {
@@ -34,71 +34,6 @@ pub enum DecodeError {
     Signature(#[from] SignatureError),
     #[error(transparent)]
     ProtoBufError(#[from] prost::DecodeError),
-}
-
-// The integer encoding logic here has been taken from the integer-encoding[1]
-// crate and is under the MIT license.
-//
-// The MIT License (MIT)
-//
-// Copyright (c) 2016 Google Inc. (lewinb@google.com) -- though not an official
-// Google product or in any way related!
-// Copyright (c) 2018-2020 Lewin Bormann (lbo@spheniscida.de)
-//
-// [1]: https://github.com/dermesser/integer-encoding-rs
-pub(crate) trait Encode {
-    fn encode(self) -> Vec<u8>;
-}
-
-/// Most-significant byte, == 0x80
-const MSB: u8 = 0b1000_0000;
-
-/// How many bytes an integer uses when being encoded as a VarInt.
-#[inline]
-fn required_encoded_space_unsigned(mut v: u64) -> usize {
-    if v == 0 {
-        return 1;
-    }
-
-    let mut logcounter = 0;
-    while v > 0 {
-        logcounter += 1;
-        v >>= 7;
-    }
-    logcounter
-}
-
-impl Encode for usize {
-    fn encode(self) -> Vec<u8> {
-        (self as u64).encode()
-    }
-}
-
-impl Encode for u32 {
-    fn encode(self) -> Vec<u8> {
-        (self as u64).encode()
-    }
-}
-
-impl Encode for u64 {
-    #[inline]
-    fn encode(self) -> Vec<u8> {
-        let mut v = Vec::new();
-        v.resize(required_encoded_space_unsigned(self), 0);
-
-        let mut n = self;
-        let mut i = 0;
-
-        while n >= 0x80 {
-            v[i] = MSB | (n as u8);
-            i += 1;
-            n >>= 7;
-        }
-
-        v[i] = n as u8;
-
-        v
-    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -184,9 +119,9 @@ impl OlmMessage {
     fn from_parts_untyped(ratchet_key: &[u8], index: u64, ciphertext: Vec<u8>) -> Self {
         // Prost optimizes away the chain index if it's 0, libolm can't decode
         // this, so encode our messages the pedestrian way instead.
-        let index = index.encode();
-        let ratchet_len = ratchet_key.len().encode();
-        let ciphertext_len = ciphertext.len().encode();
+        let index = index.to_var_int();
+        let ratchet_len = ratchet_key.len().to_var_int();
+        let ciphertext_len = ciphertext.len().to_var_int();
 
         let message = [
             [Self::VERSION].as_ref(),
