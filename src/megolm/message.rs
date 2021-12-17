@@ -25,7 +25,7 @@ const VERSION: u8 = 3;
 pub(super) struct MegolmMessage(Vec<u8>);
 
 impl MegolmMessage {
-    const MAC_LOCATION: usize = Mac::TRUNCATED_LEN + SIGNATURE_LENGTH;
+    const MESSAGE_SUFFIX_LENGTH: usize = Mac::TRUNCATED_LEN + SIGNATURE_LENGTH;
 
     pub fn new(ciphertext: Vec<u8>, message_index: u32) -> Self {
         let message = InnerMegolmMessage { message_index, ciphertext };
@@ -38,13 +38,13 @@ impl MegolmMessage {
 
         if version != VERSION {
             Err(DecodeError::InvalidVersion(VERSION, version))
-        } else if message.len() < 1 + Self::MAC_LOCATION {
+        } else if message.len() < 1 + Self::MESSAGE_SUFFIX_LENGTH {
             Err(DecodeError::MessageToShort(message.len()))
         } else {
             let inner =
-                InnerMegolmMessage::decode(&message[1..message.len() - Self::MAC_LOCATION])?;
+                InnerMegolmMessage::decode(&message[1..message.len() - Self::MESSAGE_SUFFIX_LENGTH])?;
 
-            let mac_location = message.len() - Self::MAC_LOCATION;
+            let mac_location = message.len() - Self::MESSAGE_SUFFIX_LENGTH;
             let signature_location = message.len() - SIGNATURE_LENGTH;
 
             let mac_slice = &message[mac_location..mac_location + Mac::TRUNCATED_LEN];
@@ -66,7 +66,7 @@ impl MegolmMessage {
     }
 
     fn mac_start(&self) -> usize {
-        self.0.len() - Self::MAC_LOCATION
+        self.0.len() - Self::MESSAGE_SUFFIX_LENGTH
     }
 
     pub fn bytes_for_mac(&self) -> &[u8] {
