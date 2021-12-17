@@ -69,17 +69,6 @@ impl MegolmMessage {
         self.0.len() - Self::MAC_LOCATION
     }
 
-    fn mac_slice(&self) -> &[u8] {
-        let mac_start = self.mac_start();
-
-        &self.0[mac_start..mac_start + Mac::TRUNCATED_LEN]
-    }
-
-    fn signature_slice(&self) -> &[u8] {
-        let signature_start = self.signature_start();
-        &self.0[signature_start..]
-    }
-
     pub fn bytes_for_mac(&self) -> &[u8] {
         &self.0[..self.mac_start()]
     }
