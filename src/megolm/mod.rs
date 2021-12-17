@@ -149,6 +149,8 @@ mod test {
         let mut session = GroupSession::new();
         let mut inbound = InboundGroupSession::new(&session.session_key())?;
 
+        assert_eq!(session.session_id(), inbound.session_id());
+
         let plaintext = "It's a secret to everybody";
         let message = session.encrypt(plaintext);
 
@@ -160,6 +162,7 @@ mod test {
         let export = inbound.export_at(1).expect("Can export at the initial index");
         let mut imported = InboundGroupSession::import(&export)?;
 
+        assert_eq!(session.session_id(), imported.session_id());
         imported.decrypt(&message).expect_err("Can't decrypt at the initial index");
         assert!(imported.export_at(0).is_none(), "Can't export at the initial index");
 

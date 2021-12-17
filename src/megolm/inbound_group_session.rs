@@ -146,6 +146,10 @@ impl InboundGroupSession {
         }
     }
 
+    pub fn session_id(&self) -> String {
+        base64_encode(self.signing_key.as_bytes())
+    }
+
     fn find_ratchet(&mut self, message_index: u32) -> Option<&Ratchet> {
         if self.initial_ratchet.index() == message_index {
             Some(&self.initial_ratchet)
