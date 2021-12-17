@@ -16,7 +16,7 @@ use ed25519_dalek::{ExpandedSecretKey, PublicKey, SecretKey};
 use rand::thread_rng;
 use zeroize::Zeroize;
 
-use super::{message::MegolmMessage, ratchet::Ratchet, SESSION_KEY_VERSION};
+use super::{message::MegolmMessage, ratchet::Ratchet, SessionKey, SESSION_KEY_VERSION};
 use crate::{cipher::Cipher, utilities::base64_encode};
 
 pub struct GroupSession {
@@ -61,7 +61,7 @@ impl GroupSession {
         base64_encode(message)
     }
 
-    pub fn session_key(&self) -> String {
+    pub fn session_key(&self) -> SessionKey {
         let index = self.ratchet.index().to_le_bytes();
 
         let mut export: Vec<u8> = [
@@ -78,6 +78,6 @@ impl GroupSession {
         let result = base64_encode(&export);
         export.zeroize();
 
-        result
+        SessionKey(result)
     }
 }

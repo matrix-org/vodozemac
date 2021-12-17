@@ -19,8 +19,27 @@ mod inbound_group_session;
 mod message;
 mod ratchet;
 
+use zeroize::Zeroize;
+
 pub use group_session::GroupSession;
-pub use inbound_group_session::InboundGroupSession;
+pub use inbound_group_session::{
+    DecryptionError, ExportedSessionKey, InboundGroupSession, SessionCreationError,
+};
+
+#[derive(Zeroize)]
+pub struct SessionKey(pub String);
+
+impl SessionKey {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Drop for SessionKey {
+    fn drop(&mut self) {
+        self.0.zeroize()
+    }
+}
 
 const SESSION_KEY_VERSION: u8 = 2;
 
@@ -32,14 +51,14 @@ mod test {
         outbound_group_session::OlmOutboundGroupSession,
     };
 
-    use super::{GroupSession, InboundGroupSession};
+    use super::{GroupSession, InboundGroupSession, SessionKey};
 
     #[test]
     fn encrypting() -> Result<()> {
         let mut session = GroupSession::new();
         let session_key = session.session_key();
 
-        let olm_session = OlmInboundGroupSession::new(&session_key)?;
+        let olm_session = OlmInboundGroupSession::new(session_key.as_str())?;
 
         let plaintext = "It's a secret to everybody";
         let message = session.encrypt(plaintext);
@@ -78,7 +97,9 @@ mod test {
     fn decrypting() -> Result<()> {
         let olm_session = OlmOutboundGroupSession::new();
 
-        let mut session = InboundGroupSession::new(olm_session.session_key())?;
+        let session_key = SessionKey(olm_session.session_key());
+
+        let mut session = InboundGroupSession::new(&session_key)?;
 
         let plaintext = "It's a secret to everybody";
         let message = olm_session.encrypt(plaintext);
@@ -119,6 +140,28 @@ mod test {
 
         assert_eq!(decrypted.plaintext, third_plaintext);
         assert_eq!(decrypted.message_index, 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn exporting() -> Result<()> {
+        let mut session = GroupSession::new();
+        let mut inbound = InboundGroupSession::new(&session.session_key())?;
+
+        let plaintext = "It's a secret to everybody";
+        let message = session.encrypt(plaintext);
+
+        let decrypted = inbound.decrypt(&message)?;
+
+        assert_eq!(decrypted.plaintext, plaintext);
+        assert_eq!(decrypted.message_index, 0);
+
+        let export = inbound.export_at(1).expect("Can export at the initial index");
+        let mut imported = InboundGroupSession::import(&export)?;
+
+        imported.decrypt(&message).expect_err("Can't decrypt at the initial index");
+        assert!(imported.export_at(0).is_none(), "Can't export at the initial index");
 
         Ok(())
     }
