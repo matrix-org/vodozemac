@@ -23,7 +23,6 @@
     unused_import_braces,
     unused_qualifications
 )]
-
 #![doc = include_str!("../README.md")]
 
 mod account;

@@ -171,7 +171,8 @@ mod test {
             .expect("Couldn't set the public key for libolm");
         let established = dalek.diffie_hellman_with_raw(&olm.public_key())?;
 
-        let olm_mac = olm.calculate_mac_fixed_base64("", "").expect("libolm couldn't calculate a MAC");
+        let olm_mac =
+            olm.calculate_mac_fixed_base64("", "").expect("libolm couldn't calculate a MAC");
         assert_eq!(olm_mac, established.calculate_mac("", ""));
 
         established.verify_mac("", "", olm_mac.as_str())?;
