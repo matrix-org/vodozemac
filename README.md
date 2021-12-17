@@ -119,3 +119,10 @@ earlier state. This preserves forward secrecy.
 
 A detailed technical specification can be found at
 <https://gitlab.matrix.org/matrix-org/olm/-/blob/master/docs/megolm.md>.
+
+# Vendored libraries
+
+vodozemac currently vendors `olm-rs` to provide a fixed version of the SAS MAC
+calculation method, `calculate_mac_fixed_base64`. This is used solely for
+implementing correctness tests against libolm and will be removed once the
+fixed method has been exposed in upstream `olm-rs`.
