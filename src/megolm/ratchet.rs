@@ -18,7 +18,8 @@ use rand::{thread_rng, RngCore};
 use sha2::{digest::CtOutput, Sha256};
 use zeroize::Zeroize;
 
-const ADVANCEMENT_SEEDS: [&[u8; 1]; 4] = [b"\x00", b"\x01", b"\x02", b"\x03"];
+const ADVANCEMENT_SEEDS: [&[u8; 1]; Ratchet::RATCHET_PART_COUNT] =
+    [b"\x00", b"\x01", b"\x02", b"\x03"];
 
 #[derive(Zeroize, Clone)]
 pub(super) struct Ratchet {
