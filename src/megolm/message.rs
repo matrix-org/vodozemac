@@ -12,9 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use ed25519_dalek::{Signature, SIGNATURE_LENGTH};
 use prost::Message;
 
 use crate::{cipher::Mac, messages::Encode};
+
+const VERSION: u8 = 3;
 
 pub(super) struct MegolmMessage(Vec<u8>);
 
@@ -25,8 +28,38 @@ impl MegolmMessage {
         Self(message.encode_manual())
     }
 
+    pub fn decode(message: &[u8]) -> (Vec<u8>, u32, [u8; 8], Signature) {
+        let message = Self(message.to_vec());
+        let version = *message.0.get(0).unwrap();
+
+        if version != VERSION {
+            todo!()
+        }
+
+        let inner = InnerMegolmMessage::decode(&message.0[1..&message.0.len() - 72]).unwrap();
+
+        let mut mac = [0u8; Mac::TRUNCATED_LEN];
+
+        mac.copy_from_slice(message.mac_slice());
+        let signature = Signature::from_bytes(message.signature_slice()).unwrap();
+        let index = inner.message_index.try_into().unwrap();
+
+        (inner.ciphertext, index, mac, signature)
+    }
+
     fn mac_start(&self) -> usize {
-        self.0.len() - (Mac::TRUNCATED_LEN + ed25519_dalek::SIGNATURE_LENGTH)
+        self.0.len() - (Mac::TRUNCATED_LEN + SIGNATURE_LENGTH)
+    }
+
+    fn mac_slice(&self) -> &[u8] {
+        let mac_start = self.mac_start();
+
+        &self.0[mac_start..mac_start + Mac::TRUNCATED_LEN]
+    }
+
+    fn signature_slice(&self) -> &[u8] {
+        let signature_start = self.signature_start();
+        &self.0[signature_start..]
     }
 
     pub fn bytes_for_mac(&self) -> &[u8] {
@@ -41,14 +74,14 @@ impl MegolmMessage {
     }
 
     fn signature_start(&self) -> usize {
-        self.0.len() - ed25519_dalek::SIGNATURE_LENGTH
+        self.0.len() - SIGNATURE_LENGTH
     }
 
     pub fn bytes_for_signing(&self) -> &[u8] {
         &self.0[..self.signature_start()]
     }
 
-    pub fn append_signature(&mut self, signature: ed25519_dalek::Signature) {
+    pub fn append_signature(&mut self, signature: Signature) {
         let signature_start = self.signature_start();
         self.0[signature_start..].copy_from_slice(&signature.to_bytes());
     }
@@ -62,15 +95,13 @@ impl AsRef<[u8]> for MegolmMessage {
 
 #[derive(Clone, Message, PartialEq)]
 struct InnerMegolmMessage {
-    #[prost(uint64, tag = "8")]
-    pub message_index: u64,
-    #[prost(bytes, tag = "12")]
+    #[prost(uint32, tag = "1")]
+    pub message_index: u32,
+    #[prost(bytes, tag = "2")]
     pub ciphertext: Vec<u8>,
 }
 
 impl InnerMegolmMessage {
-    const VERSION: u8 = 3;
-
     const INDEX_TAG: &'static [u8; 1] = b"\x08";
     const CIPHER_TAG: &'static [u8; 1] = b"\x12";
 
@@ -81,14 +112,14 @@ impl InnerMegolmMessage {
         let ciphertext_len = self.ciphertext.len().encode();
 
         [
-            [Self::VERSION].as_ref(),
+            [VERSION].as_ref(),
             Self::INDEX_TAG.as_ref(),
             &index,
             Self::CIPHER_TAG.as_ref(),
             &ciphertext_len,
             &self.ciphertext,
             &[0u8; Mac::TRUNCATED_LEN],
-            &[0u8; ed25519_dalek::SIGNATURE_LENGTH],
+            &[0u8; SIGNATURE_LENGTH],
         ]
         .concat()
     }

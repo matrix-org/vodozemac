@@ -20,15 +20,19 @@ mod message;
 mod ratchet;
 
 pub use group_session::GroupSession;
+pub use inbound_group_session::InboundGroupSession;
 
 const SESSION_KEY_VERSION: u8 = 2;
 
 #[cfg(test)]
 mod test {
     use anyhow::Result;
-    use olm_rs::inbound_group_session::OlmInboundGroupSession;
+    use olm_rs::{
+        inbound_group_session::OlmInboundGroupSession,
+        outbound_group_session::OlmOutboundGroupSession,
+    };
 
-    use super::GroupSession;
+    use super::{GroupSession, InboundGroupSession};
 
     #[test]
     fn encrypting() -> Result<()> {
@@ -55,6 +59,66 @@ mod test {
         let (decrypted, _) = olm_session.decrypt(message)?;
 
         assert_eq!(decrypted, plaintext);
+
+        let plaintext = "Last secret";
+
+        for _ in 1..2000 {
+            session.encrypt(plaintext);
+        }
+
+        let message = session.encrypt(plaintext);
+        let (decrypted, _) = olm_session.decrypt(message)?;
+
+        assert_eq!(decrypted, plaintext);
+
+        Ok(())
+    }
+
+    #[test]
+    fn decrypting() -> Result<()> {
+        let olm_session = OlmOutboundGroupSession::new();
+
+        let mut session = InboundGroupSession::new(olm_session.session_key());
+
+        let plaintext = "It's a secret to everybody";
+        let message = olm_session.encrypt(plaintext);
+
+        let decrypted = session.decrypt(&message);
+
+        assert_eq!(decrypted.plaintext, plaintext);
+        assert_eq!(decrypted.message_index, 0);
+
+        let plaintext = "Another secret";
+        let message = olm_session.encrypt(plaintext);
+
+        let decrypted = session.decrypt(&message);
+
+        assert_eq!(decrypted.plaintext, plaintext);
+        assert_eq!(decrypted.message_index, 1);
+
+        let third_plaintext = "And another secret";
+        let third_message = olm_session.encrypt(third_plaintext);
+        let decrypted = session.decrypt(&third_message);
+
+        assert_eq!(decrypted.plaintext, third_plaintext);
+        assert_eq!(decrypted.message_index, 2);
+
+        let plaintext = "Last secret";
+
+        for _ in 1..2000 {
+            olm_session.encrypt(plaintext);
+        }
+
+        let message = olm_session.encrypt(plaintext);
+        let decrypted = session.decrypt(&message);
+
+        assert_eq!(decrypted.plaintext, plaintext);
+        assert_eq!(decrypted.message_index, 2002);
+
+        let decrypted = session.decrypt(&third_message);
+
+        assert_eq!(decrypted.plaintext, third_plaintext);
+        assert_eq!(decrypted.message_index, 2);
 
         Ok(())
     }

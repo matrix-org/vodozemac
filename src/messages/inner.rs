@@ -71,6 +71,12 @@ impl Encode for usize {
     }
 }
 
+impl Encode for u32 {
+    fn encode(self) -> Vec<u8> {
+        (self as u64).encode()
+    }
+}
+
 impl Encode for u64 {
     #[inline]
     fn encode(self) -> Vec<u8> {

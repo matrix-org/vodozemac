@@ -93,6 +93,10 @@ impl Ratchet {
         ratchet
     }
 
+    pub fn from_bytes(bytes: [u8; 128], counter: u32) -> Self {
+        Self { inner: bytes, counter }
+    }
+
     pub fn index(&self) -> u32 {
         self.counter
     }
@@ -142,7 +146,50 @@ impl Ratchet {
         }
     }
 
-    pub fn advance_to(&mut self, _advance_to: u32) {
-        todo!()
+    pub fn advance_to(&mut self, advance_to: u32) {
+        for j in 0..Self::RATCHET_PART_COUNT {
+            let shift = (Self::RATCHET_PART_COUNT - j - 1) * 8;
+            let mask: u32 = !0u32 << shift;
+
+            // how many times do we need to rehash this part?
+            // '& 0xff' ensures we handle integer wraparound correctly
+            let mut steps = ((advance_to >> shift) - (self.counter >> shift)) & 0xff;
+
+            if steps == 0 {
+                // deal with the edge case where megolm->counter is slightly
+                // larger than advance_to. This should only happen for R(0), and
+                // implies that advance_to has wrapped around and we need to
+                // advance R(0) 256 times.
+                if advance_to < self.counter {
+                    steps = 0x100;
+                } else {
+                    continue;
+                }
+            }
+
+            // for all but the last step, we can just bump R(j) without regard
+            // to R(j+1)...R(3).
+            while steps > 1 {
+                let mut parts = self.as_parts();
+                parts.update(j, j);
+                steps -= 1;
+            }
+
+            // on the last step we also need to bump R(j+1)...R(3).
+            // (Theoretically, we could skip bumping R(j+2) if we're going to bump
+            // R(j+1) again, but the code to figure that out is a bit baroque and
+            // doesn't save us much).
+
+            let mut k = Self::RATCHET_PART_COUNT - 1;
+
+            while k >= j {
+                let mut parts = self.as_parts();
+                parts.update(j, k);
+
+                k -= 1;
+            }
+
+            self.counter = advance_to & mask;
+        }
     }
 }
