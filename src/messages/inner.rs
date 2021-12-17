@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use ed25519_dalek::SignatureError;
 use prost::Message;
 use thiserror::Error;
 
@@ -29,6 +30,8 @@ pub enum DecodeError {
     InvalidKeyLength(usize, usize),
     #[error("The message contained a MAC with an invalid size, expected {0}, got {1}")]
     InvalidMacLength(usize, usize),
+    #[error("The message contained an invalid Signature: {0}")]
+    Signature(#[from] SignatureError),
     #[error(transparent)]
     ProtoBufError(#[from] prost::DecodeError),
 }

@@ -26,12 +26,12 @@
 
 mod account;
 mod cipher;
-mod megolm;
 mod session;
 mod session_keys;
 mod shared_secret;
 mod utilities;
 
+pub mod megolm;
 pub mod messages;
 pub mod sas;
 

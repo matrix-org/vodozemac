@@ -78,12 +78,12 @@ mod test {
     fn decrypting() -> Result<()> {
         let olm_session = OlmOutboundGroupSession::new();
 
-        let mut session = InboundGroupSession::new(olm_session.session_key());
+        let mut session = InboundGroupSession::new(olm_session.session_key())?;
 
         let plaintext = "It's a secret to everybody";
         let message = olm_session.encrypt(plaintext);
 
-        let decrypted = session.decrypt(&message);
+        let decrypted = session.decrypt(&message)?;
 
         assert_eq!(decrypted.plaintext, plaintext);
         assert_eq!(decrypted.message_index, 0);
@@ -91,14 +91,14 @@ mod test {
         let plaintext = "Another secret";
         let message = olm_session.encrypt(plaintext);
 
-        let decrypted = session.decrypt(&message);
+        let decrypted = session.decrypt(&message)?;
 
         assert_eq!(decrypted.plaintext, plaintext);
         assert_eq!(decrypted.message_index, 1);
 
         let third_plaintext = "And another secret";
         let third_message = olm_session.encrypt(third_plaintext);
-        let decrypted = session.decrypt(&third_message);
+        let decrypted = session.decrypt(&third_message)?;
 
         assert_eq!(decrypted.plaintext, third_plaintext);
         assert_eq!(decrypted.message_index, 2);
@@ -110,12 +110,12 @@ mod test {
         }
 
         let message = olm_session.encrypt(plaintext);
-        let decrypted = session.decrypt(&message);
+        let decrypted = session.decrypt(&message)?;
 
         assert_eq!(decrypted.plaintext, plaintext);
         assert_eq!(decrypted.message_index, 2002);
 
-        let decrypted = session.decrypt(&third_message);
+        let decrypted = session.decrypt(&third_message)?;
 
         assert_eq!(decrypted.plaintext, third_plaintext);
         assert_eq!(decrypted.message_index, 2);

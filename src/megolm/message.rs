@@ -15,40 +15,58 @@
 use ed25519_dalek::{Signature, SIGNATURE_LENGTH};
 use prost::Message;
 
-use crate::{cipher::Mac, messages::Encode};
+use crate::{
+    cipher::Mac,
+    messages::{DecodeError, Encode},
+};
 
 const VERSION: u8 = 3;
 
 pub(super) struct MegolmMessage(Vec<u8>);
 
 impl MegolmMessage {
+    const MAC_LOCATION: usize = Mac::TRUNCATED_LEN + SIGNATURE_LENGTH;
+
     pub fn new(ciphertext: Vec<u8>, message_index: u32) -> Self {
-        let message = InnerMegolmMessage { message_index: message_index.into(), ciphertext };
+        let message = InnerMegolmMessage { message_index, ciphertext };
 
         Self(message.encode_manual())
     }
 
-    pub fn decode(message: &[u8]) -> (Vec<u8>, u32, [u8; 8], Signature) {
-        let message = Self(message.to_vec());
-        let version = *message.0.get(0).unwrap();
+    pub fn decode(message: Vec<u8>) -> Result<(Self, DecodedMegolmMessage), DecodeError> {
+        let version = *message.get(0).ok_or(DecodeError::MissingVersion)?;
 
         if version != VERSION {
-            todo!()
+            Err(DecodeError::InvalidVersion(VERSION, version))
+        } else if message.len() < 1 + Self::MAC_LOCATION {
+            Err(DecodeError::MessageToShort(message.len()))
+        } else {
+            let inner =
+                InnerMegolmMessage::decode(&message[1..message.len() - Self::MAC_LOCATION])?;
+
+            let mac_location = message.len() - Self::MAC_LOCATION;
+            let signature_location = message.len() - SIGNATURE_LENGTH;
+
+            let mac_slice = &message[mac_location..mac_location + Mac::TRUNCATED_LEN];
+            let signature_slice = &message[signature_location..];
+
+            let mut mac = [0u8; Mac::TRUNCATED_LEN];
+            mac.copy_from_slice(mac_slice);
+            let signature = Signature::from_bytes(signature_slice)?;
+
+            let decoded = DecodedMegolmMessage {
+                ciphertext: inner.ciphertext,
+                message_index: inner.message_index,
+                mac,
+                signature,
+            };
+
+            Ok((Self(message), decoded))
         }
-
-        let inner = InnerMegolmMessage::decode(&message.0[1..&message.0.len() - 72]).unwrap();
-
-        let mut mac = [0u8; Mac::TRUNCATED_LEN];
-
-        mac.copy_from_slice(message.mac_slice());
-        let signature = Signature::from_bytes(message.signature_slice()).unwrap();
-        let index = inner.message_index.try_into().unwrap();
-
-        (inner.ciphertext, index, mac, signature)
     }
 
     fn mac_start(&self) -> usize {
-        self.0.len() - (Mac::TRUNCATED_LEN + SIGNATURE_LENGTH)
+        self.0.len() - Self::MAC_LOCATION
     }
 
     fn mac_slice(&self) -> &[u8] {
@@ -85,6 +103,13 @@ impl MegolmMessage {
         let signature_start = self.signature_start();
         self.0[signature_start..].copy_from_slice(&signature.to_bytes());
     }
+}
+
+pub(crate) struct DecodedMegolmMessage {
+    pub ciphertext: Vec<u8>,
+    pub message_index: u32,
+    pub mac: [u8; 8],
+    pub signature: Signature,
 }
 
 impl AsRef<[u8]> for MegolmMessage {
