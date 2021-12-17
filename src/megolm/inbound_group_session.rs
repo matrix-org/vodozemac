@@ -25,7 +25,7 @@ use super::{message::MegolmMessage, ratchet::Ratchet, SESSION_KEY_VERSION};
 use crate::{cipher::Cipher, messages::DecodeError, utilities::base64_decode};
 
 #[derive(Debug, Error)]
-pub enum SessoinCreationError {
+pub enum SessionCreationError {
     #[error("The session had a invalid version, expected {0}, got {1}")]
     Version(u8, u8),
     #[error("The session key was too short {0}")]
@@ -67,7 +67,7 @@ pub struct DecryptedMessage {
 }
 
 impl InboundGroupSession {
-    pub fn new(session_key: String) -> Result<Self, SessoinCreationError> {
+    pub fn new(session_key: String) -> Result<Self, SessionCreationError> {
         let decoded = base64_decode(session_key)?;
         let mut cursor = Cursor::new(decoded);
 
@@ -80,7 +80,7 @@ impl InboundGroupSession {
         cursor.read_exact(&mut version)?;
 
         if version[0] != SESSION_KEY_VERSION {
-            Err(SessoinCreationError::Version(SESSION_KEY_VERSION, version[0]))
+            Err(SessionCreationError::Version(SESSION_KEY_VERSION, version[0]))
         } else {
             cursor.read_exact(&mut index)?;
             cursor.read_exact(&mut ratchet)?;
