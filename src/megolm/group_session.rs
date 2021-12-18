@@ -68,7 +68,7 @@ impl GroupSession {
     }
 
     pub fn session_key(&self) -> SessionKey {
-        let index = self.ratchet.index().to_le_bytes();
+        let index = self.ratchet.index().to_be_bytes();
 
         let mut export: Vec<u8> = [
             [SESSION_KEY_VERSION].as_ref(),

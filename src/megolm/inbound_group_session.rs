@@ -138,7 +138,7 @@ impl InboundGroupSession {
                 false
             };
 
-            let index = u32::from_le_bytes(index);
+            let index = u32::from_be_bytes(index);
             let initial_ratchet = Ratchet::from_bytes(ratchet, index);
             let latest_ratchet = initial_ratchet.clone();
 
