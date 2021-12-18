@@ -35,7 +35,7 @@ jobs:
       - name: Build docs
         uses: actions-rs/cargo@v1
         env:
-          RUSTDOCFLAGS: "-Zunstable-options"
+          RUSTDOCFLAGS: "--enable-index-page -Zunstable-options"
         with:
           command: doc
           args: --no-deps -Zrustdoc-map
