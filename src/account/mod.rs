@@ -84,17 +84,6 @@ impl TryFrom<AccountPickle> for Account {
     }
 }
 
-impl From<Account> for AccountPickle {
-    fn from(account: Account) -> Self {
-        AccountPickle {
-            signing_key: account.signing_key.into(),
-            diffie_hellman_key: account.diffie_hellman_key.into(),
-            one_time_keys: account.one_time_keys.into(),
-            fallback_keys: account.fallback_keys,
-        }
-    }
-}
-
 #[derive(Serialize, Deserialize)]
 pub struct AccountPickle {
     signing_key: Ed25519KeypairPickle,
