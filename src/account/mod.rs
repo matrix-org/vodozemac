@@ -35,6 +35,8 @@ use crate::{
     utilities::{base64_decode, base64_encode},
 };
 
+const MAX_NUMBER_OF_ONE_TIME_KEYS: usize = 100;
+
 #[derive(Error, Debug)]
 pub enum SessionCreationError {
     #[error("The pre-key message wasn't valid base64: {0}")]
@@ -67,8 +69,13 @@ impl Account {
     /// Create a new Account with new random identity keys.
     pub fn new() -> Self {
         Self {
+            // TODO For libolm compatibility we'll want to be able to store
+            // either an ed25519_dalek `ExpandedSecretKey` or a `SecretKey`.
             signing_key: Ed25519Keypair::new(),
             diffie_hellman_key: Curve25519Keypair::new(),
+            // TODO actually limit the number of private one-time keys we can
+            // hold. The server might attempt to fill our memory and trigger a
+            // DOS otherwise.
             one_time_keys: OneTimeKeys::new(),
             fallback_keys: FallbackKeys::new(),
         }
@@ -101,8 +108,12 @@ impl Account {
         self.signing_key.sign(message)
     }
 
+    /// The maximum number of private one-time keys this `Account` will
+    /// remember.
+    ///
+    /// The oldest keys will be dropped if we try to hold more than this value.
     pub fn max_number_of_one_time_keys(&self) -> usize {
-        50
+        MAX_NUMBER_OF_ONE_TIME_KEYS
     }
 
     /// Create a `Session` with the given identity key and one-time key.
@@ -202,7 +213,7 @@ impl Account {
         self.one_time_keys
             .public_keys
             .iter()
-            .map(|(key_id, key)| (*key_id, base64_encode(key.as_bytes())))
+            .map(|(key_id, key)| (*key_id, key.to_base64()))
             .collect()
     }
 
