@@ -16,7 +16,7 @@ use ed25519_dalek::SignatureError;
 use prost::Message;
 use thiserror::Error;
 
-use crate::{cipher::Mac, Curve25519PublicKey, utilities::VarInt};
+use crate::{cipher::Mac, utilities::VarInt, Curve25519KeyError, Curve25519PublicKey};
 
 #[derive(Error, Debug)]
 pub enum DecodeError {
@@ -26,8 +26,8 @@ pub enum DecodeError {
     MessageToShort(usize),
     #[error("The message didn't have a valid version, expected {0}, got {1}")]
     InvalidVersion(u8, u8),
-    #[error("The message contained a public key with an invalid size, expected {0}, got {1}")]
-    InvalidKeyLength(usize, usize),
+    #[error("The message contained an invalid public key: {0}")]
+    InvalidKey(#[from] Curve25519KeyError),
     #[error("The message contained a MAC with an invalid size, expected {0}, got {1}")]
     InvalidMacLength(usize, usize),
     #[error("The message contained an invalid Signature: {0}")]
@@ -89,27 +89,19 @@ impl OlmMessage {
             let inner =
                 InnerMessage::decode(&self.inner[1..self.inner.len() - Mac::TRUNCATED_LEN])?;
 
-            let mut key = [0u8; Curve25519PublicKey::KEY_LENGTH];
-            let mut mac = [0u8; Mac::TRUNCATED_LEN];
-
             let mac_slice = &self.inner[self.inner.len() - Mac::TRUNCATED_LEN..];
 
-            if inner.ratchet_key.len() != Curve25519PublicKey::KEY_LENGTH {
-                Err(DecodeError::InvalidKeyLength(
-                    Curve25519PublicKey::KEY_LENGTH,
-                    inner.ratchet_key.len(),
-                ))
-            } else if mac_slice.len() != Mac::TRUNCATED_LEN {
+            if mac_slice.len() != Mac::TRUNCATED_LEN {
                 Err(DecodeError::InvalidMacLength(Mac::TRUNCATED_LEN, mac_slice.len()))
             } else {
-                key.copy_from_slice(&inner.ratchet_key);
+                let mut mac = [0u8; Mac::TRUNCATED_LEN];
                 mac.copy_from_slice(mac_slice);
 
-                let key = Curve25519PublicKey::from(key);
                 let chain_index = inner.chain_index;
                 let ciphertext = inner.ciphertext;
+                let ratchet_key = Curve25519PublicKey::from_slice(&inner.ratchet_key)?;
 
-                let message = DecodedMessage { ratchet_key: key, chain_index, ciphertext, mac };
+                let message = DecodedMessage { ratchet_key, chain_index, ciphertext, mac };
 
                 Ok(message)
             }
@@ -164,36 +156,11 @@ impl PreKeyMessage {
         } else {
             let inner = InnerPreKeyMessage::decode(&self.inner[1..self.inner.len()])?;
 
-            let mut one_time_key = [0u8; 32];
-            let mut base_key = [0u8; 32];
-            let mut identity_key = [0u8; 32];
+            let one_time_key = Curve25519PublicKey::from_slice(&inner.one_time_key)?;
+            let base_key = Curve25519PublicKey::from_slice(&inner.base_key)?;
+            let identity_key = Curve25519PublicKey::from_slice(&inner.identity_key)?;
 
-            if inner.one_time_key.len() != Curve25519PublicKey::KEY_LENGTH {
-                Err(DecodeError::InvalidKeyLength(
-                    Curve25519PublicKey::KEY_LENGTH,
-                    inner.one_time_key.len(),
-                ))
-            } else if inner.identity_key.len() != Curve25519PublicKey::KEY_LENGTH {
-                Err(DecodeError::InvalidKeyLength(
-                    Curve25519PublicKey::KEY_LENGTH,
-                    inner.identity_key.len(),
-                ))
-            } else if inner.base_key.len() != Curve25519PublicKey::KEY_LENGTH {
-                Err(DecodeError::InvalidKeyLength(
-                    Curve25519PublicKey::KEY_LENGTH,
-                    inner.base_key.len(),
-                ))
-            } else {
-                one_time_key.copy_from_slice(&inner.one_time_key);
-                base_key.copy_from_slice(&inner.base_key);
-                identity_key.copy_from_slice(&inner.identity_key);
-
-                let one_time_key = Curve25519PublicKey::from(one_time_key);
-                let base_key = Curve25519PublicKey::from(base_key);
-                let identity_key = Curve25519PublicKey::from(identity_key);
-
-                Ok((one_time_key, base_key, identity_key, inner.message))
-            }
+            Ok((one_time_key, base_key, identity_key, inner.message))
         }
     }
 

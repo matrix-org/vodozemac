@@ -115,12 +115,18 @@ impl Curve25519PublicKey {
     /// Instantiate a Curve25519 public key from an unpadded base64
     /// representation.
     pub fn from_base64(base64_key: &str) -> Result<Curve25519PublicKey, Curve25519KeyError> {
-        let key_vec = base64_decode(base64_key)?;
-        let key_len = key_vec.len();
+        let key = base64_decode(base64_key)?;
+        Self::from_slice(&key)
+    }
+
+    /// Try to create a `Curve25519PublicKey` from a slice of bytes.
+    pub fn from_slice(slice: &[u8]) -> Result<Curve25519PublicKey, Curve25519KeyError> {
+        let key_len = slice.len();
 
         if key_len == CURVE25519_PUBLIC_KEY_LEN {
             let mut key = [0u8; CURVE25519_PUBLIC_KEY_LEN];
-            key.copy_from_slice(&key_vec);
+            key.copy_from_slice(slice);
+
             Ok(Self::from(key))
         } else {
             Err(Curve25519KeyError::InvalidKeyLength(key_len))
