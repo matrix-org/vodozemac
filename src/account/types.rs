@@ -54,8 +54,6 @@ pub(super) struct Curve25519Keypair {
     encoded_public_key: String,
 }
 
-const CURVE25519_PUBLIC_KEY_LEN: usize = 32;
-
 impl Curve25519Keypair {
     pub fn new() -> Self {
         let mut rng = thread_rng();
@@ -94,15 +92,15 @@ pub struct Curve25519PublicKey {
 }
 
 impl Curve25519PublicKey {
-    pub const KEY_LENGTH: usize = CURVE25519_PUBLIC_KEY_LEN;
+    pub const KEY_LENGTH: usize = 32;
 
-    pub fn new(private_key: [u8; CURVE25519_PUBLIC_KEY_LEN]) -> Curve25519PublicKey {
+    pub fn new(private_key: [u8; Self::KEY_LENGTH]) -> Curve25519PublicKey {
         Self { inner: PublicKey::from(private_key) }
     }
 
     /// Convert this public key to a byte array.
     #[inline]
-    pub fn to_bytes(&self) -> [u8; CURVE25519_PUBLIC_KEY_LEN] {
+    pub fn to_bytes(&self) -> [u8; Self::KEY_LENGTH] {
         self.inner.to_bytes()
     }
 
@@ -123,8 +121,8 @@ impl Curve25519PublicKey {
     pub fn from_slice(slice: &[u8]) -> Result<Curve25519PublicKey, Curve25519KeyError> {
         let key_len = slice.len();
 
-        if key_len == CURVE25519_PUBLIC_KEY_LEN {
-            let mut key = [0u8; CURVE25519_PUBLIC_KEY_LEN];
+        if key_len == Self::KEY_LENGTH {
+            let mut key = [0u8; Self::KEY_LENGTH];
             key.copy_from_slice(slice);
 
             Ok(Self::from(key))
@@ -139,8 +137,8 @@ impl Curve25519PublicKey {
     }
 }
 
-impl From<[u8; CURVE25519_PUBLIC_KEY_LEN]> for Curve25519PublicKey {
-    fn from(bytes: [u8; CURVE25519_PUBLIC_KEY_LEN]) -> Curve25519PublicKey {
+impl From<[u8; Self::KEY_LENGTH]> for Curve25519PublicKey {
+    fn from(bytes: [u8; Self::KEY_LENGTH]) -> Curve25519PublicKey {
         Curve25519PublicKey { inner: PublicKey::from(bytes) }
     }
 }
@@ -163,7 +161,7 @@ pub enum Curve25519KeyError {
     Base64Error(#[from] DecodeError),
     #[error("Failed decoding curve25519 key from base64: \
              Invalid number of bytes for curve25519, expected {}, got {}.",
-            CURVE25519_PUBLIC_KEY_LEN, .0)]
+            Curve25519PublicKey::KEY_LENGTH, .0)]
     InvalidKeyLength(usize),
 }
 
