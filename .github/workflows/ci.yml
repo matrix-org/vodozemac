@@ -1,0 +1,132 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  style:
+    name: Check style
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout the repo
+      uses: actions/checkout@v2
+
+    - name: Install rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        components: rustfmt
+        profile: minimal
+        override: true
+
+    - name: Cargo fmt
+      uses: actions-rs/cargo@v1
+      with:
+        command: fmt
+        args: --all -- --check
+
+  typos:
+    name: Spell Check with Typos
+    needs: [style]
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Actions Repository
+      uses: actions/checkout@v2
+
+    - name: Check the spelling of the files in our repo
+      uses: crate-ci/typos@master
+
+  clippy:
+    name: Run clippy
+    needs: [style]
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout the repo
+      uses: actions/checkout@v2
+
+    - name: Load cache
+      uses: actions/cache@v2
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db
+          target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Install rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        components: clippy
+        profile: minimal
+        override: true
+
+    - name: Clippy
+      uses: actions-rs/cargo@v1
+      with:
+        command: clippy
+        args: --all-targets -- -D warnings
+
+  test:
+    name: ${{ matrix.name }}
+    needs: [clippy]
+
+    runs-on: ${{ matrix.os || 'ubuntu-latest' }}
+    strategy:
+      matrix:
+        name:
+          - linux / stable
+          - linux / beta
+          - macOS / stable
+
+        include:
+          - name: linux / stable
+
+          - name: linux / beta
+            rust: beta
+
+          - name: macOS / stable
+            os: macOS-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+
+      - name: Load cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust || 'stable' }}
+          target: ${{ matrix.target }}
+          profile: minimal
+          override: true
+
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+
+      - name: Test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test

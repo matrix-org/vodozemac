@@ -1,0 +1,50 @@
+name: Code coverage
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  code_coverage:
+    name: Code Coverage
+    runs-on: "ubuntu-latest"
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Load cache
+      uses: actions/cache@v2
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db
+          target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Install stable toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        profile: minimal
+        override: true
+
+    - name: Install tarpaulin
+      uses: actions-rs/cargo@v1
+      with:
+        command: install
+        args: cargo-tarpaulin
+
+    - name: Run tarpaulin
+      uses: actions-rs/cargo@v1
+      with:
+        command: tarpaulin
+        args: --ignore-config --exclude-files "vendor/olm-rs" --out Xml
+
+    - name: Upload to codecov.io
+      uses: codecov/codecov-action@v1
