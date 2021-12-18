@@ -25,6 +25,12 @@ pub struct GroupSession {
     public_key: PublicKey,
 }
 
+impl Default for GroupSession {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GroupSession {
     pub fn new() -> Self {
         let mut rng = thread_rng();
