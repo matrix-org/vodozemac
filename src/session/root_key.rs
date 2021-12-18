@@ -57,11 +57,14 @@ impl RemoteRootKey {
         let ratchet_key = RatchetKey::new();
         let output = diffie_hellman(&self.key, &ratchet_key, remote_ratchet_key);
 
-        let mut chain_key = ChainKey::new([0u8; 32]);
-        let mut root_key = RootKey::new([0u8; 32]);
+        let mut chain_key = [0u8; 32];
+        let mut root_key = [0u8; 32];
 
-        root_key.key.copy_from_slice(&output[..32]);
-        chain_key.fill(&output[32..]);
+        root_key.copy_from_slice(&output[..32]);
+        chain_key.copy_from_slice(&output[32..]);
+
+        let chain_key = ChainKey::new(chain_key);
+        let root_key = RootKey::new(root_key);
 
         (root_key, chain_key, ratchet_key)
     }
@@ -79,11 +82,14 @@ impl RootKey {
     ) -> (RemoteRootKey, RemoteChainKey) {
         let output = diffie_hellman(&self.key, old_ratchet_key, remote_ratchet_key);
 
-        let mut chain_key = RemoteChainKey::new([0u8; 32]);
-        let mut root_key = RemoteRootKey::new([0u8; 32]);
+        let mut chain_key = [0u8; 32];
+        let mut root_key = [0u8; 32];
 
-        root_key.key.copy_from_slice(&output[..32]);
-        chain_key.fill(&output[32..]);
+        root_key.copy_from_slice(&output[..32]);
+        chain_key.copy_from_slice(&output[32..]);
+
+        let root_key = RemoteRootKey::new(root_key);
+        let chain_key = RemoteChainKey::new(chain_key);
 
         (root_key, chain_key)
     }
