@@ -15,11 +15,7 @@
 use ed25519_dalek::{Signature, SIGNATURE_LENGTH};
 use prost::Message;
 
-use crate::{
-    cipher::Mac,
-    messages::DecodeError,
-    utilities::VarInt,
-};
+use crate::{cipher::Mac, messages::DecodeError, utilities::VarInt};
 
 const VERSION: u8 = 3;
 
@@ -42,8 +38,9 @@ impl MegolmMessage {
         } else if message.len() < 1 + Self::MESSAGE_SUFFIX_LENGTH {
             Err(DecodeError::MessageToShort(message.len()))
         } else {
-            let inner =
-                InnerMegolmMessage::decode(&message[1..message.len() - Self::MESSAGE_SUFFIX_LENGTH])?;
+            let inner = InnerMegolmMessage::decode(
+                &message[1..message.len() - Self::MESSAGE_SUFFIX_LENGTH],
+            )?;
 
             let mac_location = message.len() - Self::MESSAGE_SUFFIX_LENGTH;
             let signature_location = message.len() - SIGNATURE_LENGTH;

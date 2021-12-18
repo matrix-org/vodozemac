@@ -17,12 +17,11 @@ mod inbound_group_session;
 mod message;
 mod ratchet;
 
-use zeroize::Zeroize;
-
 pub use group_session::GroupSession;
 pub use inbound_group_session::{
     DecryptionError, ExportedSessionKey, InboundGroupSession, SessionCreationError,
 };
+use zeroize::Zeroize;
 
 #[derive(Zeroize)]
 pub struct SessionKey(pub String);
