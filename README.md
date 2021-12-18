@@ -1,3 +1,9 @@
+![Build Status](https://img.shields.io/github/workflow/status/matrix-org/vodozemac/CI?style=flat-square)
+[![codecov](https://img.shields.io/codecov/c/github/matrix-org/vodozemac/main.svg?style=flat-square)](https://codecov.io/gh/matrix-org/vodozemac)
+[![License](https://img.shields.io/badge/License-Apache%202.0-yellowgreen.svg?style=flat-square)](https://opensource.org/licenses/Apache-2.0)
+[![Docs - Main](https://img.shields.io/badge/docs-main-blue.svg?style=flat-square)](https://matrix-org.github.io/vodozemac/vodozemac/index.html)
+[![Docs - Stable](https://img.shields.io/crates/v/vodozemac?color=blue&label=docs&style=flat-square)](https://docs.rs/vodozemac)
+
 A Rust implementation of Olm and Megolm
 
 vodozemac is a Rust implementation of
