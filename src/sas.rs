@@ -44,6 +44,61 @@ pub struct EstablishedSas {
     shared_secret: SharedSecret,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct SasBytes {
+    bytes: [u8; 6],
+}
+
+impl SasBytes {
+    pub fn emoji_index(&self) -> [u8; 7] {
+        Self::bytes_to_emoji_index(&self.bytes)
+    }
+
+    pub fn decimlas(&self) -> (u16, u16, u16) {
+        Self::bytes_to_decimal(&self.bytes)
+    }
+
+    pub fn as_bytes(&self) -> &[u8; 6] {
+        &self.bytes
+    }
+
+    fn bytes_to_emoji_index(bytes: &[u8; 6]) -> [u8; 7] {
+        let bytes: Vec<u64> = bytes.iter().map(|b| *b as u64).collect();
+        // Join the 6 bytes into one 64 bit unsigned int. This u64 will contain 48
+        // bits from our 6 bytes.
+        let mut num: u64 = bytes[0] << 40;
+        num += bytes[1] << 32;
+        num += bytes[2] << 24;
+        num += bytes[3] << 16;
+        num += bytes[4] << 8;
+        num += bytes[5];
+
+        // Take the top 42 bits of our 48 bits from the u64 and convert each 6 bits
+        // into a 6 bit number.
+        [
+            ((num >> 42) & 63) as u8,
+            ((num >> 36) & 63) as u8,
+            ((num >> 30) & 63) as u8,
+            ((num >> 24) & 63) as u8,
+            ((num >> 18) & 63) as u8,
+            ((num >> 12) & 63) as u8,
+            ((num >> 6) & 63) as u8,
+        ]
+    }
+
+    fn bytes_to_decimal(bytes: &[u8; 6]) -> (u16, u16, u16) {
+        let bytes: Vec<u16> = bytes.iter().map(|b| *b as u16).collect();
+
+        // This bitwise operation is taken from the [spec]
+        // [spec]: https://matrix.org/docs/spec/client_server/latest#sas-method-decimal
+        let first = bytes[0] << 5 | bytes[1] >> 3;
+        let second = (bytes[1] & 0x7) << 10 | bytes[2] << 2 | bytes[3] >> 6;
+        let third = (bytes[3] & 0x3F) << 7 | bytes[4] >> 1;
+
+        (first + 1000, second + 1000, third + 1000)
+    }
+}
+
 impl Default for Sas {
     fn default() -> Self {
         Self::new()
@@ -96,7 +151,16 @@ impl EstablishedSas {
         Hkdf::new(None, self.shared_secret.as_bytes())
     }
 
-    pub fn get_bytes(&self, info: &str, count: usize) -> Vec<u8> {
+    pub fn get_bytes(&self, info: &str) -> SasBytes {
+        let mut bytes = [0u8; 6];
+        let byte_vec = self.get_bytes_raw(info, 6);
+
+        bytes.copy_from_slice(&byte_vec);
+
+        SasBytes { bytes }
+    }
+
+    pub fn get_bytes_raw(&self, info: &str, count: usize) -> Vec<u8> {
         let mut output = vec![0u8; count];
         let hkdf = self.get_hkdf();
 
@@ -141,8 +205,9 @@ impl EstablishedSas {
 mod test {
     use anyhow::Result;
     use olm_rs::sas::OlmSas;
+    use proptest::prelude::*;
 
-    use super::Sas;
+    use super::{Sas, SasBytes};
 
     #[test]
     fn generate_bytes() -> Result<()> {
@@ -155,7 +220,7 @@ mod test {
 
         assert_eq!(
             olm.generate_bytes("TEST", 10).expect("libolm coulnd't generate SAS bytes"),
-            established.get_bytes("TEST", 10)
+            established.get_bytes_raw("TEST", 10)
         );
 
         Ok(())
@@ -178,5 +243,50 @@ mod test {
         established.verify_mac("", "", olm_mac.as_str())?;
 
         Ok(())
+    }
+
+    #[test]
+    fn emoji_generation() {
+        let bytes: [u8; 6] = [0, 0, 0, 0, 0, 0];
+        let index: [u8; 7] = [0, 0, 0, 0, 0, 0, 0];
+        assert_eq!(SasBytes::bytes_to_emoji_index(&bytes), index.as_ref());
+
+        let bytes: [u8; 6] = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF];
+        let index: [u8; 7] = [63, 63, 63, 63, 63, 63, 63];
+        assert_eq!(SasBytes::bytes_to_emoji_index(&bytes), index.as_ref());
+    }
+
+    #[test]
+    fn decimal_generation() {
+        let bytes: [u8; 6] = [0, 0, 0, 0, 0, 0];
+        let result = SasBytes::bytes_to_decimal(&bytes);
+
+        assert_eq!(result, (1000, 1000, 1000));
+
+        let bytes: [u8; 6] = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF];
+        let result = SasBytes::bytes_to_decimal(&bytes);
+        assert_eq!(result, (9191, 9191, 9191));
+    }
+
+    proptest! {
+        #[test]
+        fn proptest_emoji(bytes in prop::array::uniform6(0u8..)) {
+            let numbers = SasBytes::bytes_to_emoji_index(&bytes);
+
+            for number in numbers.iter() {
+                prop_assert!(*number < 64);
+            }
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn proptest_decimals(bytes in prop::array::uniform6(0u8..)) {
+            let (first, second, third) = SasBytes::bytes_to_decimal(&bytes);
+
+            prop_assert!((1000..=9191).contains(&first));
+            prop_assert!((1000..=9191).contains(&second));
+            prop_assert!((1000..=9191).contains(&third));
+        }
     }
 }
