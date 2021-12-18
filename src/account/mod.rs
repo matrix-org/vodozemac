@@ -191,7 +191,7 @@ impl Account {
     /// The one-time keys should be published to a server and marked as
     /// published using the `mark_keys_as_published()` method.
     pub fn one_time_keys(&self) -> HashMap<KeyId, Curve25519PublicKey> {
-        self.one_time_keys.public_keys.iter().map(|(key_id, key)| (*key_id, key.clone())).collect()
+        self.one_time_keys.public_keys.iter().map(|(key_id, key)| (*key_id, *key)).collect()
     }
 
     /// Get the currently unpublished one-time keys in base64-encoded form.
@@ -343,7 +343,7 @@ mod test {
         bob.mark_keys_as_published();
 
         let message = "It's a secret to everybody";
-        let olm_message: OlmMessage = alice_session.encrypt(message).into();
+        let olm_message: OlmMessage = alice_session.encrypt(message);
 
         if let OlmMessage::PreKey(m) = olm_message.clone() {
             let mut bob_session = bob.create_inbound_session(alice.curve25519_key(), &m)?;
@@ -359,13 +359,13 @@ mod test {
             assert_eq!(second_text, plaintext);
 
             let reply_plain = "Yes, take this, it's dangerous out there";
-            let reply = bob_session.encrypt(reply_plain).into();
+            let reply = bob_session.encrypt(reply_plain);
             let plaintext = alice_session.decrypt(&reply)?;
 
             assert_eq!(&plaintext, reply_plain);
 
             let another_reply = "Last one";
-            let reply = bob_session.encrypt(another_reply).into();
+            let reply = bob_session.encrypt(another_reply);
             let plaintext = alice_session.decrypt(&reply)?;
             assert_eq!(&plaintext, another_reply);
 
