@@ -147,7 +147,8 @@ pub enum GroupSessionUnpicklingError {
     InvalidPickleFormat(#[from] serde_json::error::Error),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Zeroize)]
+#[zeroize(drop)]
 #[serde(transparent)]
 pub struct ExpandedSecretKeyPickle {
     key: Vec<u8>,

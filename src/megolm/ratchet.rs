@@ -198,7 +198,8 @@ impl Ratchet {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Zeroize)]
+#[zeroize(drop)]
 pub(super) struct RatchetPickle {
     key: Vec<u8>,
     counter: u32,
