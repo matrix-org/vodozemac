@@ -15,12 +15,13 @@
 //! A 3DH implementation following the Olm [spec].
 //!
 //! The setup takes four Curve25519 inputs: Identity keys for Alice and Bob,
-//! (Ia, Ib), and one-time keys for Alice and Bob (Ea, Eb).o
+//! (Ia, Ib), and one-time keys for Alice and Bob (Ea, Eb).
 //!
-//! A shared secret, SSS, is generated using Triple Diffie-Hellman. The initial
-//! 256 bit root key, R0, and 256 bit chain key, C0,0 derived from the shared
-//! secret using an HMAC-based Key Derivation Function using SHA-256 as the hash
-//! function (HKDF-SHA-256) with default salt and "OLM_ROOT" as the info.
+//! A shared secret S is generated via Triple Diffie-Hellman using the above
+//! inputs. The initial 256-bit root key R0 and a 256-bit chain key C0,0 are
+//! derived from the shared secret using an HMAC-based Key Derivation Function
+//! with SHA-256 as the hash function (HKDF-SHA-256), the default salt and
+//! "OLM_ROOT" as the info.
 //!
 //! ```text
 //!     S = ECDH(Ia, Eb) || ECDH(Ea, Ib) || ECDH (Ea, Eb)
