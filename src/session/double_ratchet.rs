@@ -50,7 +50,7 @@ impl DoubleRatchet {
         let chain_key = ChainKey::new(chain_key);
 
         let ratchet =
-            ActiveDoubleRatchet { dh_ratchet: Ratchet::new(root_key), hkdf_ratchet: chain_key };
+            ActiveDoubleRatchet { active_ratchet: Ratchet::new(root_key), hkdf_ratchet: chain_key };
 
         Self { inner: ratchet.into() }
     }
@@ -113,21 +113,21 @@ struct InactiveDoubleRatchet {
 impl InactiveDoubleRatchet {
     fn activate(&self) -> ActiveDoubleRatchet {
         let (root_key, chain_key, ratchet_key) = self.root_key.advance(&self.ratchet_key);
-        let dh_ratchet = Ratchet::new_with_ratchet_key(root_key, ratchet_key);
+        let active_ratchet = Ratchet::new_with_ratchet_key(root_key, ratchet_key);
 
-        ActiveDoubleRatchet { dh_ratchet, hkdf_ratchet: chain_key }
+        ActiveDoubleRatchet { active_ratchet, hkdf_ratchet: chain_key }
     }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 struct ActiveDoubleRatchet {
-    dh_ratchet: Ratchet,
+    active_ratchet: Ratchet,
     hkdf_ratchet: ChainKey,
 }
 
 impl ActiveDoubleRatchet {
     fn advance(&self, ratchet_key: RemoteRatchetKey) -> (InactiveDoubleRatchet, ReceiverChain) {
-        let (root_key, remote_chain) = self.dh_ratchet.advance(ratchet_key.clone());
+        let (root_key, remote_chain) = self.active_ratchet.advance(ratchet_key.clone());
 
         let ratchet = InactiveDoubleRatchet { root_key, ratchet_key: ratchet_key.clone() };
         let receiver_chain = ReceiverChain::new(ratchet_key, remote_chain);
@@ -136,7 +136,7 @@ impl ActiveDoubleRatchet {
     }
 
     fn ratchet_key(&self) -> RatchetPublicKey {
-        RatchetPublicKey::from(self.dh_ratchet.ratchet_key())
+        RatchetPublicKey::from(self.active_ratchet.ratchet_key())
     }
 
     fn encrypt(&mut self, plaintext: &[u8]) -> InnerMessage {
