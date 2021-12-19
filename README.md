@@ -57,43 +57,43 @@ the other side. This completes the establishment of the Olm communication
 channel.
 
 ```rust
-    use anyhow::Result;
-    use vodozemac::olm::{Account, OlmMessage};
+use anyhow::Result;
+use vodozemac::olm::{Account, OlmMessage};
 
-    fn main() -> Result<()> {
-        let alice = Account::new();
-        let mut bob = Account::new();
+fn main() -> Result<()> {
+    let alice = Account::new();
+    let mut bob = Account::new();
 
-        bob.generate_one_time_keys(1);
-        let bob_otk = *bob.one_time_keys().values().next().unwrap();
+    bob.generate_one_time_keys(1);
+    let bob_otk = *bob.one_time_keys().values().next().unwrap();
 
-        let mut alice_session = alice
-            .create_outbound_session(*bob.curve25519_key(), bob_otk);
+    let mut alice_session = alice
+        .create_outbound_session(*bob.curve25519_key(), bob_otk);
 
-        bob.mark_keys_as_published();
+    bob.mark_keys_as_published();
 
-        let message = "Keep it between us, OK?";
-        let alice_msg = alice_session.encrypt(message);
+    let message = "Keep it between us, OK?";
+    let alice_msg = alice_session.encrypt(message);
 
-        if let OlmMessage::PreKey(m) = alice_msg.clone() {
-            let mut bob_session = bob
-                .create_inbound_session(alice.curve25519_key(), &m)?;
+    if let OlmMessage::PreKey(m) = alice_msg.clone() {
+        let mut bob_session = bob
+            .create_inbound_session(alice.curve25519_key(), &m)?;
 
-            assert_eq!(alice_session.session_id(), bob_session.session_id());
+        assert_eq!(alice_session.session_id(), bob_session.session_id());
 
-            let what_bob_received = bob_session.decrypt(&alice_msg)?;
-            assert_eq!(message, what_bob_received);
+        let what_bob_received = bob_session.decrypt(&alice_msg)?;
+        assert_eq!(message, what_bob_received);
 
-            let bob_reply = "Yes. Take this, it's dangerous out there!";
-            let bob_encrypted_reply = bob_session.encrypt(bob_reply).into();
+        let bob_reply = "Yes. Take this, it's dangerous out there!";
+        let bob_encrypted_reply = bob_session.encrypt(bob_reply).into();
 
-            let what_alice_received = alice_session
-                .decrypt(&bob_encrypted_reply)?;
-            assert_eq!(&what_alice_received, bob_reply);
-        }
-
-        Ok(())
+        let what_alice_received = alice_session
+            .decrypt(&bob_encrypted_reply)?;
+        assert_eq!(&what_alice_received, bob_reply);
     }
+
+    Ok(())
+}
 ```
 
 ## Sending messages
