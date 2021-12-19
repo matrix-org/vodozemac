@@ -139,20 +139,32 @@ For example, the following will print out the JSON representing the serialized
 `Account` and will leave no new copies of the account's secrets in memory:
 
 ```rust
-let mut account = Account::new();
+use vodozemac::Account;
 
-account.generate_one_time_keys(10);
-account.generate_fallback_key();
+fn main() {
+    let mut account = Account::new();
 
-let pickle = account.pickle();
+    account.generate_one_time_keys(10);
+    account.generate_fallback_key();
 
-print!("{}", pickle.as_str());
+    let pickle = account.pickle();
+
+    print!("{}", pickle.as_str());
+}
 ```
 
 You can unpickle pickle-able structs directly from a string:
 
-```rust
-let account: Account = serde_json::from_str(json_str)?;
+```rust,no_run
+use anyhow::Result;
+use vodozemac::Account;
+
+fn main() -> Result<()> {
+    # let json_str = unimplemented!();
+    let account: Account = serde_json::from_str(json_str)?;
+
+    Ok(())
+}
 ```
 
 However, the pickle-able structs do not implement `serde::Serialize`
@@ -163,7 +175,15 @@ any format supported by `serde`. To get back to the original struct from such
 as serializeable struct, just call `.unpickle()`.
 
 ```rust
-account.to_pickle().unpickle()  // this is identity
+use anyhow::Result;
+use vodozemac::Account;
+
+fn main() -> Result<()> {
+    let account = Account::new();
+    let account: Account = account.to_pickle().try_into()?;  // this is identity
+
+    Ok(())
+}
 ```
 
 # Megolm

@@ -145,7 +145,7 @@ impl Account {
         )
     }
 
-    fn to_pickle(&self) -> AccountPickle {
+    pub fn to_pickle(&self) -> AccountPickle {
         AccountPickle {
             signing_key: self.signing_key.clone().into(),
             diffie_hellman_key: self.diffie_hellman_key.clone().into(),
