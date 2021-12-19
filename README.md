@@ -106,9 +106,8 @@ side.
 
 ## Pickling
 
-vodozemac (*will soon*) supports pickling of both `Account` and `Session`, in
-which the entire state contained within is serialized into a form called
-a "pickle". Subsequently, accounts and sessions can be restored from a pickle
+vodozemac supports serializing its entire internal state into a form
+a "pickle". The state can subsequently be restored from such a pickle
 ("unpickled") in order to continue operation. This is used to support some
 Matrix features like device dehydration.
 
@@ -120,9 +119,52 @@ legacy clients using libolm.
 
 ### Modern pickles
 
-The pickle format used by this crate. The exact format is currently undecided,
-but is likely to be based on Protocol Buffers. For now, we're pickling to JSON.
-Also *unimplemented* at the moment in the repository but will be added shortly.
+The modern pickling mechanism used by this crate. The exact serialization
+format which will be used is undecided but for now we're pickling to JSON.
+Since the pickling support is based on `serde`, changing the format is easy.
+
+The following structs support pickling:
+
+- `Account`
+- `Session`
+- `GroupSession`
+- `InboundGroupSession`
+
+To pickle into a JSON string, simply call the `.pickle()` method, which will
+return a special struct implementing `.as_str(),` which in turn gives you the
+actual serialized string. This struct will zeroize its memory once it drops so
+that any secrets within do not linger on.
+
+For example, the following will print out the JSON representing the serialized
+`Account` and will leave no new copies of the account's secrets in memory:
+
+```rust
+let mut account = Account::new();
+
+account.generate_one_time_keys(10);
+account.generate_fallback_key();
+
+let pickle = account.pickle();
+
+print!("{}", pickle.as_str());
+```
+
+You can unpickle pickle-able structs directly from a string:
+
+```rust
+let account: Account = serde_json::from_str(json_str)?;
+```
+
+However, the pickle-able structs do not implement `serde::Serialize`
+themselves. If you want to serialize to a format other than JSON, you can
+instead call the `.to_pickle()` method to obtain a special serializable struct.
+This struct *does* implement `Serialize` and can therefore be serialized into
+any format supported by `serde`. To get back to the original struct from such
+as serializeable struct, just call `.unpickle()`.
+
+```rust
+account.to_pickle().unpickle()  // this is identity
+```
 
 # Megolm
 
