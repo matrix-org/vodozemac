@@ -83,8 +83,6 @@ impl Account {
     /// Create a new Account with new random identity keys.
     pub fn new() -> Self {
         Self {
-            // TODO For libolm compatibility we'll want to be able to store
-            // either an ed25519_dalek `ExpandedSecretKey` or a `SecretKey`.
             signing_key: Ed25519Keypair::new(),
             diffie_hellman_key: Curve25519Keypair::new(),
             // TODO actually limit the number of private one-time keys we can
