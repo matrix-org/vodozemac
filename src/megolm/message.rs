@@ -36,7 +36,7 @@ impl MegolmMessage {
         if version != VERSION {
             Err(DecodeError::InvalidVersion(VERSION, version))
         } else if message.len() < 1 + Self::MESSAGE_SUFFIX_LENGTH {
-            Err(DecodeError::MessageToShort(message.len()))
+            Err(DecodeError::MessageTooShort(message.len()))
         } else {
             let inner = InnerMegolmMessage::decode(
                 &message[1..message.len() - Self::MESSAGE_SUFFIX_LENGTH],

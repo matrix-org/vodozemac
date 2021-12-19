@@ -23,7 +23,7 @@ pub enum DecodeError {
     #[error("The message didn't contain a version")]
     MissingVersion,
     #[error("The message was too short, it didn't contain a valid payload")]
-    MessageToShort(usize),
+    MessageTooShort(usize),
     #[error("The message didn't have a valid version, expected {0}, got {1}")]
     InvalidVersion(u8, u8),
     #[error("The message contained an invalid public key: {0}")]
@@ -84,7 +84,7 @@ impl OlmMessage {
         if version != Self::VERSION {
             Err(DecodeError::InvalidVersion(Self::VERSION, version))
         } else if self.inner.len() < Mac::TRUNCATED_LEN + 2 {
-            Err(DecodeError::MessageToShort(self.inner.len()))
+            Err(DecodeError::MessageTooShort(self.inner.len()))
         } else {
             let inner =
                 InnerMessage::decode(&self.inner[1..self.inner.len() - Mac::TRUNCATED_LEN])?;
