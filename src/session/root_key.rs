@@ -62,8 +62,8 @@ impl RemoteRootKey {
         let mut chain_key = [0u8; 32];
         let mut root_key = [0u8; 32];
 
-        root_key.copy_from_slice(&output[..32]);
         chain_key.copy_from_slice(&output[32..]);
+        root_key.copy_from_slice(&output[..32]);
 
         let chain_key = ChainKey::new(chain_key);
         let root_key = RootKey::new(root_key);
