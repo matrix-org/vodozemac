@@ -45,7 +45,7 @@ mod test {
     use anyhow::Result;
     use olm_rs::{
         inbound_group_session::OlmInboundGroupSession,
-        outbound_group_session::OlmOutboundGroupSession,
+        outbound_group_session::OlmOutboundGroupSession, PicklingMode,
     };
 
     use super::{GroupSession, InboundGroupSession, SessionKey};
@@ -205,6 +205,24 @@ mod test {
             .expect("Failed parsing pickle string which should always be valid");
 
         assert_eq!(pickle, repickle);
+
+        Ok(())
+    }
+
+    #[test]
+    fn libolm_unpickling() -> Result<()> {
+        let session = GroupSession::new();
+        let session_key = session.session_key();
+
+        let olm = OlmInboundGroupSession::new(session_key.as_str())?;
+
+        let key = "DEFAULT_PICKLE_KEY";
+        let pickle = olm.pickle(PicklingMode::Encrypted { key: key.as_bytes().to_vec() });
+
+        let unpickled = InboundGroupSession::from_libolm_pickle(&pickle, key);
+
+        assert_eq!(olm.session_id(), unpickled.session_id());
+        assert_eq!(olm.first_known_index(), unpickled.first_known_index());
 
         Ok(())
     }

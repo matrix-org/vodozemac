@@ -158,6 +158,10 @@ impl InboundGroupSession {
         base64_encode(self.signing_key.as_bytes())
     }
 
+    pub fn first_known_index(&self) -> u32 {
+        self.initial_ratchet.index()
+    }
+
     fn find_ratchet(&mut self, message_index: u32) -> Option<&Ratchet> {
         if self.initial_ratchet.index() == message_index {
             Some(&self.initial_ratchet)
@@ -240,6 +244,53 @@ impl InboundGroupSession {
     pub fn unpickle(input: &str) -> Result<Self, InboundGroupSessionUnpicklingError> {
         let pickle: InboundGroupSessionPickle = serde_json::from_str(input)?;
         pickle.try_into()
+    }
+
+    pub fn from_libolm_pickle(pickle: &str, pickle_key: &str) -> Self {
+        use crate::cipher::Mac;
+
+        let cipher = Cipher::new_pickle(pickle_key.as_ref());
+
+        let decoded = base64_decode(pickle).unwrap();
+
+        let mac = &decoded[decoded.len() - Mac::TRUNCATED_LEN..];
+        let message = &decoded[..decoded.len() - Mac::TRUNCATED_LEN];
+        cipher.verify_mac(message, mac).unwrap();
+        let decrypted = cipher.decrypt(message).unwrap();
+
+        let mut version = [0u8; 4];
+        let mut cursor = Cursor::new(decrypted);
+
+        cursor.read_exact(&mut version).unwrap();
+
+        let version = u32::from_be_bytes(version);
+
+        if version != 2 {}
+
+        let mut ratchet = [0u8; 128];
+        let mut counter = [0u8; 4];
+
+        cursor.read_exact(&mut ratchet).unwrap();
+        cursor.read_exact(&mut counter).unwrap();
+        let initial_ratchet = Ratchet::from_bytes(ratchet, u32::from_be_bytes(counter));
+
+        cursor.read_exact(&mut ratchet).unwrap();
+        cursor.read_exact(&mut counter).unwrap();
+        let latest_ratchet = Ratchet::from_bytes(ratchet, u32::from_be_bytes(counter));
+
+        let mut signing_key = [0u8; 32];
+        cursor.read_exact(&mut signing_key).unwrap();
+        let signing_key = PublicKey::from_bytes(&signing_key).unwrap();
+
+        let mut signing_key_verified = [0u8; 1];
+        cursor.read_exact(&mut signing_key_verified).unwrap();
+
+        Self {
+            initial_ratchet,
+            latest_ratchet,
+            signing_key,
+            signing_key_verified: signing_key_verified[0] != 0,
+        }
     }
 }
 
