@@ -303,23 +303,14 @@ impl Account {
     }
 
     pub fn from_libolm_pickle(pickle: &str, pickle_key: &str) -> Self {
-        use crate::cipher::{Cipher, Mac};
+        use crate::{cipher::Cipher, utilities::{read_u32, read_curve_key, read_bool}};
 
         let cipher = Cipher::new_pickle(pickle_key.as_ref());
-
         let decoded = base64_decode(pickle).unwrap();
+        let decrypted = cipher.decrypt_pickle(&decoded).unwrap();
 
-        let mac = &decoded[decoded.len() - Mac::TRUNCATED_LEN..];
-        let message = &decoded[..decoded.len() - Mac::TRUNCATED_LEN];
-        cipher.verify_mac(message, mac).unwrap();
-        let decrypted = cipher.decrypt(message).unwrap();
-
-        let mut version = [0u8; 4];
         let mut cursor = Cursor::new(decrypted);
-
-        cursor.read_exact(&mut version).unwrap();
-
-        let version = u32::from_be_bytes(version);
+        let version = read_u32(&mut cursor).unwrap();
 
         if version != 4 {
             panic!("INVALID VERSION");
@@ -332,40 +323,23 @@ impl Account {
 
             let private_ed25519_key = Ed25519PrivateKey::from_bytes(&private_key).unwrap();
 
-            cursor.seek(SeekFrom::Current(32)).unwrap();
-
-            let mut private_key = [0u8; 32];
-            cursor.read_exact(&mut private_key).unwrap();
-
-            let private_curve_key = Curve25519SecretKey::from(private_key);
-            let public_curve_key = Curve25519PublicKey::from(&private_curve_key);
+            let secret_key = read_curve_key(&mut cursor).unwrap();
+            let public_key = Curve25519PublicKey::from(&secret_key);
 
             let diffie_hellman_key = Curve25519Keypair {
-                secret_key: private_curve_key,
-                public_key: public_curve_key,
-                encoded_public_key: public_curve_key.to_base64(),
+                secret_key,
+                public_key,
+                encoded_public_key: public_key.to_base64(),
             };
 
-            let mut number_of_one_time_keys = [0u8; 4];
-            cursor.read_exact(&mut number_of_one_time_keys).unwrap();
-            let number_of_one_time_keys = u32::from_be_bytes(number_of_one_time_keys);
+            let number_of_one_time_keys = read_u32(&mut cursor).unwrap();
 
             let unpickle_curve_key =
                 |cursor: &mut Cursor<Vec<u8>>| -> (KeyId, bool, Curve25519SecretKey) {
-                    let mut id = [0u8; 4];
-                    cursor.read_exact(&mut id).unwrap();
-                    let id = KeyId(u32::from_be_bytes(id) as u64);
-                    let mut published = [0u8; 1];
-                    cursor.read_exact(&mut published).unwrap();
-                    let published = published[0] != 0;
-                    cursor.seek(SeekFrom::Current(32)).unwrap();
-
-                    let mut private_key = [0u8; 32];
-                    cursor.read_exact(&mut private_key).unwrap();
-
-                    let private_key = Curve25519SecretKey::from(private_key);
-
-                    (id, published, private_key)
+                    let key_id = KeyId(read_u32(cursor).unwrap() as u64);
+                    let published = read_bool(cursor).unwrap();
+                    let private_key = read_curve_key(cursor).unwrap();
+                    (key_id, published, private_key)
                 };
 
             let mut one_time_keys = HashMap::new();

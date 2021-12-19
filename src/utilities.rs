@@ -1,5 +1,7 @@
 pub use base64::DecodeError;
 use base64::{decode_config, encode_config, STANDARD_NO_PAD};
+use std::io::{Cursor, Read, Seek, SeekFrom};
+use x25519_dalek::StaticSecret as Curve25519SecretKey;
 
 /// Decode the input as base64 with no padding.
 pub fn base64_decode(input: impl AsRef<[u8]>) -> Result<Vec<u8>, DecodeError> {
@@ -74,4 +76,25 @@ impl VarInt for u64 {
 
         v
     }
+}
+
+pub(crate) fn read_u32(cursor: &mut Cursor<Vec<u8>>) -> std::io::Result<u32> {
+    let mut num = [0u8; 4];
+    cursor.read_exact(&mut num)?;
+    Ok(u32::from_be_bytes(num))
+}
+
+pub(crate) fn read_curve_key(cursor: &mut Cursor<Vec<u8>>) -> std::io::Result<Curve25519SecretKey> {
+    // Skip the public key.
+    cursor.seek(SeekFrom::Current(32))?;
+    let mut private_key = [0u8; 32];
+    cursor.read_exact(&mut private_key)?;
+
+    Ok(Curve25519SecretKey::from(private_key))
+}
+
+pub(crate) fn read_bool(cursor: &mut Cursor<Vec<u8>>) -> std::io::Result<bool> {
+    let mut published = [0u8; 1];
+    cursor.read_exact(&mut published).unwrap();
+    Ok(published[0] != 0)
 }

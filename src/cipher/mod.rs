@@ -5,6 +5,7 @@ use block_modes::{block_padding::Pkcs7, BlockMode, BlockModeError, Cbc};
 use hmac::{digest::MacError, Hmac, Mac as MacT};
 use key::CipherKeys;
 use sha2::Sha256;
+use thiserror::Error;
 
 type Aes256Cbc = Cbc<Aes256, Pkcs7>;
 type HmacSha256 = Hmac<Sha256>;
@@ -20,6 +21,16 @@ impl Mac {
 
         truncated
     }
+}
+
+#[derive(Debug, Error)]
+pub enum DecryptionError {
+    #[error("Failed decrypting, invalid ciphertext: {0}")]
+    InvalidCiphertext(#[from] BlockModeError),
+    #[error("The MAC of the ciphertext didn't pass validation {0}")]
+    Mac(#[from] MacError),
+    #[error("The ciphertext didn't contain a valid MAC")]
+    MacMissing,
 }
 
 pub(super) struct Cipher {
@@ -77,6 +88,17 @@ impl Cipher {
     pub fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>, BlockModeError> {
         let cipher = self.get_cipher();
         cipher.decrypt_vec(ciphertext)
+    }
+
+    pub fn decrypt_pickle(&self, ciphertext: &[u8]) -> Result<Vec<u8>, DecryptionError> {
+        if ciphertext.len() < Mac::TRUNCATED_LEN + 1 {
+            Err(DecryptionError::MacMissing)
+        } else {
+            let (ciphertext, mac) = ciphertext.split_at(ciphertext.len() - Mac::TRUNCATED_LEN);
+            self.verify_mac(ciphertext, mac)?;
+
+            Ok(self.decrypt(ciphertext)?)
+        }
     }
 
     pub fn verify_mac(&self, message: &[u8], tag: &[u8]) -> Result<(), MacError> {
