@@ -18,6 +18,7 @@ mod one_time_keys;
 use std::{
     collections::HashMap,
     io::{Cursor, Read, Seek, SeekFrom},
+    ops::Deref,
 };
 
 use ed25519_dalek::{ExpandedSecretKey as Ed25519PrivateKey, PublicKey as Ed25519PublicKey};
@@ -78,27 +79,6 @@ pub struct Account {
     fallback_keys: FallbackKeys,
 }
 
-impl TryFrom<AccountPickle> for Account {
-    type Error = AccountUnpicklingError;
-
-    fn try_from(pickle: AccountPickle) -> Result<Self, AccountUnpicklingError> {
-        Ok(Self {
-            signing_key: pickle.signing_key.try_into()?,
-            diffie_hellman_key: pickle.diffie_hellman_key.into(),
-            one_time_keys: pickle.one_time_keys.into(),
-            fallback_keys: pickle.fallback_keys,
-        })
-    }
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct AccountPickle {
-    signing_key: Ed25519KeypairPickle,
-    diffie_hellman_key: Curve25519KeypairPickle,
-    one_time_keys: OneTimeKeysPickle,
-    fallback_keys: FallbackKeysPickle,
-}
-
 impl Account {
     /// Create a new Account with new random identity keys.
     pub fn new() -> Self {
@@ -142,25 +122,20 @@ impl Account {
         self.signing_key.sign(message)
     }
 
-    pub fn pickle(&self) -> AccountPickled {
-        let pickle: AccountPickle = self.to_pickle();
-        AccountPickled(
+    pub fn pickle_to_json_string(&self) -> AccountPickledJSON {
+        let pickle: AccountPickle = self.pickle();
+        AccountPickledJSON(
             serde_json::to_string_pretty(&pickle).expect("Account serialization failed."),
         )
     }
 
-    pub fn to_pickle(&self) -> AccountPickle {
+    pub fn pickle(&self) -> AccountPickle {
         AccountPickle {
             signing_key: self.signing_key.clone().into(),
             diffie_hellman_key: self.diffie_hellman_key.clone().into(),
             one_time_keys: self.one_time_keys.clone().into(),
             fallback_keys: self.fallback_keys.clone(),
         }
-    }
-
-    pub fn unpickle(input: &str) -> Result<Self, AccountUnpicklingError> {
-        let pickle: AccountPickle = serde_json::from_str(input)?;
-        pickle.try_into()
     }
 
     pub fn max_number_of_one_time_keys(&self) -> usize {
@@ -423,13 +398,59 @@ impl Default for Account {
     }
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct AccountPickle {
+    signing_key: Ed25519KeypairPickle,
+    diffie_hellman_key: Curve25519KeypairPickle,
+    one_time_keys: OneTimeKeysPickle,
+    fallback_keys: FallbackKeysPickle,
+}
+
+impl AccountPickle {
+    pub fn unpickle(self) -> Result<Account, AccountUnpicklingError> {
+        self.try_into()
+    }
+}
+
+impl TryFrom<AccountPickle> for Account {
+    type Error = AccountUnpicklingError;
+
+    fn try_from(pickle: AccountPickle) -> Result<Self, AccountUnpicklingError> {
+        Ok(Self {
+            signing_key: pickle.signing_key.try_into()?,
+            diffie_hellman_key: pickle.diffie_hellman_key.into(),
+            one_time_keys: pickle.one_time_keys.into(),
+            fallback_keys: pickle.fallback_keys,
+        })
+    }
+}
+
 #[derive(Zeroize, Debug)]
 #[zeroize(drop)]
-pub struct AccountPickled(String);
+pub struct AccountPickledJSON(String);
 
-impl AccountPickled {
+impl AccountPickledJSON {
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+
+    pub fn unpickle(self) -> Result<Account, AccountUnpicklingError> {
+        let pickle: AccountPickle = serde_json::from_str(&self.0)?;
+        pickle.unpickle()
+    }
+}
+
+impl AsRef<str> for AccountPickledJSON {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl Deref for AccountPickledJSON {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.as_ref()
     }
 }
 
@@ -642,7 +663,7 @@ mod test {
     }
 
     #[test]
-    fn account_pickling_roundtrip_is_identity() {
+    fn account_pickling_roundtrip_is_identity() -> Result<()> {
         let mut account = Account::new();
 
         account.generate_one_time_keys(50);
@@ -651,20 +672,17 @@ mod test {
         account.generate_fallback_key();
         account.generate_fallback_key();
 
-        let pickle = account.pickle();
-        let pickle_str = pickle.as_str();
+        let pickle = account.pickle_to_json_string();
 
-        let repickle = Account::unpickle(pickle_str)
-            .expect("Failed unpickling pickle which should always be valid")
-            .pickle();
-        let repickle_str = repickle.as_str();
+        let unpickled_account: Account = serde_json::from_str(&pickle)?;
+        let repickle = unpickled_account.pickle_to_json_string();
 
-        let pickle: serde_json::Value = serde_json::from_str(pickle_str)
-            .expect("Failed parsing pickle string which should always be valid");
-        let repickle: serde_json::Value = serde_json::from_str(repickle_str)
-            .expect("Failed parsing pickle string which should always be valid");
+        let pickle: serde_json::Value = serde_json::from_str(&pickle)?;
+        let repickle: serde_json::Value = serde_json::from_str(&repickle)?;
 
         assert_eq!(pickle, repickle);
+
+        Ok(())
     }
 
     #[test]

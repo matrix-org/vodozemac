@@ -167,23 +167,20 @@ mod test {
     }
 
     #[test]
-    fn group_session_pickling_roundtrip_is_identity() {
+    fn group_session_pickling_roundtrip_is_identity() -> Result<()> {
         let session = GroupSession::new();
 
-        let pickle = session.pickle();
-        let pickle_str = pickle.as_str();
+        let pickle = session.pickle_to_json_string();
 
-        let repickle = GroupSession::unpickle(pickle_str)
-            .expect("Failed unpickling pickle which should always be valid")
-            .pickle();
-        let repickle_str = repickle.as_str();
+        let unpickled_group_session: GroupSession = serde_json::from_str(&pickle)?;
+        let repickle = unpickled_group_session.pickle_to_json_string();
 
-        let pickle: serde_json::Value = serde_json::from_str(pickle_str)
-            .expect("Failed parsing pickle string which should always be valid");
-        let repickle: serde_json::Value = serde_json::from_str(repickle_str)
-            .expect("Failed parsing pickle string which should always be valid");
+        let pickle: serde_json::Value = serde_json::from_str(&pickle)?;
+        let repickle: serde_json::Value = serde_json::from_str(&repickle)?;
 
         assert_eq!(pickle, repickle);
+
+        Ok(())
     }
 
     #[test]
@@ -191,18 +188,13 @@ mod test {
         let session = GroupSession::new();
         let inbound = InboundGroupSession::new(&session.session_key())?;
 
-        let pickle = inbound.pickle();
-        let pickle_str = pickle.as_str();
+        let pickle = inbound.pickle_to_json_string();
 
-        let repickle = InboundGroupSession::unpickle(pickle_str)
-            .expect("Failed unpickling pickle which should always be valid")
-            .pickle();
-        let repickle_str = repickle.as_str();
+        let unpickled_inbound: InboundGroupSession = serde_json::from_str(&pickle)?;
+        let repickle = unpickled_inbound.pickle_to_json_string();
 
-        let pickle: serde_json::Value = serde_json::from_str(pickle_str)
-            .expect("Failed parsing pickle string which should always be valid");
-        let repickle: serde_json::Value = serde_json::from_str(repickle_str)
-            .expect("Failed parsing pickle string which should always be valid");
+        let pickle: serde_json::Value = serde_json::from_str(&pickle)?;
+        let repickle: serde_json::Value = serde_json::from_str(&repickle)?;
 
         assert_eq!(pickle, repickle);
 

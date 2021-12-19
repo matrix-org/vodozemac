@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::{Cursor, Read};
+use std::{
+    io::{Cursor, Read},
+    ops::Deref,
+};
 
 use block_modes::BlockModeError;
 use ed25519_dalek::{
@@ -224,26 +227,26 @@ impl InboundGroupSession {
         }
     }
 
-    pub fn pickle(&self) -> InboundGroupSessionPickled {
-        let pickle: InboundGroupSessionPickle = self.to_pickle();
-        InboundGroupSessionPickled(
+    pub fn pickle_to_json_string(&self) -> InboundGroupSessionPickledJSON {
+        let pickle: InboundGroupSessionPickle = self.pickle();
+        InboundGroupSessionPickledJSON(
             serde_json::to_string_pretty(&pickle)
                 .expect("Inbound group session serialization failed."),
         )
     }
 
-    pub fn to_pickle(&self) -> InboundGroupSessionPickle {
+    pub fn unpickle_from_json_str(input: &str) -> Result<Self, InboundGroupSessionUnpicklingError> {
+        let pickle: InboundGroupSessionPickle = serde_json::from_str(input)?;
+        pickle.try_into()
+    }
+
+    pub fn pickle(&self) -> InboundGroupSessionPickle {
         InboundGroupSessionPickle {
             initial_ratchet: self.initial_ratchet.clone().into(),
             latest_ratchet: self.latest_ratchet.clone().into(),
             signing_key: self.signing_key.into(),
             signing_key_verified: self.signing_key_verified,
         }
-    }
-
-    pub fn unpickle(input: &str) -> Result<Self, InboundGroupSessionUnpicklingError> {
-        let pickle: InboundGroupSessionPickle = serde_json::from_str(input)?;
-        pickle.try_into()
     }
 
     pub fn from_libolm_pickle(
@@ -295,6 +298,12 @@ pub struct InboundGroupSessionPickle {
     signing_key_verified: bool,
 }
 
+impl InboundGroupSessionPickle {
+    pub fn unpickle(self) -> Result<InboundGroupSession, InboundGroupSessionUnpicklingError> {
+        self.try_into()
+    }
+}
+
 impl TryFrom<InboundGroupSessionPickle> for InboundGroupSession {
     type Error = InboundGroupSessionUnpicklingError;
 
@@ -319,11 +328,30 @@ impl TryFrom<InboundGroupSessionPickle> for InboundGroupSession {
 
 #[derive(Zeroize, Debug)]
 #[zeroize(drop)]
-pub struct InboundGroupSessionPickled(String);
+pub struct InboundGroupSessionPickledJSON(String);
 
-impl InboundGroupSessionPickled {
+impl InboundGroupSessionPickledJSON {
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+
+    pub fn unpickle(self) -> Result<InboundGroupSession, InboundGroupSessionUnpicklingError> {
+        let pickle: InboundGroupSessionPickle = serde_json::from_str(&self.0)?;
+        pickle.unpickle()
+    }
+}
+
+impl AsRef<str> for InboundGroupSessionPickledJSON {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl Deref for InboundGroupSessionPickledJSON {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.as_ref()
     }
 }
 

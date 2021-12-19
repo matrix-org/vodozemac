@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::ops::Deref;
+
 use ed25519_dalek::{ExpandedSecretKey, PublicKey, SecretKey, SignatureError};
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
@@ -95,24 +97,19 @@ impl GroupSession {
         SessionKey(result)
     }
 
-    pub fn pickle(&self) -> GroupSessionPickled {
-        let pickle: GroupSessionPickle = self.to_pickle();
-        GroupSessionPickled(
+    pub fn pickle_to_json_string(&self) -> GroupSessionPickledJSON {
+        let pickle: GroupSessionPickle = self.pickle();
+        GroupSessionPickledJSON(
             serde_json::to_string_pretty(&pickle).expect("Group session serialization failed."),
         )
     }
 
-    pub fn to_pickle(&self) -> GroupSessionPickle {
+    pub fn pickle(&self) -> GroupSessionPickle {
         GroupSessionPickle {
             ratchet: self.ratchet.clone().into(),
             signing_key: (&self.signing_key).into(),
             public_key: self.public_key.into(),
         }
-    }
-
-    pub fn unpickle(input: &str) -> Result<Self, GroupSessionUnpicklingError> {
-        let pickle: GroupSessionPickle = serde_json::from_str(input)?;
-        pickle.try_into()
     }
 }
 
@@ -121,6 +118,12 @@ pub struct GroupSessionPickle {
     ratchet: RatchetPickle,
     signing_key: ExpandedSecretKeyPickle,
     public_key: PublicKeyPickle,
+}
+
+impl GroupSessionPickle {
+    pub fn unpickle(self) -> Result<GroupSession, GroupSessionUnpicklingError> {
+        self.try_into()
+    }
 }
 
 impl TryFrom<GroupSessionPickle> for GroupSession {
@@ -135,6 +138,35 @@ impl TryFrom<GroupSessionPickle> for GroupSession {
                 .try_into()
                 .map_err(GroupSessionUnpicklingError::InvalidPublicKey)?,
         })
+    }
+}
+
+#[derive(Zeroize, Debug)]
+#[zeroize(drop)]
+pub struct GroupSessionPickledJSON(String);
+
+impl GroupSessionPickledJSON {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    pub fn unpickle(self) -> Result<GroupSession, GroupSessionUnpicklingError> {
+        let pickle: GroupSessionPickle = serde_json::from_str(&self.0)?;
+        pickle.unpickle()
+    }
+}
+
+impl AsRef<str> for GroupSessionPickledJSON {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl Deref for GroupSessionPickledJSON {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.as_ref()
     }
 }
 
@@ -189,15 +221,5 @@ impl TryFrom<PublicKeyPickle> for PublicKey {
 
     fn try_from(pickle: PublicKeyPickle) -> Result<Self, Self::Error> {
         PublicKey::from_bytes(pickle.key.as_slice())
-    }
-}
-
-#[derive(Zeroize, Debug)]
-#[zeroize(drop)]
-pub struct GroupSessionPickled(String);
-
-impl GroupSessionPickled {
-    pub fn as_str(&self) -> &str {
-        &self.0
     }
 }
