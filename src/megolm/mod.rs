@@ -165,4 +165,24 @@ mod test {
 
         Ok(())
     }
+
+    #[test]
+    fn group_session_pickling_roundtrip_is_identity() {
+        let session = GroupSession::new();
+
+        let pickle = session.pickle();
+        let pickle_str = pickle.as_str();
+
+        let repickle = GroupSession::unpickle(pickle_str)
+            .expect("Failed unpickling pickle which should always be valid")
+            .pickle();
+        let repickle_str = repickle.as_str();
+
+        let pickle: serde_json::Value = serde_json::from_str(pickle_str)
+            .expect("Failed parsing pickle string which should always be valid");
+        let repickle: serde_json::Value = serde_json::from_str(repickle_str)
+            .expect("Failed parsing pickle string which should always be valid");
+
+        assert_eq!(pickle, repickle);
+    }
 }
