@@ -12,16 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! User-friendly key verification using short authentication strings
+//! User-friendly key verification using short authentication strings (SAS).
 //!
-//! The verification process is heavily inspired by Phil Zimmermann’s [ZRTP] key
-//! agreement handshake. A key part of key agreement in [ZRTP] is the hash
-//! commitment: the party that begins the Diffie-Hellman key sharing sends a
-//! hash of their part of the Diffie-Hellman exchange, and does not send their
-//! part of the Diffie-Hellman exchange until they have received the other
-//! party’s part.
+//! The verification process is heavily inspired by Phil Zimmermann’s [ZRTP]
+//! key agreement handshake. A core part of key agreement in [ZRTP] is the
+//! *hash commitment*: the party that begins the key sharing process sends
+//! a *hash* of their part of the Diffie-Hellman exchange but does not send the
+//! part itself exchange until they had received the other party’s part.
 //!
-//! The verification process can be used to verify the ed25519 identity key of
+//! The verification process can be used to verify the Ed25519 identity key of
 //! an [`Account`].
 //!
 //! # Examples

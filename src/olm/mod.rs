@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! An implementation of the Olm ratchet.
+
 mod account;
 mod messages;
 mod session;
