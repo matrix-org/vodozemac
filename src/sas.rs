@@ -12,6 +12,43 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! User-friendly key verification using short authentication strings
+//!
+//! The verification process is heavily inspired by Phil Zimmermann’s [ZRTP] key
+//! agreement handshake. A key part of key agreement in [ZRTP] is the hash
+//! commitment: the party that begins the Diffie-Hellman key sharing sends a
+//! hash of their part of the Diffie-Hellman exchange, and does not send their
+//! part of the Diffie-Hellman exchange until they have received the other
+//! party’s part.
+//!
+//! The verification process can be used to verify the ed25519 identity key of
+//! an [`Account`].
+//!
+//! # Examples
+//!
+//! ```rust
+//! use vodozemac::sas::Sas;
+//!
+//! let alice = Sas::new();
+//! let bob = Sas::new();
+//!
+//! let bob_public_key = bob.public_key();
+//!
+//! let bob = bob.diffie_hellman(alice.public_key());
+//! let alice = alice.diffie_hellman(bob_public_key);
+//!
+//! let alice_bytes = alice.bytes("AGREED_INFO");
+//! let bob_bytes = bob.bytes("AGREED_INFO");
+//!
+//! let alice_emojis = alice_bytes.emoji_index();
+//! let bob_emojis = bob_bytes.emoji_index();
+//!
+//! assert_eq!(alice_emojis, bob_emojis);
+//! ```
+//!
+//! [`Account`]: crate::olm::Account
+//! [ZRTP]: https://tools.ietf.org/html/rfc6189#section-4.4.1
+
 use hkdf::Hkdf;
 use hmac::{digest::MacError, Hmac, Mac};
 use rand::thread_rng;
@@ -26,42 +63,72 @@ use crate::{
 
 type HmacSha256Key = [u8; 32];
 
+/// Error type describing failures that can happen during the key verification.
 #[derive(Debug, Error)]
 pub enum SasError {
+    /// The MAC code that was given wasn't valid base64.
     #[error("The SAS MAC wasn't valid base64: {0}")]
     Base64(#[from] base64::DecodeError),
+    /// The MAC failed to be validated.
     #[error("The SAS MAC validation didn't succeed: {0}")]
     Mac(#[from] MacError),
 }
 
+/// A struct representing a short auth string verification object.
+///
+/// This object can be used to establish a shared secret to perform the short
+/// auth string based key verification.
 pub struct Sas {
     secret_key: EphemeralSecret,
     public_key: Curve25519PublicKey,
     encoded_public_key: String,
 }
 
+/// A struct representing a short auth string verification object where the
+/// shared secret has been established.
+///
+/// This object can be used to generate the short auth string and calculate and
+/// verify a MAC that protects information about the keys being verified.
 pub struct EstablishedSas {
     shared_secret: SharedSecret,
 }
 
+/// Bytes generated from an shared secret that can be used as the short auth
+/// string.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SasBytes {
     bytes: [u8; 6],
 }
 
 impl SasBytes {
+    /// Get the index of 7 emojis that can be presented to users to perform the
+    /// key verification
+    ///
+    /// The table that maps the index to an emoji can be found in the [spec].
+    ///
+    /// [spec]: https://spec.matrix.org/unstable/client-server-api/#sas-method-emoji
     pub fn emoji_index(&self) -> [u8; 7] {
         Self::bytes_to_emoji_index(&self.bytes)
     }
 
+    /// Get the three decimal numbers that can be presented to users to perform
+    /// the key verification, as described in the [spec]
+    ///
+    /// [spec]: https://spec.matrix.org/unstable/client-server-api/#sas-method-emoji
     pub fn decimlas(&self) -> (u16, u16, u16) {
         Self::bytes_to_decimal(&self.bytes)
     }
 
+    /// Get the raw bytes of the short auth string that can be converted to an
+    /// emoji, or decimal representation.
     pub fn as_bytes(&self) -> &[u8; 6] {
         &self.bytes
     }
 
+    /// Split the first 42 bits of our 6 bytes into 7 groups of 6 bits. The 7
+    /// groups of 6 bits represent an emoji index from the [spec].
+    ///
+    /// [spec]: https://spec.matrix.org/unstable/client-server-api/#sas-method-emoji
     fn bytes_to_emoji_index(bytes: &[u8; 6]) -> [u8; 7] {
         let bytes: Vec<u64> = bytes.iter().map(|b| *b as u64).collect();
         // Join the 6 bytes into one 64 bit unsigned int. This u64 will contain 48
@@ -86,6 +153,8 @@ impl SasBytes {
         ]
     }
 
+    /// Convert the given bytes into three decimals. The 6th byte is ignored,
+    /// it's used for the emoji index conversion.
     fn bytes_to_decimal(bytes: &[u8; 6]) -> (u16, u16, u16) {
         let bytes: Vec<u16> = bytes.iter().map(|b| *b as u16).collect();
 
@@ -106,6 +175,10 @@ impl Default for Sas {
 }
 
 impl Sas {
+    /// Create a new random verification object
+    ///
+    /// This creates an ephemeral curve25519 keypair that can be used to
+    /// establish a shared secret.
     pub fn new() -> Self {
         let rng = thread_rng();
 
@@ -116,10 +189,12 @@ impl Sas {
         Self { secret_key, public_key, encoded_public_key }
     }
 
-    pub fn public_key(&self) -> &Curve25519PublicKey {
-        &self.public_key
+    /// Get the public key that can be used to establish a shared secret.
+    pub fn public_key(&self) -> Curve25519PublicKey {
+        self.public_key
     }
 
+    /// Get the public key as a base64 encoded string.
     pub fn public_key_encoded(&self) -> &str {
         &self.encoded_public_key
     }
@@ -147,26 +222,68 @@ impl Sas {
 }
 
 impl EstablishedSas {
-    fn get_hkdf(&self) -> Hkdf<Sha256> {
-        Hkdf::new(None, self.shared_secret.as_bytes())
-    }
-
-    pub fn get_bytes(&self, info: &str) -> SasBytes {
+    /// Generate [`SasBytes`] using HKDF with the shared secret as the input key
+    /// material.
+    ///
+    /// The info string should be agreed upon beforehand, both parties need to
+    /// use the same info string.
+    pub fn bytes(&self, info: &str) -> SasBytes {
         let mut bytes = [0u8; 6];
-        let byte_vec = self.get_bytes_raw(info, 6);
+        let byte_vec = self.bytes_raw(info, 6);
 
         bytes.copy_from_slice(&byte_vec);
 
         SasBytes { bytes }
     }
 
-    pub fn get_bytes_raw(&self, info: &str, count: usize) -> Vec<u8> {
+    /// Generate the given number  of bytes using HKDF with the shared secret
+    /// as the input key material.
+    ///
+    /// The info string should be agreed upon beforehand, both parties need to
+    /// use the same info string.
+    pub fn bytes_raw(&self, info: &str, count: usize) -> Vec<u8> {
         let mut output = vec![0u8; count];
         let hkdf = self.get_hkdf();
 
         hkdf.expand(info.as_bytes(), &mut output[0..count]).expect("Can't generate the SAS bytes");
 
         output
+    }
+
+    /// Calculate a MAC for the given input using the info string as additional
+    /// data.
+    ///
+    ///
+    /// This should be used to calculate a MAC of the ed25519 identity key of an
+    /// [`Account`]
+    ///
+    /// The MAC is returned as a base64 encoded string.
+    ///
+    /// [`Account`]: crate::olm::Account
+    pub fn calculate_mac(&self, input: &str, info: &str) -> String {
+        let mut mac = self.get_mac(info);
+
+        mac.update(input.as_ref());
+
+        base64_encode(mac.finalize().into_bytes())
+    }
+
+    /// Verify a MAC that was previously created using the
+    /// [`EstablishedSas::calculate_mac()`] method.
+    ///
+    /// Users should calculate a MAC and send it to the other side, they should
+    /// then verify each other's MAC using this method.
+    pub fn verify_mac(&self, input: &str, info: &str, tag: &str) -> Result<(), SasError> {
+        let tag = base64_decode(tag)?;
+
+        let mut mac = self.get_mac(info);
+        mac.update(input.as_bytes());
+
+        Ok(mac.verify_slice(&tag)?)
+    }
+
+    fn get_hkdf(&self) -> Hkdf<Sha256> {
+        Hkdf::new(None, self.shared_secret.as_bytes())
     }
 
     fn get_mac_key(&self, info: &str) -> HmacSha256Key {
@@ -181,23 +298,6 @@ impl EstablishedSas {
     fn get_mac(&self, info: &str) -> Hmac<Sha256> {
         let mac_key = self.get_mac_key(info);
         Hmac::<Sha256>::new_from_slice(&mac_key).expect("Can't create a HMAC object")
-    }
-
-    pub fn calculate_mac(&self, input: &str, info: &str) -> String {
-        let mut mac = self.get_mac(info);
-
-        mac.update(input.as_ref());
-
-        base64_encode(mac.finalize().into_bytes())
-    }
-
-    pub fn verify_mac(&self, input: &str, info: &str, tag: &str) -> Result<(), SasError> {
-        let tag = base64_decode(tag)?;
-
-        let mut mac = self.get_mac(info);
-        mac.update(input.as_bytes());
-
-        Ok(mac.verify_slice(&tag)?)
     }
 }
 
@@ -220,7 +320,7 @@ mod test {
 
         assert_eq!(
             olm.generate_bytes("TEST", 10).expect("libolm coulnd't generate SAS bytes"),
-            established.get_bytes_raw("TEST", 10)
+            established.bytes_raw("TEST", 10)
         );
 
         Ok(())
