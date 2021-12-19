@@ -270,48 +270,6 @@ pub enum Curve25519KeyError {
     InvalidKeyLength(usize),
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{Curve25519KeyError, Curve25519PublicKey};
-    use crate::utilities::DecodeError;
-
-    #[test]
-    fn decoding_invalid_base64_fails() {
-        let base64_payload = "a";
-        assert!(matches!(
-            Curve25519PublicKey::from_base64(base64_payload),
-            Err(Curve25519KeyError::Base64Error(DecodeError::InvalidLength))
-        ));
-
-        let base64_payload = "a ";
-        assert!(matches!(
-            Curve25519PublicKey::from_base64(base64_payload),
-            Err(Curve25519KeyError::Base64Error(DecodeError::InvalidByte(..)))
-        ));
-
-        let base64_payload = "aZ";
-        assert!(matches!(
-            Curve25519PublicKey::from_base64(base64_payload),
-            Err(Curve25519KeyError::Base64Error(DecodeError::InvalidLastSymbol(..)))
-        ));
-    }
-
-    #[test]
-    fn decoding_incorrect_num_of_bytes_fails() {
-        let base64_payload = "aaaa";
-        assert!(matches!(
-            Curve25519PublicKey::from_base64(base64_payload),
-            Err(Curve25519KeyError::InvalidKeyLength(..))
-        ));
-    }
-
-    #[test]
-    fn decoding_of_correct_num_of_bytes_succeeds() {
-        let base64_payload = "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA";
-        assert!(matches!(Curve25519PublicKey::from_base64(base64_payload), Ok(..)));
-    }
-}
-
 #[derive(Serialize, Deserialize)]
 pub(crate) struct Curve25519KeypairPickle {
     secret: [u8; CURVE25519_SECRET_KEY_LEN],
@@ -362,5 +320,47 @@ impl TryFrom<Ed25519KeypairPickle> for Ed25519Keypair {
         let public_key = secret_key.public_key();
 
         Ok(Self { secret_key, public_key, encoded_public_key: base64_encode(public_key) })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Curve25519KeyError, Curve25519PublicKey};
+    use crate::utilities::DecodeError;
+
+    #[test]
+    fn decoding_invalid_base64_fails() {
+        let base64_payload = "a";
+        assert!(matches!(
+            Curve25519PublicKey::from_base64(base64_payload),
+            Err(Curve25519KeyError::Base64Error(DecodeError::InvalidLength))
+        ));
+
+        let base64_payload = "a ";
+        assert!(matches!(
+            Curve25519PublicKey::from_base64(base64_payload),
+            Err(Curve25519KeyError::Base64Error(DecodeError::InvalidByte(..)))
+        ));
+
+        let base64_payload = "aZ";
+        assert!(matches!(
+            Curve25519PublicKey::from_base64(base64_payload),
+            Err(Curve25519KeyError::Base64Error(DecodeError::InvalidLastSymbol(..)))
+        ));
+    }
+
+    #[test]
+    fn decoding_incorrect_num_of_bytes_fails() {
+        let base64_payload = "aaaa";
+        assert!(matches!(
+            Curve25519PublicKey::from_base64(base64_payload),
+            Err(Curve25519KeyError::InvalidKeyLength(..))
+        ));
+    }
+
+    #[test]
+    fn decoding_of_correct_num_of_bytes_succeeds() {
+        let base64_payload = "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA";
+        assert!(matches!(Curve25519PublicKey::from_base64(base64_payload), Ok(..)));
     }
 }
