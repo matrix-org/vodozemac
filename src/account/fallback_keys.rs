@@ -21,9 +21,9 @@ use crate::{types::KeyId, Curve25519PublicKey};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(super) struct FallbackKey {
-    key_id: KeyId,
-    key: Curve25519SecretKey,
-    published: bool,
+    pub key_id: KeyId,
+    pub key: Curve25519SecretKey,
+    pub published: bool,
 }
 
 impl FallbackKey {
@@ -63,7 +63,7 @@ impl Zeroize for FallbackKey {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(super) struct FallbackKeys {
-    key_id: u64,
+    pub key_id: u64,
     pub fallback_key: Option<FallbackKey>,
     pub previous_fallback_key: Option<FallbackKey>,
 }

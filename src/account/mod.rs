@@ -15,10 +15,13 @@
 mod fallback_keys;
 mod one_time_keys;
 
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    io::{Cursor, Read, Seek, SeekFrom},
+};
 
-use ed25519_dalek::PublicKey as Ed25519PublicKey;
-use fallback_keys::FallbackKeys;
+use ed25519_dalek::{ExpandedSecretKey as Ed25519PrivateKey, PublicKey as Ed25519PublicKey};
+use fallback_keys::{FallbackKey, FallbackKeys};
 use one_time_keys::OneTimeKeys;
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
@@ -133,10 +136,6 @@ impl Account {
     /// Sign the given message using our ed25519 identity key.
     pub fn sign(&self, message: &str) -> String {
         self.signing_key.sign(message)
-    }
-
-    pub fn from_libolm_pickle() -> Self {
-        todo!()
     }
 
     pub fn pickle(&self) -> AccountPickled {
@@ -257,11 +256,11 @@ impl Account {
     ///
     /// The one-time keys should be published to a server and marked as
     /// published using the `mark_keys_as_published()` method.
-    pub fn one_time_keys_encoded(&self) -> HashMap<KeyId, String> {
+    pub fn one_time_keys_encoded(&self) -> HashMap<String, String> {
         self.one_time_keys
             .public_keys
             .iter()
-            .map(|(key_id, key)| (*key_id, key.to_base64()))
+            .map(|(key_id, key)| (key_id.to_base64(), key.to_base64()))
             .collect()
     }
 
@@ -302,6 +301,131 @@ impl Account {
         self.one_time_keys.mark_as_published();
         self.fallback_keys.mark_as_published();
     }
+
+    pub fn from_libolm_pickle(pickle: &str, pickle_key: &str) -> Self {
+        use crate::cipher::{Cipher, Mac};
+
+        let cipher = Cipher::new_pickle(pickle_key.as_ref());
+
+        let decoded = base64_decode(pickle).unwrap();
+
+        let mac = &decoded[decoded.len() - Mac::TRUNCATED_LEN..];
+        let message = &decoded[..decoded.len() - Mac::TRUNCATED_LEN];
+        cipher.verify_mac(message, mac).unwrap();
+        let decrypted = cipher.decrypt(message).unwrap();
+
+        let mut version = [0u8; 4];
+        let mut cursor = Cursor::new(decrypted);
+
+        cursor.read_exact(&mut version).unwrap();
+
+        let version = u32::from_be_bytes(version);
+
+        if version != 4 {
+            panic!("INVALID VERSION");
+        } else {
+            // We skip the public ed25519 key, we'll create it from the private
+            // key.
+            cursor.seek(SeekFrom::Current(32)).unwrap();
+            let mut private_key = [0u8; 64];
+            cursor.read_exact(&mut private_key).unwrap();
+
+            let private_ed25519_key = Ed25519PrivateKey::from_bytes(&private_key).unwrap();
+
+            cursor.seek(SeekFrom::Current(32)).unwrap();
+
+            let mut private_key = [0u8; 32];
+            cursor.read_exact(&mut private_key).unwrap();
+
+            let private_curve_key = Curve25519SecretKey::from(private_key);
+            let public_curve_key = Curve25519PublicKey::from(&private_curve_key);
+
+            let diffie_hellman_key = Curve25519Keypair {
+                secret_key: private_curve_key,
+                public_key: public_curve_key,
+                encoded_public_key: public_curve_key.to_base64(),
+            };
+
+            let mut number_of_one_time_keys = [0u8; 4];
+            cursor.read_exact(&mut number_of_one_time_keys).unwrap();
+            let number_of_one_time_keys = u32::from_be_bytes(number_of_one_time_keys);
+
+            let unpickle_curve_key =
+                |cursor: &mut Cursor<Vec<u8>>| -> (KeyId, bool, Curve25519SecretKey) {
+                    let mut id = [0u8; 4];
+                    cursor.read_exact(&mut id).unwrap();
+                    let id = KeyId(u32::from_be_bytes(id) as u64);
+                    let mut published = [0u8; 1];
+                    cursor.read_exact(&mut published).unwrap();
+                    let published = published[0] != 0;
+                    cursor.seek(SeekFrom::Current(32)).unwrap();
+
+                    let mut private_key = [0u8; 32];
+                    cursor.read_exact(&mut private_key).unwrap();
+
+                    let private_key = Curve25519SecretKey::from(private_key);
+
+                    (id, published, private_key)
+                };
+
+            let mut one_time_keys = HashMap::new();
+            let mut unpublished_one_time_keys = HashMap::new();
+            let mut reverse_one_time_keys = HashMap::new();
+
+            for _ in 0..number_of_one_time_keys {
+                let (key_id, published, private) = unpickle_curve_key(&mut cursor);
+
+                let public = Curve25519PublicKey::from(&private);
+
+                one_time_keys.insert(key_id, private);
+                reverse_one_time_keys.insert(public, key_id);
+
+                if !published {
+                    unpublished_one_time_keys.insert(key_id, public);
+                }
+            }
+
+            let max_key_id = one_time_keys.keys().max().map(|k| *k).unwrap_or(KeyId(0));
+
+            let mut number_of_fallback_keys = [0u8; 1];
+            cursor.read_exact(&mut number_of_fallback_keys).unwrap();
+            let number_of_fallback_keys = number_of_fallback_keys[0];
+
+            let fallback_key = if number_of_fallback_keys >= 1 {
+                let (key_id, published, key) = unpickle_curve_key(&mut cursor);
+
+                Some(FallbackKey { key_id, key, published })
+            } else {
+                None
+            };
+
+            let previous_fallback_key = if number_of_fallback_keys >= 2 {
+                let (key_id, published, key) = unpickle_curve_key(&mut cursor);
+
+                Some(FallbackKey { key_id, key, published })
+            } else {
+                None
+            };
+
+            let signing_key = Ed25519Keypair::from_expanded_key(private_ed25519_key);
+
+            Self {
+                signing_key,
+                diffie_hellman_key,
+                one_time_keys: OneTimeKeys {
+                    key_id: max_key_id.0 + 1,
+                    public_keys: unpublished_one_time_keys,
+                    private_keys: one_time_keys,
+                    reverse_public_keys: reverse_one_time_keys,
+                },
+                fallback_keys: FallbackKeys {
+                    key_id: fallback_key.as_ref().map(|k| k.key_id().0 + 1).unwrap_or(0),
+                    fallback_key,
+                    previous_fallback_key,
+                },
+            }
+        }
+    }
 }
 
 impl Default for Account {
@@ -331,7 +455,7 @@ pub enum AccountUnpicklingError {
 #[cfg(test)]
 mod test {
     use anyhow::{bail, Context, Result};
-    use olm_rs::{account::OlmAccount, session::OlmMessage as LibolmOlmMessage};
+    use olm_rs::{account::OlmAccount, session::OlmMessage as LibolmOlmMessage, PicklingMode};
 
     use super::Account;
     use crate::{messages::OlmMessage, Curve25519PublicKey as PublicKey};
@@ -552,5 +676,38 @@ mod test {
             .expect("Failed parsing pickle string which should always be valid");
 
         assert_eq!(pickle, repickle);
+    }
+
+    #[test]
+    fn libolm_unpickling() -> Result<()> {
+        let olm = OlmAccount::new();
+        olm.generate_one_time_keys(10);
+        olm.generate_fallback_key();
+
+        let key = "DEFAULT_PICKLE_KEY";
+        let pickle = olm.pickle(PicklingMode::Encrypted { key: key.as_bytes().to_vec() });
+
+        let unpickled = Account::from_libolm_pickle(&pickle, &key);
+
+        assert_eq!(olm.parsed_identity_keys().ed25519(), unpickled.ed25519_key_encoded());
+        assert_eq!(olm.parsed_identity_keys().curve25519(), unpickled.curve25519_key_encoded());
+
+        let mut olm_one_time_keys: Vec<_> =
+            olm.parsed_one_time_keys().curve25519().values().map(|k| k.to_owned()).collect();
+        let mut one_time_keys: Vec<_> =
+            unpickled.one_time_keys_encoded().values().map(|k| k.to_owned()).collect();
+
+        olm_one_time_keys.sort();
+        one_time_keys.sort();
+        assert_eq!(olm_one_time_keys, one_time_keys);
+
+        let olm_fallback_key =
+            olm.parsed_fallback_key().expect("libolm should have a fallback key");
+        assert_eq!(
+            olm_fallback_key.curve25519(),
+            unpickled.fallback_key().values().next().unwrap()
+        );
+
+        Ok(())
     }
 }

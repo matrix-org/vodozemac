@@ -31,6 +31,10 @@ impl ExpandedKeys {
         Self::new_helper(message_key, Self::MEGOLM_HKDF_INFO)
     }
 
+    fn new_pickle(pickle_key: &[u8]) -> Self {
+        Self::new_helper(pickle_key, b"Pickle")
+    }
+
     fn new_helper(message_key: &[u8], info: &[u8]) -> Self {
         let mut expanded_keys = [0u8; 80];
 
@@ -78,6 +82,12 @@ impl CipherKeys {
 
     pub fn new_megolm(message_key: &[u8; 128]) -> Self {
         let expanded_keys = ExpandedKeys::new_megolm(message_key);
+
+        Self::new_helper(expanded_keys)
+    }
+
+    pub fn new_pickle(pickle_key: &[u8]) -> Self {
+        let expanded_keys = ExpandedKeys::new_pickle(pickle_key);
 
         Self::new_helper(expanded_keys)
     }

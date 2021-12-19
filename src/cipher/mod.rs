@@ -33,9 +33,14 @@ impl Cipher {
         Self { keys }
     }
 
-    #[allow(dead_code)]
     pub fn new_megolm(&key: &[u8; 128]) -> Self {
         let keys = CipherKeys::new_megolm(&key);
+
+        Self { keys }
+    }
+
+    pub fn new_pickle(key: &[u8]) -> Self {
+        let keys = CipherKeys::new_pickle(key);
 
         Self { keys }
     }
