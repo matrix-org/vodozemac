@@ -15,13 +15,17 @@
 
 use hmac::{Hmac, Mac as _};
 use rand::{thread_rng, RngCore};
+use serde::{Deserialize, Serialize};
 use sha2::{digest::CtOutput, Sha256};
+use thiserror::Error;
 use zeroize::Zeroize;
 
 const ADVANCEMENT_SEEDS: [&[u8; 1]; Ratchet::RATCHET_PART_COUNT] =
     [b"\x00", b"\x01", b"\x02", b"\x03"];
 
-#[derive(Zeroize, Clone)]
+#[derive(Serialize, Deserialize, Zeroize, Clone)]
+#[serde(try_from = "RatchetPickle")]
+#[serde(into = "RatchetPickle")]
 pub(super) struct Ratchet {
     inner: [u8; 128],
     counter: u32,
@@ -192,4 +196,37 @@ impl Ratchet {
             self.counter = advance_to & mask;
         }
     }
+}
+
+#[derive(Serialize, Deserialize)]
+pub(super) struct RatchetPickle {
+    key: Vec<u8>,
+    counter: u32,
+}
+
+impl From<Ratchet> for RatchetPickle {
+    fn from(ratchet: Ratchet) -> Self {
+        Self { key: ratchet.inner.into(), counter: ratchet.counter }
+    }
+}
+
+impl TryFrom<RatchetPickle> for Ratchet {
+    type Error = MegolmRatchetUnpicklingError;
+
+    fn try_from(pickle: RatchetPickle) -> Result<Self, Self::Error> {
+        Ok(Ratchet {
+            inner: pickle
+                .key
+                .clone()
+                .try_into()
+                .map_err(|_| MegolmRatchetUnpicklingError::InvalidKeyLength(pickle.key.len()))?,
+            counter: pickle.counter,
+        })
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum MegolmRatchetUnpicklingError {
+    #[error("Invalid Megolm ratchet key length: expected 128, got {0}")]
+    InvalidKeyLength(usize),
 }

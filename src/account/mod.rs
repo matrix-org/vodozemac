@@ -324,8 +324,8 @@ impl AccountPickled {
 pub enum AccountUnpicklingError {
     #[error("Invalid signing key: {0}")]
     InvalidSigningKey(#[from] Ed25519KeypairUnpicklingError),
-    #[error("Pickle corrupted: {0}")]
-    InvalidPickle(#[from] serde_json::error::Error),
+    #[error("Pickle format corrupted: {0}")]
+    InvalidPickleFormat(#[from] serde_json::error::Error),
 }
 
 #[cfg(test)]

@@ -12,13 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use ed25519_dalek::{ExpandedSecretKey, PublicKey, SecretKey};
+use ed25519_dalek::{ExpandedSecretKey, PublicKey, SecretKey, SignatureError};
 use rand::thread_rng;
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use zeroize::Zeroize;
 
-use super::{message::MegolmMessage, ratchet::Ratchet, SessionKey, SESSION_KEY_VERSION};
+use super::{
+    message::MegolmMessage,
+    ratchet::{MegolmRatchetUnpicklingError, Ratchet, RatchetPickle},
+    SessionKey, SESSION_KEY_VERSION,
+};
 use crate::{cipher::Cipher, utilities::base64_encode};
 
+#[derive(Deserialize)]
+#[serde(try_from = "GroupSessionPickle")]
 pub struct GroupSession {
     ratchet: Ratchet,
     signing_key: ExpandedSecretKey,
@@ -85,5 +93,108 @@ impl GroupSession {
         export.zeroize();
 
         SessionKey(result)
+    }
+
+    pub fn pickle(&self) -> GroupSessionPickled {
+        let pickle: GroupSessionPickle = self.to_pickle();
+        GroupSessionPickled(
+            serde_json::to_string_pretty(&pickle).expect("Group session serialization failed."),
+        )
+    }
+
+    pub fn to_pickle(&self) -> GroupSessionPickle {
+        GroupSessionPickle {
+            ratchet: self.ratchet.clone().into(),
+            signing_key: (&self.signing_key).into(),
+            public_key: self.public_key.into(),
+        }
+    }
+
+    pub fn unpickle(input: &str) -> Result<Self, GroupSessionUnpicklingError> {
+        let pickle: GroupSessionPickle = serde_json::from_str(input)?;
+        pickle.try_into()
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct GroupSessionPickle {
+    ratchet: RatchetPickle,
+    signing_key: ExpandedSecretKeyPickle,
+    public_key: PublicKeyPickle,
+}
+
+impl TryFrom<GroupSessionPickle> for GroupSession {
+    type Error = GroupSessionUnpicklingError;
+
+    fn try_from(pickle: GroupSessionPickle) -> Result<Self, Self::Error> {
+        Ok(Self {
+            ratchet: pickle.ratchet.try_into()?,
+            signing_key: pickle.signing_key.try_into()?,
+            public_key: pickle.public_key.try_into()?,
+        })
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum GroupSessionUnpicklingError {
+    #[error("Invalid ratchet")]
+    InvalidRatchet(#[from] MegolmRatchetUnpicklingError),
+    #[error("Invalid signing key: {0}")]
+    InvalidSigningKey(SignatureError),
+    #[error("Invalid public key: {0}")]
+    InvalidPublicKey(SignatureError),
+    #[error("Pickle format corrupted: {0}")]
+    InvalidPickleFormat(#[from] serde_json::error::Error),
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct ExpandedSecretKeyPickle {
+    key: Vec<u8>,
+}
+
+impl From<&ExpandedSecretKey> for ExpandedSecretKeyPickle {
+    fn from(key: &ExpandedSecretKey) -> Self {
+        Self { key: key.to_bytes().to_vec() }
+    }
+}
+
+impl TryFrom<ExpandedSecretKeyPickle> for ExpandedSecretKey {
+    type Error = GroupSessionUnpicklingError;
+
+    fn try_from(pickle: ExpandedSecretKeyPickle) -> Result<Self, Self::Error> {
+        Ok(ExpandedSecretKey::from_bytes(pickle.key.as_slice())
+            .map_err(|e| GroupSessionUnpicklingError::InvalidSigningKey(e))?)
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct PublicKeyPickle {
+    key: Vec<u8>,
+}
+
+impl From<PublicKey> for PublicKeyPickle {
+    fn from(key: PublicKey) -> Self {
+        Self { key: key.to_bytes().to_vec() }
+    }
+}
+
+impl TryFrom<PublicKeyPickle> for PublicKey {
+    type Error = GroupSessionUnpicklingError;
+
+    fn try_from(pickle: PublicKeyPickle) -> Result<Self, Self::Error> {
+        Ok(PublicKey::from_bytes(pickle.key.as_slice())
+            .map_err(|e| GroupSessionUnpicklingError::InvalidPublicKey(e))?)
+    }
+}
+
+#[derive(Zeroize, Debug)]
+#[zeroize(drop)]
+pub struct GroupSessionPickled(String);
+
+impl GroupSessionPickled {
+    pub fn as_str(&self) -> &str {
+        &self.0
     }
 }
