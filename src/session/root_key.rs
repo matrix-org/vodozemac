@@ -33,7 +33,7 @@ impl Drop for RemoteRootKey {
     }
 }
 
-fn diffie_hellman(
+fn kdf(
     root_key: &[u8; 32],
     ratchet_key: &RatchetKey,
     remote_ratchet_key: &RemoteRatchetKey,
@@ -57,7 +57,7 @@ impl RemoteRootKey {
         remote_ratchet_key: &RemoteRatchetKey,
     ) -> (RootKey, ChainKey, RatchetKey) {
         let ratchet_key = RatchetKey::new();
-        let output = diffie_hellman(&self.key, &ratchet_key, remote_ratchet_key);
+        let output = kdf(&self.key, &ratchet_key, remote_ratchet_key);
 
         let mut chain_key = [0u8; 32];
         let mut root_key = [0u8; 32];
@@ -82,7 +82,7 @@ impl RootKey {
         old_ratchet_key: &RatchetKey,
         remote_ratchet_key: &RemoteRatchetKey,
     ) -> (RemoteRootKey, RemoteChainKey) {
-        let output = diffie_hellman(&self.key, old_ratchet_key, remote_ratchet_key);
+        let output = kdf(&self.key, old_ratchet_key, remote_ratchet_key);
 
         let mut chain_key = [0u8; 32];
         let mut root_key = [0u8; 32];
