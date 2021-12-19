@@ -67,7 +67,7 @@ impl DoubleRatchet {
             DoubleRatchetState::Inactive(r) => {
                 let ratchet = r.activate();
                 // Advancing an inactive ratchet shouldn't be possible since the
-                // other side didn't receive yet our new ratchet key.
+                // other side did not yet receive our new ratchet key.
                 //
                 // This will likely end up in a decryption error but for
                 // consistency sake and avoiding the leakage of our internal
