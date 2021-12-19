@@ -722,4 +722,22 @@ mod test {
 
         Ok(())
     }
+
+    #[test]
+    fn test_signing_with_expanded_key() -> Result<()> {
+        let olm = OlmAccount::new();
+        olm.generate_one_time_keys(10);
+        olm.generate_fallback_key();
+
+        let key = "DEFAULT_PICKLE_KEY";
+        let pickle = olm.pickle(PicklingMode::Encrypted { key: key.as_bytes().to_vec() });
+
+        let account_with_expanded_key = Account::from_libolm_pickle(&pickle, key)?;
+
+        account_with_expanded_key.sign("You met with a terrible fate, haven’t you?");
+        let signing_key_clone = account_with_expanded_key.signing_key.clone();
+        signing_key_clone.sign("You met with a terrible fate, haven’t you?");
+
+        Ok(())
+    }
 }
