@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use serde::{Deserialize, Serialize};
+
 use super::{
     chain_key::ChainKey,
     ratchet::{Ratchet, RatchetPublicKey, RemoteRatchetKey},
@@ -20,6 +22,8 @@ use super::{
 };
 use crate::{messages::InnerMessage, shared_secret::Shared3DHSecret};
 
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(transparent)]
 pub(super) struct DoubleRatchet {
     inner: DoubleRatchetState,
 }
@@ -80,6 +84,9 @@ impl DoubleRatchet {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "snake_case")]
+#[serde(tag = "type")]
 enum DoubleRatchetState {
     Inactive(InactiveDoubleRatchet),
     Active(ActiveDoubleRatchet),
@@ -97,6 +104,7 @@ impl From<ActiveDoubleRatchet> for DoubleRatchetState {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone)]
 struct InactiveDoubleRatchet {
     root_key: RemoteRootKey,
     ratchet_key: RemoteRatchetKey,
@@ -111,6 +119,7 @@ impl InactiveDoubleRatchet {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone)]
 struct ActiveDoubleRatchet {
     dh_ratchet: Ratchet,
     hkdf_ratchet: ChainKey,
@@ -136,3 +145,5 @@ impl ActiveDoubleRatchet {
         message_key.encrypt(plaintext)
     }
 }
+
+pub(super) type DoubleRatchetPickle = DoubleRatchet;

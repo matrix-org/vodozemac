@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
 
 use super::{ratchet::RatchetPublicKey, DecryptionError};
@@ -32,6 +33,7 @@ impl Drop for MessageKey {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone)]
 pub(super) struct RemoteMessageKey {
     pub key: [u8; 32],
     pub index: u64,

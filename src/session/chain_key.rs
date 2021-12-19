@@ -1,4 +1,5 @@
 use hmac::{Hmac, Mac};
+use serde::{Deserialize, Serialize};
 use sha2::{digest::CtOutput, Sha256};
 use zeroize::Zeroize;
 
@@ -31,7 +32,7 @@ fn advance(key: &[u8; 32]) -> CtOutput<Hmac<Sha256>> {
     mac.finalize()
 }
 
-#[derive(Zeroize)]
+#[derive(Clone, Zeroize, Serialize, Deserialize)]
 pub(super) struct ChainKey {
     key: [u8; 32],
     index: u64,
@@ -43,7 +44,7 @@ impl Drop for ChainKey {
     }
 }
 
-#[derive(Clone, Zeroize)]
+#[derive(Clone, Zeroize, Serialize, Deserialize)]
 pub(super) struct RemoteChainKey {
     key: [u8; 32],
     index: u64,

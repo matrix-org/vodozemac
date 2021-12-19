@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use rand::thread_rng;
+use serde::{Deserialize, Serialize};
 use x25519_dalek::{SharedSecret, StaticSecret as Curve25519SecretKey};
 
 use super::{
@@ -21,12 +22,15 @@ use super::{
 };
 use crate::Curve25519PublicKey;
 
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(transparent)]
 pub(super) struct RatchetKey(Curve25519SecretKey);
 
 #[derive(Debug, PartialEq)]
 pub(super) struct RatchetPublicKey(Curve25519PublicKey);
 
-#[derive(Clone, Debug, Hash, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq)]
+#[serde(transparent)]
 pub struct RemoteRatchetKey(Curve25519PublicKey);
 
 impl RatchetKey {
@@ -70,6 +74,7 @@ impl From<&RatchetKey> for RatchetPublicKey {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone)]
 pub(super) struct Ratchet {
     root_key: RootKey,
     ratchet_key: RatchetKey,

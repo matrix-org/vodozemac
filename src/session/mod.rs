@@ -28,12 +28,15 @@ use hmac::digest::MacError;
 use ratchet::RemoteRatchetKey;
 use receiver_chain::ReceiverChain;
 use root_key::RemoteRootKey;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
+use zeroize::Zeroize;
 
+use self::double_ratchet::DoubleRatchetPickle;
 use crate::{
     messages::{DecodeError, InnerMessage, InnerPreKeyMessage, Message, OlmMessage, PreKeyMessage},
-    session_keys::SessionKeys,
+    session_keys::{SessionKeys, SessionKeysPickle},
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
     utilities::{base64_decode, base64_encode},
     Curve25519PublicKey,
@@ -41,6 +44,7 @@ use crate::{
 
 const MAX_RECEIVING_CHAINS: usize = 5;
 
+#[derive(Serialize, Deserialize, Clone)]
 struct ChainStore {
     inner: ArrayVec<ReceiverChain, MAX_RECEIVING_CHAINS>,
 }
@@ -210,7 +214,45 @@ impl Session {
             Ok(plaintext)
         }
     }
+
+    pub fn to_pickle(&self) -> SessionPickle {
+        let session_keys: SessionKeysPickle = self.session_keys.clone();
+        SessionPickle {
+            session_keys,
+            sending_ratchet: self.sending_ratchet.clone(),
+            receiving_chains: self.receiving_chains.clone(),
+        }
+    }
 }
+
+#[derive(Deserialize, Serialize)]
+pub struct SessionPickle {
+    session_keys: SessionKeysPickle,
+    sending_ratchet: DoubleRatchetPickle,
+    receiving_chains: ChainStorePickle,
+}
+
+impl SessionPickle {
+    pub fn pickle(&self) -> SessionPickled {
+        SessionPickled(serde_json::to_string_pretty(self).expect("Account serialization failed."))
+    }
+}
+
+#[derive(Zeroize, Debug)]
+#[zeroize(drop)]
+pub struct SessionPickled(String);
+
+impl From<SessionPickle> for Session {
+    fn from(pickle: SessionPickle) -> Self {
+        Self {
+            session_keys: pickle.session_keys,
+            sending_ratchet: pickle.sending_ratchet,
+            receiving_chains: pickle.receiving_chains,
+        }
+    }
+}
+
+type ChainStorePickle = ChainStore;
 
 #[cfg(test)]
 mod test {

@@ -1,4 +1,5 @@
 use hkdf::Hkdf;
+use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use zeroize::Zeroize;
 
@@ -9,7 +10,8 @@ use super::{
 
 const ADVANCEMENT_SEED: &[u8; 11] = b"OLM_RATCHET";
 
-#[derive(Zeroize)]
+#[derive(Serialize, Deserialize, Zeroize, Clone)]
+#[serde(transparent)]
 pub(crate) struct RootKey {
     pub key: [u8; 32],
 }
@@ -20,7 +22,7 @@ impl Drop for RootKey {
     }
 }
 
-#[derive(Zeroize)]
+#[derive(Serialize, Deserialize, Clone, Zeroize)]
 pub(crate) struct RemoteRootKey {
     pub key: [u8; 32],
 }

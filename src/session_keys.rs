@@ -1,5 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 use crate::Curve25519PublicKey;
 
+#[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct SessionKeys {
     pub(crate) identity_key: Curve25519PublicKey,
     pub(crate) base_key: Curve25519PublicKey,
@@ -15,3 +18,5 @@ impl SessionKeys {
         Self { identity_key, base_key, one_time_key }
     }
 }
+
+pub(crate) type SessionKeysPickle = SessionKeys;

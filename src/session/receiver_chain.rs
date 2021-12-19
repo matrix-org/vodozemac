@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use arrayvec::ArrayVec;
+use serde::{Deserialize, Serialize};
 
 use super::{
     chain_key::RemoteChainKey, message_key::RemoteMessageKey, ratchet::RemoteRatchetKey,
@@ -23,6 +24,7 @@ use crate::messages::InnerMessage;
 const MAX_MESSAGE_GAP: u64 = 2000;
 const MAX_MESSAGE_KEYS: usize = 40;
 
+#[derive(Serialize, Deserialize, Clone)]
 struct MessageKeyStore {
     inner: ArrayVec<RemoteMessageKey, MAX_MESSAGE_KEYS>,
 }
@@ -61,6 +63,7 @@ impl Default for MessageKeyStore {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone)]
 pub(super) struct ReceiverChain {
     ratchet_key: RemoteRatchetKey,
     hkdf_ratchet: RemoteChainKey,
