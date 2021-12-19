@@ -14,7 +14,6 @@
 
 mod inner;
 
-pub use inner::DecodeError;
 pub(crate) use inner::{OlmMessage as InnerMessage, PreKeyMessage as InnerPreKeyMessage};
 
 #[derive(Debug, Clone, PartialEq)]

@@ -20,7 +20,7 @@ use super::{
     receiver_chain::ReceiverChain,
     root_key::{RemoteRootKey, RootKey},
 };
-use crate::{messages::InnerMessage, shared_secret::Shared3DHSecret};
+use crate::olm::{messages::InnerMessage, shared_secret::Shared3DHSecret};
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(transparent)]

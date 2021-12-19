@@ -15,7 +15,7 @@
 use ed25519_dalek::{Signature, SIGNATURE_LENGTH};
 use prost::Message;
 
-use crate::{cipher::Mac, messages::DecodeError, utilities::VarInt};
+use crate::{cipher::Mac, utilities::VarInt, DecodeError};
 
 const VERSION: u8 = 3;
 

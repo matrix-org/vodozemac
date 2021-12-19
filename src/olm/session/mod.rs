@@ -36,12 +36,14 @@ use thiserror::Error;
 use zeroize::Zeroize;
 
 use self::double_ratchet::DoubleRatchetPickle;
-use crate::{
-    messages::{DecodeError, InnerMessage, InnerPreKeyMessage, Message, OlmMessage, PreKeyMessage},
+use super::{
     session_keys::{SessionKeys, SessionKeysPickle},
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
+};
+use crate::{
+    olm::messages::{InnerMessage, InnerPreKeyMessage, Message, OlmMessage, PreKeyMessage},
     utilities::{base64_decode, base64_encode},
-    Curve25519PublicKey,
+    Curve25519PublicKey, DecodeError,
 };
 
 const MAX_RECEIVING_CHAINS: usize = 5;
@@ -390,7 +392,7 @@ mod test {
     };
 
     use super::Session;
-    use crate::{Account, Curve25519PublicKey};
+    use crate::{olm::Account, Curve25519PublicKey};
 
     fn sessions() -> Result<(Account, OlmAccount, Session, OlmSession)> {
         let alice = Account::new();

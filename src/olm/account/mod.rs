@@ -21,25 +21,29 @@ use std::{
 };
 
 use ed25519_dalek::{ExpandedSecretKey as Ed25519PrivateKey, PublicKey as Ed25519PublicKey};
-use fallback_keys::{FallbackKey, FallbackKeys};
-use one_time_keys::OneTimeKeys;
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use x25519_dalek::StaticSecret as Curve25519SecretKey;
 use zeroize::Zeroize;
 
-use self::{fallback_keys::FallbackKeysPickle, one_time_keys::OneTimeKeysPickle};
-use crate::{
-    messages::{DecodeError, InnerMessage, InnerPreKeyMessage, PreKeyMessage},
+use self::{
+    fallback_keys::{FallbackKey, FallbackKeys, FallbackKeysPickle},
+    one_time_keys::{OneTimeKeys, OneTimeKeysPickle},
+};
+use super::{
+    messages::{InnerMessage, InnerPreKeyMessage, PreKeyMessage},
     session::Session,
     session_keys::SessionKeys,
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
+};
+use crate::{
     types::{
         Curve25519Keypair, Curve25519KeypairPickle, Curve25519PublicKey, Ed25519Keypair,
         Ed25519KeypairPickle, Ed25519KeypairUnpicklingError, KeyId,
     },
     utilities::{base64_decode, base64_encode},
+    DecodeError,
 };
 
 const MAX_NUMBER_OF_ONE_TIME_KEYS: usize = 100;
@@ -443,7 +447,7 @@ mod test {
     use olm_rs::{account::OlmAccount, session::OlmMessage as LibolmOlmMessage, PicklingMode};
 
     use super::Account;
-    use crate::{messages::OlmMessage, Curve25519PublicKey as PublicKey};
+    use crate::{olm::messages::OlmMessage, Curve25519PublicKey as PublicKey};
 
     #[test]
     fn test_vodozemac_libolm_communication() -> Result<()> {
@@ -621,7 +625,7 @@ mod test {
         let message = alice_session.encrypt(text).into();
         let identity_key = PublicKey::from_base64(alice.parsed_identity_keys().curve25519())?;
 
-        let mut session = if let crate::messages::OlmMessage::PreKey(m) = &message {
+        let mut session = if let OlmMessage::PreKey(m) = &message {
             bob.create_inbound_session(&identity_key, m)?
         } else {
             bail!("Got invalid message type from olm_rs");

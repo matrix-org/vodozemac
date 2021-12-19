@@ -12,29 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use ed25519_dalek::SignatureError;
 use prost::Message;
-use thiserror::Error;
 
-use crate::{cipher::Mac, utilities::VarInt, Curve25519KeyError, Curve25519PublicKey};
-
-#[derive(Error, Debug)]
-pub enum DecodeError {
-    #[error("The message didn't contain a version")]
-    MissingVersion,
-    #[error("The message was too short, it didn't contain a valid payload")]
-    MessageTooShort(usize),
-    #[error("The message didn't have a valid version, expected {0}, got {1}")]
-    InvalidVersion(u8, u8),
-    #[error("The message contained an invalid public key: {0}")]
-    InvalidKey(#[from] Curve25519KeyError),
-    #[error("The message contained a MAC with an invalid size, expected {0}, got {1}")]
-    InvalidMacLength(usize, usize),
-    #[error("The message contained an invalid Signature: {0}")]
-    Signature(#[from] SignatureError),
-    #[error(transparent)]
-    ProtoBufError(#[from] prost::DecodeError),
-}
+use crate::{cipher::Mac, utilities::VarInt, Curve25519PublicKey, DecodeError};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct OlmMessage {

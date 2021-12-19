@@ -18,7 +18,7 @@ use zeroize::Zeroize;
 use super::{ratchet::RatchetPublicKey, DecryptionError};
 use crate::{
     cipher::{Cipher, Mac},
-    messages::InnerMessage,
+    olm::messages::InnerMessage,
 };
 
 pub(super) struct MessageKey {

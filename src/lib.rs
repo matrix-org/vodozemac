@@ -25,22 +25,15 @@
 )]
 #![doc = include_str!("../README.md")]
 
-mod account;
 mod cipher;
-mod session;
-mod session_keys;
-mod shared_secret;
 mod types;
 mod utilities;
 
 pub mod megolm;
-pub mod messages;
+pub mod olm;
 pub mod sas;
 
-pub use account::Account;
-pub use session::Session;
-
-pub use crate::types::{Curve25519KeyError, Curve25519PublicKey};
+pub use types::{Curve25519KeyError, Curve25519PublicKey};
 
 #[derive(Debug, thiserror::Error)]
 pub enum LibolmUnpickleError {
@@ -56,4 +49,22 @@ pub enum LibolmUnpickleError {
     PublicKey(#[from] ed25519_dalek::SignatureError),
     #[error("The pickle didn't contain a valid Olm session")]
     InvalidSession,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum DecodeError {
+    #[error("The message didn't contain a version")]
+    MissingVersion,
+    #[error("The message was too short, it didn't contain a valid payload")]
+    MessageTooShort(usize),
+    #[error("The message didn't have a valid version, expected {0}, got {1}")]
+    InvalidVersion(u8, u8),
+    #[error("The message contained an invalid public key: {0}")]
+    InvalidKey(#[from] Curve25519KeyError),
+    #[error("The message contained a MAC with an invalid size, expected {0}, got {1}")]
+    InvalidMacLength(usize, usize),
+    #[error("The message contained an invalid Signature: {0}")]
+    Signature(#[from] ed25519_dalek::SignatureError),
+    #[error(transparent)]
+    ProtoBufError(#[from] prost::DecodeError),
 }

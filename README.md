@@ -58,7 +58,7 @@ channel.
 
 ```rust
     use anyhow::Result;
-    use vodozemac::{Account, messages::OlmMessage};
+    use vodozemac::olm::{Account, OlmMessage};
 
     fn main() -> Result<()> {
         let alice = Account::new();
@@ -139,7 +139,7 @@ For example, the following will print out the JSON representing the serialized
 `Account` and will leave no new copies of the account's secrets in memory:
 
 ```rust
-use vodozemac::Account;
+use vodozemac::olm::Account;
 
 fn main() {
     let mut account = Account::new();
@@ -157,7 +157,7 @@ You can unpickle pickle-able structs directly from a string:
 
 ```rust,no_run
 use anyhow::Result;
-use vodozemac::Account;
+use vodozemac::olm::Account;
 
 fn main() -> Result<()> {
     # let json_str = unimplemented!();
@@ -176,7 +176,7 @@ as serializeable struct, just call `.unpickle()`.
 
 ```rust
 use anyhow::Result;
-use vodozemac::Account;
+use vodozemac::olm::Account;
 
 fn main() -> Result<()> {
     let account = Account::new();

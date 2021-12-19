@@ -31,8 +31,8 @@ use super::{
 };
 use crate::{
     cipher::Cipher,
-    messages::DecodeError,
     utilities::{base64_decode, base64_encode},
+    DecodeError,
 };
 
 const SESSION_KEY_EXPORT_VERSION: u8 = 1;
