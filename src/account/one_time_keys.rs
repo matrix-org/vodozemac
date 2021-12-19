@@ -25,7 +25,7 @@ use crate::{types::KeyId, Curve25519PublicKey};
 #[serde(from = "OneTimeKeysPickle")]
 #[serde(into = "OneTimeKeysPickle")]
 pub(super) struct OneTimeKeys {
-    key_id: u64,
+    pub key_id: u64,
     pub public_keys: HashMap<KeyId, Curve25519PublicKey>,
     pub private_keys: HashMap<KeyId, Curve25519SecretKey>,
     pub reverse_public_keys: HashMap<Curve25519PublicKey, KeyId>,
