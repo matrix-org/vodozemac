@@ -205,7 +205,7 @@ impl InboundGroupSession {
         let signing_key = self.signing_key;
 
         if let Some(ratchet) = self.find_ratchet(index) {
-            let index = ratchet.index().to_le_bytes();
+            let index = ratchet.index().to_be_bytes();
 
             let mut export: Vec<u8> = [
                 [SESSION_KEY_EXPORT_VERSION].as_ref(),
