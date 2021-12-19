@@ -196,8 +196,11 @@ fn main() -> Result<()> {
 # Megolm
 
 Megolm is an AES-based single ratchet for group conversations with a large
-number of participants, where using Olm would be cost prohibitive, (because it
-would imply establishing a pairwise channel between each pair of participants).
+number of participants, where using Olm would be cost prohibitive because it
+would imply encrypting each message individually for each participant. Megolm
+sidesteps this by encrypting messages with a symmetric ratchet, shared once
+with each participant and then reused for a sequence of messages before
+rotating.
 
 This is a trade-off in which we lose Olm's self-healing properties, because
 someone in possession of a Megolm session at a particular state can derive all
