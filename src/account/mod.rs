@@ -325,7 +325,7 @@ pub enum AccountUnpicklingError {
     #[error("Invalid signing key: {0}")]
     InvalidSigningKey(#[from] Ed25519KeypairUnpicklingError),
     #[error("Pickle format corrupted: {0}")]
-    InvalidPickleFormat(#[from] serde_json::error::Error),
+    CorruptedPickle(#[from] serde_json::error::Error),
 }
 
 #[cfg(test)]

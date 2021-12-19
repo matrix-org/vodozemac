@@ -144,7 +144,7 @@ pub enum GroupSessionUnpicklingError {
     #[error("Invalid public key: {0}")]
     InvalidPublicKey(SignatureError),
     #[error("Pickle format corrupted: {0}")]
-    InvalidPickleFormat(#[from] serde_json::error::Error),
+    CorruptedPickle(#[from] serde_json::error::Error),
 }
 
 #[derive(Serialize, Deserialize, Zeroize)]
@@ -164,8 +164,8 @@ impl TryFrom<ExpandedSecretKeyPickle> for ExpandedSecretKey {
     type Error = GroupSessionUnpicklingError;
 
     fn try_from(pickle: ExpandedSecretKeyPickle) -> Result<Self, Self::Error> {
-        Ok(ExpandedSecretKey::from_bytes(pickle.key.as_slice())
-            .map_err(|e| GroupSessionUnpicklingError::InvalidSigningKey(e))?)
+        ExpandedSecretKey::from_bytes(pickle.key.as_slice())
+            .map_err(GroupSessionUnpicklingError::InvalidSigningKey)
     }
 }
 
@@ -185,8 +185,8 @@ impl TryFrom<PublicKeyPickle> for PublicKey {
     type Error = GroupSessionUnpicklingError;
 
     fn try_from(pickle: PublicKeyPickle) -> Result<Self, Self::Error> {
-        Ok(PublicKey::from_bytes(pickle.key.as_slice())
-            .map_err(|e| GroupSessionUnpicklingError::InvalidPublicKey(e))?)
+        PublicKey::from_bytes(pickle.key.as_slice())
+            .map_err(GroupSessionUnpicklingError::InvalidPublicKey)
     }
 }
 
