@@ -246,50 +246,42 @@ impl InboundGroupSession {
         pickle.try_into()
     }
 
-    pub fn from_libolm_pickle(pickle: &str, pickle_key: &str) -> Self {
-        use crate::cipher::Mac;
+    pub fn from_libolm_pickle(
+        pickle: &str,
+        pickle_key: &str,
+    ) -> Result<Self, crate::LibolmUnpickleError> {
+        use crate::utilities::{read_bool, read_u32};
+
+        const PICKLE_VERSION: u32 = 2;
 
         let cipher = Cipher::new_pickle(pickle_key.as_ref());
 
-        let decoded = base64_decode(pickle).unwrap();
+        let decoded = base64_decode(pickle)?;
+        let decrypted = cipher.decrypt_pickle(&decoded)?;
 
-        let mac = &decoded[decoded.len() - Mac::TRUNCATED_LEN..];
-        let message = &decoded[..decoded.len() - Mac::TRUNCATED_LEN];
-        cipher.verify_mac(message, mac).unwrap();
-        let decrypted = cipher.decrypt(message).unwrap();
-
-        let mut version = [0u8; 4];
         let mut cursor = Cursor::new(decrypted);
+        let version = read_u32(&mut cursor)?;
 
-        cursor.read_exact(&mut version).unwrap();
+        if version != 2 {
+            Err(crate::LibolmUnpickleError::Version(PICKLE_VERSION, version))
+        } else {
+            let mut ratchet = [0u8; Ratchet::RATCHET_LENGTH];
 
-        let version = u32::from_be_bytes(version);
+            cursor.read_exact(&mut ratchet)?;
+            let counter = read_u32(&mut cursor)?;
+            let initial_ratchet = Ratchet::from_bytes(ratchet, counter);
 
-        if version != 2 {}
+            cursor.read_exact(&mut ratchet)?;
+            let counter = read_u32(&mut cursor)?;
+            let latest_ratchet = Ratchet::from_bytes(ratchet, counter);
 
-        let mut ratchet = [0u8; 128];
-        let mut counter = [0u8; 4];
+            let mut signing_key = [0u8; PUBLIC_KEY_LENGTH];
+            cursor.read_exact(&mut signing_key)?;
+            let signing_key = PublicKey::from_bytes(&signing_key)?;
 
-        cursor.read_exact(&mut ratchet).unwrap();
-        cursor.read_exact(&mut counter).unwrap();
-        let initial_ratchet = Ratchet::from_bytes(ratchet, u32::from_be_bytes(counter));
+            let signing_key_verified = read_bool(&mut cursor)?;
 
-        cursor.read_exact(&mut ratchet).unwrap();
-        cursor.read_exact(&mut counter).unwrap();
-        let latest_ratchet = Ratchet::from_bytes(ratchet, u32::from_be_bytes(counter));
-
-        let mut signing_key = [0u8; 32];
-        cursor.read_exact(&mut signing_key).unwrap();
-        let signing_key = PublicKey::from_bytes(&signing_key).unwrap();
-
-        let mut signing_key_verified = [0u8; 1];
-        cursor.read_exact(&mut signing_key_verified).unwrap();
-
-        Self {
-            initial_ratchet,
-            latest_ratchet,
-            signing_key,
-            signing_key_verified: signing_key_verified[0] != 0,
+            Ok(Self { initial_ratchet, latest_ratchet, signing_key, signing_key_verified })
         }
     }
 }

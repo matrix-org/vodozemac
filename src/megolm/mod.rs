@@ -219,7 +219,7 @@ mod test {
         let key = "DEFAULT_PICKLE_KEY";
         let pickle = olm.pickle(PicklingMode::Encrypted { key: key.as_bytes().to_vec() });
 
-        let unpickled = InboundGroupSession::from_libolm_pickle(&pickle, key);
+        let unpickled = InboundGroupSession::from_libolm_pickle(&pickle, key)?;
 
         assert_eq!(olm.session_id(), unpickled.session_id());
         assert_eq!(olm.first_known_index(), unpickled.first_known_index());

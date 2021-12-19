@@ -181,7 +181,7 @@ impl From<KeyId> for String {
 }
 
 impl KeyId {
-    pub fn to_base64(&self) -> String {
+    pub fn to_base64(self) -> String {
         base64_encode(self.0.to_be_bytes())
     }
 }

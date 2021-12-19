@@ -302,28 +302,36 @@ impl Account {
         self.fallback_keys.mark_as_published();
     }
 
-    pub fn from_libolm_pickle(pickle: &str, pickle_key: &str) -> Self {
-        use crate::{cipher::Cipher, utilities::{read_u32, read_curve_key, read_bool}};
+    pub fn from_libolm_pickle(
+        pickle: &str,
+        pickle_key: &str,
+    ) -> Result<Self, crate::LibolmUnpickleError> {
+        use crate::{
+            cipher::Cipher,
+            utilities::{read_bool, read_curve_key, read_u32},
+        };
+
+        const PICKLE_VERSION: u32 = 4;
 
         let cipher = Cipher::new_pickle(pickle_key.as_ref());
-        let decoded = base64_decode(pickle).unwrap();
-        let decrypted = cipher.decrypt_pickle(&decoded).unwrap();
+        let decoded = base64_decode(pickle)?;
+        let decrypted = cipher.decrypt_pickle(&decoded)?;
 
         let mut cursor = Cursor::new(decrypted);
-        let version = read_u32(&mut cursor).unwrap();
+        let version = read_u32(&mut cursor)?;
 
-        if version != 4 {
-            panic!("INVALID VERSION");
+        if version != PICKLE_VERSION {
+            Err(crate::LibolmUnpickleError::Version(PICKLE_VERSION, version))
         } else {
             // We skip the public ed25519 key, we'll create it from the private
             // key.
-            cursor.seek(SeekFrom::Current(32)).unwrap();
+            cursor.seek(SeekFrom::Current(32))?;
             let mut private_key = [0u8; 64];
-            cursor.read_exact(&mut private_key).unwrap();
+            cursor.read_exact(&mut private_key)?;
 
-            let private_ed25519_key = Ed25519PrivateKey::from_bytes(&private_key).unwrap();
+            let private_ed25519_key = Ed25519PrivateKey::from_bytes(&private_key)?;
 
-            let secret_key = read_curve_key(&mut cursor).unwrap();
+            let secret_key = read_curve_key(&mut cursor)?;
             let public_key = Curve25519PublicKey::from(&secret_key);
 
             let diffie_hellman_key = Curve25519Keypair {
@@ -332,22 +340,25 @@ impl Account {
                 encoded_public_key: public_key.to_base64(),
             };
 
-            let number_of_one_time_keys = read_u32(&mut cursor).unwrap();
+            let number_of_one_time_keys = read_u32(&mut cursor)?;
 
-            let unpickle_curve_key =
-                |cursor: &mut Cursor<Vec<u8>>| -> (KeyId, bool, Curve25519SecretKey) {
-                    let key_id = KeyId(read_u32(cursor).unwrap() as u64);
-                    let published = read_bool(cursor).unwrap();
-                    let private_key = read_curve_key(cursor).unwrap();
-                    (key_id, published, private_key)
-                };
+            let unpickle_curve_key = |cursor: &mut Cursor<Vec<u8>>| -> Result<
+                (KeyId, bool, Curve25519SecretKey),
+                crate::LibolmUnpickleError,
+            > {
+                let key_id = KeyId(read_u32(cursor)? as u64);
+                let published = read_bool(cursor)?;
+                let private_key = read_curve_key(cursor)?;
+
+                Ok((key_id, published, private_key))
+            };
 
             let mut one_time_keys = HashMap::new();
             let mut unpublished_one_time_keys = HashMap::new();
             let mut reverse_one_time_keys = HashMap::new();
 
             for _ in 0..number_of_one_time_keys {
-                let (key_id, published, private) = unpickle_curve_key(&mut cursor);
+                let (key_id, published, private) = unpickle_curve_key(&mut cursor)?;
 
                 let public = Curve25519PublicKey::from(&private);
 
@@ -359,14 +370,14 @@ impl Account {
                 }
             }
 
-            let max_key_id = one_time_keys.keys().max().map(|k| *k).unwrap_or(KeyId(0));
+            let max_key_id = one_time_keys.keys().max().copied().unwrap_or(KeyId(0));
 
             let mut number_of_fallback_keys = [0u8; 1];
-            cursor.read_exact(&mut number_of_fallback_keys).unwrap();
+            cursor.read_exact(&mut number_of_fallback_keys)?;
             let number_of_fallback_keys = number_of_fallback_keys[0];
 
             let fallback_key = if number_of_fallback_keys >= 1 {
-                let (key_id, published, key) = unpickle_curve_key(&mut cursor);
+                let (key_id, published, key) = unpickle_curve_key(&mut cursor)?;
 
                 Some(FallbackKey { key_id, key, published })
             } else {
@@ -374,7 +385,7 @@ impl Account {
             };
 
             let previous_fallback_key = if number_of_fallback_keys >= 2 {
-                let (key_id, published, key) = unpickle_curve_key(&mut cursor);
+                let (key_id, published, key) = unpickle_curve_key(&mut cursor)?;
 
                 Some(FallbackKey { key_id, key, published })
             } else {
@@ -383,7 +394,7 @@ impl Account {
 
             let signing_key = Ed25519Keypair::from_expanded_key(private_ed25519_key);
 
-            Self {
+            Ok(Self {
                 signing_key,
                 diffie_hellman_key,
                 one_time_keys: OneTimeKeys {
@@ -397,7 +408,7 @@ impl Account {
                     fallback_key,
                     previous_fallback_key,
                 },
-            }
+            })
         }
     }
 }
@@ -661,7 +672,7 @@ mod test {
         let key = "DEFAULT_PICKLE_KEY";
         let pickle = olm.pickle(PicklingMode::Encrypted { key: key.as_bytes().to_vec() });
 
-        let unpickled = Account::from_libolm_pickle(&pickle, &key);
+        let unpickled = Account::from_libolm_pickle(&pickle, key)?;
 
         assert_eq!(olm.parsed_identity_keys().ed25519(), unpickled.ed25519_key_encoded());
         assert_eq!(olm.parsed_identity_keys().curve25519(), unpickled.curve25519_key_encoded());
@@ -679,7 +690,7 @@ mod test {
             olm.parsed_fallback_key().expect("libolm should have a fallback key");
         assert_eq!(
             olm_fallback_key.curve25519(),
-            unpickled.fallback_key().values().next().unwrap()
+            unpickled.fallback_key().values().next().expect("We should have a fallback key")
         );
 
         Ok(())

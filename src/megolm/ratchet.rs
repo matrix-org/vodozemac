@@ -27,7 +27,7 @@ const ADVANCEMENT_SEEDS: [&[u8; 1]; Ratchet::RATCHET_PART_COUNT] =
 #[serde(try_from = "RatchetPickle")]
 #[serde(into = "RatchetPickle")]
 pub(super) struct Ratchet {
-    inner: [u8; 128],
+    inner: [u8; Self::RATCHET_LENGTH],
     counter: u32,
 }
 
@@ -85,19 +85,20 @@ impl<'a> RatchetParts<'a> {
 }
 
 impl Ratchet {
+    pub const RATCHET_LENGTH: usize = 128;
     const RATCHET_PART_COUNT: usize = 4;
 
     pub fn new() -> Self {
         let mut rng = thread_rng();
 
-        let mut ratchet = Self { inner: [0u8; 128], counter: 0 };
+        let mut ratchet = Self { inner: [0u8; Self::RATCHET_LENGTH], counter: 0 };
 
         rng.fill_bytes(&mut ratchet.inner);
 
         ratchet
     }
 
-    pub fn from_bytes(bytes: [u8; 128], counter: u32) -> Self {
+    pub fn from_bytes(bytes: [u8; Self::RATCHET_LENGTH], counter: u32) -> Self {
         Self { inner: bytes, counter }
     }
 
@@ -105,7 +106,7 @@ impl Ratchet {
         self.counter
     }
 
-    pub fn as_bytes(&self) -> &[u8; 128] {
+    pub fn as_bytes(&self) -> &[u8; Self::RATCHET_LENGTH] {
         &self.inner
     }
 

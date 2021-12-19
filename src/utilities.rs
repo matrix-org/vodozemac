@@ -1,6 +1,7 @@
+use std::io::{Cursor, Read, Seek, SeekFrom};
+
 pub use base64::DecodeError;
 use base64::{decode_config, encode_config, STANDARD_NO_PAD};
-use std::io::{Cursor, Read, Seek, SeekFrom};
 use x25519_dalek::StaticSecret as Curve25519SecretKey;
 
 /// Decode the input as base64 with no padding.
@@ -95,6 +96,6 @@ pub(crate) fn read_curve_key(cursor: &mut Cursor<Vec<u8>>) -> std::io::Result<Cu
 
 pub(crate) fn read_bool(cursor: &mut Cursor<Vec<u8>>) -> std::io::Result<bool> {
     let mut published = [0u8; 1];
-    cursor.read_exact(&mut published).unwrap();
+    cursor.read_exact(&mut published)?;
     Ok(published[0] != 0)
 }

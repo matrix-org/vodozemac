@@ -131,9 +131,9 @@ struct ActiveDoubleRatchet {
 
 impl ActiveDoubleRatchet {
     fn advance(&self, ratchet_key: RemoteRatchetKey) -> (InactiveDoubleRatchet, ReceiverChain) {
-        let (root_key, remote_chain) = self.active_ratchet.advance(ratchet_key.clone());
+        let (root_key, remote_chain) = self.active_ratchet.advance(ratchet_key);
 
-        let ratchet = InactiveDoubleRatchet { root_key, ratchet_key: ratchet_key.clone() };
+        let ratchet = InactiveDoubleRatchet { root_key, ratchet_key };
         let receiver_chain = ReceiverChain::new(ratchet_key, remote_chain);
 
         (ratchet, receiver_chain)
