@@ -29,6 +29,7 @@
 //! ```
 //!
 //! [spec]: https://gitlab.matrix.org/matrix-org/olm/-/blob/master/docs/olm.md#initial-setup
+
 use hkdf::Hkdf;
 use sha2::Sha256;
 use x25519_dalek::{SharedSecret, StaticSecret};
