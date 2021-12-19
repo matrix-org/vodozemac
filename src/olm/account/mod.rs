@@ -158,7 +158,11 @@ impl Account {
             &one_time_key,
         );
 
-        let session_keys = SessionKeys::new(*self.curve25519_key(), public_base_key, one_time_key);
+        let session_keys = SessionKeys {
+            identity_key: *self.curve25519_key(),
+            base_key: public_base_key,
+            one_time_key,
+        };
 
         Session::new(shared_secret, session_keys)
     }
@@ -202,8 +206,11 @@ impl Account {
                 &remote_one_time_key,
             );
 
-            let session_keys =
-                SessionKeys::new(remote_identity_key, remote_one_time_key, public_one_time_key);
+            let session_keys = SessionKeys {
+                identity_key: remote_identity_key,
+                base_key: remote_one_time_key,
+                one_time_key: public_one_time_key,
+            };
 
             let message = InnerMessage::from(m);
             let decoded = message.decode()?;
