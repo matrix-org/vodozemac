@@ -56,7 +56,9 @@ impl DoubleRatchet {
     }
 
     pub fn from_ratchet_and_chain_key(ratchet: Ratchet, chain_key: ChainKey) -> Self {
-        Self { inner: ActiveDoubleRatchet { active_ratchet: ratchet, hkdf_ratchet: chain_key }.into() }
+        Self {
+            inner: ActiveDoubleRatchet { active_ratchet: ratchet, hkdf_ratchet: chain_key }.into(),
+        }
     }
 
     pub fn inactive(root_key: RemoteRootKey, ratchet_key: RemoteRatchetKey) -> Self {
