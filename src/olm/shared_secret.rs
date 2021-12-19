@@ -12,6 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! A 3DH implementation following the Olm [spec].
+//!
+//! The setup takes four Curve25519 inputs: Identity keys for Alice and Bob,
+//! (Ia, Ib), and one-time keys for Alice and Bob (Ea, Eb).o
+//!
+//! A shared secret, SSS, is generated using Triple Diffie-Hellman. The initial
+//! 256 bit root key, R0, and 256 bit chain key, C0,0 derived from the shared
+//! secret using an HMAC-based Key Derivation Function using SHA-256 as the hash
+//! function (HKDF-SHA-256) with default salt and "OLM_ROOT" as the info.
+//!
+//! ```text
+//!     S = ECDH(Ia, Eb) || ECDH(Ea, Ib) || ECDH (Ea, Eb)
+//!
+//!     R0, C0,0 = HKDF(0, S, "OLM_ROOT", 64)
+//! ```
+//!
+//! [spec]: https://gitlab.matrix.org/matrix-org/olm/-/blob/master/docs/olm.md#initial-setup
 use hkdf::Hkdf;
 use sha2::Sha256;
 use x25519_dalek::{SharedSecret, StaticSecret};
