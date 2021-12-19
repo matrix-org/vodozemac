@@ -130,7 +130,10 @@ impl TryFrom<GroupSessionPickle> for GroupSession {
         Ok(Self {
             ratchet: pickle.ratchet.try_into()?,
             signing_key: pickle.signing_key.try_into()?,
-            public_key: pickle.public_key.try_into()?,
+            public_key: pickle
+                .public_key
+                .try_into()
+                .map_err(GroupSessionUnpicklingError::InvalidPublicKey)?,
         })
     }
 }
@@ -182,11 +185,10 @@ impl From<PublicKey> for PublicKeyPickle {
 }
 
 impl TryFrom<PublicKeyPickle> for PublicKey {
-    type Error = GroupSessionUnpicklingError;
+    type Error = SignatureError;
 
     fn try_from(pickle: PublicKeyPickle) -> Result<Self, Self::Error> {
         PublicKey::from_bytes(pickle.key.as_slice())
-            .map_err(GroupSessionUnpicklingError::InvalidPublicKey)
     }
 }
 
