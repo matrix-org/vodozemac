@@ -113,9 +113,9 @@ Matrix features like device dehydration.
 
 ### Legacy pickles
 
-The legacy pickle format is a simple binary format used by libolm. Currently
-*unimplemented*, but will need to be implemented for interoperability with
-legacy clients using libolm.
+The legacy pickle format is a simple binary format used by libolm. Implemented
+for interoperability with current clients which are using libolm. Currently
+only *unpickling* is supported.
 
 ### Modern pickles
 
