@@ -30,6 +30,7 @@ mod cipher;
 mod session;
 mod session_keys;
 mod shared_secret;
+mod types;
 mod utilities;
 
 pub mod megolm;
@@ -39,4 +40,4 @@ pub mod sas;
 pub use account::Account;
 pub use session::Session;
 
-pub use crate::account::{Curve25519KeyError, Curve25519PublicKey};
+pub use crate::types::{Curve25519KeyError, Curve25519PublicKey};

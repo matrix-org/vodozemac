@@ -139,7 +139,7 @@ impl Session {
         base64_encode(digest)
     }
 
-    // Did we ever receive and decrypt a message from the other side.
+    // Have we ever received and decrypted a message from the other side?
     fn has_received_message(&self) -> bool {
         !self.receiving_chains.is_empty()
     }

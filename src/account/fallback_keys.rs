@@ -1,9 +1,25 @@
+// Copyright 2021 Damir Jelić, Denis Kasak
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use rand::thread_rng;
+use serde::{Deserialize, Serialize};
 use x25519_dalek::StaticSecret as Curve25519SecretKey;
+use zeroize::Zeroize;
 
-use super::types::KeyId;
-use crate::Curve25519PublicKey;
+use crate::{types::KeyId, Curve25519PublicKey};
 
+#[derive(Serialize, Deserialize, Clone)]
 pub(super) struct FallbackKey {
     key_id: KeyId,
     key: Curve25519SecretKey,
@@ -39,6 +55,13 @@ impl FallbackKey {
     }
 }
 
+impl Zeroize for FallbackKey {
+    fn zeroize(&mut self) {
+        self.key.zeroize();
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone)]
 pub(super) struct FallbackKeys {
     key_id: u64,
     pub fallback_key: Option<FallbackKey>,
@@ -114,3 +137,5 @@ mod test {
         assert_eq!(secret_bytes, fetched_key.to_bytes());
     }
 }
+
+pub(super) type FallbackKeysPickle = FallbackKeys;

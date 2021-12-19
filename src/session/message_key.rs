@@ -20,7 +20,6 @@ use crate::{
     messages::InnerMessage,
 };
 
-#[derive(Zeroize)]
 pub(super) struct MessageKey {
     key: [u8; 32],
     ratchet_key: RatchetPublicKey,
@@ -33,7 +32,6 @@ impl Drop for MessageKey {
     }
 }
 
-#[derive(Zeroize)]
 pub(super) struct RemoteMessageKey {
     pub key: [u8; 32],
     pub index: u64,

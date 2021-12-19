@@ -14,7 +14,6 @@
 
 use rand::thread_rng;
 use x25519_dalek::{SharedSecret, StaticSecret as Curve25519SecretKey};
-use zeroize::Zeroize;
 
 use super::{
     chain_key::RemoteChainKey,
@@ -24,7 +23,7 @@ use crate::Curve25519PublicKey;
 
 pub(super) struct RatchetKey(Curve25519SecretKey);
 
-#[derive(Debug, PartialEq, Zeroize)]
+#[derive(Debug, PartialEq)]
 pub(super) struct RatchetPublicKey(Curve25519PublicKey);
 
 #[derive(Clone, Debug, Hash, PartialEq)]

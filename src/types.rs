@@ -12,17 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use ed25519_dalek::{Keypair, PublicKey as Ed25519PublicKey, Signer};
+use ed25519_dalek::{Keypair, PublicKey as Ed25519PublicKey, SignatureError, Signer};
 use rand::thread_rng;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use x25519_dalek::{EphemeralSecret, PublicKey, StaticSecret as Curve25519SecretKey};
 use zeroize::Zeroize;
 
 use crate::utilities::{base64_decode, base64_encode, DecodeError};
 
+#[derive(Deserialize, Serialize)]
+#[serde(try_from = "Ed25519KeypairPickle")]
+#[serde(into = "Ed25519KeypairPickle")]
 pub(super) struct Ed25519Keypair {
     inner: Keypair,
     encoded_public_key: String,
+}
+
+// This is required because Keypair doesn't implement Clone.
+impl Clone for Ed25519Keypair {
+    fn clone(&self) -> Self {
+        Self {
+            inner: Keypair::from_bytes(&self.inner.to_bytes())
+                .expect("Must never fail because this is essentially a clone."),
+            encoded_public_key: self.encoded_public_key.clone(),
+        }
+    }
+}
+
+impl From<Ed25519Keypair> for Ed25519KeypairPickle {
+    fn from(key: Ed25519Keypair) -> Self {
+        Ed25519KeypairPickle(key.inner.to_bytes().to_vec())
+    }
 }
 
 impl Ed25519Keypair {
@@ -48,11 +69,20 @@ impl Ed25519Keypair {
     }
 }
 
-pub(super) struct Curve25519Keypair {
+#[derive(Error, Debug)]
+#[error("Invalid Ed25519 keypair pickle: {0}")]
+pub struct Ed25519KeypairUnpicklingError(#[from] SignatureError);
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(from = "Curve25519KeypairPickle")]
+#[serde(into = "Curve25519KeypairPickle")]
+pub(crate) struct Curve25519Keypair {
     secret_key: Curve25519SecretKey,
     public_key: Curve25519PublicKey,
     encoded_public_key: String,
 }
+
+const CURVE25519_SECRET_KEY_LEN: usize = 32;
 
 impl Curve25519Keypair {
     pub fn new() -> Self {
@@ -77,7 +107,7 @@ impl Curve25519Keypair {
     }
 }
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct KeyId(pub(super) u64);
 
 impl From<KeyId> for String {
@@ -86,7 +116,8 @@ impl From<KeyId> for String {
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Copy, Clone, Debug, Zeroize)]
+#[derive(PartialEq, Eq, Hash, Copy, Clone, Debug, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct Curve25519PublicKey {
     pub(crate) inner: PublicKey,
 }
@@ -204,5 +235,50 @@ mod tests {
     fn decoding_of_correct_num_of_bytes_succeeds() {
         let base64_payload = "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA";
         assert!(matches!(Curve25519PublicKey::from_base64(base64_payload), Ok(..)));
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub(crate) struct Curve25519KeypairPickle {
+    secret: [u8; CURVE25519_SECRET_KEY_LEN],
+    public: [u8; Curve25519PublicKey::KEY_LENGTH],
+}
+
+impl Drop for Curve25519KeypairPickle {
+    fn drop(&mut self) {
+        self.secret.zeroize();
+    }
+}
+
+impl From<Curve25519KeypairPickle> for Curve25519Keypair {
+    fn from(pickle: Curve25519KeypairPickle) -> Self {
+        Self {
+            secret_key: pickle.secret.into(),
+            public_key: pickle.public.into(),
+            encoded_public_key: base64_encode(pickle.public),
+        }
+    }
+}
+
+impl From<Curve25519Keypair> for Curve25519KeypairPickle {
+    fn from(key: Curve25519Keypair) -> Self {
+        Curve25519KeypairPickle {
+            secret: key.secret_key.to_bytes(),
+            public: key.public_key.to_bytes(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Zeroize)]
+#[zeroize(drop)]
+pub(super) struct Ed25519KeypairPickle(Vec<u8>);
+
+impl TryFrom<Ed25519KeypairPickle> for Ed25519Keypair {
+    type Error = Ed25519KeypairUnpicklingError;
+
+    fn try_from(pickle: Ed25519KeypairPickle) -> Result<Self, Self::Error> {
+        let keypair = Keypair::from_bytes(&pickle.0)?;
+
+        Ok(Self { inner: keypair, encoded_public_key: base64_encode(&pickle.0) })
     }
 }

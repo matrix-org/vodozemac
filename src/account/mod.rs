@@ -14,7 +14,6 @@
 
 mod fallback_keys;
 mod one_time_keys;
-mod types;
 
 use std::collections::HashMap;
 
@@ -22,16 +21,21 @@ use ed25519_dalek::PublicKey as Ed25519PublicKey;
 use fallback_keys::FallbackKeys;
 use one_time_keys::OneTimeKeys;
 use rand::thread_rng;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use types::{Curve25519Keypair, Ed25519Keypair, KeyId};
 use x25519_dalek::StaticSecret as Curve25519SecretKey;
+use zeroize::Zeroize;
 
-pub use crate::account::types::{Curve25519KeyError, Curve25519PublicKey};
+use self::{fallback_keys::FallbackKeysPickle, one_time_keys::OneTimeKeysPickle};
 use crate::{
     messages::{DecodeError, InnerMessage, InnerPreKeyMessage, PreKeyMessage},
     session::Session,
     session_keys::SessionKeys,
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
+    types::{
+        Curve25519Keypair, Curve25519KeypairPickle, Curve25519PublicKey, Ed25519Keypair,
+        Ed25519KeypairPickle, Ed25519KeypairUnpicklingError, KeyId,
+    },
     utilities::{base64_decode, base64_encode},
 };
 
@@ -50,6 +54,8 @@ pub enum SessionCreationError {
 }
 
 /// An Olm account manages all cryptographic keys used on a device.
+#[derive(Deserialize)]
+#[serde(try_from = "AccountPickle")]
 pub struct Account {
     /// A permanent Ed25519 key used for signing. Also known as the fingerprint
     /// key.
@@ -63,6 +69,38 @@ pub struct Account {
     /// the 3DH, in case we run out of those. We keep track of both the current
     /// and the previous fallback key in any given moment.
     fallback_keys: FallbackKeys,
+}
+
+impl TryFrom<AccountPickle> for Account {
+    type Error = AccountUnpicklingError;
+
+    fn try_from(pickle: AccountPickle) -> Result<Self, AccountUnpicklingError> {
+        Ok(Self {
+            signing_key: pickle.signing_key.try_into()?,
+            diffie_hellman_key: pickle.diffie_hellman_key.into(),
+            one_time_keys: pickle.one_time_keys.into(),
+            fallback_keys: pickle.fallback_keys,
+        })
+    }
+}
+
+impl From<Account> for AccountPickle {
+    fn from(account: Account) -> Self {
+        AccountPickle {
+            signing_key: account.signing_key.into(),
+            diffie_hellman_key: account.diffie_hellman_key.into(),
+            one_time_keys: account.one_time_keys.into(),
+            fallback_keys: account.fallback_keys,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct AccountPickle {
+    signing_key: Ed25519KeypairPickle,
+    diffie_hellman_key: Curve25519KeypairPickle,
+    one_time_keys: OneTimeKeysPickle,
+    fallback_keys: FallbackKeysPickle,
 }
 
 impl Account {
@@ -108,10 +146,31 @@ impl Account {
         self.signing_key.sign(message)
     }
 
-    /// The maximum number of private one-time keys this `Account` will
-    /// remember.
-    ///
-    /// The oldest keys will be dropped if we try to hold more than this value.
+    pub fn from_libolm_pickle() -> Self {
+        todo!()
+    }
+
+    pub fn pickle(&self) -> AccountPickled {
+        let pickle: AccountPickle = self.to_pickle();
+        AccountPickled(
+            serde_json::to_string_pretty(&pickle).expect("Account serialization failed."),
+        )
+    }
+
+    fn to_pickle(&self) -> AccountPickle {
+        AccountPickle {
+            signing_key: self.signing_key.clone().into(),
+            diffie_hellman_key: self.diffie_hellman_key.clone().into(),
+            one_time_keys: self.one_time_keys.clone().into(),
+            fallback_keys: self.fallback_keys.clone(),
+        }
+    }
+
+    pub fn unpickle(input: &str) -> Result<Self, AccountUnpicklingError> {
+        let pickle: AccountPickle = serde_json::from_str(input)?;
+        pickle.try_into()
+    }
+
     pub fn max_number_of_one_time_keys(&self) -> usize {
         MAX_NUMBER_OF_ONE_TIME_KEYS
     }
@@ -260,6 +319,24 @@ impl Default for Account {
     fn default() -> Self {
         Self::new()
     }
+}
+
+#[derive(Zeroize, Debug)]
+#[zeroize(drop)]
+pub struct AccountPickled(String);
+
+impl AccountPickled {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum AccountUnpicklingError {
+    #[error("Invalid signing key: {0}")]
+    InvalidSigningKey(#[from] Ed25519KeypairUnpicklingError),
+    #[error("Pickle corrupted: {0}")]
+    InvalidPickle(#[from] serde_json::error::Error),
 }
 
 #[cfg(test)]
@@ -460,5 +537,31 @@ mod test {
         assert_eq!(text, decrypted);
 
         Ok(())
+    }
+
+    #[test]
+    fn account_pickling_roundtrip_is_identity() {
+        let mut account = Account::new();
+
+        account.generate_one_time_keys(50);
+
+        // Generate two fallback keys so the previous fallback key field gets populated.
+        account.generate_fallback_key();
+        account.generate_fallback_key();
+
+        let pickle = account.pickle();
+        let pickle_str = pickle.as_str();
+
+        let repickle = Account::unpickle(pickle_str)
+            .expect("Failed unpickling pickle which should always be valid")
+            .pickle();
+        let repickle_str = repickle.as_str();
+
+        let pickle: serde_json::Value = serde_json::from_str(pickle_str)
+            .expect("Failed parsing pickle string which should always be valid");
+        let repickle: serde_json::Value = serde_json::from_str(repickle_str)
+            .expect("Failed parsing pickle string which should always be valid");
+
+        assert_eq!(pickle, repickle);
     }
 }
