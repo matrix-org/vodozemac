@@ -20,6 +20,8 @@ mod ratchet;
 mod receiver_chain;
 mod root_key;
 
+use std::io::{Cursor, Read, Seek, SeekFrom};
+
 use arrayvec::ArrayVec;
 use block_modes::BlockModeError;
 use chain_key::RemoteChainKey;
@@ -69,6 +71,10 @@ impl ChainStore {
     #[cfg(test)]
     pub fn len(&self) -> usize {
         self.inner.len()
+    }
+
+    pub fn get(&self, index: usize) -> Option<&ReceiverChain> {
+        self.inner.get(index)
     }
 
     fn find_ratchet(&mut self, ratchet_key: &RemoteRatchetKey) -> Option<&mut ReceiverChain> {
@@ -223,6 +229,147 @@ impl Session {
             receiving_chains: self.receiving_chains.clone(),
         }
     }
+
+    pub fn from_libolm_pickle(pickle: &str, pickle_key: &str) -> Self {
+        use chain_key::ChainKey;
+        use message_key::RemoteMessageKey;
+        use ratchet::{Ratchet, RatchetKey};
+        use root_key::RootKey;
+        use x25519_dalek::StaticSecret as Curve25519SecretKey;
+
+        use crate::cipher::{Cipher, Mac};
+
+        let cipher = Cipher::new_pickle(pickle_key.as_ref());
+
+        let decoded = base64_decode(pickle).unwrap();
+
+        let mac = &decoded[decoded.len() - Mac::TRUNCATED_LEN..];
+        let message = &decoded[..decoded.len() - Mac::TRUNCATED_LEN];
+        cipher.verify_mac(message, mac).unwrap();
+        let decrypted = cipher.decrypt(message).unwrap();
+
+        let mut version = [0u8; 4];
+        let mut cursor = Cursor::new(decrypted);
+
+        cursor.read_exact(&mut version).unwrap();
+
+        let version = u32::from_be_bytes(version);
+
+        if version != 1 {
+            panic!("INVALID VERSION");
+        } else {
+            // We skip fetching the received_message boolean, if there's a
+            // receiving chain, we must have received a message.
+            cursor.seek(SeekFrom::Current(1)).unwrap();
+
+            let mut identity_key = [0u8; 32];
+            let mut base_key = [0u8; 32];
+            let mut one_time_key = [0u8; 32];
+
+            cursor.read_exact(&mut identity_key).unwrap();
+            cursor.read_exact(&mut base_key).unwrap();
+            cursor.read_exact(&mut one_time_key).unwrap();
+
+            let identity_key = Curve25519PublicKey::from(identity_key);
+            let base_key = Curve25519PublicKey::from(base_key);
+            let one_time_key = Curve25519PublicKey::from(one_time_key);
+
+            let session_keys = SessionKeys { identity_key, base_key, one_time_key };
+
+            let mut root_key = [0u8; 32];
+            cursor.read_exact(&mut root_key).unwrap();
+
+            let mut sender_chain_count = [0u8; 4];
+
+            cursor.read_exact(&mut sender_chain_count).unwrap();
+            let sender_chain_count = u32::from_be_bytes(sender_chain_count);
+
+            let sending_ratchet = if sender_chain_count == 1 {
+                let mut ratchet_key = [0u8; 32];
+                let mut chain_key = [0u8; 32];
+                let mut chain_key_index = [0u8; 4];
+
+                // Skip the public part of the ratchet key.
+                cursor.seek(SeekFrom::Current(32)).unwrap();
+                cursor.read_exact(&mut ratchet_key).unwrap();
+                cursor.read_exact(&mut chain_key).unwrap();
+                cursor.read_exact(&mut chain_key_index).unwrap();
+                let chain_key_index = u32::from_be_bytes(chain_key_index);
+
+                let ratchet_key = RatchetKey::from(Curve25519SecretKey::from(ratchet_key));
+                let chain_key = ChainKey::from_bytes_and_index(chain_key, chain_key_index);
+
+                let root_key = RootKey::new(root_key);
+
+                let ratchet = Ratchet::new_with_ratchet_key(root_key, ratchet_key);
+                Some(DoubleRatchet::from_ratchet_and_chain_key(ratchet, chain_key))
+            } else {
+                None
+            };
+
+            let mut receiving_chain_count = [0u8; 4];
+            cursor.read_exact(&mut receiving_chain_count).unwrap();
+            let receiving_chain_count = u32::from_be_bytes(receiving_chain_count);
+
+            let mut receiving_chains = ChainStore::new();
+
+            for _ in 0..receiving_chain_count {
+                let mut ratchet_key = [0u8; 32];
+                let mut chain_key = [0u8; 32];
+                let mut chain_key_index = [0u8; 4];
+
+                cursor.read_exact(&mut ratchet_key).unwrap();
+                cursor.read_exact(&mut chain_key).unwrap();
+                cursor.read_exact(&mut chain_key_index).unwrap();
+                let chain_key_index = u32::from_be_bytes(chain_key_index);
+
+                let ratchet_key = RemoteRatchetKey::from(ratchet_key);
+                let chain_key = RemoteChainKey::from_bytes_and_index(chain_key, chain_key_index);
+
+                let receiving_chain = ReceiverChain::new(ratchet_key, chain_key);
+
+                receiving_chains.push(receiving_chain);
+            }
+
+            let mut message_key_count = [0u8; 4];
+            cursor.read_exact(&mut message_key_count).unwrap();
+            let message_key_count = u32::from_be_bytes(message_key_count);
+
+            println!("HELLO MESSAGE KEY COUNT {}", message_key_count);
+
+            for _ in 0..message_key_count {
+                let mut ratchet_key = [0u8; 32];
+                let mut message_key = [0u8; 32];
+                let mut index = [0u8; 4];
+
+                cursor.read_exact(&mut ratchet_key).unwrap();
+                cursor.read_exact(&mut message_key).unwrap();
+                cursor.read_exact(&mut index).unwrap();
+
+                let index = u32::from_be_bytes(index).into();
+                let ratchet_key = RemoteRatchetKey::from(ratchet_key);
+
+                let message_key = RemoteMessageKey { key: message_key, index };
+
+                if let Some(receiving_chain) = receiving_chains.find_ratchet(&ratchet_key) {
+                    receiving_chain.insert_message_key(message_key)
+                }
+            }
+
+            if let Some(sending_ratchet) = sending_ratchet {
+                Self { session_keys, sending_ratchet, receiving_chains }
+            } else {
+                if let Some(chain) = receiving_chains.get(0) {
+                    let sending_ratchet =
+                        DoubleRatchet::inactive(RemoteRootKey::new(root_key), chain.ratchet_key());
+
+                    Self { session_keys, sending_ratchet, receiving_chains }
+                } else {
+                    panic!()
+                }
+            }
+        }
+    }
 }
 
 #[derive(Deserialize, Serialize)]
@@ -260,6 +407,7 @@ mod test {
     use olm_rs::{
         account::OlmAccount,
         session::{OlmMessage, OlmSession},
+        PicklingMode,
     };
 
     use super::Session;
@@ -333,6 +481,36 @@ mod test {
         assert_eq!("Message 2", alice_session.decrypt(&message_2)?);
 
         assert_eq!(alice_session.receiving_chains.len(), 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn libolm_unpickling() -> Result<()> {
+        let (_, _, mut session, olm) = sessions()?;
+
+        let plaintext = "It's a secret to everybody";
+        let old_message = session.encrypt(plaintext);
+
+        for _ in 0..9 {
+            session.encrypt("Hello");
+        }
+
+        let message = session.encrypt("Hello");
+        olm.decrypt(message.into())?;
+
+        let key = "DEFAULT_PICKLE_KEY";
+        let pickle = olm.pickle(PicklingMode::Encrypted { key: key.as_bytes().to_vec() });
+
+        let mut unpickled = Session::from_libolm_pickle(&pickle, key);
+
+        assert_eq!(olm.session_id(), unpickled.session_id());
+
+        assert_eq!(unpickled.decrypt(&old_message)?, plaintext);
+
+        let message = unpickled.encrypt(plaintext);
+
+        assert_eq!(session.decrypt(&message)?, plaintext);
 
         Ok(())
     }

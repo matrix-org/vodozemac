@@ -29,7 +29,7 @@ pub(super) struct RatchetKey(Curve25519SecretKey);
 #[derive(Debug, PartialEq)]
 pub(super) struct RatchetPublicKey(Curve25519PublicKey);
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct RemoteRatchetKey(Curve25519PublicKey);
 
@@ -41,6 +41,12 @@ impl RatchetKey {
 
     pub fn diffie_hellman(&self, other: &RemoteRatchetKey) -> SharedSecret {
         self.0.diffie_hellman(&other.0.inner)
+    }
+}
+
+impl From<Curve25519SecretKey> for RatchetKey {
+    fn from(key: Curve25519SecretKey) -> Self {
+        Self(key)
     }
 }
 

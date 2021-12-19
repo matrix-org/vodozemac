@@ -125,6 +125,14 @@ impl ReceiverChain {
         }
     }
 
+    pub fn ratchet_key(&self) -> RemoteRatchetKey {
+        self.ratchet_key
+    }
+
+    pub fn insert_message_key(&mut self, message_key: RemoteMessageKey) {
+        self.skipped_message_keys.push(message_key)
+    }
+
     pub fn belongs_to(&self, ratchet_key: &RemoteRatchetKey) -> bool {
         &self.ratchet_key == ratchet_key
     }

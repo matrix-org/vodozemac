@@ -65,6 +65,10 @@ impl RemoteChainKey {
         self.index
     }
 
+    pub fn from_bytes_and_index(bytes: [u8; 32], index: u32) -> Self {
+        Self { key: bytes, index: index.into() }
+    }
+
     pub fn advance(&mut self) {
         let output = advance(&self.key).into_bytes();
         self.key.copy_from_slice(output.as_slice());
@@ -84,6 +88,10 @@ impl RemoteChainKey {
 impl ChainKey {
     pub fn new(bytes: [u8; 32]) -> Self {
         Self { key: bytes, index: 0 }
+    }
+
+    pub fn from_bytes_and_index(bytes: [u8; 32], index: u32) -> Self {
+        Self { key: bytes, index: index.into() }
     }
 
     pub fn advance(&mut self) {
