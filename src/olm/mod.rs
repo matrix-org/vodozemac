@@ -21,4 +21,4 @@ mod shared_secret;
 
 pub use account::Account;
 pub use messages::OlmMessage;
-pub use session::Session;
+pub use session::{DecryptionError, Session, SessionPickledJSON};
