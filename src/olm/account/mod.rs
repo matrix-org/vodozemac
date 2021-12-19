@@ -734,9 +734,9 @@ mod test {
 
         let account_with_expanded_key = Account::from_libolm_pickle(&pickle, key)?;
 
-        account_with_expanded_key.sign("You met with a terrible fate, haven’t you?");
         let signing_key_clone = account_with_expanded_key.signing_key.clone();
         signing_key_clone.sign("You met with a terrible fate, haven’t you?");
+        account_with_expanded_key.sign("You met with a terrible fate, haven’t you?");
 
         Ok(())
     }
