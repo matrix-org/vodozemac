@@ -6,12 +6,12 @@
 
 A Rust implementation of Olm and Megolm
 
-vodozemac is a Rust implementation of
+vodozemac is a Rust reimplementation of the functionality of
 [libolm](https://gitlab.matrix.org/matrix-org/olm), a cryptographic library
 used for end-to-end encryption in [Matrix](https://matrix.org). At its core,
 vodozemac is an implementation of the Olm and Megolm cryptographic ratchets,
-along with a high-level API for easily establishing cryptographic communication
-channels with other parties.
+along with a high-level API to easily establish cryptographic communication
+channels with other parties using those ratchets.
 
 # Olm
 
@@ -28,7 +28,7 @@ A detailed technical specification can be found at
 
 The core component of the crate is the `Account`, representing a single Olm
 participant. An Olm `Account` consists of a collection of key pairs, though
-often documentation shortens this by just saying "keys". These are:
+often documentation will shorten this to just "keys". These are:
 
 1. An Ed25519 *signing key pair* representing the stable cryptographic identity
    of the participant (the participant's "fingerprint").
@@ -164,7 +164,7 @@ You can unpickle a pickle-able struct directly from its serialized form:
 ```rust
 # use anyhow::Result;
 # use vodozemac::olm::Account;
-
+#
 # fn main() -> Result<()> {
 #   let some_account = Account::new();
     let json_str = some_account.pickle_to_json_string();

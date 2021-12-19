@@ -109,6 +109,35 @@ impl Default for ChainStore {
     }
 }
 
+/// An Olm session represents one end of an encrypted communication channel
+/// between two participants.
+///
+/// A session enables enables the session owner to encrypt messages intended
+/// for, and decrypt messages sent by, the other participant of the channel.
+///
+/// Olm sessions have two important properties:
+///
+/// 1. They are based on a double ratchet algorithm which continuously
+/// introduces new entropy into    the channel as messages are sent and
+/// received. This imbues the channel with *self-healing*    properties,
+/// allowing it to recover from a momentary loss of confidentiality in the event
+/// of    a key compromise.
+/// 2. They are *asynchronous*, allowing the participant to start sending
+/// messages to the other    side even if the other participant is not online at
+/// the moment.
+///
+/// An Olm [`Session`] is acquired from an [`Account`], by calling either
+///
+/// - [`Account::create_outbound_session`], if you are the first participant to
+///   send a message in
+/// this channel, or
+/// - [`Account::create_inbound_session`], if the other participant initiated
+///   the channel by
+/// sending you a message.
+///
+/// [`Account`]: crate::olm::Account
+/// [`Account::create_outbound_session`]: crate::olm::Account::create_outbound_session
+/// [`Account::create_inbound_session`]: crate::olm::Account::create_inbound_session
 #[derive(Deserialize)]
 #[serde(from = "SessionPickle")]
 pub struct Session {
@@ -144,6 +173,12 @@ impl Session {
         Self { session_keys, sending_ratchet: local_ratchet, receiving_chains: ratchet_store }
     }
 
+    /// Returns the globally unique session ID, in base64-encoded form.
+    ///
+    /// A session ID is the SHA256 of the concatenation of the account's
+    /// identity key, an ephemeral base key and the one-time key which was
+    /// used to establish the session. Due to the construction, every
+    /// session ID is (probabilistically) globally unique.
     pub fn session_id(&self) -> String {
         let sha = Sha256::new();
 
@@ -161,6 +196,12 @@ impl Session {
         !self.receiving_chains.is_empty()
     }
 
+    /// Encrypt the `plaintext` and construct an [`OlmMessage`].
+    ///
+    /// The message will either be a pre-key message or a normal message,
+    /// depending on whether the session is fully established. A session is
+    /// fully established once you receive (and decrypt) at least one
+    /// message from the other side.
     pub fn encrypt(&mut self, plaintext: &str) -> OlmMessage {
         let message = self.sending_ratchet.encrypt(plaintext);
 
@@ -181,6 +222,10 @@ impl Session {
         }
     }
 
+    /// Try to decrypt an Olm message, which will either return the plaintext or
+    /// result in a [`DecryptionError`].
+    ///
+    /// [`DecryptionError`]: self::DecryptionError
     pub fn decrypt(&mut self, message: &OlmMessage) -> Result<String, DecryptionError> {
         let decrypted = match message {
             OlmMessage::Normal(m) => {
@@ -196,6 +241,7 @@ impl Session {
         Ok(String::from_utf8_lossy(&decrypted).to_string())
     }
 
+    // Helper function to decrypt a pre-key message.
     fn decrypt_prekey(&mut self, message: Vec<u8>) -> Result<Vec<u8>, DecryptionError> {
         let message = InnerPreKeyMessage::from(message);
         let (_, _, _, message) = message.decode()?;
@@ -203,6 +249,7 @@ impl Session {
         self.decrypt_normal(message)
     }
 
+    // Helper function to decrypt a normal message.
     fn decrypt_normal(&mut self, message: Vec<u8>) -> Result<Vec<u8>, DecryptionError> {
         let message = InnerMessage::from(message);
         let decoded = message.decode()?;
@@ -228,13 +275,8 @@ impl Session {
         }
     }
 
-    pub fn pickle_to_json_string(&self) -> SessionPickledJSON {
-        let pickle: SessionPickle = self.pickle();
-        SessionPickledJSON(
-            serde_json::to_string_pretty(&pickle).expect("Session serialization failed."),
-        )
-    }
-
+    /// Convert the session into a struct which implements [`serde::Serialize`]
+    /// and [`serde::Deserialize`].
     pub fn pickle(&self) -> SessionPickle {
         let session_keys: SessionKeysPickle = self.session_keys.clone();
         SessionPickle {
@@ -244,6 +286,26 @@ impl Session {
         }
     }
 
+    /// Pickle the session and serialize it to a JSON string.
+    ///
+    /// The string is wrapped in [`SessionPickledJSON`] which can be derefed to
+    /// access the content as a string slice. The string will zeroize itself
+    /// when it drops to prevent secrets contained inside from lingering in
+    /// memory.
+    ///
+    /// [`SessionPickledJSON`]: self::SessionPickledJSON
+    pub fn pickle_to_json_string(&self) -> SessionPickledJSON {
+        let pickle: SessionPickle = self.pickle();
+        SessionPickledJSON(
+            serde_json::to_string_pretty(&pickle).expect("Session serialization failed."),
+        )
+    }
+
+    /// Create a [`Session`] object by unpickling a session pickle in libolm
+    /// legacy pickle format.
+    ///
+    /// Such pickles are encrypted and need to first be decrypted using
+    /// `pickle_key`.
     pub fn from_libolm_pickle(
         pickle: &str,
         pickle_key: &str,
@@ -365,6 +427,8 @@ impl Session {
     }
 }
 
+/// A format suitable for serialization which implements [`serde::Serialize`]
+/// and [`serde::Deserialize`]. Obtainable by calling [`Session::pickle`].
 #[derive(Deserialize, Serialize)]
 pub struct SessionPickle {
     session_keys: SessionKeysPickle,
@@ -373,6 +437,7 @@ pub struct SessionPickle {
 }
 
 impl SessionPickle {
+    /// Convert the pickle format back into a [`Session`].
     pub fn unpickle(self) -> Session {
         self.into()
     }
@@ -393,10 +458,12 @@ impl From<SessionPickle> for Session {
 pub struct SessionPickledJSON(String);
 
 impl SessionPickledJSON {
+    /// Access the serialized content as a string slice.
     pub fn as_str(&self) -> &str {
         &self.0
     }
 
+    /// Try to convert the serialized JSON string back into a [`Session`].
     pub fn unpickle(self) -> Result<Session, SessionUnpicklingError> {
         let pickle: SessionPickle = serde_json::from_str(&self.0)?;
         Ok(pickle.unpickle())
