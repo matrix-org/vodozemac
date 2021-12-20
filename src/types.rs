@@ -14,7 +14,7 @@
 
 use ed25519_dalek::{
     ExpandedSecretKey as ExpandedEd25519SecretKey, Keypair, PublicKey as Ed25519PublicKey,
-    SecretKey as Ed25519SecretKey, SignatureError,
+    SecretKey as UnexpandedEd25519SecretKey, SignatureError,
 };
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
@@ -24,26 +24,26 @@ use zeroize::Zeroize;
 
 use crate::utilities::{base64_decode, base64_encode, DecodeError};
 
-enum Ed25519SecretKeys {
-    Normal(Ed25519SecretKey),
+enum Ed25519SecretKey {
+    Normal(UnexpandedEd25519SecretKey),
     Expanded(ExpandedEd25519SecretKey),
 }
 
-impl Ed25519SecretKeys {
+impl Ed25519SecretKey {
     fn public_key(&self) -> Ed25519PublicKey {
         match &self {
-            Ed25519SecretKeys::Normal(k) => Ed25519PublicKey::from(k),
-            Ed25519SecretKeys::Expanded(k) => Ed25519PublicKey::from(k),
+            Ed25519SecretKey::Normal(k) => Ed25519PublicKey::from(k),
+            Ed25519SecretKey::Expanded(k) => Ed25519PublicKey::from(k),
         }
     }
 
     fn sign(&self, message: &str, public_key: &Ed25519PublicKey) -> String {
         let signature = match &self {
-            Ed25519SecretKeys::Normal(k) => {
+            Ed25519SecretKey::Normal(k) => {
                 let expanded = ExpandedEd25519SecretKey::from(k);
                 expanded.sign(message.as_ref(), public_key)
             }
-            Ed25519SecretKeys::Expanded(k) => k.sign(message.as_ref(), public_key),
+            Ed25519SecretKey::Expanded(k) => k.sign(message.as_ref(), public_key),
         };
 
         base64_encode(signature.to_bytes())
@@ -54,18 +54,18 @@ impl Ed25519SecretKeys {
 #[serde(try_from = "Ed25519KeypairPickle")]
 #[serde(into = "Ed25519KeypairPickle")]
 pub(super) struct Ed25519Keypair {
-    secret_key: Ed25519SecretKeys,
+    secret_key: Ed25519SecretKey,
     public_key: Ed25519PublicKey,
     encoded_public_key: String,
 }
 
 impl Clone for Ed25519Keypair {
     fn clone(&self) -> Self {
-        let secret_key: Result<Ed25519SecretKeys, _> = match &self.secret_key {
-            Ed25519SecretKeys::Normal(k) => {
-                Ed25519SecretKey::from_bytes(k.as_bytes()).map(|k| k.into())
+        let secret_key: Result<Ed25519SecretKey, _> = match &self.secret_key {
+            Ed25519SecretKey::Normal(k) => {
+                UnexpandedEd25519SecretKey::from_bytes(k.as_bytes()).map(|k| k.into())
             }
-            Ed25519SecretKeys::Expanded(k) => {
+            Ed25519SecretKey::Expanded(k) => {
                 let mut bytes = k.to_bytes();
                 let key = ExpandedEd25519SecretKey::from_bytes(&bytes).map(|k| k.into());
                 bytes.zeroize();
@@ -85,19 +85,19 @@ impl Clone for Ed25519Keypair {
 impl From<Ed25519Keypair> for Ed25519KeypairPickle {
     fn from(key: Ed25519Keypair) -> Self {
         match key.secret_key {
-            Ed25519SecretKeys::Normal(k) => Ed25519KeypairPickle::Normal(k.as_bytes().to_vec()),
-            Ed25519SecretKeys::Expanded(k) => Ed25519KeypairPickle::Expanded(k.to_bytes().to_vec()),
+            Ed25519SecretKey::Normal(k) => Ed25519KeypairPickle::Normal(k.as_bytes().to_vec()),
+            Ed25519SecretKey::Expanded(k) => Ed25519KeypairPickle::Expanded(k.to_bytes().to_vec()),
         }
     }
 }
 
-impl From<Ed25519SecretKey> for Ed25519SecretKeys {
-    fn from(key: Ed25519SecretKey) -> Self {
+impl From<UnexpandedEd25519SecretKey> for Ed25519SecretKey {
+    fn from(key: UnexpandedEd25519SecretKey) -> Self {
         Self::Normal(key)
     }
 }
 
-impl From<ExpandedEd25519SecretKey> for Ed25519SecretKeys {
+impl From<ExpandedEd25519SecretKey> for Ed25519SecretKey {
     fn from(key: ExpandedEd25519SecretKey) -> Self {
         Self::Expanded(key)
     }
@@ -312,8 +312,8 @@ impl TryFrom<Ed25519KeypairPickle> for Ed25519Keypair {
     type Error = Ed25519KeypairUnpicklingError;
 
     fn try_from(pickle: Ed25519KeypairPickle) -> Result<Self, Self::Error> {
-        let secret_key: Ed25519SecretKeys = match &pickle {
-            Ed25519KeypairPickle::Normal(k) => Ed25519SecretKey::from_bytes(k)?.into(),
+        let secret_key: Ed25519SecretKey = match &pickle {
+            Ed25519KeypairPickle::Normal(k) => UnexpandedEd25519SecretKey::from_bytes(k)?.into(),
             Ed25519KeypairPickle::Expanded(k) => ExpandedEd25519SecretKey::from_bytes(k)?.into(),
         };
 
