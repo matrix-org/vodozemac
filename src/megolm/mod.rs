@@ -19,7 +19,7 @@ mod inbound_group_session;
 mod message;
 mod ratchet;
 
-pub use group_session::GroupSession;
+pub use group_session::{GroupSession, GroupSessionPickledJSON};
 pub use inbound_group_session::{
     DecryptionError, ExportedSessionKey, InboundGroupSession, SessionCreationError,
 };

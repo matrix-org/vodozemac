@@ -93,40 +93,35 @@ impl Account {
         }
     }
 
-    /// Get a reference to the account's public ed25519 key
+    /// Get a reference to the account's public Ed25519 key
     pub fn ed25519_key(&self) -> &Ed25519PublicKey {
         self.signing_key.public_key()
     }
 
-    /// Get a reference to the account's public ed25519 key as an unpadded
+    /// Get a reference to the account's public Ed25519 key as an unpadded
     /// base64 encoded string.
     pub fn ed25519_key_encoded(&self) -> &str {
         self.signing_key.public_key_encoded()
     }
 
-    /// Get a reference to the account's public curve25519 key
+    /// Get a reference to the account's public Curve25519 key
     pub fn curve25519_key(&self) -> &Curve25519PublicKey {
         self.diffie_hellman_key.public_key()
     }
 
-    /// Get a reference to the account's public curve25519 key as an unpadded
-    /// base64 encoded string.
+    /// Get a reference to the account's public Curve25519 key as an unpadded
+    /// base64-encoded string.
     pub fn curve25519_key_encoded(&self) -> &str {
         self.diffie_hellman_key.public_key_encoded()
     }
 
-    /// Sign the given message using our ed25519 identity key.
+    /// Sign the given message using our Ed25519 fingerprint key.
     pub fn sign(&self, message: &str) -> String {
         self.signing_key.sign(message)
     }
 
-    pub fn pickle_to_json_string(&self) -> AccountPickledJSON {
-        let pickle: AccountPickle = self.pickle();
-        AccountPickledJSON(
-            serde_json::to_string_pretty(&pickle).expect("Account serialization failed."),
-        )
-    }
-
+    /// Convert the account into a struct which implements [`serde::Serialize`]
+    /// and [`serde::Deserialize`].
     pub fn pickle(&self) -> AccountPickle {
         AccountPickle {
             signing_key: self.signing_key.clone().into(),
@@ -134,6 +129,19 @@ impl Account {
             one_time_keys: self.one_time_keys.clone().into(),
             fallback_keys: self.fallback_keys.clone(),
         }
+    }
+
+    /// Pickle the Olm account and serialize it to a JSON string.
+    ///
+    /// The string is wrapped in [`AccountPickledJSON`] which can be derefed to
+    /// access the content as a string slice. The string will zeroize itself
+    /// when it drops to prevent secrets contained inside from lingering in
+    /// memory.
+    pub fn pickle_to_json_string(&self) -> AccountPickledJSON {
+        let pickle: AccountPickle = self.pickle();
+        AccountPickledJSON(
+            serde_json::to_string_pretty(&pickle).expect("Account serialization failed."),
+        )
     }
 
     pub fn max_number_of_one_time_keys(&self) -> usize {
@@ -286,6 +294,11 @@ impl Account {
         self.fallback_keys.mark_as_published();
     }
 
+    /// Create an [`Account`] object by unpickling an account pickle in libolm
+    /// legacy pickle format.
+    ///
+    /// Such pickles are encrypted and need to first be decrypted using
+    /// `pickle_key`.
     pub fn from_libolm_pickle(
         pickle: &str,
         pickle_key: &str,
@@ -411,7 +424,10 @@ pub struct AccountPickle {
     fallback_keys: FallbackKeysPickle,
 }
 
+/// A format suitable for serialization which implements [`serde::Serialize`]
+/// and [`serde::Deserialize`]. Obtainable by calling [`Account::pickle`].
 impl AccountPickle {
+    /// Convert the pickle format back into an [`Account`].
     pub fn unpickle(self) -> Result<Account, AccountUnpicklingError> {
         self.try_into()
     }
@@ -435,10 +451,12 @@ impl TryFrom<AccountPickle> for Account {
 pub struct AccountPickledJSON(String);
 
 impl AccountPickledJSON {
+    /// Access the serialized content as a string slice.
     pub fn as_str(&self) -> &str {
         &self.0
     }
 
+    /// Try to convert the serialized JSON string back into an [`Account`].
     pub fn unpickle(self) -> Result<Account, AccountUnpicklingError> {
         let pickle: AccountPickle = serde_json::from_str(&self.0)?;
         pickle.unpickle()
