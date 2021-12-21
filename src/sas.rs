@@ -39,8 +39,8 @@
 //! let alice_bytes = alice.bytes("AGREED_INFO");
 //! let bob_bytes = bob.bytes("AGREED_INFO");
 //!
-//! let alice_emojis = alice_bytes.emoji_index();
-//! let bob_emojis = bob_bytes.emoji_index();
+//! let alice_emojis = alice_bytes.emoji_indices();
+//! let bob_emojis = bob_bytes.emoji_indices();
 //!
 //! assert_eq!(alice_emojis, bob_emojis);
 //! ```
@@ -106,7 +106,7 @@ impl SasBytes {
     /// The table that maps the index to an emoji can be found in the [spec].
     ///
     /// [spec]: https://spec.matrix.org/unstable/client-server-api/#sas-method-emoji
-    pub fn emoji_index(&self) -> [u8; 7] {
+    pub fn emoji_indices(&self) -> [u8; 7] {
         Self::bytes_to_emoji_index(&self.bytes)
     }
 
@@ -114,7 +114,7 @@ impl SasBytes {
     /// the key verification, as described in the [spec]
     ///
     /// [spec]: https://spec.matrix.org/unstable/client-server-api/#sas-method-emoji
-    pub fn decimlas(&self) -> (u16, u16, u16) {
+    pub fn decimals(&self) -> (u16, u16, u16) {
         Self::bytes_to_decimal(&self.bytes)
     }
 
