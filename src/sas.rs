@@ -27,14 +27,15 @@
 //!
 //! ```rust
 //! use vodozemac::sas::Sas;
-//!
+//! # use anyhow::Result;
+//! # fn main() -> Result<()> {
 //! let alice = Sas::new();
 //! let bob = Sas::new();
 //!
 //! let bob_public_key = bob.public_key();
 //!
-//! let bob = bob.diffie_hellman(alice.public_key());
-//! let alice = alice.diffie_hellman(bob_public_key);
+//! let bob = bob.diffie_hellman(alice.public_key())?;
+//! let alice = alice.diffie_hellman(bob_public_key)?;
 //!
 //! let alice_bytes = alice.bytes("AGREED_INFO");
 //! let bob_bytes = bob.bytes("AGREED_INFO");
@@ -43,6 +44,8 @@
 //! let bob_emojis = bob_bytes.emoji_index();
 //!
 //! assert_eq!(alice_emojis, bob_emojis);
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! [`Account`]: crate::olm::Account
@@ -71,6 +74,19 @@ pub enum SasError {
     /// The MAC failed to be validated.
     #[error("The SAS MAC validation didn't succeed: {0}")]
     Mac(#[from] MacError),
+}
+
+/// Error type describing failures that can happen when we try to create a
+/// shared secret.
+#[derive(Debug, Error)]
+pub enum PublicKeyError {
+    /// The given public curve25519 key wasn't valid.
+    #[error(transparent)]
+    PublicKey(#[from] Curve25519KeyError),
+    /// At least one of the keys did not have contributory behaviour and the
+    /// resulting shared secret would have been insecure.
+    #[error("At least one of the keys did not have contributory behaviour")]
+    NonContributoryKey,
 }
 
 /// A struct representing a short auth string verification object.
@@ -200,23 +216,33 @@ impl Sas {
 
     /// Establishes a SAS secret by performing a DH handshake with another
     /// public key.
-    pub fn diffie_hellman(self, other_public_key: Curve25519PublicKey) -> EstablishedSas {
+    ///
+    /// Returns an [`EstablishedSas`] object which can be used to generate
+    /// [`SasBytes`] if the given public key was valid, otherwise `None`.
+    pub fn diffie_hellman(
+        self,
+        other_public_key: Curve25519PublicKey,
+    ) -> Result<EstablishedSas, PublicKeyError> {
         let shared_secret = self.secret_key.diffie_hellman(&other_public_key.inner);
 
-        EstablishedSas { shared_secret }
+        if shared_secret.was_contributory() {
+            Ok(EstablishedSas { shared_secret })
+        } else {
+            Err(PublicKeyError::NonContributoryKey)
+        }
     }
 
     /// Establishes a SAS secret by performing a DH handshake with another
     /// public key in "raw", base64-encoded form.
+    ///
+    /// Returns an [`EstablishedSas`] object which can be used to generate
+    /// [`SasBytes`] if the received public key is valid, otherwise `None`.
     pub fn diffie_hellman_with_raw(
         self,
         other_public_key: &str,
-    ) -> Result<EstablishedSas, Curve25519KeyError> {
+    ) -> Result<EstablishedSas, PublicKeyError> {
         let other_public_key = Curve25519PublicKey::from_base64(other_public_key)?;
-
-        let shared_secret = self.secret_key.diffie_hellman(&other_public_key.inner);
-
-        Ok(EstablishedSas { shared_secret })
+        self.diffie_hellman(other_public_key)
     }
 }
 
