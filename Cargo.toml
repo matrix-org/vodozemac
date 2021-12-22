@@ -40,3 +40,4 @@ proptest = "1.0.0"
 
 [patch.crates-io]
 olm-rs = { path = "vendor/olm-rs" }
+ed25519-dalek = { git = "https://github.com/dalek-cryptography/ed25519-dalek", rev = "ad461f4f0f56507a2945510dedb914b3d3547c40" }
