@@ -19,7 +19,9 @@ use ed25519_dalek::{
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use x25519_dalek::{EphemeralSecret, PublicKey, StaticSecret as Curve25519SecretKey};
+use x25519_dalek::{
+    EphemeralSecret, PublicKey, ReusableSecret, StaticSecret as Curve25519SecretKey,
+};
 use zeroize::Zeroize;
 
 use crate::utilities::{base64_decode, base64_encode, DecodeError};
@@ -256,6 +258,12 @@ impl<'a> From<&'a Curve25519SecretKey> for Curve25519PublicKey {
 
 impl<'a> From<&'a EphemeralSecret> for Curve25519PublicKey {
     fn from(secret: &'a EphemeralSecret) -> Curve25519PublicKey {
+        Curve25519PublicKey { inner: PublicKey::from(secret) }
+    }
+}
+
+impl<'a> From<&'a ReusableSecret> for Curve25519PublicKey {
+    fn from(secret: &'a ReusableSecret) -> Curve25519PublicKey {
         Curve25519PublicKey { inner: PublicKey::from(secret) }
     }
 }

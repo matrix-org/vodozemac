@@ -33,7 +33,7 @@
 
 use hkdf::Hkdf;
 use sha2::Sha256;
-use x25519_dalek::{SharedSecret, StaticSecret};
+use x25519_dalek::{ReusableSecret, SharedSecret, StaticSecret};
 use zeroize::Zeroize;
 
 use crate::Curve25519PublicKey as PublicKey;
@@ -110,7 +110,7 @@ impl RemoteShared3DHSecret {
 impl Shared3DHSecret {
     pub fn new(
         identity_key: &StaticSecret,
-        one_time_key: &StaticSecret,
+        one_time_key: &ReusableSecret,
         remote_identity_key: &PublicKey,
         remote_one_time_key: &PublicKey,
     ) -> Self {
@@ -129,7 +129,7 @@ impl Shared3DHSecret {
 #[cfg(test)]
 mod test {
     use rand::thread_rng;
-    use x25519_dalek::StaticSecret;
+    use x25519_dalek::{ReusableSecret, StaticSecret};
 
     use super::{RemoteShared3DHSecret, Shared3DHSecret};
     use crate::Curve25519PublicKey as PublicKey;
@@ -139,7 +139,7 @@ mod test {
         let mut rng = thread_rng();
 
         let alice_identity = StaticSecret::new(&mut rng);
-        let alice_one_time = StaticSecret::new(&mut rng);
+        let alice_one_time = ReusableSecret::new(&mut rng);
 
         let bob_identity = StaticSecret::new(&mut rng);
         let bob_one_time = StaticSecret::new(&mut rng);

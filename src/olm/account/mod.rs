@@ -25,7 +25,7 @@ use ed25519_dalek::{ExpandedSecretKey as Ed25519PrivateKey, PublicKey as Ed25519
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use x25519_dalek::StaticSecret as Curve25519SecretKey;
+use x25519_dalek::{ReusableSecret, StaticSecret as Curve25519SecretKey};
 use zeroize::Zeroize;
 
 use self::{
@@ -156,7 +156,7 @@ impl Account {
     ) -> Session {
         let rng = thread_rng();
 
-        let base_key = Curve25519SecretKey::new(rng);
+        let base_key = ReusableSecret::new(rng);
         let public_base_key = Curve25519PublicKey::from(&base_key);
 
         let shared_secret = Shared3DHSecret::new(
