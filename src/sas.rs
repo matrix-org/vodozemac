@@ -56,7 +56,7 @@ use hmac::{digest::MacError, Hmac, Mac};
 use rand::thread_rng;
 use sha2::Sha256;
 use thiserror::Error;
-use x25519_dalek::{EphemeralSecret, SharedSecret};
+use x25519_dalek::{ReusableSecret, SharedSecret};
 
 use crate::{
     utilities::{base64_decode, base64_encode},
@@ -94,7 +94,7 @@ pub enum PublicKeyError {
 /// This object can be used to establish a shared secret to perform the short
 /// auth string based key verification.
 pub struct Sas {
-    secret_key: EphemeralSecret,
+    secret_key: ReusableSecret,
     public_key: Curve25519PublicKey,
     encoded_public_key: String,
 }
@@ -197,7 +197,7 @@ impl Sas {
     pub fn new() -> Self {
         let rng = thread_rng();
 
-        let secret_key = EphemeralSecret::new(rng);
+        let secret_key = ReusableSecret::new(rng);
         let public_key = Curve25519PublicKey::from(&secret_key);
         let encoded_public_key = base64_encode(public_key.as_bytes());
 
@@ -219,8 +219,14 @@ impl Sas {
     ///
     /// Returns an [`EstablishedSas`] object which can be used to generate
     /// [`SasBytes`] if the given public key was valid, otherwise `None`.
+    ///
+    /// # Security
+    ///
+    /// Please note that this method *must* only be called once, if the method
+    /// fails or we receive another public key another [`Sas`] object needs to
+    /// be created.
     pub fn diffie_hellman(
-        self,
+        &self,
         other_public_key: Curve25519PublicKey,
     ) -> Result<EstablishedSas, PublicKeyError> {
         let shared_secret = self.secret_key.diffie_hellman(&other_public_key.inner);
@@ -237,8 +243,13 @@ impl Sas {
     ///
     /// Returns an [`EstablishedSas`] object which can be used to generate
     /// [`SasBytes`] if the received public key is valid, otherwise `None`.
+    ///
+    /// # Security
+    ///
+    /// Please note that this method *must* only be called once, if the method
+    /// fails or we receive another public key another [`Sas`] object needs to
     pub fn diffie_hellman_with_raw(
-        self,
+        &self,
         other_public_key: &str,
     ) -> Result<EstablishedSas, PublicKeyError> {
         let other_public_key = Curve25519PublicKey::from_base64(other_public_key)?;
