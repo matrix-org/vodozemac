@@ -65,6 +65,11 @@ use crate::{
 
 type HmacSha256Key = [u8; 32];
 
+/// Error type for the case when we try to generate too many SAS bytes.
+#[derive(Debug, Clone, Error)]
+#[error("The given count of bytes was too large")]
+pub struct InvalidCount;
+
 /// Error type describing failures that can happen during the key verification.
 #[derive(Debug, Error)]
 pub enum SasError {
@@ -266,7 +271,7 @@ impl EstablishedSas {
     /// use the same info string.
     pub fn bytes(&self, info: &str) -> SasBytes {
         let mut bytes = [0u8; 6];
-        let byte_vec = self.bytes_raw(info, 6);
+        let byte_vec = self.bytes_raw(info, 6).expect("HKDF can always generate 6 bytes");
 
         bytes.copy_from_slice(&byte_vec);
 
@@ -278,13 +283,17 @@ impl EstablishedSas {
     ///
     /// The info string should be agreed upon beforehand, both parties need to
     /// use the same info string.
-    pub fn bytes_raw(&self, info: &str, count: usize) -> Vec<u8> {
+    ///
+    /// The number of bytes we can generate is limited, we can generate up to
+    /// 32 * 255 bytes. The function will not fail if the given count is smaller
+    /// than the limit.
+    pub fn bytes_raw(&self, info: &str, count: usize) -> Result<Vec<u8>, InvalidCount> {
         let mut output = vec![0u8; count];
         let hkdf = self.get_hkdf();
 
-        hkdf.expand(info.as_bytes(), &mut output[0..count]).expect("Can't generate the SAS bytes");
+        hkdf.expand(info.as_bytes(), &mut output[0..count]).map_err(|_| InvalidCount)?;
 
-        output
+        Ok(output)
     }
 
     /// Calculate a MAC for the given input using the info string as additional
@@ -357,7 +366,7 @@ mod test {
 
         assert_eq!(
             olm.generate_bytes("TEST", 10).expect("libolm coulnd't generate SAS bytes"),
-            established.bytes_raw("TEST", 10)
+            established.bytes_raw("TEST", 10)?
         );
 
         Ok(())
