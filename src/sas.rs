@@ -222,7 +222,7 @@ impl Sas {
     ///
     /// # Security
     ///
-    /// Please note that this method *must* only be called once, if the method
+    /// Please note that this method *must* be called only once. If the method
     /// fails or we receive another public key another [`Sas`] object needs to
     /// be created.
     pub fn diffie_hellman(
@@ -246,8 +246,9 @@ impl Sas {
     ///
     /// # Security
     ///
-    /// Please note that this method *must* only be called once, if the method
+    /// Please note that this method *must* be called only once. If the method
     /// fails or we receive another public key another [`Sas`] object needs to
+    /// be created.
     pub fn diffie_hellman_with_raw(
         &self,
         other_public_key: &str,
