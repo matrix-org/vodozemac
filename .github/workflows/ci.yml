@@ -33,7 +33,6 @@ jobs:
 
   typos:
     name: Spell Check with Typos
-    needs: [style]
     runs-on: ubuntu-latest
 
     steps:
