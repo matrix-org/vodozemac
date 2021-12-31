@@ -58,7 +58,7 @@ channel.
 
 ```rust
 use anyhow::Result;
-use vodozemac::olm::{Account, OlmMessage};
+use vodozemac::olm::{Account, OlmMessage, InboundCreationResult};
 
 fn main() -> Result<()> {
     let alice = Account::new();
@@ -76,12 +76,13 @@ fn main() -> Result<()> {
     let alice_msg = alice_session.encrypt(message);
 
     if let OlmMessage::PreKey(m) = alice_msg.clone() {
-        let mut bob_session = bob
-            .create_inbound_session(alice.curve25519_key(), &m)?;
+        let result = bob.create_inbound_session(alice.curve25519_key(), &m)?;
+
+        let mut bob_session = result.session;
+        let what_bob_received = result.plaintext;
 
         assert_eq!(alice_session.session_id(), bob_session.session_id());
 
-        let what_bob_received = bob_session.decrypt(&alice_msg)?;
         assert_eq!(message, what_bob_received);
 
         let bob_reply = "Yes. Take this, it's dangerous out there!";

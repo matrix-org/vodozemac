@@ -44,7 +44,9 @@ use super::{
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
 };
 use crate::{
-    olm::messages::{InnerMessage, InnerPreKeyMessage, Message, OlmMessage, PreKeyMessage},
+    olm::messages::{
+        DecodedMessage, InnerMessage, InnerPreKeyMessage, Message, OlmMessage, PreKeyMessage,
+    },
     utilities::{base64_decode, base64_encode},
     Curve25519PublicKey, DecodeError,
 };
@@ -254,6 +256,14 @@ impl Session {
         let message = InnerMessage::from(message);
         let decoded = message.decode()?;
 
+        self.decrypt_decoded(message, decoded)
+    }
+
+    pub(super) fn decrypt_decoded(
+        &mut self,
+        message: InnerMessage,
+        decoded: DecodedMessage,
+    ) -> Result<Vec<u8>, DecryptionError> {
         let ratchet_key = RemoteRatchetKey::from(decoded.ratchet_key);
 
         if let Some(ratchet) = self.receiving_chains.find_ratchet(&ratchet_key) {

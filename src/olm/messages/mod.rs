@@ -14,7 +14,9 @@
 
 mod inner;
 
-pub(crate) use inner::{OlmMessage as InnerMessage, PreKeyMessage as InnerPreKeyMessage};
+pub(crate) use inner::{
+    DecodedMessage, OlmMessage as InnerMessage, PreKeyMessage as InnerPreKeyMessage,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Message {
