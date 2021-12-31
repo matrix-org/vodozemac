@@ -78,25 +78,18 @@ jobs:
         args: --all-targets -- -D warnings
 
   test:
-    name: ${{ matrix.name }}
+    name: ${{ matrix.target.name }}
     needs: [clippy]
 
-    runs-on: ${{ matrix.os || 'ubuntu-latest' }}
+    runs-on: ${{ matrix.target.os }}
     strategy:
       matrix:
-        name:
-          - linux / stable
-          - linux / beta
-          - macOS / stable
-
-        include:
-          - name: linux / stable
-
-          - name: linux / beta
-            rust: beta
-
-          - name: macOS / stable
-            os: macOS-latest
+        target: [
+          { "os": "ubuntu-latest",  "toolchain": "x86_64-unknown-linux-gnu", "name": "Linux GNU" },
+          { "os": "macOS-latest",   "toolchain": "x86_64-apple-darwin",      "name": "macOS" },
+          { "os": "windows-latest", "toolchain": "x86_64-pc-windows-msvc",   "name": "Windows MSVC" },
+        ]
+        channel: [stable, beta, nightly]
 
     steps:
       - name: Checkout
@@ -116,8 +109,7 @@ jobs:
       - name: Install rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: ${{ matrix.rust || 'stable' }}
-          target: ${{ matrix.target }}
+          toolchain: ${{ format('{0}-{1}', matrix.channel, matrix.target.toolchain) }}
           profile: minimal
           override: true
 
