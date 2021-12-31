@@ -61,9 +61,10 @@ impl OneTimeKeys {
         &mut self,
         public_key: &Curve25519PublicKey,
     ) -> Option<Curve25519SecretKey> {
-        self.reverse_public_keys
-            .remove(public_key)
-            .and_then(|key_id| self.private_keys.remove(&key_id))
+        self.reverse_public_keys.remove(public_key).and_then(|key_id| {
+            self.public_keys.remove(&key_id);
+            self.private_keys.remove(&key_id)
+        })
     }
 
     pub fn generate(&mut self, count: usize) {
