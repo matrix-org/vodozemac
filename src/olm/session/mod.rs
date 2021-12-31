@@ -148,6 +148,12 @@ pub struct Session {
     receiving_chains: ChainStore,
 }
 
+impl std::fmt::Debug for Session {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Session").field("session_id", &self.session_id()).finish_non_exhaustive()
+    }
+}
+
 impl Session {
     pub(super) fn new(shared_secret: Shared3DHSecret, session_keys: SessionKeys) -> Self {
         let local_ratchet = DoubleRatchet::active(shared_secret);

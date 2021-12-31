@@ -64,6 +64,7 @@ pub enum SessionCreationError {
 }
 
 /// Return type for the creation of inbound [`Session`] objects.
+#[derive(Debug)]
 pub struct InboundCreationResult {
     /// The [`Session`] that was created from a pre-key message.
     pub session: Session,
@@ -517,11 +518,16 @@ mod test {
     use anyhow::{bail, Context, Result};
     use olm_rs::{account::OlmAccount, session::OlmMessage as LibolmOlmMessage, PicklingMode};
 
-    use super::{Account, InboundCreationResult};
-    use crate::{olm::messages::OlmMessage, Curve25519PublicKey as PublicKey};
+    use super::{Account, InboundCreationResult, SessionCreationError};
+    use crate::{
+        cipher::Mac,
+        olm::messages::{OlmMessage, PreKeyMessage},
+        utilities::{base64_decode, base64_encode},
+        Curve25519PublicKey as PublicKey,
+    };
 
     #[test]
-    fn test_vodozemac_libolm_communication() -> Result<()> {
+    fn vodozemac_libolm_communication() -> Result<()> {
         // vodozemac account
         let alice = Account::new();
         // libolm account
@@ -585,7 +591,7 @@ mod test {
     }
 
     #[test]
-    fn test_vodozemac_vodozemac_communication() -> Result<()> {
+    fn vodozemac_vodozemac_communication() -> Result<()> {
         // Both of these are vodozemac accounts.
         let alice = Account::new();
         let mut bob = Account::new();
@@ -641,7 +647,7 @@ mod test {
     }
 
     #[test]
-    fn test_inbound_session_creation() -> Result<()> {
+    fn inbound_session_creation() -> Result<()> {
         let alice = OlmAccount::new();
         let mut bob = Account::new();
 
@@ -677,7 +683,7 @@ mod test {
     }
 
     #[test]
-    fn test_inbound_session_creation_using_fallback_keys() -> Result<()> {
+    fn inbound_session_creation_using_fallback_keys() -> Result<()> {
         let alice = OlmAccount::new();
         let mut bob = Account::new();
 
@@ -766,7 +772,7 @@ mod test {
     }
 
     #[test]
-    fn test_signing_with_expanded_key() -> Result<()> {
+    fn signing_with_expanded_key() -> Result<()> {
         let olm = OlmAccount::new();
         olm.generate_one_time_keys(10);
         olm.generate_fallback_key();
@@ -781,5 +787,45 @@ mod test {
         account_with_expanded_key.sign("You met with a terrible fate, haven’t you?");
 
         Ok(())
+    }
+
+    #[test]
+    fn invalid_session_creation_does_not_remove_otk() -> Result<()> {
+        let mut alice = Account::new();
+        let malory = Account::new();
+        alice.generate_one_time_keys(1);
+
+        let mut session = malory.create_outbound_session(
+            *alice.curve25519_key(),
+            *alice.one_time_keys().values().next().expect("Should have one-time key"),
+        );
+
+        let message = session.encrypt("Test");
+
+        if let OlmMessage::PreKey(m) = message {
+            let mut message = base64_decode(m.inner)?;
+            let message_len = message.len();
+
+            // We mangle the MAC so decryption fails but creating a Session
+            // succeeds.
+            message[message_len - Mac::TRUNCATED_LEN..message_len]
+                .copy_from_slice(&[0u8; Mac::TRUNCATED_LEN]);
+
+            let message = base64_encode(message);
+            let message = PreKeyMessage { inner: message };
+
+            match alice.create_inbound_session(malory.curve25519_key(), &message) {
+                Err(SessionCreationError::Decryption(_)) => {}
+                e => bail!("Expected a decryption error, got {:?}", e),
+            }
+            assert!(
+                !alice.one_time_keys().is_empty(),
+                "The one-time key was removed when it shouldn't"
+            );
+
+            Ok(())
+        } else {
+            bail!("Invalid message type");
+        }
     }
 }
