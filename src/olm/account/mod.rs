@@ -819,7 +819,8 @@ mod test {
                 e => bail!("Expected a decryption error, got {:?}", e),
             }
             assert!(
-                !alice.one_time_keys().is_empty(),
+                !alice.one_time_keys.private_keys.is_empty()
+                    && !alice.one_time_keys.private_keys.is_empty(),
                 "The one-time key was removed when it shouldn't"
             );
 
