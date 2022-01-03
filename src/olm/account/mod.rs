@@ -34,7 +34,7 @@ use self::{
 };
 use super::{
     messages::{InnerMessage, InnerPreKeyMessage, PreKeyMessage},
-    session::Session,
+    session::{DecryptionError, Session},
     session_keys::SessionKeys,
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
 };
@@ -59,6 +59,17 @@ pub enum SessionCreationError {
     MissingOneTimeKey,
     #[error("The given identity key doesn't match the one in the pre-key message")]
     MismatchedIdentityKey,
+    #[error("The message that was used to establish the Session couldn't be decrypted")]
+    Decryption(#[from] DecryptionError),
+}
+
+/// Return type for the creation of inbound [`Session`] objects.
+#[derive(Debug)]
+pub struct InboundCreationResult {
+    /// The [`Session`] that was created from a pre-key message.
+    pub session: Session,
+    /// The plaintext of the pre-key message.
+    pub plaintext: String,
 }
 
 /// An Olm account manages all cryptographic keys used on a device.
@@ -188,12 +199,12 @@ impl Account {
         self.one_time_keys.remove_secret_key(public_key)
     }
 
-    /// Create a `Session` from the given pre-key message and identity key
+    /// Create a [`Session`] from the given pre-key message and identity key
     pub fn create_inbound_session(
         &mut self,
         their_identity_key: &Curve25519PublicKey,
         message: &PreKeyMessage,
-    ) -> Result<Session, SessionCreationError> {
+    ) -> Result<InboundCreationResult, SessionCreationError> {
         let message = base64_decode(&message.inner)?;
         let message = InnerPreKeyMessage::from(message);
 
@@ -203,10 +214,13 @@ impl Account {
         if their_identity_key != &remote_identity_key {
             Err(SessionCreationError::MismatchedIdentityKey)
         } else {
+            // Find the matching private key that the message claims to have
+            // used to create the Session that encrypted it.
             let one_time_key = self
                 .find_one_time_key(&public_one_time_key)
                 .ok_or(SessionCreationError::MissingOneTimeKey)?;
 
+            // Construct a 3DH shared secret from the various curve25519 keys.
             let shared_secret = RemoteShared3DHSecret::new(
                 self.diffie_hellman_key.secret_key(),
                 one_time_key,
@@ -214,6 +228,7 @@ impl Account {
                 &remote_one_time_key,
             );
 
+            // These will be used to uniquely identify the Session.
             let session_keys = SessionKeys {
                 identity_key: remote_identity_key,
                 base_key: remote_one_time_key,
@@ -223,11 +238,24 @@ impl Account {
             let message = InnerMessage::from(m);
             let decoded = message.decode()?;
 
-            let session = Session::new_remote(shared_secret, decoded.ratchet_key, session_keys);
+            // Create a Session, AKA a double ratchet, this one will have an
+            // inactive sending chain until we decide to encrypt a message.
+            let mut session = Session::new_remote(shared_secret, decoded.ratchet_key, session_keys);
 
+            // Decrypt the message to check if the Session is actually valid.
+            let plaintext = session.decrypt_decoded(message, decoded)?;
+            let plaintext = String::from_utf8_lossy(&plaintext).to_string();
+
+            // We only drop the one-time key now, this is why we can't use a
+            // one-time key type that takes `self`. If we didn't do this,
+            // someone could maliciously pretend to use up our one-time key and
+            // make us drop the private part. Unsuspecting users that actually
+            // try to use such an one-time key won't be able to commnuicate with
+            // us. This is strictly worse than the one-time key exhaustion
+            // scenario.
             self.remove_one_time_key(&public_one_time_key);
 
-            Ok(session)
+            Ok(InboundCreationResult { session, plaintext })
         }
     }
 
@@ -490,11 +518,16 @@ mod test {
     use anyhow::{bail, Context, Result};
     use olm_rs::{account::OlmAccount, session::OlmMessage as LibolmOlmMessage, PicklingMode};
 
-    use super::Account;
-    use crate::{olm::messages::OlmMessage, Curve25519PublicKey as PublicKey};
+    use super::{Account, InboundCreationResult, SessionCreationError};
+    use crate::{
+        cipher::Mac,
+        olm::messages::{OlmMessage, PreKeyMessage},
+        utilities::{base64_decode, base64_encode},
+        Curve25519PublicKey as PublicKey,
+    };
 
     #[test]
-    fn test_vodozemac_libolm_communication() -> Result<()> {
+    fn vodozemac_libolm_communication() -> Result<()> {
         // vodozemac account
         let alice = Account::new();
         // libolm account
@@ -558,7 +591,7 @@ mod test {
     }
 
     #[test]
-    fn test_vodozemac_vodozemac_communication() -> Result<()> {
+    fn vodozemac_vodozemac_communication() -> Result<()> {
         // Both of these are vodozemac accounts.
         let alice = Account::new();
         let mut bob = Account::new();
@@ -579,11 +612,11 @@ mod test {
         let message = "It's a secret to everybody";
         let olm_message: OlmMessage = alice_session.encrypt(message);
 
-        if let OlmMessage::PreKey(m) = olm_message.clone() {
-            let mut bob_session = bob.create_inbound_session(alice.curve25519_key(), &m)?;
+        if let OlmMessage::PreKey(m) = olm_message {
+            let InboundCreationResult { session: mut bob_session, plaintext } =
+                bob.create_inbound_session(alice.curve25519_key(), &m)?;
             assert_eq!(alice_session.session_id(), bob_session.session_id());
 
-            let plaintext = bob_session.decrypt(&olm_message)?;
             assert_eq!(message, plaintext);
 
             let second_text = "Here's another secret to everybody";
@@ -614,7 +647,7 @@ mod test {
     }
 
     #[test]
-    fn test_inbound_session_creation() -> Result<()> {
+    fn inbound_session_creation() -> Result<()> {
         let alice = OlmAccount::new();
         let mut bob = Account::new();
 
@@ -635,7 +668,7 @@ mod test {
 
         let identity_key = PublicKey::from_base64(alice.parsed_identity_keys().curve25519())?;
 
-        let mut session = if let OlmMessage::PreKey(m) = &message {
+        let InboundCreationResult { session, plaintext } = if let OlmMessage::PreKey(m) = &message {
             bob.create_inbound_session(&identity_key, m)?
         } else {
             bail!("Got invalid message type from olm_rs {:?}", message);
@@ -644,14 +677,13 @@ mod test {
         assert_eq!(alice_session.session_id(), session.session_id());
         assert!(bob.one_time_keys.private_keys.is_empty());
 
-        let decrypted = session.decrypt(&message)?;
-        assert_eq!(text, decrypted);
+        assert_eq!(text, plaintext);
 
         Ok(())
     }
 
     #[test]
-    fn test_inbound_session_creation_using_fallback_keys() -> Result<()> {
+    fn inbound_session_creation_using_fallback_keys() -> Result<()> {
         let alice = OlmAccount::new();
         let mut bob = Account::new();
 
@@ -669,7 +701,7 @@ mod test {
         let message = alice_session.encrypt(text).into();
         let identity_key = PublicKey::from_base64(alice.parsed_identity_keys().curve25519())?;
 
-        let mut session = if let OlmMessage::PreKey(m) = &message {
+        let InboundCreationResult { session, plaintext } = if let OlmMessage::PreKey(m) = &message {
             bob.create_inbound_session(&identity_key, m)?
         } else {
             bail!("Got invalid message type from olm_rs");
@@ -678,9 +710,7 @@ mod test {
         assert_eq!(alice_session.session_id(), session.session_id());
         assert!(bob.fallback_keys.fallback_key.is_some());
 
-        let decrypted = session.decrypt(&message)?;
-
-        assert_eq!(text, decrypted);
+        assert_eq!(text, plaintext);
 
         Ok(())
     }
@@ -742,7 +772,7 @@ mod test {
     }
 
     #[test]
-    fn test_signing_with_expanded_key() -> Result<()> {
+    fn signing_with_expanded_key() -> Result<()> {
         let olm = OlmAccount::new();
         olm.generate_one_time_keys(10);
         olm.generate_fallback_key();
@@ -757,5 +787,45 @@ mod test {
         account_with_expanded_key.sign("You met with a terrible fate, haven’t you?");
 
         Ok(())
+    }
+
+    #[test]
+    fn invalid_session_creation_does_not_remove_otk() -> Result<()> {
+        let mut alice = Account::new();
+        let malory = Account::new();
+        alice.generate_one_time_keys(1);
+
+        let mut session = malory.create_outbound_session(
+            *alice.curve25519_key(),
+            *alice.one_time_keys().values().next().expect("Should have one-time key"),
+        );
+
+        let message = session.encrypt("Test");
+
+        if let OlmMessage::PreKey(m) = message {
+            let mut message = base64_decode(m.inner)?;
+            let message_len = message.len();
+
+            // We mangle the MAC so decryption fails but creating a Session
+            // succeeds.
+            message[message_len - Mac::TRUNCATED_LEN..message_len]
+                .copy_from_slice(&[0u8; Mac::TRUNCATED_LEN]);
+
+            let message = base64_encode(message);
+            let message = PreKeyMessage { inner: message };
+
+            match alice.create_inbound_session(malory.curve25519_key(), &message) {
+                Err(SessionCreationError::Decryption(_)) => {}
+                e => bail!("Expected a decryption error, got {:?}", e),
+            }
+            assert!(
+                !alice.one_time_keys().is_empty(),
+                "The one-time key was removed when it shouldn't"
+            );
+
+            Ok(())
+        } else {
+            bail!("Invalid message type");
+        }
     }
 }
