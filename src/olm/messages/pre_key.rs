@@ -17,7 +17,7 @@ use prost::Message;
 use super::{DecodedMessage, EncodedMessage};
 use crate::{utilities::base64_decode, Curve25519PublicKey, DecodeError};
 
-pub(crate) struct DecodedPreKeyMessage {
+pub struct DecodedPreKeyMessage {
     pub public_one_time_key: Curve25519PublicKey,
     pub remote_one_time_key: Curve25519PublicKey,
     pub remote_identity_key: Curve25519PublicKey,

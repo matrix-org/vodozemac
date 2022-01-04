@@ -16,7 +16,7 @@
 //! An implementation of the Olm ratchet.
 
 mod account;
-mod messages;
+pub(crate) mod messages;
 mod session;
 mod session_keys;
 mod shared_secret;

@@ -12,7 +12,7 @@ repos:
         name: fmt
         language: system
         types: [file, rust]
-        entry: cargo fmt -- --check
+        entry: cargo +nightly fmt -- --check
 
       - id: clippy
         name: clippy

@@ -23,7 +23,7 @@ use crate::{
 
 const VERSION: u8 = 3;
 
-pub(super) struct MegolmMessage {
+pub struct MegolmMessage {
     pub source: EncodedMegolmMessage,
     pub ciphertext: Vec<u8>,
     pub message_index: u32,
@@ -79,7 +79,7 @@ impl TryFrom<Vec<u8>> for MegolmMessage {
     }
 }
 
-pub(super) struct EncodedMegolmMessage(Vec<u8>);
+pub struct EncodedMegolmMessage(Vec<u8>);
 
 impl EncodedMegolmMessage {
     const MESSAGE_SUFFIX_LENGTH: usize = Mac::TRUNCATED_LEN + Ed25519Signature::LENGTH;

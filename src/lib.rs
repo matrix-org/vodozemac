@@ -30,6 +30,8 @@ mod cipher;
 mod types;
 mod utilities;
 
+#[cfg(fuzzing)]
+pub mod fuzzing;
 pub mod megolm;
 pub mod olm;
 pub mod sas;

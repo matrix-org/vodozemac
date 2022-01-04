@@ -25,7 +25,7 @@ use thiserror::Error;
 type Aes256Cbc = Cbc<Aes256, Pkcs7>;
 type HmacSha256 = Hmac<Sha256>;
 
-pub(crate) struct Mac([u8; 32]);
+pub struct Mac([u8; 32]);
 
 impl Mac {
     pub const TRUNCATED_LEN: usize = 8;
@@ -116,10 +116,20 @@ impl Cipher {
         }
     }
 
+    #[cfg(not(fuzzing))]
     pub fn verify_mac(&self, message: &[u8], tag: &[u8]) -> Result<(), MacError> {
         let mut hmac = self.get_hmac();
 
         hmac.update(message);
         hmac.verify_truncated_left(tag)
+    }
+
+    /// A verify_mac method that always succeeds.
+    ///
+    /// Useful if we're fuzzing vodozemac, since MAC verification discards a lot
+    /// of inputs right away.
+    #[cfg(fuzzing)]
+    pub fn verify_mac(&self, _: &[u8], _: &[u8]) -> Result<(), MacError> {
+        Ok(())
     }
 }
