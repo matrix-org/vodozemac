@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+pub use ed25519_dalek::PublicKey as Ed25519PublicKey;
 use ed25519_dalek::{
-    ExpandedSecretKey as ExpandedEd25519SecretKey, Keypair, PublicKey as Ed25519PublicKey,
+    ExpandedSecretKey as ExpandedEd25519SecretKey, Keypair,
     SecretKey as UnexpandedEd25519SecretKey, SignatureError,
 };
 use rand::thread_rng;
@@ -22,6 +23,45 @@ use thiserror::Error;
 use zeroize::Zeroize;
 
 use crate::utilities::base64_encode;
+
+#[derive(Deserialize, Serialize)]
+#[serde(try_from = "Ed25519KeypairPickle")]
+#[serde(into = "Ed25519KeypairPickle")]
+pub struct Ed25519Keypair {
+    secret_key: Ed25519SecretKey,
+    public_key: Ed25519PublicKey,
+    encoded_public_key: String,
+}
+
+impl Ed25519Keypair {
+    pub fn new() -> Self {
+        let mut rng = thread_rng();
+        let keypair = Keypair::generate(&mut rng);
+        let encoded_public_key = base64_encode(keypair.public.as_bytes());
+
+        Self { secret_key: keypair.secret.into(), public_key: keypair.public, encoded_public_key }
+    }
+
+    pub fn from_expanded_key(secret_key: &[u8; 64]) -> Result<Self, SignatureError> {
+        let secret_key = ExpandedEd25519SecretKey::from_bytes(secret_key)?;
+        let public_key = Ed25519PublicKey::from(&secret_key);
+        let encoded_public_key = base64_encode(public_key.as_bytes());
+
+        Ok(Self { secret_key: secret_key.into(), public_key, encoded_public_key })
+    }
+
+    pub fn public_key(&self) -> &Ed25519PublicKey {
+        &self.public_key
+    }
+
+    pub fn public_key_encoded(&self) -> &str {
+        &self.encoded_public_key
+    }
+
+    pub fn sign(&self, message: &str) -> String {
+        self.secret_key.sign(message, self.public_key())
+    }
+}
 
 enum Ed25519SecretKey {
     Normal(UnexpandedEd25519SecretKey),
@@ -47,15 +87,6 @@ impl Ed25519SecretKey {
 
         base64_encode(signature.to_bytes())
     }
-}
-
-#[derive(Deserialize, Serialize)]
-#[serde(try_from = "Ed25519KeypairPickle")]
-#[serde(into = "Ed25519KeypairPickle")]
-pub struct Ed25519Keypair {
-    secret_key: Ed25519SecretKey,
-    public_key: Ed25519PublicKey,
-    encoded_public_key: String,
 }
 
 impl Clone for Ed25519Keypair {
@@ -99,36 +130,6 @@ impl From<UnexpandedEd25519SecretKey> for Ed25519SecretKey {
 impl From<ExpandedEd25519SecretKey> for Ed25519SecretKey {
     fn from(key: ExpandedEd25519SecretKey) -> Self {
         Self::Expanded(key)
-    }
-}
-
-impl Ed25519Keypair {
-    pub fn new() -> Self {
-        let mut rng = thread_rng();
-        let keypair = Keypair::generate(&mut rng);
-        let encoded_public_key = base64_encode(keypair.public.as_bytes());
-
-        Self { secret_key: keypair.secret.into(), public_key: keypair.public, encoded_public_key }
-    }
-
-    #[allow(dead_code)]
-    pub fn from_expanded_key(secret_key: ExpandedEd25519SecretKey) -> Self {
-        let public_key = Ed25519PublicKey::from(&secret_key);
-        let encoded_public_key = base64_encode(public_key.as_bytes());
-
-        Self { secret_key: secret_key.into(), public_key, encoded_public_key }
-    }
-
-    pub fn public_key(&self) -> &Ed25519PublicKey {
-        &self.public_key
-    }
-
-    pub fn public_key_encoded(&self) -> &str {
-        &self.encoded_public_key
-    }
-
-    pub fn sign(&self, message: &str) -> String {
-        self.secret_key.sign(message, self.public_key())
     }
 }
 

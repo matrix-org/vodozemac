@@ -21,7 +21,6 @@ use std::{
     ops::Deref,
 };
 
-use ed25519_dalek::{ExpandedSecretKey as Ed25519PrivateKey, PublicKey as Ed25519PublicKey};
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -41,7 +40,7 @@ use super::{
 use crate::{
     types::{
         Curve25519Keypair, Curve25519KeypairPickle, Curve25519PublicKey, Ed25519Keypair,
-        Ed25519KeypairPickle, Ed25519KeypairUnpicklingError, KeyId,
+        Ed25519KeypairPickle, Ed25519KeypairUnpicklingError, Ed25519PublicKey, KeyId,
     },
     utilities::{base64_decode, base64_encode},
     DecodeError,
@@ -354,7 +353,8 @@ impl Account {
             let mut private_key = [0u8; 64];
             cursor.read_exact(&mut private_key)?;
 
-            let private_ed25519_key = Ed25519PrivateKey::from_bytes(&private_key)?;
+            let signing_key = Ed25519Keypair::from_expanded_key(&private_key)?;
+            private_key.zeroize();
 
             let secret_key = read_curve_key(&mut cursor)?;
             let public_key = Curve25519PublicKey::from(&secret_key);
@@ -416,8 +416,6 @@ impl Account {
             } else {
                 None
             };
-
-            let signing_key = Ed25519Keypair::from_expanded_key(private_ed25519_key);
 
             Ok(Self {
                 signing_key,
