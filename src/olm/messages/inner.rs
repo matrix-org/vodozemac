@@ -137,34 +137,58 @@ impl AsRef<[u8]> for EncodedOlmMessage {
     }
 }
 
+pub(crate) struct PreKeyMessage {
+    pub public_one_time_key: Curve25519PublicKey,
+    pub remote_one_time_key: Curve25519PublicKey,
+    pub remote_identity_key: Curve25519PublicKey,
+    pub message: OlmMessage,
+}
+
+impl TryFrom<&str> for PreKeyMessage {
+    type Error = DecodeError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let decoded = base64_decode(value)?;
+
+        Self::try_from(decoded)
+    }
+}
+
+impl TryFrom<Vec<u8>> for PreKeyMessage {
+    type Error = DecodeError;
+
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        let version = *value.get(0).ok_or(DecodeError::MissingVersion)?;
+
+        if version != EncodedPrekeyMessage::VERSION {
+            Err(DecodeError::InvalidVersion(EncodedPrekeyMessage::VERSION, version))
+        } else {
+            let decoded = InnerPreKeyMessage::decode(&value[1..value.len()])?;
+            let one_time_key = Curve25519PublicKey::from_slice(&decoded.one_time_key)?;
+            let base_key = Curve25519PublicKey::from_slice(&decoded.base_key)?;
+            let identity_key = Curve25519PublicKey::from_slice(&decoded.identity_key)?;
+
+            let message = decoded.message.try_into()?;
+
+            Ok(Self {
+                public_one_time_key: one_time_key,
+                remote_one_time_key: base_key,
+                remote_identity_key: identity_key,
+                message,
+            })
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
-pub struct PreKeyMessage {
+pub struct EncodedPrekeyMessage {
     pub(super) inner: Vec<u8>,
 }
 
-impl PreKeyMessage {
+impl EncodedPrekeyMessage {
     const VERSION: u8 = 3;
 
-    pub fn decode(
-        self,
-    ) -> Result<(Curve25519PublicKey, Curve25519PublicKey, Curve25519PublicKey, Vec<u8>), DecodeError>
-    {
-        let version = *self.inner.get(0).ok_or(DecodeError::MissingVersion)?;
-
-        if version != Self::VERSION {
-            Err(DecodeError::InvalidVersion(Self::VERSION, version))
-        } else {
-            let inner = InnerPreKeyMessage::decode(&self.inner[1..self.inner.len()])?;
-
-            let one_time_key = Curve25519PublicKey::from_slice(&inner.one_time_key)?;
-            let base_key = Curve25519PublicKey::from_slice(&inner.base_key)?;
-            let identity_key = Curve25519PublicKey::from_slice(&inner.identity_key)?;
-
-            Ok((one_time_key, base_key, identity_key, inner.message))
-        }
-    }
-
-    pub fn from_parts(
+    pub fn new(
         one_time_key: &Curve25519PublicKey,
         base_key: &Curve25519PublicKey,
         identity_key: &Curve25519PublicKey,
@@ -188,13 +212,13 @@ impl PreKeyMessage {
     }
 }
 
-impl From<Vec<u8>> for PreKeyMessage {
+impl From<Vec<u8>> for EncodedPrekeyMessage {
     fn from(bytes: Vec<u8>) -> Self {
         Self { inner: bytes }
     }
 }
 
-impl AsRef<[u8]> for PreKeyMessage {
+impl AsRef<[u8]> for EncodedPrekeyMessage {
     fn as_ref(&self) -> &[u8] {
         &self.inner
     }

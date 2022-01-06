@@ -44,7 +44,9 @@ use super::{
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
 };
 use crate::{
-    olm::messages::{InnerMessage, InnerPreKeyMessage, Message, OlmMessage, PreKeyMessage},
+    olm::messages::{
+        EncodedPrekeyMessage, InnerMessage, InnerPreKeyMessage, Message, OlmMessage, PreKeyMessage,
+    },
     utilities::{base64_decode, base64_encode},
     Curve25519PublicKey, DecodeError,
 };
@@ -214,7 +216,7 @@ impl Session {
         if self.has_received_message() {
             OlmMessage::Normal(Message { inner: base64_encode(message) })
         } else {
-            let message = InnerPreKeyMessage::from_parts(
+            let message = EncodedPrekeyMessage::new(
                 &self.session_keys.one_time_key,
                 &self.session_keys.base_key,
                 &self.session_keys.identity_key,
@@ -232,31 +234,20 @@ impl Session {
     pub fn decrypt(&mut self, message: &OlmMessage) -> Result<String, DecryptionError> {
         let decrypted = match message {
             OlmMessage::Normal(m) => {
-                let message = base64_decode(&m.inner)?;
-                self.decrypt_normal(message)?
+                let message = InnerMessage::try_from(m.inner.as_str())?;
+                self.decrypt_decoded(message)?
             }
-            OlmMessage::PreKey(m) => {
-                let message = base64_decode(&m.inner)?;
-                self.decrypt_prekey(message)?
-            }
+            OlmMessage::PreKey(m) => self.decrypt_prekey(m)?,
         };
 
         Ok(String::from_utf8_lossy(&decrypted).to_string())
     }
 
     // Helper function to decrypt a pre-key message.
-    fn decrypt_prekey(&mut self, message: Vec<u8>) -> Result<Vec<u8>, DecryptionError> {
-        let message = InnerPreKeyMessage::from(message);
-        let (_, _, _, message) = message.decode()?;
+    fn decrypt_prekey(&mut self, message: &PreKeyMessage) -> Result<Vec<u8>, DecryptionError> {
+        let message = InnerPreKeyMessage::try_from(message.inner.as_str())?;
 
-        self.decrypt_normal(message)
-    }
-
-    // Helper function to decrypt a normal message.
-    fn decrypt_normal(&mut self, message: Vec<u8>) -> Result<Vec<u8>, DecryptionError> {
-        let decoded = message.try_into()?;
-
-        self.decrypt_decoded(decoded)
+        self.decrypt_decoded(message.message)
     }
 
     pub(super) fn decrypt_decoded(

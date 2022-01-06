@@ -15,7 +15,8 @@
 mod inner;
 
 pub(crate) use inner::{
-    EncodedOlmMessage, OlmMessage as InnerMessage, PreKeyMessage as InnerPreKeyMessage,
+    EncodedOlmMessage, EncodedPrekeyMessage, OlmMessage as InnerMessage,
+    PreKeyMessage as InnerPreKeyMessage,
 };
 
 #[derive(Debug, Clone, PartialEq)]
