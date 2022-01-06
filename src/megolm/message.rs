@@ -12,17 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use ed25519_dalek::{Signature, SIGNATURE_LENGTH};
 use prost::Message;
 
-use crate::{cipher::Mac, utilities::VarInt, DecodeError};
+use crate::{cipher::Mac, types::Ed25519Signature, utilities::VarInt, DecodeError};
 
 const VERSION: u8 = 3;
 
 pub(super) struct MegolmMessage(Vec<u8>);
 
 impl MegolmMessage {
-    const MESSAGE_SUFFIX_LENGTH: usize = Mac::TRUNCATED_LEN + SIGNATURE_LENGTH;
+    const MESSAGE_SUFFIX_LENGTH: usize = Mac::TRUNCATED_LEN + Ed25519Signature::LENGTH;
 
     pub fn new(ciphertext: Vec<u8>, message_index: u32) -> Self {
         let message = InnerMegolmMessage { message_index, ciphertext };
@@ -43,14 +42,14 @@ impl MegolmMessage {
             )?;
 
             let mac_location = message.len() - Self::MESSAGE_SUFFIX_LENGTH;
-            let signature_location = message.len() - SIGNATURE_LENGTH;
+            let signature_location = message.len() - Ed25519Signature::LENGTH;
 
             let mac_slice = &message[mac_location..mac_location + Mac::TRUNCATED_LEN];
             let signature_slice = &message[signature_location..];
 
             let mut mac = [0u8; Mac::TRUNCATED_LEN];
             mac.copy_from_slice(mac_slice);
-            let signature = Signature::from_bytes(signature_slice)?;
+            let signature = Ed25519Signature::from_bytes(signature_slice)?;
 
             let decoded = DecodedMegolmMessage {
                 ciphertext: inner.ciphertext,
@@ -79,14 +78,14 @@ impl MegolmMessage {
     }
 
     fn signature_start(&self) -> usize {
-        self.0.len() - SIGNATURE_LENGTH
+        self.0.len() - Ed25519Signature::LENGTH
     }
 
     pub fn bytes_for_signing(&self) -> &[u8] {
         &self.0[..self.signature_start()]
     }
 
-    pub fn append_signature(&mut self, signature: Signature) {
+    pub fn append_signature(&mut self, signature: Ed25519Signature) {
         let signature_start = self.signature_start();
         self.0[signature_start..].copy_from_slice(&signature.to_bytes());
     }
@@ -96,7 +95,7 @@ pub(crate) struct DecodedMegolmMessage {
     pub ciphertext: Vec<u8>,
     pub message_index: u32,
     pub mac: [u8; 8],
-    pub signature: Signature,
+    pub signature: Ed25519Signature,
 }
 
 impl AsRef<[u8]> for MegolmMessage {
@@ -131,7 +130,7 @@ impl InnerMegolmMessage {
             &ciphertext_len,
             &self.ciphertext,
             &[0u8; Mac::TRUNCATED_LEN],
-            &[0u8; SIGNATURE_LENGTH],
+            &[0u8; Ed25519Signature::LENGTH],
         ]
         .concat()
     }

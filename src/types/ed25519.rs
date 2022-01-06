@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub use ed25519_dalek::PublicKey as Ed25519PublicKey;
-use ed25519_dalek::{
-    ExpandedSecretKey as ExpandedEd25519SecretKey, Keypair,
-    SecretKey as UnexpandedEd25519SecretKey, SignatureError,
+pub use ed25519_dalek::{
+    ExpandedSecretKey as ExpandedEd25519SecretKey, PublicKey as Ed25519PublicKey, Signature,
+    SIGNATURE_LENGTH,
 };
+use ed25519_dalek::{Keypair, SecretKey as UnexpandedEd25519SecretKey, SignatureError};
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -58,7 +58,7 @@ impl Ed25519Keypair {
         &self.encoded_public_key
     }
 
-    pub fn sign(&self, message: &str) -> String {
+    pub fn sign(&self, message: &[u8]) -> Ed25519Signature {
         self.secret_key.sign(message, self.public_key())
     }
 }
@@ -77,7 +77,7 @@ impl Ed25519SecretKey {
         }
     }
 
-    fn sign(&self, message: &str, public_key: &Ed25519PublicKey) -> String {
+    fn sign(&self, message: &[u8], public_key: &Ed25519PublicKey) -> Ed25519Signature {
         let signature = match &self {
             Ed25519SecretKey::Normal(k) => {
                 let expanded = ExpandedEd25519SecretKey::from(k);
@@ -86,7 +86,25 @@ impl Ed25519SecretKey {
             Ed25519SecretKey::Expanded(k) => k.sign(message.as_ref(), public_key),
         };
 
-        base64_encode(signature.to_bytes())
+        Ed25519Signature(signature)
+    }
+}
+
+pub struct Ed25519Signature(pub(crate) Signature);
+
+impl Ed25519Signature {
+    pub const LENGTH: usize = SIGNATURE_LENGTH;
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, SignatureError> {
+        Ok(Self(Signature::from_bytes(bytes)?))
+    }
+
+    pub fn to_base64(&self) -> String {
+        base64_encode(self.0.to_bytes())
+    }
+
+    pub fn to_bytes(&self) -> [u8; Self::LENGTH] {
+        self.0.to_bytes()
     }
 }
 

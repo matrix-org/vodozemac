@@ -27,13 +27,13 @@ use thiserror::Error;
 use zeroize::Zeroize;
 
 use super::{
-    group_session::PublicKeyPickle,
     message::MegolmMessage,
     ratchet::{MegolmRatchetUnpicklingError, Ratchet, RatchetPickle},
     SessionKey, SESSION_KEY_VERSION,
 };
 use crate::{
     cipher::Cipher,
+    types::Ed25519PublicKey,
     utilities::{base64_decode, base64_encode},
     DecodeError,
 };
@@ -76,7 +76,7 @@ pub enum DecryptionError {
 pub struct InboundGroupSession {
     initial_ratchet: Ratchet,
     latest_ratchet: Ratchet,
-    signing_key: PublicKey,
+    signing_key: Ed25519PublicKey,
     #[allow(dead_code)]
     signing_key_verified: bool,
 }
@@ -186,7 +186,7 @@ impl InboundGroupSession {
         let decoded = base64_decode(ciphertext)?;
         let (message, decoded) = MegolmMessage::decode(decoded)?;
 
-        self.signing_key.verify(message.bytes_for_signing(), &decoded.signature)?;
+        self.signing_key.verify(message.bytes_for_signing(), &decoded.signature.0)?;
 
         if let Some(ratchet) = self.find_ratchet(decoded.message_index) {
             let cipher = Cipher::new_megolm(ratchet.as_bytes());
@@ -244,7 +244,7 @@ impl InboundGroupSession {
         InboundGroupSessionPickle {
             initial_ratchet: self.initial_ratchet.clone().into(),
             latest_ratchet: self.latest_ratchet.clone().into(),
-            signing_key: self.signing_key.into(),
+            signing_key: self.signing_key,
             signing_key_verified: self.signing_key_verified,
         }
     }
@@ -293,7 +293,7 @@ impl InboundGroupSession {
 pub struct InboundGroupSessionPickle {
     initial_ratchet: RatchetPickle,
     latest_ratchet: RatchetPickle,
-    signing_key: PublicKeyPickle,
+    signing_key: Ed25519PublicKey,
     #[allow(dead_code)]
     signing_key_verified: bool,
 }
@@ -317,10 +317,7 @@ impl TryFrom<InboundGroupSessionPickle> for InboundGroupSession {
                 .latest_ratchet
                 .try_into()
                 .map_err(InboundGroupSessionUnpicklingError::InvalidLatestRatchet)?,
-            signing_key: pickle
-                .signing_key
-                .try_into()
-                .map_err(InboundGroupSessionUnpicklingError::InvalidSigningPublicKey)?,
+            signing_key: pickle.signing_key,
             signing_key_verified: pickle.signing_key_verified,
         })
     }

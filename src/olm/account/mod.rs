@@ -127,7 +127,7 @@ impl Account {
 
     /// Sign the given message using our Ed25519 fingerprint key.
     pub fn sign(&self, message: &str) -> String {
-        self.signing_key.sign(message)
+        self.signing_key.sign(message.as_bytes()).to_base64()
     }
 
     /// Convert the account into a struct which implements [`serde::Serialize`]
@@ -781,7 +781,7 @@ mod test {
         let account_with_expanded_key = Account::from_libolm_pickle(&pickle, key)?;
 
         let signing_key_clone = account_with_expanded_key.signing_key.clone();
-        signing_key_clone.sign("You met with a terrible fate, haven’t you?");
+        signing_key_clone.sign("You met with a terrible fate, haven’t you?".as_bytes());
         account_with_expanded_key.sign("You met with a terrible fate, haven’t you?");
 
         Ok(())
