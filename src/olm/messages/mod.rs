@@ -35,12 +35,11 @@ pub enum OlmMessage {
 }
 
 impl OlmMessage {
-    #[allow(clippy::result_unit_err)]
-    pub fn from_type_and_ciphertext(message_type: usize, ciphertext: String) -> Result<Self, ()> {
+    pub fn from_parts(message_type: usize, ciphertext: String) -> Option<Self> {
         match message_type {
-            0 => Ok(Self::PreKey(PreKeyMessage { inner: ciphertext })),
-            1 => Ok(Self::Normal(Message { inner: ciphertext })),
-            _ => Err(()),
+            0 => Some(Self::PreKey(PreKeyMessage { inner: ciphertext })),
+            1 => Some(Self::Normal(Message { inner: ciphertext })),
+            _ => None,
         }
     }
 
@@ -58,7 +57,7 @@ impl OlmMessage {
         }
     }
 
-    pub fn to_tuple(self) -> (usize, String) {
+    pub fn to_parts(self) -> (usize, String) {
         let message_type = self.message_type();
 
         match self {
