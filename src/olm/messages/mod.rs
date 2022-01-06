@@ -15,8 +15,7 @@
 mod inner;
 
 pub(crate) use inner::{
-    EncodedOlmMessage, EncodedPrekeyMessage, OlmMessage as InnerMessage,
-    PreKeyMessage as InnerPreKeyMessage,
+    DecodedMessage, DecodedPreKeyMessage, EncodedMessage, EncodedPrekeyMessage,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -24,9 +23,21 @@ pub struct Message {
     pub(super) inner: String,
 }
 
+impl Message {
+    pub(crate) fn decode(&self) -> Result<DecodedMessage, crate::DecodeError> {
+        DecodedMessage::try_from(self.inner.as_str())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct PreKeyMessage {
     pub(super) inner: String,
+}
+
+impl PreKeyMessage {
+    pub(crate) fn decode(&self) -> Result<DecodedPreKeyMessage, crate::DecodeError> {
+        DecodedPreKeyMessage::try_from(self.inner.as_str())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -98,6 +109,7 @@ impl From<MessageType> for usize {
 
 #[cfg(test)]
 use olm_rs::session::OlmMessage as LibolmMessage;
+
 #[cfg(test)]
 impl From<LibolmMessage> for OlmMessage {
     fn from(other: LibolmMessage) -> Self {

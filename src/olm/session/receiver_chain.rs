@@ -19,7 +19,7 @@ use super::{
     chain_key::RemoteChainKey, message_key::RemoteMessageKey, ratchet::RemoteRatchetKey,
     DecryptionError,
 };
-use crate::olm::messages::InnerMessage;
+use crate::olm::messages::DecodedMessage;
 
 const MAX_MESSAGE_GAP: u64 = 2000;
 const MAX_MESSAGE_KEYS: usize = 40;
@@ -79,7 +79,7 @@ impl ReceiverChain {
         }
     }
 
-    pub fn decrypt(&mut self, message: &InnerMessage) -> Result<Vec<u8>, DecryptionError> {
+    pub fn decrypt(&mut self, message: &DecodedMessage) -> Result<Vec<u8>, DecryptionError> {
         let message_gap = message.chain_index.saturating_sub(self.hkdf_ratchet.chain_index());
 
         if message_gap > MAX_MESSAGE_GAP {

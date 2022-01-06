@@ -20,15 +20,15 @@ use crate::{
     Curve25519PublicKey, DecodeError,
 };
 
-pub(crate) struct OlmMessage {
-    pub source: EncodedOlmMessage,
+pub(crate) struct DecodedMessage {
+    pub source: EncodedMessage,
     pub ratchet_key: Curve25519PublicKey,
     pub chain_index: u64,
     pub ciphertext: Vec<u8>,
     pub mac: [u8; 8],
 }
 
-impl TryFrom<&str> for OlmMessage {
+impl TryFrom<&str> for DecodedMessage {
     type Error = DecodeError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
@@ -38,14 +38,14 @@ impl TryFrom<&str> for OlmMessage {
     }
 }
 
-impl TryFrom<Vec<u8>> for OlmMessage {
+impl TryFrom<Vec<u8>> for DecodedMessage {
     type Error = DecodeError;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
         let version = *value.get(0).ok_or(DecodeError::MissingVersion)?;
 
-        if version != EncodedOlmMessage::VERSION {
-            Err(DecodeError::InvalidVersion(EncodedOlmMessage::VERSION, version))
+        if version != EncodedMessage::VERSION {
+            Err(DecodeError::InvalidVersion(EncodedMessage::VERSION, version))
         } else if value.len() < Mac::TRUNCATED_LEN + 2 {
             Err(DecodeError::MessageTooShort(value.len()))
         } else {
@@ -63,8 +63,8 @@ impl TryFrom<Vec<u8>> for OlmMessage {
                 let ciphertext = inner.ciphertext;
                 let ratchet_key = Curve25519PublicKey::from_slice(&inner.ratchet_key)?;
 
-                let message = OlmMessage {
-                    source: EncodedOlmMessage(value),
+                let message = DecodedMessage {
+                    source: EncodedMessage(value),
                     ratchet_key,
                     chain_index,
                     ciphertext,
@@ -78,9 +78,9 @@ impl TryFrom<Vec<u8>> for OlmMessage {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct EncodedOlmMessage(Vec<u8>);
+pub struct EncodedMessage(Vec<u8>);
 
-impl EncodedOlmMessage {
+impl EncodedMessage {
     const VERSION: u8 = 3;
 
     const RATCHET_TAG: &'static [u8; 1] = b"\x0A";
@@ -131,20 +131,20 @@ impl EncodedOlmMessage {
     }
 }
 
-impl AsRef<[u8]> for EncodedOlmMessage {
+impl AsRef<[u8]> for EncodedMessage {
     fn as_ref(&self) -> &[u8] {
         &self.0
     }
 }
 
-pub(crate) struct PreKeyMessage {
+pub(crate) struct DecodedPreKeyMessage {
     pub public_one_time_key: Curve25519PublicKey,
     pub remote_one_time_key: Curve25519PublicKey,
     pub remote_identity_key: Curve25519PublicKey,
-    pub message: OlmMessage,
+    pub message: DecodedMessage,
 }
 
-impl TryFrom<&str> for PreKeyMessage {
+impl TryFrom<&str> for DecodedPreKeyMessage {
     type Error = DecodeError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
@@ -154,7 +154,7 @@ impl TryFrom<&str> for PreKeyMessage {
     }
 }
 
-impl TryFrom<Vec<u8>> for PreKeyMessage {
+impl TryFrom<Vec<u8>> for DecodedPreKeyMessage {
     type Error = DecodeError;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
@@ -192,7 +192,7 @@ impl EncodedPrekeyMessage {
         one_time_key: &Curve25519PublicKey,
         base_key: &Curve25519PublicKey,
         identity_key: &Curve25519PublicKey,
-        message: EncodedOlmMessage,
+        message: EncodedMessage,
     ) -> Self {
         let message = InnerPreKeyMessage {
             one_time_key: one_time_key.as_bytes().to_vec(),
@@ -248,7 +248,7 @@ struct InnerPreKeyMessage {
 
 #[cfg(test)]
 mod test {
-    use super::EncodedOlmMessage;
+    use super::EncodedMessage;
 
     #[test]
     fn encode() {
@@ -258,8 +258,7 @@ mod test {
         let ratchet_key = b"ratchetkey";
         let ciphertext = b"ciphertext";
 
-        let mut encoded =
-            EncodedOlmMessage::from_parts_untyped(ratchet_key, 1, ciphertext.to_vec());
+        let mut encoded = EncodedMessage::from_parts_untyped(ratchet_key, 1, ciphertext.to_vec());
 
         assert_eq!(encoded.as_payload_bytes(), message.as_ref());
         encoded.append_mac_bytes(b"MACHEREE");

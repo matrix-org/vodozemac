@@ -44,9 +44,7 @@ use super::{
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
 };
 use crate::{
-    olm::messages::{
-        EncodedPrekeyMessage, InnerMessage, InnerPreKeyMessage, Message, OlmMessage, PreKeyMessage,
-    },
+    olm::messages::{DecodedMessage, EncodedPrekeyMessage, Message, OlmMessage, PreKeyMessage},
     utilities::{base64_decode, base64_encode},
     Curve25519PublicKey, DecodeError,
 };
@@ -234,25 +232,21 @@ impl Session {
     pub fn decrypt(&mut self, message: &OlmMessage) -> Result<String, DecryptionError> {
         let decrypted = match message {
             OlmMessage::Normal(m) => {
-                let message = InnerMessage::try_from(m.inner.as_str())?;
+                let message = m.decode()?;
                 self.decrypt_decoded(message)?
             }
-            OlmMessage::PreKey(m) => self.decrypt_prekey(m)?,
+            OlmMessage::PreKey(m) => {
+                let message = m.decode()?;
+                self.decrypt_decoded(message.message)?
+            }
         };
 
         Ok(String::from_utf8_lossy(&decrypted).to_string())
     }
 
-    // Helper function to decrypt a pre-key message.
-    fn decrypt_prekey(&mut self, message: &PreKeyMessage) -> Result<Vec<u8>, DecryptionError> {
-        let message = InnerPreKeyMessage::try_from(message.inner.as_str())?;
-
-        self.decrypt_decoded(message.message)
-    }
-
     pub(super) fn decrypt_decoded(
         &mut self,
-        message: InnerMessage,
+        message: DecodedMessage,
     ) -> Result<Vec<u8>, DecryptionError> {
         let ratchet_key = RemoteRatchetKey::from(message.ratchet_key);
 

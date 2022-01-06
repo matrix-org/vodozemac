@@ -32,7 +32,7 @@ use self::{
     one_time_keys::{OneTimeKeys, OneTimeKeysPickle},
 };
 use super::{
-    messages::{InnerPreKeyMessage, PreKeyMessage},
+    messages::PreKeyMessage,
     session::{DecryptionError, Session},
     session_keys::SessionKeys,
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
@@ -204,7 +204,7 @@ impl Account {
         their_identity_key: &Curve25519PublicKey,
         message: &PreKeyMessage,
     ) -> Result<InboundCreationResult, SessionCreationError> {
-        let message = InnerPreKeyMessage::try_from(message.inner.as_str())?;
+        let message = message.decode()?;
 
         if their_identity_key != &message.remote_identity_key {
             Err(SessionCreationError::MismatchedIdentityKey)
