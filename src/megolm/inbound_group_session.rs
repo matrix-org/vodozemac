@@ -51,8 +51,6 @@ pub enum SessionCreationError {
 
 #[derive(Debug, Error)]
 pub enum DecryptionError {
-    #[error("The message wasn't valid base64: {0}")]
-    Base64(#[from] base64::DecodeError),
     #[error("The signature on the session key was invalid: {0}")]
     Signature(#[from] SignatureError),
     #[error("Failed decrypting Megolm message, invalid MAC: {0}")]
@@ -180,23 +178,22 @@ impl InboundGroupSession {
     }
 
     pub fn decrypt(&mut self, ciphertext: &str) -> Result<DecryptedMessage, DecryptionError> {
-        let decoded = base64_decode(ciphertext)?;
-        let (message, decoded) = MegolmMessage::decode(decoded)?;
+        let message = MegolmMessage::try_from(ciphertext)?;
 
-        self.signing_key.verify(message.bytes_for_signing(), &decoded.signature)?;
+        self.signing_key.verify(message.source.bytes_for_signing(), &message.signature)?;
 
-        if let Some(ratchet) = self.find_ratchet(decoded.message_index) {
+        if let Some(ratchet) = self.find_ratchet(message.message_index) {
             let cipher = Cipher::new_megolm(ratchet.as_bytes());
 
-            cipher.verify_mac(message.bytes_for_mac(), &decoded.mac)?;
+            cipher.verify_mac(message.source.bytes_for_mac(), &message.mac)?;
             let plaintext =
-                String::from_utf8_lossy(&cipher.decrypt(&decoded.ciphertext)?).to_string();
+                String::from_utf8_lossy(&cipher.decrypt(&message.ciphertext)?).to_string();
 
-            Ok(DecryptedMessage { plaintext, message_index: decoded.message_index })
+            Ok(DecryptedMessage { plaintext, message_index: message.message_index })
         } else {
             Err(DecryptionError::UnknownMessageIndex(
                 self.initial_ratchet.index(),
-                decoded.message_index,
+                message.message_index,
             ))
         }
     }

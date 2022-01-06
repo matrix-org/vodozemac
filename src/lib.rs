@@ -68,4 +68,6 @@ pub enum DecodeError {
     Signature(#[from] SignatureError),
     #[error(transparent)]
     ProtoBufError(#[from] prost::DecodeError),
+    #[error("The message wasn't valid base64: {0}")]
+    Base64(#[from] base64::DecodeError),
 }
