@@ -24,9 +24,7 @@ use thiserror::Error;
 use zeroize::Zeroize;
 
 use super::{
-    message::MegolmMessage,
-    ratchet::{MegolmRatchetUnpicklingError, Ratchet, RatchetPickle},
-    GroupSession, SessionKey, SESSION_KEY_VERSION,
+    message::MegolmMessage, ratchet::Ratchet, GroupSession, SessionKey, SESSION_KEY_VERSION,
 };
 use crate::{
     cipher::Cipher,
@@ -256,13 +254,13 @@ impl InboundGroupSession {
 
     pub fn unpickle_from_json_str(input: &str) -> Result<Self, InboundGroupSessionUnpicklingError> {
         let pickle: InboundGroupSessionPickle = serde_json::from_str(input)?;
-        pickle.try_into()
+        Ok(pickle.into())
     }
 
     pub fn pickle(&self) -> InboundGroupSessionPickle {
         InboundGroupSessionPickle {
-            initial_ratchet: self.initial_ratchet.clone().into(),
-            latest_ratchet: self.latest_ratchet.clone().into(),
+            initial_ratchet: self.initial_ratchet.clone(),
+            latest_ratchet: self.latest_ratchet.clone(),
             signing_key: self.signing_key,
             signing_key_verified: self.signing_key_verified,
         }
@@ -344,35 +342,27 @@ impl InboundGroupSession {
 
 #[derive(Serialize, Deserialize)]
 pub struct InboundGroupSessionPickle {
-    initial_ratchet: RatchetPickle,
-    latest_ratchet: RatchetPickle,
+    initial_ratchet: Ratchet,
+    latest_ratchet: Ratchet,
     signing_key: Ed25519PublicKey,
     #[allow(dead_code)]
     signing_key_verified: bool,
 }
 
 impl InboundGroupSessionPickle {
-    pub fn unpickle(self) -> Result<InboundGroupSession, InboundGroupSessionUnpicklingError> {
-        self.try_into()
+    pub fn unpickle(self) -> InboundGroupSession {
+        self.into()
     }
 }
 
-impl TryFrom<InboundGroupSessionPickle> for InboundGroupSession {
-    type Error = InboundGroupSessionUnpicklingError;
-
-    fn try_from(pickle: InboundGroupSessionPickle) -> Result<Self, Self::Error> {
-        Ok(Self {
-            initial_ratchet: pickle
-                .initial_ratchet
-                .try_into()
-                .map_err(InboundGroupSessionUnpicklingError::InvalidInitialRatchet)?,
-            latest_ratchet: pickle
-                .latest_ratchet
-                .try_into()
-                .map_err(InboundGroupSessionUnpicklingError::InvalidLatestRatchet)?,
+impl From<InboundGroupSessionPickle> for InboundGroupSession {
+    fn from(pickle: InboundGroupSessionPickle) -> Self {
+        Self {
+            initial_ratchet: pickle.initial_ratchet,
+            latest_ratchet: pickle.latest_ratchet,
             signing_key: pickle.signing_key,
             signing_key_verified: pickle.signing_key_verified,
-        })
+        }
     }
 }
 
@@ -387,7 +377,7 @@ impl InboundGroupSessionPickledJSON {
 
     pub fn unpickle(self) -> Result<InboundGroupSession, InboundGroupSessionUnpicklingError> {
         let pickle: InboundGroupSessionPickle = serde_json::from_str(&self.0)?;
-        pickle.unpickle()
+        Ok(pickle.unpickle())
     }
 }
 
@@ -413,10 +403,6 @@ impl From<&GroupSession> for InboundGroupSession {
 
 #[derive(Error, Debug)]
 pub enum InboundGroupSessionUnpicklingError {
-    #[error("Invalid initial ratchet")]
-    InvalidInitialRatchet(MegolmRatchetUnpicklingError),
-    #[error("Invalid latest ratchet")]
-    InvalidLatestRatchet(MegolmRatchetUnpicklingError),
     #[error("Invalid public signing key: {0}")]
     InvalidSigningPublicKey(SignatureError),
     #[error("Pickle format corrupted: {0}")]

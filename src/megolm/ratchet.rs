@@ -15,7 +15,7 @@
 
 use hmac::{Hmac, Mac as _};
 use rand::{thread_rng, RngCore};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{digest::CtOutput, Sha256};
 use thiserror::Error;
 use zeroize::Zeroize;
@@ -24,17 +24,62 @@ const ADVANCEMENT_SEEDS: [&[u8; 1]; Ratchet::RATCHET_PART_COUNT] =
     [b"\x00", b"\x01", b"\x02", b"\x03"];
 
 #[derive(Serialize, Deserialize, Zeroize, Clone)]
-#[serde(try_from = "RatchetPickle")]
-#[serde(into = "RatchetPickle")]
 pub(super) struct Ratchet {
-    inner: Box<[u8; Self::RATCHET_LENGTH]>,
+    inner: RatchetBytes,
     counter: u32,
 }
 
 impl Drop for Ratchet {
     fn drop(&mut self) {
-        self.inner.zeroize();
         self.counter.zeroize();
+    }
+}
+
+#[derive(Zeroize, Clone)]
+struct RatchetBytes(Box<[u8; Ratchet::RATCHET_LENGTH]>);
+
+impl RatchetBytes {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, RatchetError> {
+        let length = bytes.len();
+
+        if length != Ratchet::RATCHET_LENGTH {
+            Err(RatchetError::InvalidLength(length))
+        } else {
+            let mut ratchet = Self(Box::new([0u8; Ratchet::RATCHET_LENGTH]));
+            ratchet.0.copy_from_slice(bytes);
+
+            Ok(ratchet)
+        }
+    }
+}
+
+impl Drop for RatchetBytes {
+    fn drop(&mut self) {
+        self.0.zeroize();
+    }
+}
+
+impl Serialize for RatchetBytes {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let bytes = &self.0;
+        bytes.serialize(serializer)
+    }
+}
+
+impl<'d> Deserialize<'d> for RatchetBytes {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'d>,
+    {
+        let mut bytes = <Vec<u8>>::deserialize(deserializer)?;
+        let ratchet = Self::from_bytes(bytes.as_ref()).map_err(serde::de::Error::custom)?;
+
+        bytes.zeroize();
+
+        Ok(ratchet)
     }
 }
 
@@ -92,15 +137,16 @@ impl Ratchet {
     pub fn new() -> Self {
         let mut rng = thread_rng();
 
-        let mut ratchet = Self { inner: Box::new([0u8; Self::RATCHET_LENGTH]), counter: 0 };
+        let mut ratchet =
+            Self { inner: RatchetBytes(Box::new([0u8; Self::RATCHET_LENGTH])), counter: 0 };
 
-        rng.fill_bytes(ratchet.inner.as_mut_slice());
+        rng.fill_bytes(&mut *ratchet.inner.0);
 
         ratchet
     }
 
     pub fn from_bytes(bytes: Box<[u8; Self::RATCHET_LENGTH]>, counter: u32) -> Self {
-        Self { inner: bytes, counter }
+        Self { inner: RatchetBytes(bytes), counter }
     }
 
     pub fn index(&self) -> u32 {
@@ -108,11 +154,11 @@ impl Ratchet {
     }
 
     pub fn as_bytes(&self) -> &[u8; Self::RATCHET_LENGTH] {
-        &self.inner
+        &self.inner.0
     }
 
     fn as_parts(&mut self) -> RatchetParts {
-        let (top, bottom) = self.inner.split_at_mut(64);
+        let (top, bottom) = self.inner.0.split_at_mut(64);
 
         let (r_0, r_1) = top.split_at_mut(32);
         let (r_2, r_3) = bottom.split_at_mut(32);
@@ -199,38 +245,10 @@ impl Ratchet {
     }
 }
 
-#[derive(Serialize, Deserialize, Zeroize)]
-#[zeroize(drop)]
-pub(super) struct RatchetPickle {
-    key: Vec<u8>,
-    counter: u32,
-}
-
-impl From<Ratchet> for RatchetPickle {
-    fn from(ratchet: Ratchet) -> Self {
-        Self { key: (*ratchet.inner).into(), counter: ratchet.counter }
-    }
-}
-
-impl TryFrom<RatchetPickle> for Ratchet {
-    type Error = MegolmRatchetUnpicklingError;
-
-    // TODO: Double-check zeroization is correct once simplified pickling is merged.
-    fn try_from(pickle: RatchetPickle) -> Result<Self, Self::Error> {
-        let ratchet =
-            Box::new(
-                pickle.key.clone().try_into().map_err(|_| {
-                    MegolmRatchetUnpicklingError::InvalidKeyLength(pickle.key.len())
-                })?,
-            );
-        Ok(Ratchet { inner: ratchet, counter: pickle.counter })
-    }
-}
-
 #[derive(Error, Debug)]
-pub enum MegolmRatchetUnpicklingError {
-    #[error("Invalid Megolm ratchet key length: expected 128, got {0}")]
-    InvalidKeyLength(usize),
+pub enum RatchetError {
+    #[error("Invalid Megolm ratchet length: expected 128, got {0}")]
+    InvalidLength(usize),
 }
 
 #[cfg(test)]

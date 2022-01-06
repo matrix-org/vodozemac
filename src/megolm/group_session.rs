@@ -18,11 +18,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use zeroize::Zeroize;
 
-use super::{
-    message::MegolmMessage,
-    ratchet::{MegolmRatchetUnpicklingError, Ratchet, RatchetPickle},
-    SessionKey, SESSION_KEY_VERSION,
-};
+use super::{message::MegolmMessage, ratchet::Ratchet, SessionKey, SESSION_KEY_VERSION};
 use crate::{cipher::Cipher, types::Ed25519Keypair, utilities::base64_encode};
 
 /// A Megolm group session represents a single sending participant in an
@@ -131,10 +127,7 @@ impl GroupSession {
     /// Convert the group session into a struct which implements
     /// [`serde::Serialize`] and [`serde::Deserialize`].
     pub fn pickle(&self) -> GroupSessionPickle {
-        GroupSessionPickle {
-            ratchet: self.ratchet.clone().into(),
-            signing_key: self.signing_key.clone(),
-        }
+        GroupSessionPickle { ratchet: self.ratchet.clone(), signing_key: self.signing_key.clone() }
     }
 
     /// Pickle the group session and serialize it to a JSON string.
@@ -153,26 +146,24 @@ impl GroupSession {
     }
 }
 
+/// A format suitable for serialization which implements [`serde::Serialize`]
+/// and [`serde::Deserialize`]. Obtainable by calling [`GroupSession::pickle`].
 #[derive(Serialize, Deserialize)]
 pub struct GroupSessionPickle {
-    ratchet: RatchetPickle,
+    ratchet: Ratchet,
     signing_key: Ed25519Keypair,
 }
 
-/// A format suitable for serialization which implements [`serde::Serialize`]
-/// and [`serde::Deserialize`]. Obtainable by calling [`GroupSession::pickle`].
 impl GroupSessionPickle {
     /// Convert the pickle format back into a [`GroupSession`].
-    pub fn unpickle(self) -> Result<GroupSession, GroupSessionUnpicklingError> {
-        self.try_into()
+    pub fn unpickle(self) -> GroupSession {
+        self.into()
     }
 }
 
-impl TryFrom<GroupSessionPickle> for GroupSession {
-    type Error = GroupSessionUnpicklingError;
-
-    fn try_from(pickle: GroupSessionPickle) -> Result<Self, Self::Error> {
-        Ok(Self { ratchet: pickle.ratchet.try_into()?, signing_key: pickle.signing_key })
+impl From<GroupSessionPickle> for GroupSession {
+    fn from(pickle: GroupSessionPickle) -> Self {
+        Self { ratchet: pickle.ratchet, signing_key: pickle.signing_key }
     }
 }
 
@@ -189,7 +180,7 @@ impl GroupSessionPickledJSON {
     /// Try to convert the serialized JSON string back into a [`GroupSession`].
     pub fn unpickle(self) -> Result<GroupSession, GroupSessionUnpicklingError> {
         let pickle: GroupSessionPickle = serde_json::from_str(&self.0)?;
-        pickle.unpickle()
+        Ok(pickle.unpickle())
     }
 }
 
@@ -209,8 +200,6 @@ impl Deref for GroupSessionPickledJSON {
 
 #[derive(Error, Debug)]
 pub enum GroupSessionUnpicklingError {
-    #[error("Invalid ratchet")]
-    InvalidRatchet(#[from] MegolmRatchetUnpicklingError),
     #[error("Pickle format corrupted: {0}")]
     CorruptedPickle(#[from] serde_json::error::Error),
 }
