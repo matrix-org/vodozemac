@@ -12,11 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub use ed25519_dalek::{
-    ExpandedSecretKey as ExpandedEd25519SecretKey, PublicKey as Ed25519PublicKey, Signature,
-    SIGNATURE_LENGTH,
-};
-use ed25519_dalek::{Keypair, SecretKey as UnexpandedEd25519SecretKey, SignatureError};
+use ed25519_dalek::{ExpandedSecretKey, Keypair, SecretKey, Signature, SIGNATURE_LENGTH};
+pub use ed25519_dalek::{PublicKey as Ed25519PublicKey, SignatureError};
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -43,7 +40,7 @@ impl Ed25519Keypair {
     }
 
     pub fn from_expanded_key(secret_key: &[u8; 64]) -> Result<Self, SignatureError> {
-        let secret_key = ExpandedEd25519SecretKey::from_bytes(secret_key)?;
+        let secret_key = ExpandedSecretKey::from_bytes(secret_key)?;
         let public_key = Ed25519PublicKey::from(&secret_key);
         let encoded_public_key = base64_encode(public_key.as_bytes());
 
@@ -65,8 +62,8 @@ impl Ed25519Keypair {
 
 #[derive(Serialize, Deserialize)]
 enum Ed25519SecretKey {
-    Normal(UnexpandedEd25519SecretKey),
-    Expanded(ExpandedEd25519SecretKey),
+    Normal(SecretKey),
+    Expanded(ExpandedSecretKey),
 }
 
 impl Ed25519SecretKey {
@@ -80,7 +77,7 @@ impl Ed25519SecretKey {
     fn sign(&self, message: &[u8], public_key: &Ed25519PublicKey) -> Ed25519Signature {
         let signature = match &self {
             Ed25519SecretKey::Normal(k) => {
-                let expanded = ExpandedEd25519SecretKey::from(k);
+                let expanded = ExpandedSecretKey::from(k);
                 expanded.sign(message.as_ref(), public_key)
             }
             Ed25519SecretKey::Expanded(k) => k.sign(message.as_ref(), public_key),
@@ -111,12 +108,10 @@ impl Ed25519Signature {
 impl Clone for Ed25519Keypair {
     fn clone(&self) -> Self {
         let secret_key: Result<Ed25519SecretKey, _> = match &self.secret_key {
-            Ed25519SecretKey::Normal(k) => {
-                UnexpandedEd25519SecretKey::from_bytes(k.as_bytes()).map(|k| k.into())
-            }
+            Ed25519SecretKey::Normal(k) => SecretKey::from_bytes(k.as_bytes()).map(|k| k.into()),
             Ed25519SecretKey::Expanded(k) => {
                 let mut bytes = k.to_bytes();
-                let key = ExpandedEd25519SecretKey::from_bytes(&bytes).map(|k| k.into());
+                let key = ExpandedSecretKey::from_bytes(&bytes).map(|k| k.into());
                 bytes.zeroize();
 
                 key
@@ -137,14 +132,14 @@ impl From<Ed25519Keypair> for Ed25519KeypairPickle {
     }
 }
 
-impl From<UnexpandedEd25519SecretKey> for Ed25519SecretKey {
-    fn from(key: UnexpandedEd25519SecretKey) -> Self {
+impl From<SecretKey> for Ed25519SecretKey {
+    fn from(key: SecretKey) -> Self {
         Self::Normal(key)
     }
 }
 
-impl From<ExpandedEd25519SecretKey> for Ed25519SecretKey {
-    fn from(key: ExpandedEd25519SecretKey) -> Self {
+impl From<ExpandedSecretKey> for Ed25519SecretKey {
+    fn from(key: ExpandedSecretKey) -> Self {
         Self::Expanded(key)
     }
 }
