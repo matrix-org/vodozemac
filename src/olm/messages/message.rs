@@ -137,9 +137,9 @@ impl AsRef<[u8]> for EncodedMessage {
     }
 }
 
-impl Into<Vec<u8>> for EncodedMessage {
-    fn into(self) -> Vec<u8> {
-        self.0
+impl From<EncodedMessage> for Vec<u8> {
+    fn from(message: EncodedMessage) -> Self {
+        message.0
     }
 }
 
