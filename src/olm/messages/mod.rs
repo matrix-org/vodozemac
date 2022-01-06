@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod inner;
+mod message;
+mod pre_key;
 
-pub(crate) use inner::{
-    DecodedMessage, DecodedPreKeyMessage, EncodedMessage, EncodedPrekeyMessage,
-};
+pub(crate) use message::{DecodedMessage, EncodedMessage};
+pub(crate) use pre_key::{DecodedPreKeyMessage, EncodedPrekeyMessage};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Message {

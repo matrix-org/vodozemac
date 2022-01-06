@@ -20,7 +20,7 @@ use crate::{
     Curve25519PublicKey, DecodeError,
 };
 
-pub(crate) struct DecodedMessage {
+pub struct DecodedMessage {
     pub source: EncodedMessage,
     pub ratchet_key: Curve25519PublicKey,
     pub chain_index: u64,
@@ -49,7 +49,7 @@ impl TryFrom<Vec<u8>> for DecodedMessage {
         } else if value.len() < Mac::TRUNCATED_LEN + 2 {
             Err(DecodeError::MessageTooShort(value.len()))
         } else {
-            let inner = InnerMessage::decode(&value[1..value.len() - Mac::TRUNCATED_LEN])?;
+            let inner = ProtoBufMessage::decode(&value[1..value.len() - Mac::TRUNCATED_LEN])?;
 
             let mac_slice = &value[value.len() - Mac::TRUNCATED_LEN..];
 
@@ -77,7 +77,7 @@ impl TryFrom<Vec<u8>> for DecodedMessage {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct EncodedMessage(Vec<u8>);
 
 impl EncodedMessage {
@@ -93,7 +93,7 @@ impl EncodedMessage {
 
     pub fn as_payload_bytes(&self) -> &[u8] {
         let end = self.0.len();
-        &self.0[..end - 8]
+        &self.0[..end - Mac::TRUNCATED_LEN]
     }
 
     pub(crate) fn append_mac(&mut self, mac: Mac) {
@@ -137,113 +137,20 @@ impl AsRef<[u8]> for EncodedMessage {
     }
 }
 
-pub(crate) struct DecodedPreKeyMessage {
-    pub public_one_time_key: Curve25519PublicKey,
-    pub remote_one_time_key: Curve25519PublicKey,
-    pub remote_identity_key: Curve25519PublicKey,
-    pub message: DecodedMessage,
-}
-
-impl TryFrom<&str> for DecodedPreKeyMessage {
-    type Error = DecodeError;
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let decoded = base64_decode(value)?;
-
-        Self::try_from(decoded)
+impl Into<Vec<u8>> for EncodedMessage {
+    fn into(self) -> Vec<u8> {
+        self.0
     }
 }
 
-impl TryFrom<Vec<u8>> for DecodedPreKeyMessage {
-    type Error = DecodeError;
-
-    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        let version = *value.get(0).ok_or(DecodeError::MissingVersion)?;
-
-        if version != EncodedPrekeyMessage::VERSION {
-            Err(DecodeError::InvalidVersion(EncodedPrekeyMessage::VERSION, version))
-        } else {
-            let decoded = InnerPreKeyMessage::decode(&value[1..value.len()])?;
-            let one_time_key = Curve25519PublicKey::from_slice(&decoded.one_time_key)?;
-            let base_key = Curve25519PublicKey::from_slice(&decoded.base_key)?;
-            let identity_key = Curve25519PublicKey::from_slice(&decoded.identity_key)?;
-
-            let message = decoded.message.try_into()?;
-
-            Ok(Self {
-                public_one_time_key: one_time_key,
-                remote_one_time_key: base_key,
-                remote_identity_key: identity_key,
-                message,
-            })
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct EncodedPrekeyMessage {
-    pub(super) inner: Vec<u8>,
-}
-
-impl EncodedPrekeyMessage {
-    const VERSION: u8 = 3;
-
-    pub fn new(
-        one_time_key: &Curve25519PublicKey,
-        base_key: &Curve25519PublicKey,
-        identity_key: &Curve25519PublicKey,
-        message: EncodedMessage,
-    ) -> Self {
-        let message = InnerPreKeyMessage {
-            one_time_key: one_time_key.as_bytes().to_vec(),
-            base_key: base_key.as_bytes().to_vec(),
-            identity_key: identity_key.as_bytes().to_vec(),
-            message: message.0,
-        };
-
-        let mut output: Vec<u8> = vec![0u8; message.encoded_len() + 1];
-        output[0] = Self::VERSION;
-
-        message
-            .encode(&mut output[1..].as_mut())
-            .expect("Couldn't encode our message into a protobuf");
-
-        Self { inner: output }
-    }
-}
-
-impl From<Vec<u8>> for EncodedPrekeyMessage {
-    fn from(bytes: Vec<u8>) -> Self {
-        Self { inner: bytes }
-    }
-}
-
-impl AsRef<[u8]> for EncodedPrekeyMessage {
-    fn as_ref(&self) -> &[u8] {
-        &self.inner
-    }
-}
-
-#[derive(Clone, Message, PartialEq)]
-struct InnerMessage {
+#[derive(Message, PartialEq)]
+struct ProtoBufMessage {
     #[prost(bytes, tag = "1")]
-    pub ratchet_key: Vec<u8>,
+    ratchet_key: Vec<u8>,
     #[prost(uint64, tag = "2")]
-    pub chain_index: u64,
+    chain_index: u64,
     #[prost(bytes, tag = "4")]
-    pub ciphertext: Vec<u8>,
-}
-
-#[derive(Clone, Message)]
-struct InnerPreKeyMessage {
-    #[prost(bytes, tag = "1")]
-    pub one_time_key: Vec<u8>,
-    #[prost(bytes, tag = "2")]
-    pub base_key: Vec<u8>,
-    #[prost(bytes, tag = "3")]
-    pub identity_key: Vec<u8>,
-    #[prost(bytes, tag = "4")]
-    pub message: Vec<u8>,
+    ciphertext: Vec<u8>,
 }
 
 #[cfg(test)]
