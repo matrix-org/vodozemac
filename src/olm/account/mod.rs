@@ -234,15 +234,14 @@ impl Account {
                 one_time_key: public_one_time_key,
             };
 
-            let message = InnerMessage::from(m);
-            let decoded = message.decode()?;
+            let message = InnerMessage::try_from(m)?;
 
             // Create a Session, AKA a double ratchet, this one will have an
             // inactive sending chain until we decide to encrypt a message.
-            let mut session = Session::new_remote(shared_secret, decoded.ratchet_key, session_keys);
+            let mut session = Session::new_remote(shared_secret, message.ratchet_key, session_keys);
 
             // Decrypt the message to check if the Session is actually valid.
-            let plaintext = session.decrypt_decoded(message, decoded)?;
+            let plaintext = session.decrypt_decoded(message)?;
             let plaintext = String::from_utf8_lossy(&plaintext).to_string();
 
             // We only drop the one-time key now, this is why we can't use a

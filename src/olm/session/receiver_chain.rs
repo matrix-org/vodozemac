@@ -79,34 +79,30 @@ impl ReceiverChain {
         }
     }
 
-    pub fn decrypt(
-        &mut self,
-        message: &InnerMessage,
-        chain_index: u64,
-        ciphertext: &[u8],
-        mac: [u8; 8],
-    ) -> Result<Vec<u8>, DecryptionError> {
-        let message_gap = chain_index.saturating_sub(self.hkdf_ratchet.chain_index());
+    pub fn decrypt(&mut self, message: &InnerMessage) -> Result<Vec<u8>, DecryptionError> {
+        let message_gap = message.chain_index.saturating_sub(self.hkdf_ratchet.chain_index());
 
         if message_gap > MAX_MESSAGE_GAP {
             Err(DecryptionError::TooBigMessageGap(message_gap, MAX_MESSAGE_GAP))
-        } else if self.hkdf_ratchet.chain_index() > chain_index {
-            if let Some(message_key) = self.skipped_message_keys.get_message_key(chain_index) {
-                let plaintext = message_key.decrypt(message, ciphertext, mac)?;
+        } else if self.hkdf_ratchet.chain_index() > message.chain_index {
+            if let Some(message_key) =
+                self.skipped_message_keys.get_message_key(message.chain_index)
+            {
+                let plaintext = message_key.decrypt(message)?;
 
-                self.skipped_message_keys.remove_message_key(chain_index);
+                self.skipped_message_keys.remove_message_key(message.chain_index);
 
                 Ok(plaintext)
             } else {
-                Err(DecryptionError::MissingMessageKey(chain_index))
+                Err(DecryptionError::MissingMessageKey(message.chain_index))
             }
         } else {
             let mut ratchet = self.hkdf_ratchet.clone();
             let mut skipped_keys = MessageKeyStore::new();
 
             // Advance the ratchet up until our desired point.
-            while ratchet.chain_index() < chain_index {
-                if chain_index - ratchet.chain_index() > MAX_MESSAGE_KEYS as u64 {
+            while ratchet.chain_index() < message.chain_index {
+                if message.chain_index - ratchet.chain_index() > MAX_MESSAGE_KEYS as u64 {
                     ratchet.advance();
                 } else {
                     let key = ratchet.create_message_key();
@@ -116,7 +112,7 @@ impl ReceiverChain {
 
             // Create now our desired message key
             let message_key = ratchet.create_message_key();
-            let plaintext = message_key.decrypt(message, ciphertext, mac)?;
+            let plaintext = message_key.decrypt(message)?;
 
             self.hkdf_ratchet = ratchet;
             self.skipped_message_keys.merge(skipped_keys);

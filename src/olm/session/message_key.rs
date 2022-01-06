@@ -17,8 +17,8 @@ use zeroize::Zeroize;
 
 use super::{ratchet::RatchetPublicKey, DecryptionError};
 use crate::{
-    cipher::{Cipher, Mac},
-    olm::messages::InnerMessage,
+    cipher::Cipher,
+    olm::messages::{EncodedOlmMessage, InnerMessage},
 };
 
 pub(super) struct MessageKey {
@@ -50,11 +50,11 @@ impl MessageKey {
         Self { key, ratchet_key, index }
     }
 
-    fn construct_message(self, ciphertext: Vec<u8>) -> InnerMessage {
-        InnerMessage::from_parts(self.ratchet_key.as_ref(), self.index, ciphertext)
+    fn construct_message(self, ciphertext: Vec<u8>) -> EncodedOlmMessage {
+        EncodedOlmMessage::new(self.ratchet_key.as_ref(), self.index, ciphertext)
     }
 
-    pub fn encrypt(self, plaintext: &[u8]) -> InnerMessage {
+    pub fn encrypt(self, plaintext: &[u8]) -> EncodedOlmMessage {
         let cipher = Cipher::new(&self.key);
 
         let ciphertext = cipher.encrypt(plaintext);
@@ -77,15 +77,10 @@ impl RemoteMessageKey {
         self.index
     }
 
-    pub fn decrypt(
-        &self,
-        message: &InnerMessage,
-        ciphertext: &[u8],
-        mac: [u8; Mac::TRUNCATED_LEN],
-    ) -> Result<Vec<u8>, DecryptionError> {
+    pub fn decrypt(&self, message: &InnerMessage) -> Result<Vec<u8>, DecryptionError> {
         let cipher = Cipher::new(&self.key);
 
-        cipher.verify_mac(message.as_payload_bytes(), &mac)?;
-        Ok(cipher.decrypt(ciphertext)?)
+        cipher.verify_mac(message.source.as_payload_bytes(), &message.mac)?;
+        Ok(cipher.decrypt(&message.ciphertext)?)
     }
 }
