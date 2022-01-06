@@ -63,6 +63,7 @@ impl Ed25519Keypair {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 enum Ed25519SecretKey {
     Normal(UnexpandedEd25519SecretKey),
     Expanded(ExpandedEd25519SecretKey),
@@ -114,10 +115,7 @@ impl Clone for Ed25519Keypair {
 
 impl From<Ed25519Keypair> for Ed25519KeypairPickle {
     fn from(key: Ed25519Keypair) -> Self {
-        match key.secret_key {
-            Ed25519SecretKey::Normal(k) => Ed25519KeypairPickle::Normal(k.as_bytes().to_vec()),
-            Ed25519SecretKey::Expanded(k) => Ed25519KeypairPickle::Expanded(k.to_bytes().to_vec()),
-        }
+        Self(key.secret_key)
     }
 }
 
@@ -137,22 +135,15 @@ impl From<ExpandedEd25519SecretKey> for Ed25519SecretKey {
 #[error("Invalid Ed25519 keypair pickle: {0}")]
 pub struct Ed25519KeypairUnpicklingError(#[from] SignatureError);
 
-#[derive(Serialize, Deserialize, Zeroize)]
-#[zeroize(drop)]
-pub enum Ed25519KeypairPickle {
-    Normal(Vec<u8>),
-    Expanded(Vec<u8>),
-}
+#[derive(Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Ed25519KeypairPickle(Ed25519SecretKey);
 
 impl TryFrom<Ed25519KeypairPickle> for Ed25519Keypair {
     type Error = Ed25519KeypairUnpicklingError;
 
     fn try_from(pickle: Ed25519KeypairPickle) -> Result<Self, Self::Error> {
-        let secret_key: Ed25519SecretKey = match &pickle {
-            Ed25519KeypairPickle::Normal(k) => UnexpandedEd25519SecretKey::from_bytes(k)?.into(),
-            Ed25519KeypairPickle::Expanded(k) => ExpandedEd25519SecretKey::from_bytes(k)?.into(),
-        };
-
+        let secret_key = pickle.0;
         let public_key = secret_key.public_key();
 
         Ok(Self { secret_key, public_key, encoded_public_key: base64_encode(public_key) })
