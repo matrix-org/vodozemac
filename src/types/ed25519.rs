@@ -12,8 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use ed25519_dalek::{ExpandedSecretKey, Keypair, SecretKey, Signature, SIGNATURE_LENGTH};
-pub use ed25519_dalek::{PublicKey as Ed25519PublicKey, SignatureError};
+pub use ed25519_dalek::SignatureError;
+use ed25519_dalek::{
+    ExpandedSecretKey, Keypair, PublicKey, SecretKey, Signature, Verifier, PUBLIC_KEY_LENGTH,
+    SIGNATURE_LENGTH,
+};
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -36,12 +39,16 @@ impl Ed25519Keypair {
         let keypair = Keypair::generate(&mut rng);
         let encoded_public_key = base64_encode(keypair.public.as_bytes());
 
-        Self { secret_key: keypair.secret.into(), public_key: keypair.public, encoded_public_key }
+        Self {
+            secret_key: keypair.secret.into(),
+            public_key: Ed25519PublicKey(keypair.public),
+            encoded_public_key,
+        }
     }
 
     pub fn from_expanded_key(secret_key: &[u8; 64]) -> Result<Self, SignatureError> {
         let secret_key = ExpandedSecretKey::from_bytes(secret_key)?;
-        let public_key = Ed25519PublicKey::from(&secret_key);
+        let public_key = Ed25519PublicKey(PublicKey::from(&secret_key));
         let encoded_public_key = base64_encode(public_key.as_bytes());
 
         Ok(Self { secret_key: secret_key.into(), public_key, encoded_public_key })
@@ -69,8 +76,8 @@ enum Ed25519SecretKey {
 impl Ed25519SecretKey {
     fn public_key(&self) -> Ed25519PublicKey {
         match &self {
-            Ed25519SecretKey::Normal(k) => Ed25519PublicKey::from(k),
-            Ed25519SecretKey::Expanded(k) => Ed25519PublicKey::from(k),
+            Ed25519SecretKey::Normal(k) => Ed25519PublicKey(PublicKey::from(k)),
+            Ed25519SecretKey::Expanded(k) => Ed25519PublicKey(PublicKey::from(k)),
         }
     }
 
@@ -78,12 +85,40 @@ impl Ed25519SecretKey {
         let signature = match &self {
             Ed25519SecretKey::Normal(k) => {
                 let expanded = ExpandedSecretKey::from(k);
-                expanded.sign(message.as_ref(), public_key)
+                expanded.sign(message.as_ref(), &public_key.0)
             }
-            Ed25519SecretKey::Expanded(k) => k.sign(message.as_ref(), public_key),
+            Ed25519SecretKey::Expanded(k) => k.sign(message.as_ref(), &public_key.0),
         };
 
         Ed25519Signature(signature)
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy)]
+#[serde(transparent)]
+pub struct Ed25519PublicKey(PublicKey);
+
+impl Ed25519PublicKey {
+    pub const LENGTH: usize = PUBLIC_KEY_LENGTH;
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, SignatureError> {
+        Ok(Self(PublicKey::from_bytes(bytes)?))
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+
+    pub fn to_base64(&self) -> String {
+        base64_encode(self.as_bytes())
+    }
+
+    pub fn verify(
+        &self,
+        message: &[u8],
+        signature: &Ed25519Signature,
+    ) -> Result<(), SignatureError> {
+        self.0.verify(message, &signature.0)
     }
 }
 
@@ -159,6 +194,6 @@ impl TryFrom<Ed25519KeypairPickle> for Ed25519Keypair {
         let secret_key = pickle.0;
         let public_key = secret_key.public_key();
 
-        Ok(Self { secret_key, public_key, encoded_public_key: base64_encode(public_key) })
+        Ok(Self { secret_key, public_key, encoded_public_key: public_key.to_base64() })
     }
 }

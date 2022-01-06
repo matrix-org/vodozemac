@@ -18,9 +18,6 @@ use std::{
 };
 
 use block_modes::BlockModeError;
-use ed25519_dalek::{
-    PublicKey, Signature, SignatureError, Verifier, PUBLIC_KEY_LENGTH, SIGNATURE_LENGTH,
-};
 use hmac::digest::MacError;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -33,7 +30,7 @@ use super::{
 };
 use crate::{
     cipher::Cipher,
-    types::Ed25519PublicKey,
+    types::{Ed25519PublicKey, Ed25519Signature, SignatureError},
     utilities::{base64_decode, base64_encode},
     DecodeError,
 };
@@ -118,7 +115,7 @@ impl InboundGroupSession {
         let mut version = [0u8; 1];
         let mut index = [0u8; 4];
         let mut ratchet = [0u8; 128];
-        let mut public_key = [0u8; PUBLIC_KEY_LENGTH];
+        let mut public_key = [0u8; Ed25519PublicKey::LENGTH];
 
         cursor.read_exact(&mut version)?;
 
@@ -132,13 +129,13 @@ impl InboundGroupSession {
             cursor.read_exact(&mut ratchet)?;
             cursor.read_exact(&mut public_key)?;
 
-            let signing_key = PublicKey::from_bytes(&public_key)?;
+            let signing_key = Ed25519PublicKey::from_bytes(&public_key)?;
 
             let signing_key_verified = if !is_export {
-                let mut signature = [0u8; SIGNATURE_LENGTH];
+                let mut signature = [0u8; Ed25519Signature::LENGTH];
 
                 cursor.read_exact(&mut signature)?;
-                let signature = Signature::from_bytes(&signature)?;
+                let signature = Ed25519Signature::from_bytes(&signature)?;
 
                 let decoded = cursor.into_inner();
 
@@ -186,7 +183,7 @@ impl InboundGroupSession {
         let decoded = base64_decode(ciphertext)?;
         let (message, decoded) = MegolmMessage::decode(decoded)?;
 
-        self.signing_key.verify(message.bytes_for_signing(), &decoded.signature.0)?;
+        self.signing_key.verify(message.bytes_for_signing(), &decoded.signature)?;
 
         if let Some(ratchet) = self.find_ratchet(decoded.message_index) {
             let cipher = Cipher::new_megolm(ratchet.as_bytes());
@@ -278,9 +275,9 @@ impl InboundGroupSession {
             let counter = read_u32(&mut cursor)?;
             let latest_ratchet = Ratchet::from_bytes(ratchet, counter);
 
-            let mut signing_key = [0u8; PUBLIC_KEY_LENGTH];
+            let mut signing_key = [0u8; Ed25519PublicKey::LENGTH];
             cursor.read_exact(&mut signing_key)?;
-            let signing_key = PublicKey::from_bytes(&signing_key)?;
+            let signing_key = Ed25519PublicKey::from_bytes(&signing_key)?;
 
             let signing_key_verified = read_bool(&mut cursor)?;
 
