@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #![deny(
+    clippy::mem_forget,
     clippy::unwrap_used,
     dead_code,
     trivial_casts,
