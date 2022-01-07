@@ -49,7 +49,7 @@ impl TryFrom<Vec<u8>> for MegolmMessage {
 
         if version != VERSION {
             Err(DecodeError::InvalidVersion(VERSION, version))
-        } else if message.len() < 1 + EncodedMegolmMessage::MESSAGE_SUFFIX_LENGTH {
+        } else if message.len() < EncodedMegolmMessage::MESSAGE_SUFFIX_LENGTH + 2 {
             Err(DecodeError::MessageTooShort(message.len()))
         } else {
             let inner = InnerMegolmMessage::decode(
