@@ -52,7 +52,7 @@ impl TryFrom<Vec<u8>> for MegolmMessage {
         } else if message.len() < EncodedMegolmMessage::MESSAGE_SUFFIX_LENGTH + 2 {
             Err(DecodeError::MessageTooShort(message.len()))
         } else {
-            let inner = InnerMegolmMessage::decode(
+            let inner = ProtobufMegolmMessage::decode(
                 &message[1..message.len() - EncodedMegolmMessage::MESSAGE_SUFFIX_LENGTH],
             )?;
 
@@ -85,7 +85,7 @@ impl EncodedMegolmMessage {
     const MESSAGE_SUFFIX_LENGTH: usize = Mac::TRUNCATED_LEN + Ed25519Signature::LENGTH;
 
     pub fn new(ciphertext: Vec<u8>, message_index: u32) -> Self {
-        let message = InnerMegolmMessage { message_index, ciphertext };
+        let message = ProtobufMegolmMessage { message_index, ciphertext };
 
         Self(message.encode_manual())
     }
@@ -126,19 +126,19 @@ impl AsRef<[u8]> for EncodedMegolmMessage {
 }
 
 #[derive(Clone, Message, PartialEq)]
-struct InnerMegolmMessage {
+struct ProtobufMegolmMessage {
     #[prost(uint32, tag = "1")]
     pub message_index: u32,
     #[prost(bytes, tag = "2")]
     pub ciphertext: Vec<u8>,
 }
 
-impl InnerMegolmMessage {
+impl ProtobufMegolmMessage {
     const INDEX_TAG: &'static [u8; 1] = b"\x08";
     const CIPHER_TAG: &'static [u8; 1] = b"\x12";
 
     fn encode_manual(&self) -> Vec<u8> {
-        // Prost optimizes away the chain index if it's 0, libolm can't decode
+        // Prost optimizes away the message index if it's 0, libolm can't decode
         // this, so encode our messages the pedestrian way instead.
         let index = self.message_index.to_var_int();
         let ciphertext_len = self.ciphertext.len().to_var_int();
