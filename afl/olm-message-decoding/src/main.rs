@@ -3,6 +3,8 @@ use vodozemac::fuzzing::DecodedPreKeyMessage;
 
 fn main() {
     fuzz!(|data: &[u8]| {
-        let _ = DecodedPreKeyMessage::try_from(data.to_vec());
+        if let Ok(decoded) = DecodedPreKeyMessage::try_from(data.to_vec()) {
+            decoded.message.source.as_payload_bytes();
+        }
     });
 }
