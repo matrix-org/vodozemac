@@ -22,5 +22,5 @@ mod session_keys;
 mod shared_secret;
 
 pub use account::{Account, AccountPickledJSON, InboundCreationResult};
-pub use messages::OlmMessage;
+pub use messages::{MessageType, OlmMessage};
 pub use session::{DecryptionError, Session, SessionPickledJSON};
