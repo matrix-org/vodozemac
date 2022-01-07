@@ -14,8 +14,6 @@
 
 use std::ops::Deref;
 
-use ed25519_dalek::{ExpandedSecretKey, PublicKey, SecretKey, SignatureError};
-use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use zeroize::Zeroize;
@@ -25,10 +23,8 @@ use super::{
     ratchet::{MegolmRatchetUnpicklingError, Ratchet, RatchetPickle},
     SessionKey, SESSION_KEY_VERSION,
 };
-use crate::{cipher::Cipher, utilities::base64_encode};
+use crate::{cipher::Cipher, types::Ed25519Keypair, utilities::base64_encode};
 
-#[derive(Deserialize)]
-#[serde(try_from = "GroupSessionPickle")]
 /// A Megolm group session represents a single sending participant in an
 /// encrypted group communication context containing multiple receiving parties.
 ///
@@ -43,10 +39,11 @@ use crate::{cipher::Cipher, utilities::base64_encode};
 /// Such an inbound group session is typically sent by the outbound group
 /// session owner to each of the receiving parties via a secure peer-to-peer
 /// channel (e.g. an Olm channel).
+#[derive(Deserialize)]
+#[serde(try_from = "GroupSessionPickle")]
 pub struct GroupSession {
     ratchet: Ratchet,
-    signing_key: ExpandedSecretKey,
-    public_key: PublicKey,
+    signing_key: Ed25519Keypair,
 }
 
 impl Default for GroupSession {
@@ -59,13 +56,8 @@ impl GroupSession {
     /// Construct a new group session, with a random ratchet state and signing
     /// key pair.
     pub fn new() -> Self {
-        let mut rng = thread_rng();
-
-        let secret_key = SecretKey::generate(&mut rng);
-        let secret_key = ExpandedSecretKey::from(&secret_key);
-        let public_key = PublicKey::from(&secret_key);
-
-        Self { signing_key: secret_key, public_key, ratchet: Ratchet::new() }
+        let signing_key = Ed25519Keypair::new();
+        Self { signing_key, ratchet: Ratchet::new() }
     }
 
     /// Returns the globally unique session ID, in base64-encoded form.
@@ -73,8 +65,8 @@ impl GroupSession {
     /// A session ID is the public part of the Ed25519 key pair associated with
     /// the group session. Due to the construction, every session ID is
     /// (probabilistically) globally unique.
-    pub fn session_id(&self) -> String {
-        base64_encode(self.public_key.as_bytes())
+    pub fn session_id(&self) -> &str {
+        self.signing_key.public_key_encoded()
     }
 
     /// Return the current message index.
@@ -98,7 +90,7 @@ impl GroupSession {
         let mac = cipher.mac(message.bytes_for_mac());
         message.append_mac(mac);
 
-        let signature = self.signing_key.sign(message.bytes_for_signing(), &self.public_key);
+        let signature = self.signing_key.sign(message.bytes_for_signing());
         message.append_signature(signature);
 
         self.ratchet.advance();
@@ -123,11 +115,11 @@ impl GroupSession {
             [SESSION_KEY_VERSION].as_ref(),
             index.as_ref(),
             self.ratchet.as_bytes(),
-            self.public_key.as_bytes(),
+            self.signing_key.public_key().as_bytes(),
         ]
         .concat();
 
-        let signature = self.signing_key.sign(&export, &self.public_key);
+        let signature = self.signing_key.sign(&export);
         export.extend(signature.to_bytes());
 
         let result = base64_encode(&export);
@@ -141,8 +133,7 @@ impl GroupSession {
     pub fn pickle(&self) -> GroupSessionPickle {
         GroupSessionPickle {
             ratchet: self.ratchet.clone().into(),
-            signing_key: (&self.signing_key).into(),
-            public_key: self.public_key.into(),
+            signing_key: self.signing_key.clone(),
         }
     }
 
@@ -165,8 +156,7 @@ impl GroupSession {
 #[derive(Serialize, Deserialize)]
 pub struct GroupSessionPickle {
     ratchet: RatchetPickle,
-    signing_key: ExpandedSecretKeyPickle,
-    public_key: PublicKeyPickle,
+    signing_key: Ed25519Keypair,
 }
 
 /// A format suitable for serialization which implements [`serde::Serialize`]
@@ -182,14 +172,7 @@ impl TryFrom<GroupSessionPickle> for GroupSession {
     type Error = GroupSessionUnpicklingError;
 
     fn try_from(pickle: GroupSessionPickle) -> Result<Self, Self::Error> {
-        Ok(Self {
-            ratchet: pickle.ratchet.try_into()?,
-            signing_key: pickle.signing_key.try_into()?,
-            public_key: pickle
-                .public_key
-                .try_into()
-                .map_err(GroupSessionUnpicklingError::InvalidPublicKey)?,
-        })
+        Ok(Self { ratchet: pickle.ratchet.try_into()?, signing_key: pickle.signing_key })
     }
 }
 
@@ -228,52 +211,6 @@ impl Deref for GroupSessionPickledJSON {
 pub enum GroupSessionUnpicklingError {
     #[error("Invalid ratchet")]
     InvalidRatchet(#[from] MegolmRatchetUnpicklingError),
-    #[error("Invalid signing key: {0}")]
-    InvalidSigningKey(SignatureError),
-    #[error("Invalid public key: {0}")]
-    InvalidPublicKey(SignatureError),
     #[error("Pickle format corrupted: {0}")]
     CorruptedPickle(#[from] serde_json::error::Error),
-}
-
-#[derive(Serialize, Deserialize, Zeroize)]
-#[zeroize(drop)]
-#[serde(transparent)]
-pub struct ExpandedSecretKeyPickle {
-    key: Vec<u8>,
-}
-
-impl From<&ExpandedSecretKey> for ExpandedSecretKeyPickle {
-    fn from(key: &ExpandedSecretKey) -> Self {
-        Self { key: key.to_bytes().to_vec() }
-    }
-}
-
-impl TryFrom<ExpandedSecretKeyPickle> for ExpandedSecretKey {
-    type Error = GroupSessionUnpicklingError;
-
-    fn try_from(pickle: ExpandedSecretKeyPickle) -> Result<Self, Self::Error> {
-        ExpandedSecretKey::from_bytes(pickle.key.as_slice())
-            .map_err(GroupSessionUnpicklingError::InvalidSigningKey)
-    }
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct PublicKeyPickle {
-    key: Vec<u8>,
-}
-
-impl From<PublicKey> for PublicKeyPickle {
-    fn from(key: PublicKey) -> Self {
-        Self { key: key.to_bytes().to_vec() }
-    }
-}
-
-impl TryFrom<PublicKeyPickle> for PublicKey {
-    type Error = SignatureError;
-
-    fn try_from(pickle: PublicKeyPickle) -> Result<Self, Self::Error> {
-        PublicKey::from_bytes(pickle.key.as_slice())
-    }
 }

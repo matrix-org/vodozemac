@@ -18,22 +18,19 @@ use std::{
 };
 
 use block_modes::BlockModeError;
-use ed25519_dalek::{
-    PublicKey, Signature, SignatureError, Verifier, PUBLIC_KEY_LENGTH, SIGNATURE_LENGTH,
-};
 use hmac::digest::MacError;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use zeroize::Zeroize;
 
 use super::{
-    group_session::PublicKeyPickle,
     message::MegolmMessage,
     ratchet::{MegolmRatchetUnpicklingError, Ratchet, RatchetPickle},
     SessionKey, SESSION_KEY_VERSION,
 };
 use crate::{
     cipher::Cipher,
+    types::{Ed25519PublicKey, Ed25519Signature, SignatureError},
     utilities::{base64_decode, base64_encode},
     DecodeError,
 };
@@ -76,7 +73,7 @@ pub enum DecryptionError {
 pub struct InboundGroupSession {
     initial_ratchet: Ratchet,
     latest_ratchet: Ratchet,
-    signing_key: PublicKey,
+    signing_key: Ed25519PublicKey,
     #[allow(dead_code)]
     signing_key_verified: bool,
 }
@@ -118,7 +115,7 @@ impl InboundGroupSession {
         let mut version = [0u8; 1];
         let mut index = [0u8; 4];
         let mut ratchet = [0u8; 128];
-        let mut public_key = [0u8; PUBLIC_KEY_LENGTH];
+        let mut public_key = [0u8; Ed25519PublicKey::LENGTH];
 
         cursor.read_exact(&mut version)?;
 
@@ -132,13 +129,13 @@ impl InboundGroupSession {
             cursor.read_exact(&mut ratchet)?;
             cursor.read_exact(&mut public_key)?;
 
-            let signing_key = PublicKey::from_bytes(&public_key)?;
+            let signing_key = Ed25519PublicKey::from_bytes(&public_key)?;
 
             let signing_key_verified = if !is_export {
-                let mut signature = [0u8; SIGNATURE_LENGTH];
+                let mut signature = [0u8; Ed25519Signature::LENGTH];
 
                 cursor.read_exact(&mut signature)?;
-                let signature = Signature::from_bytes(&signature)?;
+                let signature = Ed25519Signature::from_bytes(&signature)?;
 
                 let decoded = cursor.into_inner();
 
@@ -244,7 +241,7 @@ impl InboundGroupSession {
         InboundGroupSessionPickle {
             initial_ratchet: self.initial_ratchet.clone().into(),
             latest_ratchet: self.latest_ratchet.clone().into(),
-            signing_key: self.signing_key.into(),
+            signing_key: self.signing_key,
             signing_key_verified: self.signing_key_verified,
         }
     }
@@ -278,9 +275,9 @@ impl InboundGroupSession {
             let counter = read_u32(&mut cursor)?;
             let latest_ratchet = Ratchet::from_bytes(ratchet, counter);
 
-            let mut signing_key = [0u8; PUBLIC_KEY_LENGTH];
+            let mut signing_key = [0u8; Ed25519PublicKey::LENGTH];
             cursor.read_exact(&mut signing_key)?;
-            let signing_key = PublicKey::from_bytes(&signing_key)?;
+            let signing_key = Ed25519PublicKey::from_bytes(&signing_key)?;
 
             let signing_key_verified = read_bool(&mut cursor)?;
 
@@ -293,7 +290,7 @@ impl InboundGroupSession {
 pub struct InboundGroupSessionPickle {
     initial_ratchet: RatchetPickle,
     latest_ratchet: RatchetPickle,
-    signing_key: PublicKeyPickle,
+    signing_key: Ed25519PublicKey,
     #[allow(dead_code)]
     signing_key_verified: bool,
 }
@@ -317,10 +314,7 @@ impl TryFrom<InboundGroupSessionPickle> for InboundGroupSession {
                 .latest_ratchet
                 .try_into()
                 .map_err(InboundGroupSessionUnpicklingError::InvalidLatestRatchet)?,
-            signing_key: pickle
-                .signing_key
-                .try_into()
-                .map_err(InboundGroupSessionUnpicklingError::InvalidSigningPublicKey)?,
+            signing_key: pickle.signing_key,
             signing_key_verified: pickle.signing_key_verified,
         })
     }
