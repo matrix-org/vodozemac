@@ -406,7 +406,10 @@ impl Account {
                 }
             }
 
-            one_time_keys.key_id = max_key_id + 1;
+            // If there are no one-time keys in the pickle our key id will be 0,
+            // otherwise we'll have to use the max found key id and increment
+            // it.
+            one_time_keys.key_id = if number_of_one_time_keys == 0 { 0 } else { max_key_id + 1 };
 
             let mut number_of_fallback_keys = [0u8; 1];
             cursor.read_exact(&mut number_of_fallback_keys)?;
