@@ -46,7 +46,7 @@ use crate::{
     DecodeError,
 };
 
-const PUBLIC_MAX_ONE_TIME_KEYS: usize = 100;
+const PUBLIC_MAX_ONE_TIME_KEYS: usize = 50;
 
 #[derive(Error, Debug)]
 pub enum SessionCreationError {
@@ -151,7 +151,22 @@ impl Account {
         )
     }
 
+    /// Get the maximum number of one-time keys the client should keep on the
+    /// server.
+    ///
+    /// **Note**: this differs from the libolm method of the same name, the
+    /// libolm method returned the maximum amount of one-time keys the `Account`
+    /// could hold and only half of those should be uploaded.
     pub fn max_number_of_one_time_keys(&self) -> usize {
+        // We tell clients to upload a limited amount of one-time keys, this
+        // amount is smaller than what we can store.
+        //
+        // We do this because a client might receive the count of uploaded keys
+        // from the server before they receive all the pre-key messages that
+        // used some of our one-time keys. This would mean that we would forget
+        // private one-time keys, since we're generating new ones, while we
+        // didn't yet receive the pre-key messages that used those one-time
+        // keys.
         PUBLIC_MAX_ONE_TIME_KEYS
     }
 

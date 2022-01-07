@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 use x25519_dalek::StaticSecret as Curve25519SecretKey;
 use zeroize::Zeroize;
 
+use super::PUBLIC_MAX_ONE_TIME_KEYS;
 use crate::{types::KeyId, Curve25519PublicKey};
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -40,7 +41,7 @@ impl Zeroize for OneTimeKeysPickle {
 }
 
 impl OneTimeKeys {
-    const MAX_ONE_TIME_KEYS: usize = 5000;
+    const MAX_ONE_TIME_KEYS: usize = 100 * PUBLIC_MAX_ONE_TIME_KEYS;
 
     pub fn new() -> Self {
         Self {
