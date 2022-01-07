@@ -16,7 +16,7 @@
 
 mod group_session;
 mod inbound_group_session;
-mod message;
+pub(crate) mod message;
 mod ratchet;
 
 pub use group_session::{GroupSession, GroupSessionPickledJSON};

@@ -21,4 +21,10 @@
 //! fuzzing` to the RUST_FLAGS if you wish to enable this, `afl-rs` does this
 //! automatically.
 
-pub use crate::olm::messages::{DecodedMessage, DecodedPreKeyMessage};
+pub mod olm {
+    pub use crate::olm::messages::{DecodedMessage, DecodedPreKeyMessage};
+}
+
+pub mod megolm {
+    pub use crate::megolm::message::MegolmMessage;
+}

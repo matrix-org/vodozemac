@@ -1,5 +1,5 @@
 use afl::fuzz;
-use vodozemac::fuzzing::DecodedPreKeyMessage;
+use vodozemac::fuzzing::olm::DecodedPreKeyMessage;
 
 fn main() {
     fuzz!(|data: &[u8]| {
