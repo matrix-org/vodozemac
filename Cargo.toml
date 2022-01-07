@@ -11,6 +11,10 @@ keywords = ["matrix", "chat", "messaging", "olm"]
 license = "Apache-2.0"
 rust-version = "1.56"
 
+[features]
+default = []
+strict-signatures = []
+
 [dependencies]
 aes = "0.7.5"
 arrayvec = { version = "0.7.2", features = ["serde"] }
