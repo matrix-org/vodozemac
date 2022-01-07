@@ -106,7 +106,7 @@ impl OneTimeKeys {
 
             self.insert_secret_key(key_id, key, false);
 
-            self.key_id += 1;
+            self.key_id = self.key_id.wrapping_add(1);
         }
     }
 }
