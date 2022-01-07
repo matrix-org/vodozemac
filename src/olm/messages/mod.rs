@@ -12,20 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod inner;
+mod message;
+mod pre_key;
 
-pub(crate) use inner::{
-    DecodedMessage, OlmMessage as InnerMessage, PreKeyMessage as InnerPreKeyMessage,
-};
+pub(crate) use message::{DecodedMessage, EncodedMessage};
+pub(crate) use pre_key::{DecodedPreKeyMessage, EncodedPrekeyMessage};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Message {
     pub(super) inner: String,
 }
 
+impl Message {
+    pub(crate) fn decode(&self) -> Result<DecodedMessage, crate::DecodeError> {
+        DecodedMessage::try_from(self.inner.as_str())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct PreKeyMessage {
     pub(super) inner: String,
+}
+
+impl PreKeyMessage {
+    pub(crate) fn decode(&self) -> Result<DecodedPreKeyMessage, crate::DecodeError> {
+        DecodedPreKeyMessage::try_from(self.inner.as_str())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -35,12 +47,11 @@ pub enum OlmMessage {
 }
 
 impl OlmMessage {
-    #[allow(clippy::result_unit_err)]
-    pub fn from_type_and_ciphertext(message_type: usize, ciphertext: String) -> Result<Self, ()> {
+    pub fn from_parts(message_type: usize, ciphertext: String) -> Option<Self> {
         match message_type {
-            0 => Ok(Self::PreKey(PreKeyMessage { inner: ciphertext })),
-            1 => Ok(Self::Normal(Message { inner: ciphertext })),
-            _ => Err(()),
+            0 => Some(Self::PreKey(PreKeyMessage { inner: ciphertext })),
+            1 => Some(Self::Normal(Message { inner: ciphertext })),
+            _ => None,
         }
     }
 
@@ -58,7 +69,7 @@ impl OlmMessage {
         }
     }
 
-    pub fn to_tuple(self) -> (usize, String) {
+    pub fn to_parts(self) -> (usize, String) {
         let message_type = self.message_type();
 
         match self {
@@ -98,6 +109,7 @@ impl From<MessageType> for usize {
 
 #[cfg(test)]
 use olm_rs::session::OlmMessage as LibolmMessage;
+
 #[cfg(test)]
 impl From<LibolmMessage> for OlmMessage {
     fn from(other: LibolmMessage) -> Self {

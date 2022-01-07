@@ -44,9 +44,7 @@ use super::{
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
 };
 use crate::{
-    olm::messages::{
-        DecodedMessage, InnerMessage, InnerPreKeyMessage, Message, OlmMessage, PreKeyMessage,
-    },
+    olm::messages::{DecodedMessage, EncodedPrekeyMessage, Message, OlmMessage, PreKeyMessage},
     utilities::{base64_decode, base64_encode},
     Curve25519PublicKey, DecodeError,
 };
@@ -214,17 +212,14 @@ impl Session {
         let message = self.sending_ratchet.encrypt(plaintext);
 
         if self.has_received_message() {
-            let message = message.into_vec();
-
             OlmMessage::Normal(Message { inner: base64_encode(message) })
         } else {
-            let message = InnerPreKeyMessage::from_parts(
+            let message = EncodedPrekeyMessage::new(
                 &self.session_keys.one_time_key,
                 &self.session_keys.base_key,
                 &self.session_keys.identity_key,
-                message.into_vec(),
-            )
-            .into_vec();
+                message,
+            );
 
             OlmMessage::PreKey(PreKeyMessage { inner: base64_encode(message) })
         }
@@ -237,52 +232,30 @@ impl Session {
     pub fn decrypt(&mut self, message: &OlmMessage) -> Result<String, DecryptionError> {
         let decrypted = match message {
             OlmMessage::Normal(m) => {
-                let message = base64_decode(&m.inner)?;
-                self.decrypt_normal(message)?
+                let message = m.decode()?;
+                self.decrypt_decoded(message)?
             }
             OlmMessage::PreKey(m) => {
-                let message = base64_decode(&m.inner)?;
-                self.decrypt_prekey(message)?
+                let message = m.decode()?;
+                self.decrypt_decoded(message.message)?
             }
         };
 
         Ok(String::from_utf8_lossy(&decrypted).to_string())
     }
 
-    // Helper function to decrypt a pre-key message.
-    fn decrypt_prekey(&mut self, message: Vec<u8>) -> Result<Vec<u8>, DecryptionError> {
-        let message = InnerPreKeyMessage::from(message);
-        let (_, _, _, message) = message.decode()?;
-
-        self.decrypt_normal(message)
-    }
-
-    // Helper function to decrypt a normal message.
-    fn decrypt_normal(&mut self, message: Vec<u8>) -> Result<Vec<u8>, DecryptionError> {
-        let message = InnerMessage::from(message);
-        let decoded = message.decode()?;
-
-        self.decrypt_decoded(message, decoded)
-    }
-
     pub(super) fn decrypt_decoded(
         &mut self,
-        message: InnerMessage,
-        decoded: DecodedMessage,
+        message: DecodedMessage,
     ) -> Result<Vec<u8>, DecryptionError> {
-        let ratchet_key = RemoteRatchetKey::from(decoded.ratchet_key);
+        let ratchet_key = RemoteRatchetKey::from(message.ratchet_key);
 
         if let Some(ratchet) = self.receiving_chains.find_ratchet(&ratchet_key) {
-            Ok(ratchet.decrypt(&message, decoded.chain_index, &decoded.ciphertext, decoded.mac)?)
+            Ok(ratchet.decrypt(&message)?)
         } else {
             let (sending_ratchet, mut remote_ratchet) = self.sending_ratchet.advance(ratchet_key);
 
-            let plaintext = remote_ratchet.decrypt(
-                &message,
-                decoded.chain_index,
-                &decoded.ciphertext,
-                decoded.mac,
-            )?;
+            let plaintext = remote_ratchet.decrypt(&message)?;
 
             self.sending_ratchet = sending_ratchet;
             self.receiving_chains.push(remote_ratchet);

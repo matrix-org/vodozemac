@@ -32,7 +32,7 @@ use self::{
     one_time_keys::{OneTimeKeys, OneTimeKeysPickle},
 };
 use super::{
-    messages::{InnerMessage, InnerPreKeyMessage, PreKeyMessage},
+    messages::PreKeyMessage,
     session::{DecryptionError, Session},
     session_keys::SessionKeys,
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
@@ -204,45 +204,41 @@ impl Account {
         their_identity_key: &Curve25519PublicKey,
         message: &PreKeyMessage,
     ) -> Result<InboundCreationResult, SessionCreationError> {
-        let message = base64_decode(&message.inner)?;
-        let message = InnerPreKeyMessage::from(message);
+        let message = message.decode()?;
 
-        let (public_one_time_key, remote_one_time_key, remote_identity_key, m) =
-            message.decode()?;
-
-        if their_identity_key != &remote_identity_key {
+        if their_identity_key != &message.remote_identity_key {
             Err(SessionCreationError::MismatchedIdentityKey)
         } else {
             // Find the matching private key that the message claims to have
             // used to create the Session that encrypted it.
             let one_time_key = self
-                .find_one_time_key(&public_one_time_key)
+                .find_one_time_key(&message.public_one_time_key)
                 .ok_or(SessionCreationError::MissingOneTimeKey)?;
 
             // Construct a 3DH shared secret from the various curve25519 keys.
             let shared_secret = RemoteShared3DHSecret::new(
                 self.diffie_hellman_key.secret_key(),
                 one_time_key,
-                &remote_identity_key,
-                &remote_one_time_key,
+                &message.remote_identity_key,
+                &message.remote_one_time_key,
             );
 
             // These will be used to uniquely identify the Session.
             let session_keys = SessionKeys {
-                identity_key: remote_identity_key,
-                base_key: remote_one_time_key,
-                one_time_key: public_one_time_key,
+                identity_key: message.remote_identity_key,
+                base_key: message.remote_one_time_key,
+                one_time_key: message.public_one_time_key,
             };
 
-            let message = InnerMessage::from(m);
-            let decoded = message.decode()?;
+            let olm_message = message.message;
 
             // Create a Session, AKA a double ratchet, this one will have an
             // inactive sending chain until we decide to encrypt a message.
-            let mut session = Session::new_remote(shared_secret, decoded.ratchet_key, session_keys);
+            let mut session =
+                Session::new_remote(shared_secret, olm_message.ratchet_key, session_keys);
 
             // Decrypt the message to check if the Session is actually valid.
-            let plaintext = session.decrypt_decoded(message, decoded)?;
+            let plaintext = session.decrypt_decoded(olm_message)?;
             let plaintext = String::from_utf8_lossy(&plaintext).to_string();
 
             // We only drop the one-time key now, this is why we can't use a
@@ -252,7 +248,7 @@ impl Account {
             // try to use such an one-time key won't be able to commnuicate with
             // us. This is strictly worse than the one-time key exhaustion
             // scenario.
-            self.remove_one_time_key(&public_one_time_key);
+            self.remove_one_time_key(&message.public_one_time_key);
 
             Ok(InboundCreationResult { session, plaintext })
         }

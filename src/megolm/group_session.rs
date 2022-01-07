@@ -19,7 +19,7 @@ use thiserror::Error;
 use zeroize::Zeroize;
 
 use super::{
-    message::MegolmMessage,
+    message::EncodedMegolmMessage,
     ratchet::{MegolmRatchetUnpicklingError, Ratchet, RatchetPickle},
     SessionKey, SESSION_KEY_VERSION,
 };
@@ -85,7 +85,7 @@ impl GroupSession {
         let cipher = Cipher::new_megolm(self.ratchet.as_bytes());
 
         let ciphertext = cipher.encrypt(plaintext.as_ref());
-        let mut message = MegolmMessage::new(ciphertext, self.message_index());
+        let mut message = EncodedMegolmMessage::new(ciphertext, self.message_index());
 
         let mac = cipher.mac(message.bytes_for_mac());
         message.append_mac(mac);
