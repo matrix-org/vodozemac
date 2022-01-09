@@ -46,7 +46,7 @@ use crate::{
     DecodeError,
 };
 
-const MAX_NUMBER_OF_ONE_TIME_KEYS: usize = 100;
+const PUBLIC_MAX_ONE_TIME_KEYS: usize = 50;
 
 #[derive(Error, Debug)]
 pub enum SessionCreationError {
@@ -95,9 +95,6 @@ impl Account {
         Self {
             signing_key: Ed25519Keypair::new(),
             diffie_hellman_key: Curve25519Keypair::new(),
-            // TODO actually limit the number of private one-time keys we can
-            // hold. The server might attempt to fill our memory and trigger a
-            // DOS otherwise.
             one_time_keys: OneTimeKeys::new(),
             fallback_keys: FallbackKeys::new(),
         }
@@ -154,8 +151,23 @@ impl Account {
         )
     }
 
+    /// Get the maximum number of one-time keys the client should keep on the
+    /// server.
+    ///
+    /// **Note**: this differs from the libolm method of the same name, the
+    /// libolm method returned the maximum amount of one-time keys the `Account`
+    /// could hold and only half of those should be uploaded.
     pub fn max_number_of_one_time_keys(&self) -> usize {
-        MAX_NUMBER_OF_ONE_TIME_KEYS
+        // We tell clients to upload a limited amount of one-time keys, this
+        // amount is smaller than what we can store.
+        //
+        // We do this because a client might receive the count of uploaded keys
+        // from the server before they receive all the pre-key messages that
+        // used some of our one-time keys. This would mean that we would forget
+        // private one-time keys, since we're generating new ones, while we
+        // didn't yet receive the pre-key messages that used those one-time
+        // keys.
+        PUBLIC_MAX_ONE_TIME_KEYS
     }
 
     /// Create a `Session` with the given identity key and one-time key.
@@ -264,7 +276,11 @@ impl Account {
     /// The one-time keys should be published to a server and marked as
     /// published using the `mark_keys_as_published()` method.
     pub fn one_time_keys(&self) -> HashMap<KeyId, Curve25519PublicKey> {
-        self.one_time_keys.public_keys.iter().map(|(key_id, key)| (*key_id, *key)).collect()
+        self.one_time_keys
+            .unpublished_public_keys
+            .iter()
+            .map(|(key_id, key)| (*key_id, *key))
+            .collect()
     }
 
     /// Get the currently unpublished one-time keys in base64-encoded form.
@@ -273,7 +289,7 @@ impl Account {
     /// published using the `mark_keys_as_published()` method.
     pub fn one_time_keys_encoded(&self) -> HashMap<String, String> {
         self.one_time_keys
-            .public_keys
+            .unpublished_public_keys
             .iter()
             .map(|(key_id, key)| (key_id.to_base64(), key.to_base64()))
             .collect()
@@ -374,24 +390,22 @@ impl Account {
                 Ok((key_id, published, private_key))
             };
 
-            let mut one_time_keys = HashMap::new();
-            let mut unpublished_one_time_keys = HashMap::new();
-            let mut reverse_one_time_keys = HashMap::new();
+            let mut one_time_keys = OneTimeKeys::new();
+            let mut max_key_id = 0;
 
             for _ in 0..number_of_one_time_keys {
-                let (key_id, published, private) = unpickle_curve_key(&mut cursor)?;
+                let (key_id, published, key) = unpickle_curve_key(&mut cursor)?;
+                one_time_keys.insert_secret_key(key_id, key, published);
 
-                let public = Curve25519PublicKey::from(&private);
-
-                one_time_keys.insert(key_id, private);
-                reverse_one_time_keys.insert(public, key_id);
-
-                if !published {
-                    unpublished_one_time_keys.insert(key_id, public);
+                if key_id.0 > max_key_id {
+                    max_key_id = key_id.0;
                 }
             }
 
-            let max_key_id = one_time_keys.keys().max().copied().unwrap_or(KeyId(0));
+            // If there are no one-time keys in the pickle our key id will be 0,
+            // otherwise we'll have to use the max found key id and increment
+            // it.
+            one_time_keys.key_id = if number_of_one_time_keys == 0 { 0 } else { max_key_id + 1 };
 
             let mut number_of_fallback_keys = [0u8; 1];
             cursor.read_exact(&mut number_of_fallback_keys)?;
@@ -416,12 +430,7 @@ impl Account {
             Ok(Self {
                 signing_key,
                 diffie_hellman_key,
-                one_time_keys: OneTimeKeys {
-                    key_id: max_key_id.0 + 1,
-                    public_keys: unpublished_one_time_keys,
-                    private_keys: one_time_keys,
-                    reverse_public_keys: reverse_one_time_keys,
-                },
+                one_time_keys,
                 fallback_keys: FallbackKeys {
                     key_id: fallback_key.as_ref().map(|k| k.key_id().0 + 1).unwrap_or(0),
                     fallback_key,
