@@ -21,7 +21,8 @@ mod ratchet;
 
 pub use group_session::{GroupSession, GroupSessionPickledJSON};
 pub use inbound_group_session::{
-    DecryptionError, ExportedSessionKey, InboundGroupSession, SessionCreationError,
+    DecryptedMessage, DecryptionError, ExportedSessionKey, InboundGroupSession,
+    SessionCreationError,
 };
 use zeroize::Zeroize;
 
