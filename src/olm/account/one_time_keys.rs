@@ -29,7 +29,7 @@ pub(super) struct OneTimeKeys {
     pub key_id: u64,
     pub unpublished_public_keys: BTreeMap<KeyId, Curve25519PublicKey>,
     pub private_keys: BTreeMap<KeyId, Curve25519SecretKey>,
-    pub reverse_public_keys: HashMap<Curve25519PublicKey, KeyId>,
+    pub key_ids_by_key: HashMap<Curve25519PublicKey, KeyId>,
 }
 
 impl Zeroize for OneTimeKeysPickle {
@@ -48,7 +48,7 @@ impl OneTimeKeys {
             key_id: 0,
             unpublished_public_keys: Default::default(),
             private_keys: Default::default(),
-            reverse_public_keys: Default::default(),
+            key_ids_by_key: Default::default(),
         }
     }
 
@@ -57,14 +57,14 @@ impl OneTimeKeys {
     }
 
     pub fn get_secret_key(&self, public_key: &Curve25519PublicKey) -> Option<&Curve25519SecretKey> {
-        self.reverse_public_keys.get(public_key).and_then(|key_id| self.private_keys.get(key_id))
+        self.key_ids_by_key.get(public_key).and_then(|key_id| self.private_keys.get(key_id))
     }
 
     pub fn remove_secret_key(
         &mut self,
         public_key: &Curve25519PublicKey,
     ) -> Option<Curve25519SecretKey> {
-        self.reverse_public_keys.remove(public_key).and_then(|key_id| {
+        self.key_ids_by_key.remove(public_key).and_then(|key_id| {
             self.unpublished_public_keys.remove(&key_id);
             self.private_keys.remove(&key_id)
         })
@@ -80,7 +80,7 @@ impl OneTimeKeys {
             if let Some(key_id) = self.private_keys.keys().next().copied() {
                 if let Some(private_key) = self.private_keys.remove(&key_id) {
                     let public_key = Curve25519PublicKey::from(&private_key);
-                    self.reverse_public_keys.remove(&public_key);
+                    self.key_ids_by_key.remove(&public_key);
                 }
 
                 self.unpublished_public_keys.remove(&key_id);
@@ -90,7 +90,7 @@ impl OneTimeKeys {
         let public_key = Curve25519PublicKey::from(&key);
 
         self.private_keys.insert(key_id, key);
-        self.reverse_public_keys.insert(public_key, key_id);
+        self.key_ids_by_key.insert(public_key, key_id);
 
         if !published {
             self.unpublished_public_keys.insert(key_id, public_key);
@@ -120,17 +120,17 @@ pub(super) struct OneTimeKeysPickle {
 
 impl From<OneTimeKeysPickle> for OneTimeKeys {
     fn from(pickle: OneTimeKeysPickle) -> Self {
-        let mut reverse_public_keys = HashMap::new();
+        let mut key_ids_by_key = HashMap::new();
 
         for (k, v) in pickle.private_keys.iter() {
-            reverse_public_keys.insert(v.into(), *k);
+            key_ids_by_key.insert(v.into(), *k);
         }
 
         Self {
             key_id: pickle.key_id,
             unpublished_public_keys: pickle.public_keys.iter().map(|(&k, &v)| (k, v)).collect(),
             private_keys: pickle.private_keys,
-            reverse_public_keys,
+            key_ids_by_key,
         }
     }
 }
@@ -159,17 +159,17 @@ mod test {
         store.generate(OneTimeKeys::MAX_ONE_TIME_KEYS);
         assert_eq!(store.private_keys.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
         assert_eq!(store.unpublished_public_keys.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
-        assert_eq!(store.reverse_public_keys.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
+        assert_eq!(store.key_ids_by_key.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
 
         store.mark_as_published();
         assert!(store.unpublished_public_keys.is_empty());
         assert_eq!(store.private_keys.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
-        assert_eq!(store.reverse_public_keys.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
+        assert_eq!(store.key_ids_by_key.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
 
         store.generate(10);
         assert_eq!(store.unpublished_public_keys.len(), 10);
         assert_eq!(store.private_keys.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
-        assert_eq!(store.reverse_public_keys.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
+        assert_eq!(store.key_ids_by_key.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
 
         let oldest_key_id =
             store.private_keys.keys().next().copied().expect("Coulnd't get the first key id");
