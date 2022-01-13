@@ -122,8 +122,8 @@ impl From<OneTimeKeysPickle> for OneTimeKeys {
     fn from(pickle: OneTimeKeysPickle) -> Self {
         let mut reverse_public_keys = HashMap::new();
 
-        for (k, v) in pickle.public_keys.clone().into_iter() {
-            reverse_public_keys.insert(v, k);
+        for (k, v) in pickle.private_keys.iter() {
+            reverse_public_keys.insert(v.into(), *k);
         }
 
         Self {
