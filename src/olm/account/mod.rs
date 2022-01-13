@@ -203,7 +203,14 @@ impl Account {
             .or_else(|| self.fallback_keys.get_secret_key(public_key))
     }
 
-    fn remove_one_time_key(
+    /// Remove a one-time key that has previously been published but not yet
+    /// used.
+    ///
+    /// **Note**: This function is only rarely useful and you'll know if you
+    /// need it. Notably, you do *not* need to call it manually when using up
+    /// a key via [`Account::create_inbound_session`] since the key is
+    /// automatically removed in that case.
+    pub fn remove_one_time_key(
         &mut self,
         public_key: &Curve25519PublicKey,
     ) -> Option<Curve25519SecretKey> {
