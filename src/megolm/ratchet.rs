@@ -234,3 +234,15 @@ pub enum MegolmRatchetUnpicklingError {
     #[error("Invalid Megolm ratchet key length: expected 128, got {0}")]
     InvalidKeyLength(usize),
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn advancing_high_counter_ratchet_doesnt_panic() {
+        let mut ratchet = Ratchet::new();
+        ratchet.counter = 0x00FFFFFF;
+        ratchet.advance();
+    }
+}
