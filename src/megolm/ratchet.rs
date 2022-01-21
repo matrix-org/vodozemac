@@ -247,7 +247,7 @@ mod tests {
     #[test]
     fn advance_to_with_high_counter_doesnt_panic() {
         let mut ratchet = Ratchet::new();
-        ratchet.counter = 1 << 24 - 1;
+        ratchet.counter = (1 << 24) - 1;
         ratchet.advance_to(1 << 24);
     }
 }
