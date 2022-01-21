@@ -87,6 +87,7 @@ impl<'a> RatchetParts<'a> {
 impl Ratchet {
     pub const RATCHET_LENGTH: usize = 128;
     const RATCHET_PART_COUNT: usize = 4;
+    const LAST_RATCHET_INDEX: usize = Self::RATCHET_PART_COUNT - 1;
 
     pub fn new() -> Self {
         let mut rng = thread_rng();
@@ -134,7 +135,7 @@ impl Ratchet {
         self.counter += 1;
 
         // Figure out which parts of the ratchet need to be advanced.
-        while h < Ratchet::RATCHET_PART_COUNT {
+        while h < Self::RATCHET_PART_COUNT {
             if (self.counter & mask) == 0 {
                 break;
             }
@@ -143,8 +144,7 @@ impl Ratchet {
             mask >>= 8;
         }
 
-        const LAST_RATCHET_INDEX: usize = Ratchet::RATCHET_PART_COUNT - 1;
-        let parts_to_advance = (h..=LAST_RATCHET_INDEX).rev();
+        let parts_to_advance = (h..=Self::LAST_RATCHET_INDEX).rev();
 
         // Now advance R(h)...R(3) based on R(h).
         for i in parts_to_advance {
