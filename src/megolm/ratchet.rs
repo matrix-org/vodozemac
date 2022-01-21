@@ -126,12 +126,15 @@ impl Ratchet {
 
     pub fn advance(&mut self) {
         let mut mask: u32 = 0x00FFFFFF;
+
+        // The index of the "slowest" part of the ratchet that needs to be
+        // advanced.
         let mut h = 0;
 
         self.counter += 1;
 
-        // figure out how much we need to rekey
-        while h < Self::RATCHET_PART_COUNT {
+        // Figure out which parts of the ratchet need to be advanced.
+        while h < Ratchet::RATCHET_PART_COUNT {
             if (self.counter & mask) == 0 {
                 break;
             }
@@ -140,14 +143,13 @@ impl Ratchet {
             mask >>= 8;
         }
 
-        let mut i = Self::RATCHET_PART_COUNT - 1;
+        const LAST_RATCHET_INDEX: usize = Ratchet::RATCHET_PART_COUNT - 1;
+        let parts_to_advance = (h..=LAST_RATCHET_INDEX).rev();
 
-        // now update R(h)...R(3) based on R(h)
-        while i >= h {
+        // Now advance R(h)...R(3) based on R(h).
+        for i in parts_to_advance {
             let mut parts = self.as_parts();
             parts.update(h, i);
-
-            i -= 1;
         }
     }
 
