@@ -549,8 +549,8 @@ mod test {
             .parsed_one_time_keys()
             .curve25519()
             .values()
-            .cloned()
             .next()
+            .cloned()
             .expect("Didn't find a valid one-time key");
 
         bob.mark_keys_as_published();
@@ -666,8 +666,8 @@ mod test {
         let one_time_key = bob
             .one_time_keys_encoded()
             .values()
-            .cloned()
             .next()
+            .cloned()
             .expect("Didn't find a valid one-time key");
 
         let alice_session =
@@ -700,7 +700,7 @@ mod test {
         bob.generate_fallback_key();
 
         let one_time_key =
-            bob.fallback_key().values().cloned().next().expect("Didn't find a valid fallback key");
+            bob.fallback_key().values().next().cloned().expect("Didn't find a valid fallback key");
         assert!(bob.one_time_keys.private_keys.is_empty());
 
         let alice_session =

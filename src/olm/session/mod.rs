@@ -502,8 +502,8 @@ mod test {
             .parsed_one_time_keys()
             .curve25519()
             .values()
-            .cloned()
             .next()
+            .cloned()
             .expect("Couldn't find a one-time key");
 
         let identity_keys = bob.parsed_identity_keys();
