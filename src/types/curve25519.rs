@@ -14,13 +14,12 @@
 
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
-use x25519_dalek::{
-    EphemeralSecret, PublicKey, ReusableSecret, StaticSecret as Curve25519SecretKey,
-};
+pub use x25519_dalek::StaticSecret as Curve25519SecretKey;
+use x25519_dalek::{EphemeralSecret, PublicKey, ReusableSecret};
 use zeroize::Zeroize;
 
 use super::PublicKeyError;
-use crate::utilities::{base64_decode, base64_encode};
+use crate::utilities::{base64_decode, base64_encode, Decode};
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(from = "Curve25519KeypairPickle")]
@@ -43,6 +42,15 @@ impl Curve25519Keypair {
         Self { secret_key, public_key, encoded_public_key }
     }
 
+    pub fn from_secret_key(mut key: [u8; 32]) -> Self {
+        let secret_key = Curve25519SecretKey::from(key);
+        let public_key = Curve25519PublicKey::from(&secret_key);
+
+        key.zeroize();
+
+        Curve25519Keypair { secret_key, public_key, encoded_public_key: public_key.to_base64() }
+    }
+
     pub fn secret_key(&self) -> &Curve25519SecretKey {
         &self.secret_key
     }
@@ -60,6 +68,16 @@ impl Curve25519Keypair {
 #[serde(transparent)]
 pub struct Curve25519PublicKey {
     pub(crate) inner: PublicKey,
+}
+
+impl Decode for Curve25519PublicKey {
+    fn decode(
+        reader: &mut impl std::io::Read,
+    ) -> Result<Self, crate::utilities::LibolmDecodeError> {
+        let key = <[u8; 32]>::decode(reader)?;
+
+        Ok(Curve25519PublicKey::from(key))
+    }
 }
 
 impl Curve25519PublicKey {

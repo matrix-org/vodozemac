@@ -271,39 +271,72 @@ impl InboundGroupSession {
         pickle: &str,
         pickle_key: &str,
     ) -> Result<Self, crate::LibolmUnpickleError> {
-        use crate::utilities::{read_bool, read_u32};
+        use crate::utilities::{unpickle_libolm, Decode};
+
+        #[derive(Zeroize)]
+        #[zeroize(drop)]
+        struct RatchetPickle {
+            ratchet: [u8; 128],
+            index: u32,
+        }
+
+        impl From<&RatchetPickle> for Ratchet {
+            fn from(pickle: &RatchetPickle) -> Self {
+                Ratchet::from_bytes(pickle.ratchet, pickle.index)
+            }
+        }
+
+        impl Decode for RatchetPickle {
+            fn decode(reader: &mut impl Read) -> Result<Self, crate::utilities::LibolmDecodeError> {
+                Ok(RatchetPickle {
+                    ratchet: <[u8; 128]>::decode(reader)?,
+                    index: u32::decode(reader)?,
+                })
+            }
+        }
+
+        #[derive(Zeroize)]
+        #[zeroize(drop)]
+        struct Pickle {
+            version: u32,
+            initial_ratchet: RatchetPickle,
+            latest_ratchet: RatchetPickle,
+            signing_key: [u8; 32],
+            signing_key_verified: bool,
+        }
+
+        impl Decode for Pickle {
+            fn decode(reader: &mut impl Read) -> Result<Self, crate::utilities::LibolmDecodeError> {
+                Ok(Pickle {
+                    version: u32::decode(reader)?,
+                    initial_ratchet: RatchetPickle::decode(reader)?,
+                    latest_ratchet: RatchetPickle::decode(reader)?,
+                    signing_key: <[u8; 32]>::decode(reader)?,
+                    signing_key_verified: bool::decode(reader)?,
+                })
+            }
+        }
+
+        impl TryFrom<Pickle> for InboundGroupSession {
+            type Error = crate::LibolmUnpickleError;
+
+            fn try_from(pickle: Pickle) -> Result<Self, Self::Error> {
+                // Removing the borrow doesn't work and clippy complains about
+                // this on nightly.
+                #[allow(clippy::needless_borrow)]
+                let initial_ratchet = (&pickle.initial_ratchet).into();
+                #[allow(clippy::needless_borrow)]
+                let latest_ratchet = (&pickle.latest_ratchet).into();
+                let signing_key = Ed25519PublicKey::from_slice(&pickle.signing_key)?;
+                let signing_key_verified = pickle.signing_key_verified;
+
+                Ok(Self { initial_ratchet, latest_ratchet, signing_key, signing_key_verified })
+            }
+        }
 
         const PICKLE_VERSION: u32 = 2;
 
-        let cipher = Cipher::new_pickle(pickle_key.as_ref());
-
-        let decoded = base64_decode(pickle)?;
-        let decrypted = cipher.decrypt_pickle(&decoded)?;
-
-        let mut cursor = Cursor::new(decrypted);
-        let version = read_u32(&mut cursor)?;
-
-        if version != 2 {
-            Err(crate::LibolmUnpickleError::Version(PICKLE_VERSION, version))
-        } else {
-            let mut ratchet = [0u8; Ratchet::RATCHET_LENGTH];
-
-            cursor.read_exact(&mut ratchet)?;
-            let counter = read_u32(&mut cursor)?;
-            let initial_ratchet = Ratchet::from_bytes(ratchet, counter);
-
-            cursor.read_exact(&mut ratchet)?;
-            let counter = read_u32(&mut cursor)?;
-            let latest_ratchet = Ratchet::from_bytes(ratchet, counter);
-
-            let mut signing_key = [0u8; Ed25519PublicKey::LENGTH];
-            cursor.read_exact(&mut signing_key)?;
-            let signing_key = Ed25519PublicKey::from_slice(&signing_key)?;
-
-            let signing_key_verified = read_bool(&mut cursor)?;
-
-            Ok(Self { initial_ratchet, latest_ratchet, signing_key, signing_key_verified })
-        }
+        unpickle_libolm::<Pickle, _>(pickle, pickle_key, PICKLE_VERSION)
     }
 }
 

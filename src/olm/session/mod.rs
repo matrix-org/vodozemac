@@ -20,10 +20,7 @@ mod ratchet;
 mod receiver_chain;
 mod root_key;
 
-use std::{
-    io::{Cursor, Read, Seek, SeekFrom},
-    ops::Deref,
-};
+use std::ops::Deref;
 
 use arrayvec::ArrayVec;
 use block_modes::BlockModeError;
@@ -45,7 +42,7 @@ use super::{
 };
 use crate::{
     olm::messages::{DecodedMessage, EncodedPrekeyMessage, Message, OlmMessage, PreKeyMessage},
-    utilities::{base64_decode, base64_encode},
+    utilities::base64_encode,
     Curve25519PublicKey, DecodeError,
 };
 
@@ -305,114 +302,180 @@ impl Session {
         use root_key::RootKey;
 
         use crate::{
-            cipher::Cipher,
-            utilities::{read_curve_key, read_u32},
+            types::Curve25519SecretKey,
+            utilities::{unpickle_libolm, Decode},
         };
 
-        const PICKLE_VERSION: u32 = 1;
+        #[derive(Debug, Zeroize)]
+        #[zeroize(drop)]
+        struct SenderChain {
+            public_ratchet_key: [u8; 32],
+            secret_ratchet_key: [u8; 32],
+            chain_key: [u8; 32],
+            chain_key_index: u32,
+        }
 
-        let cipher = Cipher::new_pickle(pickle_key.as_ref());
-
-        let decoded = base64_decode(pickle)?;
-        let decrypted = cipher.decrypt_pickle(&decoded)?;
-        let mut cursor = Cursor::new(decrypted);
-
-        let version = read_u32(&mut cursor)?;
-
-        if version != PICKLE_VERSION {
-            Err(crate::LibolmUnpickleError::Version(PICKLE_VERSION, version))
-        } else {
-            // We skip fetching the received_message boolean, if there's a
-            // receiving chain, we must have received a message.
-            cursor.seek(SeekFrom::Current(1))?;
-
-            let mut identity_key = [0u8; 32];
-            let mut base_key = [0u8; 32];
-            let mut one_time_key = [0u8; 32];
-
-            cursor.read_exact(&mut identity_key)?;
-            cursor.read_exact(&mut base_key)?;
-            cursor.read_exact(&mut one_time_key)?;
-
-            let identity_key = Curve25519PublicKey::from(identity_key);
-            let base_key = Curve25519PublicKey::from(base_key);
-            let one_time_key = Curve25519PublicKey::from(one_time_key);
-
-            let session_keys = SessionKeys { identity_key, base_key, one_time_key };
-
-            let mut root_key = [0u8; 32];
-            cursor.read_exact(&mut root_key)?;
-
-            let sender_chain_count = read_u32(&mut cursor)?;
-
-            let sending_ratchet = if sender_chain_count == 1 {
-                let mut chain_key = [0u8; 32];
-
-                let ratchet_key = read_curve_key(&mut cursor)?;
-                cursor.read_exact(&mut chain_key)?;
-                let chain_key_index = read_u32(&mut cursor)?;
-
-                let ratchet_key = RatchetKey::from(ratchet_key);
-                let chain_key = ChainKey::from_bytes_and_index(chain_key, chain_key_index);
-
-                let root_key = RootKey::new(root_key);
-
-                let ratchet = Ratchet::new_with_ratchet_key(root_key, ratchet_key);
-                Some(DoubleRatchet::from_ratchet_and_chain_key(ratchet, chain_key))
-            } else {
-                None
-            };
-
-            let receiving_chain_count = read_u32(&mut cursor)?;
-
-            let mut receiving_chains = ChainStore::new();
-
-            for _ in 0..receiving_chain_count {
-                let mut ratchet_key = [0u8; 32];
-                let mut chain_key = [0u8; 32];
-
-                cursor.read_exact(&mut ratchet_key)?;
-                cursor.read_exact(&mut chain_key)?;
-                let chain_key_index = read_u32(&mut cursor)?;
-
-                let ratchet_key = RemoteRatchetKey::from(ratchet_key);
-                let chain_key = RemoteChainKey::from_bytes_and_index(chain_key, chain_key_index);
-
-                let receiving_chain = ReceiverChain::new(ratchet_key, chain_key);
-
-                receiving_chains.push(receiving_chain);
-            }
-
-            let message_key_count = read_u32(&mut cursor)?;
-
-            for _ in 0..message_key_count {
-                let mut ratchet_key = [0u8; 32];
-                let mut message_key = [0u8; 32];
-
-                cursor.read_exact(&mut ratchet_key)?;
-                cursor.read_exact(&mut message_key)?;
-
-                let index = read_u32(&mut cursor)?.into();
-                let ratchet_key = RemoteRatchetKey::from(ratchet_key);
-
-                let message_key = RemoteMessageKey { key: message_key, index };
-
-                if let Some(receiving_chain) = receiving_chains.find_ratchet(&ratchet_key) {
-                    receiving_chain.insert_message_key(message_key)
-                }
-            }
-
-            if let Some(sending_ratchet) = sending_ratchet {
-                Ok(Self { session_keys, sending_ratchet, receiving_chains })
-            } else if let Some(chain) = receiving_chains.get(0) {
-                let sending_ratchet =
-                    DoubleRatchet::inactive(RemoteRootKey::new(root_key), chain.ratchet_key());
-
-                Ok(Self { session_keys, sending_ratchet, receiving_chains })
-            } else {
-                Err(crate::LibolmUnpickleError::InvalidSession)
+        impl Decode for SenderChain {
+            fn decode(
+                reader: &mut impl std::io::Read,
+            ) -> Result<Self, crate::utilities::LibolmDecodeError> {
+                Ok(Self {
+                    public_ratchet_key: <[u8; 32]>::decode(reader)?,
+                    secret_ratchet_key: <[u8; 32]>::decode(reader)?,
+                    chain_key: <[u8; 32]>::decode(reader)?,
+                    chain_key_index: u32::decode(reader)?,
+                })
             }
         }
+
+        #[derive(Debug, Zeroize)]
+        #[zeroize(drop)]
+        struct ReceivingChain {
+            ratchet_key: [u8; 32],
+            chain_key: [u8; 32],
+            chain_key_index: u32,
+        }
+
+        impl Decode for ReceivingChain {
+            fn decode(
+                reader: &mut impl std::io::Read,
+            ) -> Result<Self, crate::utilities::LibolmDecodeError> {
+                Ok(Self {
+                    ratchet_key: <[u8; 32]>::decode(reader)?,
+                    chain_key: <[u8; 32]>::decode(reader)?,
+                    chain_key_index: u32::decode(reader)?,
+                })
+            }
+        }
+
+        impl From<&ReceivingChain> for ReceiverChain {
+            fn from(chain: &ReceivingChain) -> Self {
+                let ratchet_key = RemoteRatchetKey::from(chain.ratchet_key);
+                let chain_key =
+                    RemoteChainKey::from_bytes_and_index(chain.chain_key, chain.chain_key_index);
+
+                ReceiverChain::new(ratchet_key, chain_key)
+            }
+        }
+
+        #[derive(Debug, Zeroize)]
+        #[zeroize(drop)]
+        struct MessageKey {
+            ratchet_key: [u8; 32],
+            message_key: [u8; 32],
+            index: u32,
+        }
+
+        impl Decode for MessageKey {
+            fn decode(
+                reader: &mut impl std::io::Read,
+            ) -> Result<Self, crate::utilities::LibolmDecodeError> {
+                Ok(Self {
+                    ratchet_key: <[u8; 32]>::decode(reader)?,
+                    message_key: <[u8; 32]>::decode(reader)?,
+                    index: u32::decode(reader)?,
+                })
+            }
+        }
+
+        impl From<&MessageKey> for RemoteMessageKey {
+            fn from(key: &MessageKey) -> Self {
+                RemoteMessageKey { key: key.message_key, index: key.index.into() }
+            }
+        }
+
+        struct Pickle {
+            #[allow(dead_code)]
+            version: u32,
+            #[allow(dead_code)]
+            received_message: bool,
+            session_keys: SessionKeys,
+            root_key: [u8; 32],
+            sender_chains: Vec<SenderChain>,
+            receiver_chains: Vec<ReceivingChain>,
+            message_keys: Vec<MessageKey>,
+        }
+
+        impl Decode for Pickle {
+            fn decode(
+                reader: &mut impl std::io::Read,
+            ) -> Result<Self, crate::utilities::LibolmDecodeError> {
+                Ok(Self {
+                    version: u32::decode(reader)?,
+                    received_message: bool::decode(reader)?,
+                    session_keys: SessionKeys::decode(reader)?,
+                    root_key: <[u8; 32]>::decode(reader)?,
+                    sender_chains: Vec::decode(reader)?,
+                    receiver_chains: Vec::decode(reader)?,
+                    message_keys: Vec::decode(reader)?,
+                })
+            }
+        }
+
+        impl Drop for Pickle {
+            fn drop(&mut self) {
+                self.root_key.zeroize();
+                self.sender_chains.zeroize();
+                self.receiver_chains.zeroize();
+                self.message_keys.zeroize();
+            }
+        }
+
+        impl TryFrom<Pickle> for Session {
+            type Error = crate::LibolmUnpickleError;
+
+            fn try_from(pickle: Pickle) -> Result<Self, Self::Error> {
+                let mut receiving_chains = ChainStore::new();
+
+                for chain in &pickle.receiver_chains {
+                    receiving_chains.push(chain.into())
+                }
+
+                for key in &pickle.message_keys {
+                    let ratchet_key =
+                        RemoteRatchetKey::from(Curve25519PublicKey::from(key.ratchet_key));
+
+                    if let Some(receiving_chain) = receiving_chains.find_ratchet(&ratchet_key) {
+                        receiving_chain.insert_message_key(key.into())
+                    }
+                }
+
+                if let Some(chain) = pickle.sender_chains.get(0) {
+                    let ratchet_key =
+                        RatchetKey::from(Curve25519SecretKey::from(chain.secret_ratchet_key));
+                    let chain_key =
+                        ChainKey::from_bytes_and_index(chain.chain_key, chain.chain_key_index);
+
+                    let root_key = RootKey::new(pickle.root_key);
+
+                    let ratchet = Ratchet::new_with_ratchet_key(root_key, ratchet_key);
+                    let sending_ratchet =
+                        DoubleRatchet::from_ratchet_and_chain_key(ratchet, chain_key);
+
+                    Ok(Self {
+                        session_keys: pickle.session_keys.clone(),
+                        sending_ratchet,
+                        receiving_chains,
+                    })
+                } else if let Some(chain) = receiving_chains.get(0) {
+                    let sending_ratchet = DoubleRatchet::inactive(
+                        RemoteRootKey::new(pickle.root_key),
+                        chain.ratchet_key(),
+                    );
+
+                    Ok(Self {
+                        session_keys: pickle.session_keys.clone(),
+                        sending_ratchet,
+                        receiving_chains,
+                    })
+                } else {
+                    Err(crate::LibolmUnpickleError::InvalidSession)
+                }
+            }
+        }
+
+        const PICKLE_VERSION: u32 = 1;
+        unpickle_libolm::<Pickle, _>(pickle, pickle_key, PICKLE_VERSION)
     }
 }
 

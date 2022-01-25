@@ -40,10 +40,10 @@ pub use types::{
 
 #[derive(Debug, thiserror::Error)]
 pub enum LibolmUnpickleError {
+    #[error("The pickle doesn't contain a version")]
+    MissingVersion,
     #[error("The pickle uses an unsupported version, expected {0}, got {1}")]
     Version(u32, u32),
-    #[error("The pickle didn't contain enough data to be decoded")]
-    InvalidSize(#[from] std::io::Error),
     #[error("The pickle wasn't valid base64: {0}")]
     Base64(#[from] base64::DecodeError),
     #[error("The pickle couldn't be decrypted: {0}")]
@@ -52,6 +52,8 @@ pub enum LibolmUnpickleError {
     PublicKey(#[from] PublicKeyError),
     #[error("The pickle didn't contain a valid Olm session")]
     InvalidSession,
+    #[error(transparent)]
+    Decode(#[from] crate::utilities::LibolmDecodeError),
 }
 
 #[derive(Debug, thiserror::Error)]

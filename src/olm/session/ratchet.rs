@@ -20,7 +20,7 @@ use super::{
     chain_key::RemoteChainKey,
     root_key::{RemoteRootKey, RootKey},
 };
-use crate::Curve25519PublicKey;
+use crate::{utilities::Decode, Curve25519PublicKey};
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(transparent)]
@@ -32,6 +32,16 @@ pub(super) struct RatchetPublicKey(Curve25519PublicKey);
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct RemoteRatchetKey(Curve25519PublicKey);
+
+impl Decode for RemoteRatchetKey {
+    fn decode(
+        reader: &mut impl std::io::Read,
+    ) -> Result<Self, crate::utilities::LibolmDecodeError> {
+        let key = Curve25519PublicKey::decode(reader)?;
+
+        Ok(RemoteRatchetKey(key))
+    }
+}
 
 impl RatchetKey {
     pub fn new() -> Self {
