@@ -20,6 +20,7 @@ strict-signatures = []
 aes = "0.7.5"
 arrayvec = { version = "0.7.2", features = ["serde"] }
 base64 = "0.13.0"
+bincode = { git = "https://github.com/poljar/bincode", rev = "6320ae1f38a3010f14a7cc71a55665139c4ef9c9" }
 block-modes = "0.8.1"
 ed25519-dalek = { version = "1.0.1", default-features = false, features = [
     "rand",

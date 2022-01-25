@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use bincode::Decode;
 use hkdf::Hkdf;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
@@ -24,7 +25,7 @@ use super::{
 
 const ADVANCEMENT_SEED: &[u8; 11] = b"OLM_RATCHET";
 
-#[derive(Serialize, Deserialize, Zeroize, Clone)]
+#[derive(Serialize, Deserialize, Zeroize, Clone, Decode)]
 #[serde(transparent)]
 pub(crate) struct RootKey {
     pub key: [u8; 32],

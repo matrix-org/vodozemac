@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use bincode::Decode;
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use x25519_dalek::{
-    EphemeralSecret, PublicKey, ReusableSecret, StaticSecret as Curve25519SecretKey,
-};
+pub use x25519_dalek::StaticSecret as Curve25519SecretKey;
+use x25519_dalek::{EphemeralSecret, PublicKey, ReusableSecret};
 use zeroize::Zeroize;
 
 use crate::utilities::{base64_decode, base64_encode, DecodeError};
@@ -43,6 +43,13 @@ impl Curve25519Keypair {
         Self { secret_key, public_key, encoded_public_key }
     }
 
+    pub fn from_secret_key(key: [u8; 32]) -> Self {
+        let secret_key = Curve25519SecretKey::from(key);
+        let public_key = Curve25519PublicKey::from(&secret_key);
+
+        Curve25519Keypair { secret_key, public_key, encoded_public_key: public_key.to_base64() }
+    }
+
     pub fn secret_key(&self) -> &Curve25519SecretKey {
         &self.secret_key
     }
@@ -60,6 +67,16 @@ impl Curve25519Keypair {
 #[serde(transparent)]
 pub struct Curve25519PublicKey {
     pub(crate) inner: PublicKey,
+}
+
+impl Decode for Curve25519PublicKey {
+    fn decode<D: bincode::de::Decoder>(
+        decoder: &mut D,
+    ) -> Result<Self, bincode::error::DecodeError> {
+        let key = <[u8; 32]>::decode(decoder)?;
+
+        Ok(Curve25519PublicKey::from(key))
+    }
 }
 
 impl Curve25519PublicKey {

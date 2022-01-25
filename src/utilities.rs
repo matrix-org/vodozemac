@@ -13,11 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::{Cursor, Read, Seek, SeekFrom};
-
 pub use base64::DecodeError;
 use base64::{decode_config, encode_config, STANDARD_NO_PAD};
-use x25519_dalek::StaticSecret as Curve25519SecretKey;
 
 /// Decode the input as base64 with no padding.
 pub fn base64_decode(input: impl AsRef<[u8]>) -> Result<Vec<u8>, DecodeError> {
@@ -94,23 +91,40 @@ impl VarInt for u64 {
     }
 }
 
-pub(crate) fn read_u32(cursor: &mut Cursor<Vec<u8>>) -> std::io::Result<u32> {
-    let mut num = [0u8; 4];
-    cursor.read_exact(&mut num)?;
-    Ok(u32::from_be_bytes(num))
+pub(crate) trait GetVersion {
+    fn get_version(&self) -> Option<u32>;
 }
 
-pub(crate) fn read_curve_key(cursor: &mut Cursor<Vec<u8>>) -> std::io::Result<Curve25519SecretKey> {
-    // Skip the public key.
-    cursor.seek(SeekFrom::Current(32))?;
-    let mut private_key = [0u8; 32];
-    cursor.read_exact(&mut private_key)?;
-
-    Ok(Curve25519SecretKey::from(private_key))
+impl GetVersion for Vec<u8> {
+    fn get_version(&self) -> Option<u32> {
+        let version = self.get(0..4)?;
+        Some(u32::from_be_bytes(version.try_into().ok()?))
+    }
 }
 
-pub(crate) fn read_bool(cursor: &mut Cursor<Vec<u8>>) -> std::io::Result<bool> {
-    let mut published = [0u8; 1];
-    cursor.read_exact(&mut published)?;
-    Ok(published[0] != 0)
+pub(crate) fn decode_bincode<T: bincode::Decode>(
+    source: &[u8],
+) -> Result<(T, usize), bincode::error::DecodeError> {
+    const BINCODE_LIMIT: usize = 1024 * 10;
+
+    let config = bincode::config::standard()
+        .with_big_endian()
+        .with_fixed_int_encoding()
+        .skip_fixed_array_length()
+        .with_limit::<BINCODE_LIMIT>()
+        .with_u32_slice_length_encoding();
+
+    bincode::decode_from_slice(source, config)
+}
+
+pub(crate) fn decrypt_pickle(
+    pickle: &[u8],
+    pickle_key: &[u8],
+) -> Result<Vec<u8>, crate::LibolmUnpickleError> {
+    use crate::cipher::Cipher;
+
+    let cipher = Cipher::new_pickle(pickle_key);
+    let decoded = base64_decode(pickle)?;
+
+    Ok(cipher.decrypt_pickle(&decoded)?)
 }

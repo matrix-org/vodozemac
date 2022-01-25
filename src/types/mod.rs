@@ -16,7 +16,7 @@ mod curve25519;
 mod ed25519;
 
 pub use curve25519::{Curve25519KeyError, Curve25519PublicKey};
-pub(crate) use curve25519::{Curve25519Keypair, Curve25519KeypairPickle};
+pub(crate) use curve25519::{Curve25519Keypair, Curve25519KeypairPickle, Curve25519SecretKey};
 pub(crate) use ed25519::{
     Ed25519Keypair, Ed25519KeypairPickle, Ed25519KeypairUnpicklingError, Ed25519Signature,
 };

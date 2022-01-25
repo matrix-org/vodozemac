@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use bincode::Decode;
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use x25519_dalek::{SharedSecret, StaticSecret as Curve25519SecretKey};
@@ -29,7 +30,7 @@ pub(super) struct RatchetKey(Curve25519SecretKey);
 #[derive(Debug, PartialEq)]
 pub(super) struct RatchetPublicKey(Curve25519PublicKey);
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Serialize, Deserialize, Decode)]
 #[serde(transparent)]
 pub struct RemoteRatchetKey(Curve25519PublicKey);
 

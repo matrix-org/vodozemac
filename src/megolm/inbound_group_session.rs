@@ -243,42 +243,65 @@ impl InboundGroupSession {
         }
     }
 
+    fn decode_libolm_pickle(pickle: &[u8]) -> Result<Self, crate::LibolmUnpickleError> {
+        use bincode::{Decode, Encode};
+
+        use crate::utilities::decode_bincode;
+
+        #[derive(Decode, Encode, Zeroize)]
+        #[zeroize(drop)]
+        struct RatchetPickle {
+            ratchet: [u8; 128],
+            index: u32,
+        }
+
+        impl From<&RatchetPickle> for Ratchet {
+            fn from(pickle: &RatchetPickle) -> Self {
+                Ratchet::from_bytes(pickle.ratchet, pickle.index)
+            }
+        }
+
+        #[derive(Decode, Encode, Zeroize)]
+        #[zeroize(drop)]
+        struct Pickle {
+            version: u32,
+            initial_ratchet: RatchetPickle,
+            latest_ratchet: RatchetPickle,
+            signing_key: [u8; 32],
+            signing_key_verified: bool,
+        }
+
+        let (pickle, _): (Pickle, usize) = decode_bincode(pickle)?;
+
+        let initial_ratchet = (&pickle.initial_ratchet).into();
+        let latest_ratchet = (&pickle.latest_ratchet).into();
+        let signing_key = Ed25519PublicKey::from_bytes(&pickle.signing_key)?;
+        let signing_key_verified = pickle.signing_key_verified;
+
+        Ok(Self { initial_ratchet, latest_ratchet, signing_key, signing_key_verified })
+    }
+
     pub fn from_libolm_pickle(
         pickle: &str,
         pickle_key: &str,
     ) -> Result<Self, crate::LibolmUnpickleError> {
-        use crate::utilities::{read_bool, read_u32};
+        use crate::{
+            utilities::{decrypt_pickle, GetVersion},
+            LibolmUnpickleError,
+        };
 
         const PICKLE_VERSION: u32 = 2;
 
-        let cipher = Cipher::new_pickle(pickle_key.as_ref());
+        let mut decrypted = decrypt_pickle(pickle.as_ref(), pickle_key.as_ref())?;
+        let version = decrypted.get_version().ok_or(LibolmUnpickleError::MissingVersion)?;
 
-        let decoded = base64_decode(pickle)?;
-        let decrypted = cipher.decrypt_pickle(&decoded)?;
-
-        let mut cursor = Cursor::new(decrypted);
-        let version = read_u32(&mut cursor)?;
-
-        if version != 2 {
-            Err(crate::LibolmUnpickleError::Version(PICKLE_VERSION, version))
+        if version != PICKLE_VERSION {
+            Err(LibolmUnpickleError::Version(PICKLE_VERSION, version))
         } else {
-            let mut ratchet = [0u8; Ratchet::RATCHET_LENGTH];
+            let session = Self::decode_libolm_pickle(&decrypted);
+            decrypted.zeroize();
 
-            cursor.read_exact(&mut ratchet)?;
-            let counter = read_u32(&mut cursor)?;
-            let initial_ratchet = Ratchet::from_bytes(ratchet, counter);
-
-            cursor.read_exact(&mut ratchet)?;
-            let counter = read_u32(&mut cursor)?;
-            let latest_ratchet = Ratchet::from_bytes(ratchet, counter);
-
-            let mut signing_key = [0u8; Ed25519PublicKey::LENGTH];
-            cursor.read_exact(&mut signing_key)?;
-            let signing_key = Ed25519PublicKey::from_bytes(&signing_key)?;
-
-            let signing_key_verified = read_bool(&mut cursor)?;
-
-            Ok(Self { initial_ratchet, latest_ratchet, signing_key, signing_key_verified })
+            session
         }
     }
 }

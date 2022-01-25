@@ -13,12 +13,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use bincode::Decode;
 use serde::{Deserialize, Serialize};
 
 use crate::Curve25519PublicKey;
 
 /// The set of keys that were used to establish the Olm Session,
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Decode)]
 pub(crate) struct SessionKeys {
     pub(crate) identity_key: Curve25519PublicKey,
     pub(crate) base_key: Curve25519PublicKey,
