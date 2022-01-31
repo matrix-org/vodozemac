@@ -20,7 +20,7 @@ use super::{
     chain_key::RemoteChainKey,
     root_key::{RemoteRootKey, RootKey},
 };
-use crate::{utilities::Decode, Curve25519PublicKey};
+use crate::Curve25519PublicKey;
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(transparent)]
@@ -33,7 +33,8 @@ pub(super) struct RatchetPublicKey(Curve25519PublicKey);
 #[serde(transparent)]
 pub struct RemoteRatchetKey(Curve25519PublicKey);
 
-impl Decode for RemoteRatchetKey {
+#[cfg(feature = "libolm-compat")]
+impl crate::utilities::Decode for RemoteRatchetKey {
     fn decode(
         reader: &mut impl std::io::Read,
     ) -> Result<Self, crate::utilities::LibolmDecodeError> {

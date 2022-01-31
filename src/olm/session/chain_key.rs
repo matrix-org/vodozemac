@@ -79,6 +79,7 @@ impl RemoteChainKey {
         self.index
     }
 
+    #[cfg(feature = "libolm-compat")]
     pub fn from_bytes_and_index(bytes: [u8; 32], index: u32) -> Self {
         Self { key: bytes, index: index.into() }
     }
@@ -104,6 +105,7 @@ impl ChainKey {
         Self { key: bytes, index: 0 }
     }
 
+    #[cfg(feature = "libolm-compat")]
     pub fn from_bytes_and_index(bytes: [u8; 32], index: u32) -> Self {
         Self { key: bytes, index: index.into() }
     }

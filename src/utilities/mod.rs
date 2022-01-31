@@ -13,9 +13,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#[cfg(feature = "libolm-compat")]
 mod libolm_compat;
 
 pub use base64::DecodeError;
+#[cfg(feature = "libolm-compat")]
 pub(crate) use libolm_compat::{unpickle_libolm, Decode, LibolmDecodeError};
 
 /// Decode the input as base64 with no padding.

@@ -24,7 +24,7 @@ use x25519_dalek::{ReusableSecret, StaticSecret as Curve25519SecretKey};
 use zeroize::Zeroize;
 
 use self::{
-    fallback_keys::{FallbackKey, FallbackKeys, FallbackKeysPickle},
+    fallback_keys::{FallbackKeys, FallbackKeysPickle},
     one_time_keys::{OneTimeKeys, OneTimeKeysPickle},
 };
 use super::{
@@ -355,10 +355,12 @@ impl Account {
     ///
     /// Such pickles are encrypted and need to first be decrypted using
     /// `pickle_key`.
+    #[cfg(feature = "libolm-compat")]
     pub fn from_libolm_pickle(
         pickle: &str,
         pickle_key: &str,
     ) -> Result<Self, crate::LibolmUnpickleError> {
+        use self::fallback_keys::FallbackKey;
         use crate::utilities::{unpickle_libolm, Decode};
 
         #[derive(Debug, Zeroize)]
@@ -591,7 +593,7 @@ pub enum AccountUnpicklingError {
 #[cfg(test)]
 mod test {
     use anyhow::{bail, Context, Result};
-    use olm_rs::{account::OlmAccount, session::OlmMessage as LibolmOlmMessage, PicklingMode};
+    use olm_rs::{account::OlmAccount, session::OlmMessage as LibolmOlmMessage};
 
     use super::{Account, InboundCreationResult, SessionCreationError};
     use crate::{
@@ -814,13 +816,14 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "libolm-compat")]
     fn libolm_unpickling() -> Result<()> {
         let olm = OlmAccount::new();
         olm.generate_one_time_keys(10);
         olm.generate_fallback_key();
 
         let key = "DEFAULT_PICKLE_KEY";
-        let pickle = olm.pickle(PicklingMode::Encrypted { key: key.as_bytes().to_vec() });
+        let pickle = olm.pickle(olm_rs::PicklingMode::Encrypted { key: key.as_bytes().to_vec() });
 
         let unpickled = Account::from_libolm_pickle(&pickle, key)?;
 
@@ -847,13 +850,14 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "libolm-compat")]
     fn signing_with_expanded_key() -> Result<()> {
         let olm = OlmAccount::new();
         olm.generate_one_time_keys(10);
         olm.generate_fallback_key();
 
         let key = "DEFAULT_PICKLE_KEY";
-        let pickle = olm.pickle(PicklingMode::Encrypted { key: key.as_bytes().to_vec() });
+        let pickle = olm.pickle(olm_rs::PicklingMode::Encrypted { key: key.as_bytes().to_vec() });
 
         let account_with_expanded_key = Account::from_libolm_pickle(&pickle, key)?;
 

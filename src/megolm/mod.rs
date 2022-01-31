@@ -51,7 +51,7 @@ mod test {
     use anyhow::Result;
     use olm_rs::{
         inbound_group_session::OlmInboundGroupSession,
-        outbound_group_session::OlmOutboundGroupSession, PicklingMode,
+        outbound_group_session::OlmOutboundGroupSession,
     };
 
     use super::{GroupSession, InboundGroupSession, SessionKey};
@@ -208,6 +208,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "libolm-compat")]
     fn libolm_unpickling() -> Result<()> {
         let session = GroupSession::new();
         let session_key = session.session_key();
@@ -215,7 +216,7 @@ mod test {
         let olm = OlmInboundGroupSession::new(session_key.as_str())?;
 
         let key = "DEFAULT_PICKLE_KEY";
-        let pickle = olm.pickle(PicklingMode::Encrypted { key: key.as_bytes().to_vec() });
+        let pickle = olm.pickle(olm_rs::PicklingMode::Encrypted { key: key.as_bytes().to_vec() });
 
         let unpickled = InboundGroupSession::from_libolm_pickle(&pickle, key)?;
 

@@ -56,6 +56,7 @@ impl Ed25519Keypair {
         }
     }
 
+    #[cfg(feature = "libolm-compat")]
     pub fn from_expanded_key(secret_key: &[u8; 64]) -> Result<Self, crate::PublicKeyError> {
         let secret_key = ExpandedSecretKey::from_bytes(secret_key).map_err(SignatureError::from)?;
         let public_key = Ed25519PublicKey(PublicKey::from(&secret_key));

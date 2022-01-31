@@ -38,6 +38,7 @@ pub use types::{
     Curve25519PublicKey, Ed25519PublicKey, Ed25519Signature, KeyId, PublicKeyError, SignatureError,
 };
 
+#[cfg(feature = "libolm-compat")]
 #[derive(Debug, thiserror::Error)]
 pub enum LibolmUnpickleError {
     #[error("The pickle doesn't contain a version")]

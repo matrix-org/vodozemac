@@ -121,10 +121,12 @@ impl ReceiverChain {
         }
     }
 
+    #[cfg(feature = "libolm-compat")]
     pub fn ratchet_key(&self) -> RemoteRatchetKey {
         self.ratchet_key
     }
 
+    #[cfg(feature = "libolm-compat")]
     pub fn insert_message_key(&mut self, message_key: RemoteMessageKey) {
         self.skipped_message_keys.push(message_key)
     }

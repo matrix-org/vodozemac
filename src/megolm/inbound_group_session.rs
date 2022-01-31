@@ -267,6 +267,7 @@ impl InboundGroupSession {
         }
     }
 
+    #[cfg(feature = "libolm-compat")]
     pub fn from_libolm_pickle(
         pickle: &str,
         pickle_key: &str,

@@ -19,7 +19,7 @@ use x25519_dalek::{EphemeralSecret, PublicKey, ReusableSecret};
 use zeroize::Zeroize;
 
 use super::PublicKeyError;
-use crate::utilities::{base64_decode, base64_encode, Decode};
+use crate::utilities::{base64_decode, base64_encode};
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(from = "Curve25519KeypairPickle")]
@@ -42,6 +42,7 @@ impl Curve25519Keypair {
         Self { secret_key, public_key, encoded_public_key }
     }
 
+    #[cfg(feature = "libolm-compat")]
     pub fn from_secret_key(mut key: [u8; 32]) -> Self {
         let secret_key = Curve25519SecretKey::from(key);
         let public_key = Curve25519PublicKey::from(&secret_key);
@@ -70,7 +71,8 @@ pub struct Curve25519PublicKey {
     pub(crate) inner: PublicKey,
 }
 
-impl Decode for Curve25519PublicKey {
+#[cfg(feature = "libolm-compat")]
+impl crate::utilities::Decode for Curve25519PublicKey {
     fn decode(
         reader: &mut impl std::io::Read,
     ) -> Result<Self, crate::utilities::LibolmDecodeError> {

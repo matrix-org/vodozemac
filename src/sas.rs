@@ -331,6 +331,7 @@ impl EstablishedSas {
     /// compatibility. Libolm used to incorrectly encode their MAC because the
     /// input buffer was reused as the output buffer. This method replicates the
     /// buggy behaviour.
+    #[cfg(feature = "libolm-compat")]
     pub fn calculate_mac_invalid_base64(&self, input: &str, info: &str) -> String {
         // First calculate the MAC as usual.
         let mac = self.calculate_mac(input, info);

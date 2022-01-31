@@ -57,6 +57,7 @@ impl DoubleRatchet {
         Self { inner: ratchet.into() }
     }
 
+    #[cfg(feature = "libolm-compat")]
     pub fn from_ratchet_and_chain_key(ratchet: Ratchet, chain_key: ChainKey) -> Self {
         Self {
             inner: ActiveDoubleRatchet {

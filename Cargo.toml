@@ -13,8 +13,9 @@ license = "Apache-2.0"
 rust-version = "1.56"
 
 [features]
-default = []
+default = ["libolm-compat"]
 strict-signatures = []
+libolm-compat = []
 
 [dependencies]
 aes = "0.7.5"

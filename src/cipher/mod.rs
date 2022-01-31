@@ -44,6 +44,7 @@ pub enum DecryptionError {
     InvalidCiphertext(#[from] BlockModeError),
     #[error("The MAC of the ciphertext didn't pass validation {0}")]
     Mac(#[from] MacError),
+    #[allow(dead_code)]
     #[error("The ciphertext didn't contain a valid MAC")]
     MacMissing,
 }
@@ -65,6 +66,7 @@ impl Cipher {
         Self { keys }
     }
 
+    #[cfg(feature = "libolm-compat")]
     pub fn new_pickle(key: &[u8]) -> Self {
         let keys = CipherKeys::new_pickle(key);
 
@@ -105,6 +107,7 @@ impl Cipher {
         cipher.decrypt_vec(ciphertext)
     }
 
+    #[cfg(feature = "libolm-compat")]
     pub fn decrypt_pickle(&self, ciphertext: &[u8]) -> Result<Vec<u8>, DecryptionError> {
         if ciphertext.len() < Mac::TRUNCATED_LEN + 1 {
             Err(DecryptionError::MacMissing)

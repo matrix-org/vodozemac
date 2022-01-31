@@ -15,7 +15,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{utilities::Decode, Curve25519PublicKey};
+use crate::Curve25519PublicKey;
 
 /// The set of keys that were used to establish the Olm Session,
 #[derive(Serialize, Deserialize, Clone)]
@@ -25,7 +25,8 @@ pub(crate) struct SessionKeys {
     pub(crate) one_time_key: Curve25519PublicKey,
 }
 
-impl Decode for SessionKeys {
+#[cfg(feature = "libolm-compat")]
+impl crate::utilities::Decode for SessionKeys {
     fn decode(
         reader: &mut impl std::io::Read,
     ) -> Result<Self, crate::utilities::LibolmDecodeError> {
