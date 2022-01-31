@@ -20,10 +20,15 @@ use zeroize::Zeroize;
 use super::base64_decode;
 use crate::{cipher::Cipher, LibolmUnpickleError};
 
+/// Error type describing failure modes for libolm pickle decoding.
 #[derive(Debug, Error)]
 pub enum LibolmDecodeError {
+    /// There was an error while reading from the source of the libolm, usually
+    /// not enough data was provided.
     #[error(transparent)]
     IO(#[from] std::io::Error),
+    /// The encoded usize doesn't fit into the usize of the architecture that is
+    /// decoding.
     #[error(
         "The decoded value {0} does not fit into the usize type of this \
          architecture"
@@ -31,18 +36,74 @@ pub enum LibolmDecodeError {
     OutSideUsizeRange(u64),
 }
 
-trait GetVersion {
-    fn get_version(&self) -> Option<u32>;
-}
-
-impl GetVersion for Vec<u8> {
-    fn get_version(&self) -> Option<u32> {
-        let version = self.get(0..4)?;
+/// Decrypt and decode the given pickle with the given pickle key.
+///
+/// # Arguments
+///
+/// * pickle - The base64 encoded and encrypted libolm pickle string
+/// * pickle_key - The key that was used to encrypt the libolm pickle
+/// * pickle_version - The expected version of the pickle, unpickling will fail
+/// if the version in the pickle doesn't match this one.
+pub(crate) fn unpickle_libolm<P: Decode, T: TryFrom<P, Error = LibolmUnpickleError>>(
+    pickle: &str,
+    pickle_key: &str,
+    pickle_version: u32,
+) -> Result<T, LibolmUnpickleError> {
+    /// Fetch the pickle version from the given pickle source.
+    fn get_version(source: &[u8]) -> Option<u32> {
+        // Pickle versions are always u32 encoded as a fixed sized integer in
+        // big endian encoding.
+        let version = source.get(0..4)?;
         Some(u32::from_be_bytes(version.try_into().ok()?))
+    }
+
+    // libolm pickles are always base64 encoded, so first try to decode.
+    let decoded = base64_decode(pickle)?;
+
+    // The pickle is always encrypted, even if a zero key is given, try to
+    // decrypt next.
+    let cipher = Cipher::new_pickle(pickle_key.as_ref());
+    let mut decrypted = cipher.decrypt_pickle(&decoded)?;
+
+    // A pickle starts with a version, which will decide how we need to decode.
+    // We only support the latest version so bail out if it isn't the expected
+    // pickle version.
+    let version = get_version(&decrypted).ok_or(LibolmUnpickleError::MissingVersion)?;
+
+    if version == pickle_version {
+        let mut cursor = Cursor::new(&decrypted);
+        let pickle = P::decode(&mut cursor)?;
+
+        decrypted.zeroize();
+        pickle.try_into()
+    } else {
+        Err(LibolmUnpickleError::Version(pickle_version, version))
     }
 }
 
+/// A Decode trait for libolm compatible pickle decoding.
+///
+/// This is almost exactly the same as what the [bincode] crate provides with
+/// the following config:
+/// ```rust,compile_fail
+/// let config = bincode::config::standard()
+///     .with_big_endian()
+///     .with_fixed_int_encoding()
+///     .skip_fixed_array_length();
+/// ```
+///
+/// The two major differences are:
+/// * bincode uses u64 to encode slice lengths
+/// * libolm uses u32 to encode slice lengths expect for fallback keys, where an
+/// u8 is used
+///
+/// The following Decode implementations decode primitive types in a libolm
+/// compatible way.
+///
+/// [bincode]: https://github.com/bincode-org/bincode/
 pub(crate) trait Decode {
+    /// Try to read and decode data from the given reader that contains a libolm
+    /// compatible pickle.
     fn decode(reader: &mut impl Read) -> Result<Self, LibolmDecodeError>
     where
         Self: Sized;
@@ -104,35 +165,5 @@ impl<T: Decode> Decode for Vec<T> {
         }
 
         Ok(buffer)
-    }
-}
-
-pub(crate) fn decrypt_pickle(
-    pickle: &[u8],
-    pickle_key: &[u8],
-) -> Result<Vec<u8>, LibolmUnpickleError> {
-    let cipher = Cipher::new_pickle(pickle_key);
-    let decoded = base64_decode(pickle)?;
-
-    Ok(cipher.decrypt_pickle(&decoded)?)
-}
-
-pub(crate) fn unpickle_libolm<P: Decode, T: TryFrom<P, Error = LibolmUnpickleError>>(
-    pickle: &str,
-    pickle_key: &str,
-    pickle_version: u32,
-) -> Result<T, LibolmUnpickleError> {
-    let mut decrypted = decrypt_pickle(pickle.as_ref(), pickle_key.as_ref())?;
-    let version = decrypted.get_version().ok_or(LibolmUnpickleError::MissingVersion)?;
-
-    if version != pickle_version {
-        Err(LibolmUnpickleError::Version(pickle_version, version))
-    } else {
-        let mut cursor = Cursor::new(&decrypted);
-        let pickle = P::decode(&mut cursor)?;
-
-        decrypted.zeroize();
-
-        pickle.try_into()
     }
 }
