@@ -26,7 +26,7 @@ use zeroize::Zeroize;
 use super::{
     message::MegolmMessage,
     ratchet::{MegolmRatchetUnpicklingError, Ratchet, RatchetPickle},
-    SessionKey, SESSION_KEY_VERSION,
+    GroupSession, SessionKey, SESSION_KEY_VERSION,
 };
 use crate::{
     cipher::Cipher,
@@ -158,6 +158,27 @@ impl InboundGroupSession {
 
     pub fn first_known_index(&self) -> u32 {
         self.initial_ratchet.index()
+    }
+
+    /// Permanently advance the session to the given index.
+    ///
+    /// This will remove the ability to decrypt messages that were encrypted
+    /// with a lower message index than what is given as the argument.
+    ///
+    /// Returns true if the ratchet has been advanced, false if the ratchet was
+    /// already advanced past the given index.
+    pub fn advance_to(&mut self, index: u32) -> bool {
+        if self.first_known_index() < index {
+            self.initial_ratchet.advance_to(index);
+
+            if self.latest_ratchet.index() < index {
+                self.latest_ratchet = self.initial_ratchet.clone();
+            }
+
+            true
+        } else {
+            false
+        }
     }
 
     fn find_ratchet(&mut self, message_index: u32) -> Option<&Ratchet> {
@@ -346,6 +367,12 @@ impl Deref for InboundGroupSessionPickledJSON {
     }
 }
 
+impl From<&GroupSession> for InboundGroupSession {
+    fn from(session: &GroupSession) -> Self {
+        Self::new(&session.session_key()).expect("Can't import the session key export")
+    }
+}
+
 #[derive(Error, Debug)]
 pub enum InboundGroupSessionUnpicklingError {
     #[error("Invalid initial ratchet")]
@@ -356,4 +383,28 @@ pub enum InboundGroupSessionUnpicklingError {
     InvalidSigningPublicKey(SignatureError),
     #[error("Pickle format corrupted: {0}")]
     CorruptedPickle(#[from] serde_json::error::Error),
+}
+
+#[cfg(test)]
+mod test {
+    use super::InboundGroupSession;
+    use crate::megolm::GroupSession;
+
+    #[test]
+    fn advance_inbound_session() {
+        let mut session = InboundGroupSession::from(&GroupSession::new());
+
+        assert_eq!(session.first_known_index(), 0);
+        assert_eq!(session.latest_ratchet.index(), 0);
+
+        assert!(session.advance_to(10));
+        assert_eq!(session.first_known_index(), 10);
+        assert_eq!(session.latest_ratchet.index(), 10);
+
+        assert!(!session.advance_to(10));
+
+        assert!(session.advance_to(20));
+        assert_eq!(session.first_known_index(), 20);
+        assert_eq!(session.latest_ratchet.index(), 20);
+    }
 }
