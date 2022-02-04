@@ -49,15 +49,21 @@ impl DoubleRatchet {
         let root_key = RootKey::new(root_key);
         let chain_key = ChainKey::new(chain_key);
 
-        let ratchet =
-            ActiveDoubleRatchet { active_ratchet: Ratchet::new(root_key), hkdf_ratchet: chain_key };
+        let ratchet = ActiveDoubleRatchet {
+            active_ratchet: Ratchet::new(root_key),
+            symmetric_key_ratchet: chain_key,
+        };
 
         Self { inner: ratchet.into() }
     }
 
     pub fn from_ratchet_and_chain_key(ratchet: Ratchet, chain_key: ChainKey) -> Self {
         Self {
-            inner: ActiveDoubleRatchet { active_ratchet: ratchet, hkdf_ratchet: chain_key }.into(),
+            inner: ActiveDoubleRatchet {
+                active_ratchet: ratchet,
+                symmetric_key_ratchet: chain_key,
+            }
+            .into(),
         }
     }
 
@@ -121,14 +127,14 @@ impl InactiveDoubleRatchet {
         let (root_key, chain_key, ratchet_key) = self.root_key.advance(&self.ratchet_key);
         let active_ratchet = Ratchet::new_with_ratchet_key(root_key, ratchet_key);
 
-        ActiveDoubleRatchet { active_ratchet, hkdf_ratchet: chain_key }
+        ActiveDoubleRatchet { active_ratchet, symmetric_key_ratchet: chain_key }
     }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 struct ActiveDoubleRatchet {
     active_ratchet: Ratchet,
-    hkdf_ratchet: ChainKey,
+    symmetric_key_ratchet: ChainKey,
 }
 
 impl ActiveDoubleRatchet {
@@ -146,7 +152,7 @@ impl ActiveDoubleRatchet {
     }
 
     fn encrypt(&mut self, plaintext: &[u8]) -> EncodedMessage {
-        let message_key = self.hkdf_ratchet.create_message_key(self.ratchet_key());
+        let message_key = self.symmetric_key_ratchet.create_message_key(self.ratchet_key());
 
         message_key.encrypt(plaintext)
     }
