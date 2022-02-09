@@ -84,7 +84,8 @@ pub struct DecryptedMessage {
     pub message_index: u32,
 }
 
-#[derive(Zeroize)]
+#[derive(Zeroize, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct ExportedSessionKey(pub String);
 
 impl ExportedSessionKey {
