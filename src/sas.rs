@@ -52,7 +52,7 @@
 //! [ZRTP]: https://tools.ietf.org/html/rfc6189#section-4.4.1
 
 use hkdf::Hkdf;
-use hmac::{digest::MacError, Hmac, Mac};
+use hmac::{digest::MacError, Hmac, Mac as _};
 use rand::thread_rng;
 use sha2::Sha256;
 use thiserror::Error;
@@ -65,6 +65,33 @@ use crate::{
 
 type HmacSha256Key = [u8; 32];
 
+/// The output type for the SAS MAC calculation.
+pub struct Mac(Vec<u8>);
+
+impl Mac {
+    /// Convert the MAC to a base64 encoded string.
+    pub fn to_base64(&self) -> String {
+        base64_encode(&self.0)
+    }
+
+    /// Get the byte slice of the MAC.
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+
+    /// Create a new `Mac` object from a byte slice.
+    pub fn from_slice(bytes: &[u8]) -> Self {
+        Self(bytes.to_vec())
+    }
+
+    /// Create a new `Mac` object from a base64 encoded string.
+    pub fn from_base64(mac: &str) -> Result<Self, base64::DecodeError> {
+        let bytes = base64_decode(mac)?;
+
+        Ok(Self(bytes))
+    }
+}
+
 /// Error type for the case when we try to generate too many SAS bytes.
 #[derive(Debug, Clone, Error)]
 #[error("The given count of bytes was too large")]
@@ -73,9 +100,6 @@ pub struct InvalidCount;
 /// Error type describing failures that can happen during the key verification.
 #[derive(Debug, Error)]
 pub enum SasError {
-    /// The MAC code that was given wasn't valid base64.
-    #[error("The SAS MAC wasn't valid base64: {0}")]
-    Base64(#[from] base64::DecodeError),
     /// The MAC failed to be validated.
     #[error("The SAS MAC validation didn't succeed: {0}")]
     Mac(#[from] MacError),
@@ -294,12 +318,12 @@ impl EstablishedSas {
     /// The MAC is returned as a base64 encoded string.
     ///
     /// [`Account`]: crate::olm::Account
-    pub fn calculate_mac(&self, input: &str, info: &str) -> String {
+    pub fn calculate_mac(&self, input: &str, info: &str) -> Mac {
         let mut mac = self.get_mac(info);
 
         mac.update(input.as_ref());
 
-        base64_encode(mac.finalize().into_bytes())
+        Mac(mac.finalize().into_bytes().to_vec())
     }
 
     /// Verify a MAC that was previously created using the
@@ -307,13 +331,11 @@ impl EstablishedSas {
     ///
     /// Users should calculate a MAC and send it to the other side, they should
     /// then verify each other's MAC using this method.
-    pub fn verify_mac(&self, input: &str, info: &str, tag: &str) -> Result<(), SasError> {
-        let tag = base64_decode(tag)?;
-
+    pub fn verify_mac(&self, input: &str, info: &str, tag: &Mac) -> Result<(), SasError> {
         let mut mac = self.get_mac(info);
         mac.update(input.as_bytes());
 
-        Ok(mac.verify_slice(&tag)?)
+        Ok(mac.verify_slice(&tag.0)?)
     }
 
     fn get_hkdf(&self) -> Hkdf<Sha256> {
@@ -342,6 +364,7 @@ mod test {
     use proptest::prelude::*;
 
     use super::{Sas, SasBytes};
+    use crate::sas::Mac;
 
     #[test]
     fn generate_bytes() -> Result<()> {
@@ -372,9 +395,11 @@ mod test {
 
         let olm_mac =
             olm.calculate_mac_fixed_base64("", "").expect("libolm couldn't calculate a MAC");
-        assert_eq!(olm_mac, established.calculate_mac("", ""));
+        assert_eq!(olm_mac, established.calculate_mac("", "").to_base64());
 
-        established.verify_mac("", "", olm_mac.as_str())?;
+        let olm_mac = Mac::from_base64(&olm_mac).expect("Olm MAC wasn't valid base64");
+
+        established.verify_mac("", "", &olm_mac)?;
 
         Ok(())
     }
