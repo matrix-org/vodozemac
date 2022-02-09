@@ -98,6 +98,17 @@ pub struct Sas {
 /// verify a MAC that protects information about the keys being verified.
 pub struct EstablishedSas {
     shared_secret: SharedSecret,
+    our_public_key: Curve25519PublicKey,
+    their_public_key: Curve25519PublicKey,
+}
+
+impl std::fmt::Debug for EstablishedSas {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EstablishedSas")
+            .field("our_public_key", &self.our_public_key.to_base64())
+            .field("their_public_key", &self.their_public_key.to_base64())
+            .finish_non_exhaustive()
+    }
 }
 
 /// Bytes generated from an shared secret that can be used as the short auth
@@ -213,12 +224,12 @@ impl Sas {
     /// [`SasBytes`] if the given public key was valid, otherwise `None`.
     pub fn diffie_hellman(
         self,
-        other_public_key: Curve25519PublicKey,
+        their_public_key: Curve25519PublicKey,
     ) -> Result<EstablishedSas, PublicKeyError> {
-        let shared_secret = self.secret_key.diffie_hellman(&other_public_key.inner);
+        let shared_secret = self.secret_key.diffie_hellman(&their_public_key.inner);
 
         if shared_secret.was_contributory() {
-            Ok(EstablishedSas { shared_secret })
+            Ok(EstablishedSas { shared_secret, our_public_key: self.public_key, their_public_key })
         } else {
             Err(PublicKeyError::NonContributoryKey)
         }
@@ -303,6 +314,18 @@ impl EstablishedSas {
         Ok(mac.verify_slice(&tag)?)
     }
 
+    /// Get the public key that was created by us, that was used to establish
+    /// the shared secret.
+    pub fn our_public_key(&self) -> Curve25519PublicKey {
+        self.our_public_key
+    }
+
+    /// Get the public key that was created by the other party, that was used to
+    /// establish the shared secret.
+    pub fn their_public_key(&self) -> Curve25519PublicKey {
+        self.their_public_key
+    }
+
     fn get_hkdf(&self) -> Hkdf<Sha256> {
         Hkdf::new(None, self.shared_secret.as_bytes())
     }
@@ -348,7 +371,6 @@ mod test {
     }
 
     #[test]
-    // Allowed to fail due to https://gitlab.matrix.org/matrix-org/olm/-/merge_requests/16
     fn calculate_mac() -> Result<()> {
         let mut olm = OlmSas::new();
         let dalek = Sas::new();
