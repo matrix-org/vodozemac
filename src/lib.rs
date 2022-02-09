@@ -34,7 +34,9 @@ pub mod megolm;
 pub mod olm;
 pub mod sas;
 
-pub use types::{Curve25519KeyError, Curve25519PublicKey, Ed25519PublicKey, SignatureError};
+pub use types::{
+    Curve25519PublicKey, Ed25519PublicKey, Ed25519Signature, KeyId, PublicKeyError, SignatureError,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum LibolmUnpickleError {
@@ -47,7 +49,7 @@ pub enum LibolmUnpickleError {
     #[error("The pickle couldn't be decrypted: {0}")]
     Decryption(#[from] crate::cipher::DecryptionError),
     #[error("The pickle contained an invalid ed25519 public key {0}")]
-    PublicKey(#[from] SignatureError),
+    PublicKey(#[from] PublicKeyError),
     #[error("The pickle didn't contain a valid Olm session")]
     InvalidSession,
 }
@@ -61,7 +63,7 @@ pub enum DecodeError {
     #[error("The message didn't have a valid version, expected {0}, got {1}")]
     InvalidVersion(u8, u8),
     #[error("The message contained an invalid public key: {0}")]
-    InvalidKey(#[from] Curve25519KeyError),
+    InvalidKey(#[from] PublicKeyError),
     #[error("The message contained a MAC with an invalid size, expected {0}, got {1}")]
     InvalidMacLength(usize, usize),
     #[error("The message contained an invalid Signature: {0}")]

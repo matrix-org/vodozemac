@@ -64,7 +64,7 @@ impl TryFrom<Vec<u8>> for MegolmMessage {
 
             let mut mac = [0u8; Mac::TRUNCATED_LEN];
             mac.copy_from_slice(mac_slice);
-            let signature = Ed25519Signature::from_bytes(signature_slice)?;
+            let signature = Ed25519Signature::from_slice(signature_slice)?;
 
             let decoded = MegolmMessage {
                 source: EncodedMegolmMessage(message),

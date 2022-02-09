@@ -60,7 +60,7 @@ use x25519_dalek::{EphemeralSecret, SharedSecret};
 
 use crate::{
     utilities::{base64_decode, base64_encode},
-    Curve25519KeyError, Curve25519PublicKey,
+    Curve25519PublicKey, PublicKeyError,
 };
 
 type HmacSha256Key = [u8; 32];
@@ -79,19 +79,6 @@ pub enum SasError {
     /// The MAC failed to be validated.
     #[error("The SAS MAC validation didn't succeed: {0}")]
     Mac(#[from] MacError),
-}
-
-/// Error type describing failures that can happen when we try to create a
-/// shared secret.
-#[derive(Debug, Error)]
-pub enum PublicKeyError {
-    /// The given public curve25519 key wasn't valid.
-    #[error(transparent)]
-    PublicKey(#[from] Curve25519KeyError),
-    /// At least one of the keys did not have contributory behaviour and the
-    /// resulting shared secret would have been insecure.
-    #[error("At least one of the keys did not have contributory behaviour")]
-    NonContributoryKey,
 }
 
 /// A struct representing a short auth string verification object.
