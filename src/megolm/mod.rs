@@ -19,9 +19,12 @@ mod inbound_group_session;
 mod message;
 mod ratchet;
 
-pub use group_session::{GroupSession, GroupSessionPickledJSON};
+pub use group_session::{
+    GroupSession, GroupSessionPickle, GroupSessionPickledJSON, GroupSessionUnpicklingError,
+};
 pub use inbound_group_session::{
     DecryptedMessage, DecryptionError, ExportedSessionKey, InboundGroupSession,
+    InboundGroupSessionPickle, InboundGroupSessionPickledJSON, InboundGroupSessionUnpicklingError,
     SessionCreationError,
 };
 use zeroize::Zeroize;
