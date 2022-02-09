@@ -62,6 +62,15 @@ pub enum SessionCreationError {
     Decryption(#[from] DecryptionError),
 }
 
+/// Struct holding the two public identity keys of an [`Account`].
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct IdentityKeys {
+    /// The ed25519 key, used for signing.
+    pub ed25519: Ed25519PublicKey,
+    /// The curve25519 key, used for to establish shared secrets.
+    pub curve25519: Curve25519PublicKey,
+}
+
 /// Return type for the creation of inbound [`Session`] objects.
 #[derive(Debug)]
 pub struct InboundCreationResult {
@@ -98,6 +107,11 @@ impl Account {
             one_time_keys: OneTimeKeys::new(),
             fallback_keys: FallbackKeys::new(),
         }
+    }
+
+    /// Get the IdentityKeys of this Account
+    pub fn identity_keys(&self) -> IdentityKeys {
+        IdentityKeys { ed25519: *self.ed25519_key(), curve25519: *self.curve25519_key() }
     }
 
     /// Get a reference to the account's public Ed25519 key
