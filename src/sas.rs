@@ -338,7 +338,7 @@ impl EstablishedSas {
         let mac = self.calculate_mac(input, info);
 
         // Since the input buffer is reused as an output buffer, and base64
-        // operates on 3 input bytes to generate 4 output bytes the the input
+        // operates on 3 input bytes to generate 4 output bytes the input
         // buffer gets overrun by the output.
         //
         // Only 6 bytes of the MAC get to be used before the output overwrites
@@ -370,7 +370,7 @@ impl EstablishedSas {
             out = out + &next_four;
         }
 
-        // Finally, use the remainder to get the last 3 bytes of output, no
+        // Finally, use the remainder to get the last 3 bytes of output. No
         // padding is used.
         let next = &out.as_bytes()[30..32];
         let next = base64_encode(next);
