@@ -14,13 +14,13 @@
 
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 use x25519_dalek::{
     EphemeralSecret, PublicKey, ReusableSecret, StaticSecret as Curve25519SecretKey,
 };
 use zeroize::Zeroize;
 
-use crate::utilities::{base64_decode, base64_encode, DecodeError};
+use super::PublicKeyError;
+use crate::utilities::{base64_decode, base64_encode};
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(from = "Curve25519KeypairPickle")]
@@ -63,22 +63,22 @@ pub struct Curve25519PublicKey {
 }
 
 impl Curve25519PublicKey {
-    pub const KEY_LENGTH: usize = 32;
-
-    pub fn new(private_key: [u8; Self::KEY_LENGTH]) -> Curve25519PublicKey {
-        Self { inner: PublicKey::from(private_key) }
-    }
+    pub const LENGTH: usize = 32;
 
     /// Convert this public key to a byte array.
     #[inline]
-    pub fn to_bytes(&self) -> [u8; Self::KEY_LENGTH] {
+    pub fn to_bytes(&self) -> [u8; Self::LENGTH] {
         self.inner.to_bytes()
     }
 
     /// View this public key as a byte array.
     #[inline]
-    pub fn as_bytes(&self) -> &[u8; 32] {
+    pub fn as_bytes(&self) -> &[u8; Self::LENGTH] {
         self.inner.as_bytes()
+    }
+
+    pub fn to_vec(&self) -> Vec<u8> {
+        self.inner.as_bytes().to_vec()
     }
 
     pub fn from_bytes(bytes: [u8; 32]) -> Self {
@@ -87,22 +87,22 @@ impl Curve25519PublicKey {
 
     /// Instantiate a Curve25519 public key from an unpadded base64
     /// representation.
-    pub fn from_base64(base64_key: &str) -> Result<Curve25519PublicKey, Curve25519KeyError> {
+    pub fn from_base64(base64_key: &str) -> Result<Curve25519PublicKey, PublicKeyError> {
         let key = base64_decode(base64_key)?;
         Self::from_slice(&key)
     }
 
     /// Try to create a `Curve25519PublicKey` from a slice of bytes.
-    pub fn from_slice(slice: &[u8]) -> Result<Curve25519PublicKey, Curve25519KeyError> {
+    pub fn from_slice(slice: &[u8]) -> Result<Curve25519PublicKey, PublicKeyError> {
         let key_len = slice.len();
 
-        if key_len == Self::KEY_LENGTH {
-            let mut key = [0u8; Self::KEY_LENGTH];
+        if key_len == Self::LENGTH {
+            let mut key = [0u8; Self::LENGTH];
             key.copy_from_slice(slice);
 
             Ok(Self::from(key))
         } else {
-            Err(Curve25519KeyError::InvalidKeyLength(key_len))
+            Err(PublicKeyError::InvalidKeyLength(key_len))
         }
     }
 
@@ -112,8 +112,8 @@ impl Curve25519PublicKey {
     }
 }
 
-impl From<[u8; Self::KEY_LENGTH]> for Curve25519PublicKey {
-    fn from(bytes: [u8; Self::KEY_LENGTH]) -> Curve25519PublicKey {
+impl From<[u8; Self::LENGTH]> for Curve25519PublicKey {
+    fn from(bytes: [u8; Self::LENGTH]) -> Curve25519PublicKey {
         Curve25519PublicKey { inner: PublicKey::from(bytes) }
     }
 }
@@ -136,20 +136,10 @@ impl<'a> From<&'a ReusableSecret> for Curve25519PublicKey {
     }
 }
 
-#[derive(Error, Debug, Clone)]
-pub enum Curve25519KeyError {
-    #[error("Failed decoding curve25519 key from base64: {}", .0)]
-    Base64Error(#[from] DecodeError),
-    #[error("Failed decoding curve25519 key from base64: \
-             Invalid number of bytes for curve25519, expected {}, got {}.",
-            Curve25519PublicKey::KEY_LENGTH, .0)]
-    InvalidKeyLength(usize),
-}
-
 #[derive(Serialize, Deserialize)]
 pub(crate) struct Curve25519KeypairPickle {
     secret: [u8; CURVE25519_SECRET_KEY_LEN],
-    public: [u8; Curve25519PublicKey::KEY_LENGTH],
+    public: [u8; Curve25519PublicKey::LENGTH],
 }
 
 impl Drop for Curve25519KeypairPickle {
@@ -179,27 +169,27 @@ impl From<Curve25519Keypair> for Curve25519KeypairPickle {
 
 #[cfg(test)]
 mod tests {
-    use super::{Curve25519KeyError, Curve25519PublicKey};
-    use crate::utilities::DecodeError;
+    use super::Curve25519PublicKey;
+    use crate::{utilities::DecodeError, PublicKeyError};
 
     #[test]
     fn decoding_invalid_base64_fails() {
         let base64_payload = "a";
         assert!(matches!(
             Curve25519PublicKey::from_base64(base64_payload),
-            Err(Curve25519KeyError::Base64Error(DecodeError::InvalidLength))
+            Err(PublicKeyError::Base64Error(DecodeError::InvalidLength))
         ));
 
         let base64_payload = "a ";
         assert!(matches!(
             Curve25519PublicKey::from_base64(base64_payload),
-            Err(Curve25519KeyError::Base64Error(DecodeError::InvalidByte(..)))
+            Err(PublicKeyError::Base64Error(DecodeError::InvalidByte(..)))
         ));
 
         let base64_payload = "aZ";
         assert!(matches!(
             Curve25519PublicKey::from_base64(base64_payload),
-            Err(Curve25519KeyError::Base64Error(DecodeError::InvalidLastSymbol(..)))
+            Err(PublicKeyError::Base64Error(DecodeError::InvalidLastSymbol(..)))
         ));
     }
 
@@ -208,7 +198,7 @@ mod tests {
         let base64_payload = "aaaa";
         assert!(matches!(
             Curve25519PublicKey::from_base64(base64_payload),
-            Err(Curve25519KeyError::InvalidKeyLength(..))
+            Err(PublicKeyError::InvalidKeyLength(..))
         ));
     }
 

@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub use ed25519_dalek::SignatureError;
 use ed25519_dalek::{
     ExpandedSecretKey, Keypair, PublicKey, SecretKey, Signature, Verifier, PUBLIC_KEY_LENGTH,
     SIGNATURE_LENGTH,
@@ -22,7 +21,18 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use zeroize::Zeroize;
 
-use crate::utilities::base64_encode;
+use crate::utilities::{base64_decode, base64_encode};
+
+/// Error type describing signature verification failures.
+#[derive(Debug, Error)]
+pub enum SignatureError {
+    /// The signature wasn't valid base64.
+    #[error("The signature couldn't be decoded: {0}")]
+    Base64(#[from] base64::DecodeError),
+    /// The signature failed to be verified.
+    #[error("The signature was invalid: {0}")]
+    Signature(#[from] ed25519_dalek::SignatureError),
+}
 
 #[derive(Deserialize, Serialize)]
 #[serde(try_from = "Ed25519KeypairPickle")]
@@ -46,8 +56,8 @@ impl Ed25519Keypair {
         }
     }
 
-    pub fn from_expanded_key(secret_key: &[u8; 64]) -> Result<Self, SignatureError> {
-        let secret_key = ExpandedSecretKey::from_bytes(secret_key)?;
+    pub fn from_expanded_key(secret_key: &[u8; 64]) -> Result<Self, crate::PublicKeyError> {
+        let secret_key = ExpandedSecretKey::from_bytes(secret_key).map_err(SignatureError::from)?;
         let public_key = Ed25519PublicKey(PublicKey::from(&secret_key));
         let encoded_public_key = base64_encode(public_key.as_bytes());
 
@@ -94,19 +104,26 @@ impl Ed25519SecretKey {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 #[serde(transparent)]
 pub struct Ed25519PublicKey(PublicKey);
 
 impl Ed25519PublicKey {
     pub const LENGTH: usize = PUBLIC_KEY_LENGTH;
 
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, SignatureError> {
-        Ok(Self(PublicKey::from_bytes(bytes)?))
+    pub fn from_slice(bytes: &[u8]) -> Result<Self, crate::PublicKeyError> {
+        Ok(Self(PublicKey::from_bytes(bytes).map_err(SignatureError::from)?))
     }
 
-    pub fn as_bytes(&self) -> &[u8] {
+    pub fn as_bytes(&self) -> &[u8; Self::LENGTH] {
         self.0.as_bytes()
+    }
+
+    /// Instantiate a Ed25519PublicKey public key from an unpadded base64
+    /// representation.
+    pub fn from_base64(base64_key: &str) -> Result<Self, crate::PublicKeyError> {
+        let key = base64_decode(base64_key)?;
+        Self::from_slice(&key)
     }
 
     pub fn to_base64(&self) -> String {
@@ -134,9 +151,9 @@ impl Ed25519PublicKey {
         signature: &Ed25519Signature,
     ) -> Result<(), SignatureError> {
         if cfg!(feature = "strict-signatures") {
-            self.0.verify_strict(message, &signature.0)
+            Ok(self.0.verify_strict(message, &signature.0)?)
         } else {
-            self.0.verify(message, &signature.0)
+            Ok(self.0.verify(message, &signature.0)?)
         }
     }
 }
@@ -146,8 +163,12 @@ pub struct Ed25519Signature(pub(crate) Signature);
 impl Ed25519Signature {
     pub const LENGTH: usize = SIGNATURE_LENGTH;
 
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, SignatureError> {
+    pub fn from_slice(bytes: &[u8]) -> Result<Self, SignatureError> {
         Ok(Self(Signature::from_bytes(bytes)?))
+    }
+
+    pub fn from_base64(signature: &str) -> Result<Self, SignatureError> {
+        Ok(Self(Signature::from_bytes(&base64_decode(signature)?)?))
     }
 
     pub fn to_base64(&self) -> String {

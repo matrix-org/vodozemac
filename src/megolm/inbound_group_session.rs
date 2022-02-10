@@ -47,6 +47,8 @@ pub enum SessionCreationError {
     Base64(#[from] base64::DecodeError),
     #[error("The signature on the session key was invalid: {0}")]
     Signature(#[from] SignatureError),
+    #[error("The public key of session was invalid: {0}")]
+    PublicKey(#[from] crate::PublicKeyError),
 }
 
 #[derive(Debug, Error)]
@@ -82,7 +84,8 @@ pub struct DecryptedMessage {
     pub message_index: u32,
 }
 
-#[derive(Zeroize)]
+#[derive(Zeroize, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct ExportedSessionKey(pub String);
 
 impl ExportedSessionKey {
@@ -127,13 +130,13 @@ impl InboundGroupSession {
             cursor.read_exact(&mut ratchet)?;
             cursor.read_exact(&mut public_key)?;
 
-            let signing_key = Ed25519PublicKey::from_bytes(&public_key)?;
+            let signing_key = Ed25519PublicKey::from_slice(&public_key)?;
 
             let signing_key_verified = if !is_export {
                 let mut signature = [0u8; Ed25519Signature::LENGTH];
 
                 cursor.read_exact(&mut signature)?;
-                let signature = Ed25519Signature::from_bytes(&signature)?;
+                let signature = Ed25519Signature::from_slice(&signature)?;
 
                 let decoded = cursor.into_inner();
 
@@ -295,7 +298,7 @@ impl InboundGroupSession {
 
             let mut signing_key = [0u8; Ed25519PublicKey::LENGTH];
             cursor.read_exact(&mut signing_key)?;
-            let signing_key = Ed25519PublicKey::from_bytes(&signing_key)?;
+            let signing_key = Ed25519PublicKey::from_slice(&signing_key)?;
 
             let signing_key_verified = read_bool(&mut cursor)?;
 

@@ -60,7 +60,7 @@ use x25519_dalek::{EphemeralSecret, SharedSecret};
 
 use crate::{
     utilities::{base64_decode, base64_encode},
-    Curve25519KeyError, Curve25519PublicKey,
+    Curve25519PublicKey, PublicKeyError,
 };
 
 type HmacSha256Key = [u8; 32];
@@ -105,19 +105,6 @@ pub enum SasError {
     Mac(#[from] MacError),
 }
 
-/// Error type describing failures that can happen when we try to create a
-/// shared secret.
-#[derive(Debug, Error)]
-pub enum PublicKeyError {
-    /// The given public curve25519 key wasn't valid.
-    #[error(transparent)]
-    PublicKey(#[from] Curve25519KeyError),
-    /// At least one of the keys did not have contributory behaviour and the
-    /// resulting shared secret would have been insecure.
-    #[error("At least one of the keys did not have contributory behaviour")]
-    NonContributoryKey,
-}
-
 /// A struct representing a short auth string verification object.
 ///
 /// This object can be used to establish a shared secret to perform the short
@@ -135,6 +122,17 @@ pub struct Sas {
 /// verify a MAC that protects information about the keys being verified.
 pub struct EstablishedSas {
     shared_secret: SharedSecret,
+    our_public_key: Curve25519PublicKey,
+    their_public_key: Curve25519PublicKey,
+}
+
+impl std::fmt::Debug for EstablishedSas {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EstablishedSas")
+            .field("our_public_key", &self.our_public_key.to_base64())
+            .field("their_public_key", &self.their_public_key.to_base64())
+            .finish_non_exhaustive()
+    }
 }
 
 /// Bytes generated from an shared secret that can be used as the short auth
@@ -250,12 +248,12 @@ impl Sas {
     /// [`SasBytes`] if the given public key was valid, otherwise `None`.
     pub fn diffie_hellman(
         self,
-        other_public_key: Curve25519PublicKey,
+        their_public_key: Curve25519PublicKey,
     ) -> Result<EstablishedSas, PublicKeyError> {
-        let shared_secret = self.secret_key.diffie_hellman(&other_public_key.inner);
+        let shared_secret = self.secret_key.diffie_hellman(&their_public_key.inner);
 
         if shared_secret.was_contributory() {
-            Ok(EstablishedSas { shared_secret })
+            Ok(EstablishedSas { shared_secret, our_public_key: self.public_key, their_public_key })
         } else {
             Err(PublicKeyError::NonContributoryKey)
         }
@@ -388,6 +386,18 @@ impl EstablishedSas {
         mac.update(input.as_bytes());
 
         Ok(mac.verify_slice(&tag.0)?)
+    }
+
+    /// Get the public key that was created by us, that was used to establish
+    /// the shared secret.
+    pub fn our_public_key(&self) -> Curve25519PublicKey {
+        self.our_public_key
+    }
+
+    /// Get the public key that was created by the other party, that was used to
+    /// establish the shared secret.
+    pub fn their_public_key(&self) -> Curve25519PublicKey {
+        self.their_public_key
     }
 
     fn get_hkdf(&self) -> Hkdf<Sha256> {
