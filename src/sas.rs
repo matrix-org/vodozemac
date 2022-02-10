@@ -52,7 +52,7 @@
 //! [ZRTP]: https://tools.ietf.org/html/rfc6189#section-4.4.1
 
 use hkdf::Hkdf;
-use hmac::{digest::MacError, Hmac, Mac};
+use hmac::{digest::MacError, Hmac, Mac as _};
 use rand::thread_rng;
 use sha2::Sha256;
 use thiserror::Error;
@@ -65,6 +65,33 @@ use crate::{
 
 type HmacSha256Key = [u8; 32];
 
+/// The output type for the SAS MAC calculation.
+pub struct Mac(Vec<u8>);
+
+impl Mac {
+    /// Convert the MAC to a base64 encoded string.
+    pub fn to_base64(&self) -> String {
+        base64_encode(&self.0)
+    }
+
+    /// Get the byte slice of the MAC.
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+
+    /// Create a new `Mac` object from a byte slice.
+    pub fn from_slice(bytes: &[u8]) -> Self {
+        Self(bytes.to_vec())
+    }
+
+    /// Create a new `Mac` object from a base64 encoded string.
+    pub fn from_base64(mac: &str) -> Result<Self, base64::DecodeError> {
+        let bytes = base64_decode(mac)?;
+
+        Ok(Self(bytes))
+    }
+}
+
 /// Error type for the case when we try to generate too many SAS bytes.
 #[derive(Debug, Clone, Error)]
 #[error("The given count of bytes was too large")]
@@ -73,9 +100,6 @@ pub struct InvalidCount;
 /// Error type describing failures that can happen during the key verification.
 #[derive(Debug, Error)]
 pub enum SasError {
-    /// The MAC code that was given wasn't valid base64.
-    #[error("The SAS MAC wasn't valid base64: {0}")]
-    Base64(#[from] base64::DecodeError),
     /// The MAC failed to be validated.
     #[error("The SAS MAC validation didn't succeed: {0}")]
     Mac(#[from] MacError),
@@ -294,12 +318,64 @@ impl EstablishedSas {
     /// The MAC is returned as a base64 encoded string.
     ///
     /// [`Account`]: crate::olm::Account
-    pub fn calculate_mac(&self, input: &str, info: &str) -> String {
+    pub fn calculate_mac(&self, input: &str, info: &str) -> Mac {
         let mut mac = self.get_mac(info);
 
         mac.update(input.as_ref());
 
-        base64_encode(mac.finalize().into_bytes())
+        Mac(mac.finalize().into_bytes().to_vec())
+    }
+
+    /// Calculate a MAC for the given input using the info string as additional
+    /// data, the MAC is returned as an invalid base64 encoded string.
+    ///
+    /// **Warning**: This method should never be used unless you require libolm
+    /// compatibility. Libolm used to incorrectly encode their MAC because the
+    /// input buffer was reused as the output buffer. This method replicates the
+    /// buggy behaviour.
+    pub fn calculate_mac_invalid_base64(&self, input: &str, info: &str) -> String {
+        // First calculate the MAC as usual.
+        let mac = self.calculate_mac(input, info);
+
+        // Since the input buffer is reused as an output buffer, and base64
+        // operates on 3 input bytes to generate 4 output bytes the input
+        // buffer gets overrun by the output.
+        //
+        // Only 6 bytes of the MAC get to be used before the output overwrites
+        // the input.
+
+        // For the first pass all three bytes from the MAC are used.
+        let mut out = base64_encode(&mac.as_bytes()[0..3]);
+
+        // Next up, we're using increasingly more output from the previous
+        // output, the MAC is used for two iterations here.
+        let mut bytes_from_mac = 2;
+
+        for i in (6..10).step_by(3) {
+            let from_mac = &mac.as_bytes()[i - bytes_from_mac..i];
+            let from_out = &out.as_bytes()[out.len() - (3 - bytes_from_mac)..];
+
+            let bytes = [from_out, from_mac].concat();
+            let encoded = base64_encode(bytes);
+            bytes_from_mac -= 1;
+
+            out = out + &encoded;
+        }
+
+        // Now only the previous output gets used. The MAC has a size of 32, so
+        // we abort before we get to the remainder calculation.
+        for i in (9..30).step_by(3) {
+            let next = &out.as_bytes()[i..i + 3];
+            let next_four = base64_encode(next);
+            out = out + &next_four;
+        }
+
+        // Finally, use the remainder to get the last 3 bytes of output. No
+        // padding is used.
+        let next = &out.as_bytes()[30..32];
+        let next = base64_encode(next);
+
+        out + &next
     }
 
     /// Verify a MAC that was previously created using the
@@ -307,13 +383,11 @@ impl EstablishedSas {
     ///
     /// Users should calculate a MAC and send it to the other side, they should
     /// then verify each other's MAC using this method.
-    pub fn verify_mac(&self, input: &str, info: &str, tag: &str) -> Result<(), SasError> {
-        let tag = base64_decode(tag)?;
-
+    pub fn verify_mac(&self, input: &str, info: &str, tag: &Mac) -> Result<(), SasError> {
         let mut mac = self.get_mac(info);
         mac.update(input.as_bytes());
 
-        Ok(mac.verify_slice(&tag)?)
+        Ok(mac.verify_slice(&tag.0)?)
     }
 
     fn get_hkdf(&self) -> Hkdf<Sha256> {
@@ -341,7 +415,7 @@ mod test {
     use olm_rs::sas::OlmSas;
     use proptest::prelude::*;
 
-    use super::{Sas, SasBytes};
+    use super::{Mac, Sas, SasBytes};
 
     #[test]
     fn generate_bytes() -> Result<()> {
@@ -361,7 +435,6 @@ mod test {
     }
 
     #[test]
-    // Allowed to fail due to https://gitlab.matrix.org/matrix-org/olm/-/merge_requests/16
     fn calculate_mac() -> Result<()> {
         let mut olm = OlmSas::new();
         let dalek = Sas::new();
@@ -372,9 +445,26 @@ mod test {
 
         let olm_mac =
             olm.calculate_mac_fixed_base64("", "").expect("libolm couldn't calculate a MAC");
-        assert_eq!(olm_mac, established.calculate_mac("", ""));
+        assert_eq!(olm_mac, established.calculate_mac("", "").to_base64());
 
-        established.verify_mac("", "", olm_mac.as_str())?;
+        let olm_mac = Mac::from_base64(&olm_mac).expect("Olm MAC wasn't valid base64");
+
+        established.verify_mac("", "", &olm_mac)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn calculate_mac_invalid_base64() -> Result<()> {
+        let mut olm = OlmSas::new();
+        let dalek = Sas::new();
+
+        olm.set_their_public_key(dalek.public_key_encoded().to_string())
+            .expect("Couldn't set the public key for libolm");
+        let established = dalek.diffie_hellman_with_raw(&olm.public_key())?;
+
+        let olm_mac = olm.calculate_mac("", "").expect("libolm couldn't calculate a MAC");
+        assert_eq!(olm_mac, established.calculate_mac_invalid_base64("", ""));
 
         Ok(())
     }
