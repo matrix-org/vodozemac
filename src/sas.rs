@@ -60,7 +60,7 @@ use x25519_dalek::{EphemeralSecret, SharedSecret};
 
 use crate::{
     utilities::{base64_decode, base64_encode},
-    Curve25519PublicKey, PublicKeyError,
+    Curve25519PublicKey, KeyError,
 };
 
 type HmacSha256Key = [u8; 32];
@@ -249,13 +249,13 @@ impl Sas {
     pub fn diffie_hellman(
         self,
         their_public_key: Curve25519PublicKey,
-    ) -> Result<EstablishedSas, PublicKeyError> {
+    ) -> Result<EstablishedSas, KeyError> {
         let shared_secret = self.secret_key.diffie_hellman(&their_public_key.inner);
 
         if shared_secret.was_contributory() {
             Ok(EstablishedSas { shared_secret, our_public_key: self.public_key, their_public_key })
         } else {
-            Err(PublicKeyError::NonContributoryKey)
+            Err(KeyError::NonContributoryKey)
         }
     }
 
@@ -267,7 +267,7 @@ impl Sas {
     pub fn diffie_hellman_with_raw(
         self,
         other_public_key: &str,
-    ) -> Result<EstablishedSas, PublicKeyError> {
+    ) -> Result<EstablishedSas, KeyError> {
         let other_public_key = Curve25519PublicKey::from_base64(other_public_key)?;
         self.diffie_hellman(other_public_key)
     }

@@ -20,7 +20,7 @@ pub use curve25519::Curve25519PublicKey;
 pub(crate) use curve25519::Curve25519SecretKey;
 pub(crate) use curve25519::{Curve25519Keypair, Curve25519KeypairPickle};
 pub(crate) use ed25519::{Ed25519Keypair, Ed25519KeypairPickle, Ed25519KeypairUnpicklingError};
-pub use ed25519::{Ed25519PublicKey, Ed25519Signature, SignatureError};
+pub use ed25519::{Ed25519PublicKey, Ed25519SecretKey, Ed25519Signature, SignatureError};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -40,9 +40,9 @@ impl KeyId {
 }
 
 /// Error type describing failures that can happen when we try decode or use a
-/// public key.
+/// cryptographic key.
 #[derive(Error, Debug)]
-pub enum PublicKeyError {
+pub enum KeyError {
     #[error("Failed decoding a public key from base64: {}", .0)]
     Base64Error(#[from] base64::DecodeError),
     #[error("Failed decoding curve25519 key from base64: \

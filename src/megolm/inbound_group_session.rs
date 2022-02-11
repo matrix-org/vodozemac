@@ -48,7 +48,7 @@ pub enum SessionCreationError {
     #[error("The signature on the session key was invalid: {0}")]
     Signature(#[from] SignatureError),
     #[error("The public key of session was invalid: {0}")]
-    PublicKey(#[from] crate::PublicKeyError),
+    PublicKey(#[from] crate::KeyError),
 }
 
 #[derive(Debug, Error)]
