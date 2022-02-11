@@ -165,11 +165,11 @@ impl Ed25519Signature {
     pub const LENGTH: usize = SIGNATURE_LENGTH;
 
     pub fn from_slice(bytes: &[u8]) -> Result<Self, SignatureError> {
-        Ok(Self(Signature::from_bytes(bytes)?))
+        Ok(Self(Signature::try_from(bytes)?))
     }
 
     pub fn from_base64(signature: &str) -> Result<Self, SignatureError> {
-        Ok(Self(Signature::from_bytes(&base64_decode(signature)?)?))
+        Ok(Self(Signature::try_from(base64_decode(signature)?.as_slice())?))
     }
 
     pub fn to_base64(&self) -> String {
