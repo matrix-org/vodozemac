@@ -33,7 +33,7 @@ pub enum LibolmDecodeError {
         "The decoded value {0} does not fit into the usize type of this \
          architecture"
     )]
-    OutSideUsizeRange(u64),
+    OutsideUsizeRange(u64),
 }
 
 /// Decrypt and decode the given pickle with the given pickle key.
@@ -42,8 +42,8 @@ pub enum LibolmDecodeError {
 ///
 /// * pickle - The base64 encoded and encrypted libolm pickle string
 /// * pickle_key - The key that was used to encrypt the libolm pickle
-/// * pickle_version - The expected version of the pickle, unpickling will fail
-/// if the version in the pickle doesn't match this one.
+/// * pickle_version - The expected version of the pickle. Unpickling will fail
+///   if the version in the pickle doesn't match this one.
 pub(crate) fn unpickle_libolm<P: Decode, T: TryFrom<P, Error = LibolmUnpickleError>>(
     pickle: &str,
     pickle_key: &str,
@@ -60,7 +60,7 @@ pub(crate) fn unpickle_libolm<P: Decode, T: TryFrom<P, Error = LibolmUnpickleErr
     // libolm pickles are always base64 encoded, so first try to decode.
     let decoded = base64_decode(pickle)?;
 
-    // The pickle is always encrypted, even if a zero key is given, try to
+    // The pickle is always encrypted, even if a zero key is given. Try to
     // decrypt next.
     let cipher = Cipher::new_pickle(pickle_key.as_ref());
     let mut decrypted = cipher.decrypt_pickle(&decoded)?;
@@ -95,7 +95,7 @@ pub(crate) fn unpickle_libolm<P: Decode, T: TryFrom<P, Error = LibolmUnpickleErr
 /// The two major differences are:
 /// * bincode uses u64 to encode slice lengths
 /// * libolm uses u32 to encode slice lengths expect for fallback keys, where an
-/// u8 is used
+///   u8 is used
 ///
 /// The following Decode implementations decode primitive types in a libolm
 /// compatible way.
@@ -140,7 +140,7 @@ impl Decode for usize {
     fn decode(reader: &mut impl Read) -> Result<Self, LibolmDecodeError> {
         let size = u32::decode(reader)?;
 
-        size.try_into().map_err(|_| LibolmDecodeError::OutSideUsizeRange(size as u64))
+        size.try_into().map_err(|_| LibolmDecodeError::OutsideUsizeRange(size as u64))
     }
 }
 
