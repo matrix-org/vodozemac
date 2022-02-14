@@ -79,7 +79,7 @@ impl OlmMessage {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[allow(missing_docs)]
 pub enum MessageType {
     Normal,
@@ -135,5 +135,82 @@ impl From<OlmMessage> for LibolmMessage {
             OlmMessage::PreKey(_) => LibolmMessage::from_type_and_ciphertext(0, ciphertext)
                 .expect("Can't create a valid libolm pre-key message"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::{Context, Result};
+
+    use super::*;
+
+    static RAW_MESSAGE: &str = "FOOBAR";
+
+    #[test]
+    fn from_to_parts() -> Result<()> {
+        // Test pre-key Olm message construction
+        let prekey_message = OlmMessage::from_parts(0, RAW_MESSAGE.to_string())
+            .context("Failed constructing normal Olm message from ciphertext.")?;
+        assert_eq!(
+            prekey_message.ciphertext(),
+            RAW_MESSAGE,
+            "Constructed message content differs from original message."
+        );
+        assert_eq!(
+            prekey_message.message_type(),
+            MessageType::PreKey,
+            "Expected message to be recognized as a pre-key Olm message."
+        );
+        assert_eq!(
+            prekey_message.to_parts(),
+            (0, RAW_MESSAGE.to_string()),
+            "Roundtrip not identity."
+        );
+
+        // Test normal Olm message construction
+        let normal_message = OlmMessage::from_parts(1, RAW_MESSAGE.to_string())
+            .context("Failed constructing normal Olm message from ciphertext.")?;
+        assert_eq!(
+            normal_message.ciphertext(),
+            RAW_MESSAGE,
+            "Constructed message content differs from original message."
+        );
+        assert_eq!(
+            normal_message.message_type(),
+            MessageType::Normal,
+            "Expected message to be recognized as a normal Olm message."
+        );
+        assert_eq!(
+            normal_message.to_parts(),
+            (1, RAW_MESSAGE.to_string()),
+            "Roundtrip not identity."
+        );
+
+        // Test unknown message type
+        assert_eq!(
+            OlmMessage::from_parts(2, RAW_MESSAGE.to_string()),
+            None,
+            "Testing unknown Olm message type."
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn message_type_from_usize() {
+        assert_eq!(
+            MessageType::try_from(0),
+            Ok(MessageType::PreKey),
+            "0 should denote a pre-key Olm message"
+        );
+        assert_eq!(
+            MessageType::try_from(1),
+            Ok(MessageType::Normal),
+            "1 should denote a normal Olm message"
+        );
+        assert!(
+            MessageType::try_from(2).is_err(),
+            "2 should be recognized as an unknown Olm message type"
+        );
     }
 }
