@@ -337,19 +337,22 @@ impl EstablishedSas {
         let mac = self.calculate_mac(input, info);
 
         // Since the input buffer is reused as an output buffer, and base64
-        // operates on 3 input bytes to generate 4 output bytes the input
+        // operates on 3 input bytes to generate 4 output bytes, the input
         // buffer gets overrun by the output.
         //
         // Only 6 bytes of the MAC get to be used before the output overwrites
         // the input.
 
-        // For the first pass all three bytes from the MAC are used.
+        // All three bytes of the first input chunk are used successfully.
         let mut out = base64_encode(&mac.as_bytes()[0..3]);
 
-        // Next up, we're using increasingly more output from the previous
-        // output, the MAC is used for two iterations here.
+        // For the next input chunk, only two bytes are sourced from the actual
+        // MAC, since the first byte gets overwritten by the output.
         let mut bytes_from_mac = 2;
 
+        // Subsequent input chunks get progressively more overwritten by the
+        // output, so that after two iterations, none of the original input
+        // bytes remain.
         for i in (6..10).step_by(3) {
             let from_mac = &mac.as_bytes()[i - bytes_from_mac..i];
             let from_out = &out.as_bytes()[out.len() - (3 - bytes_from_mac)..];
@@ -361,8 +364,9 @@ impl EstablishedSas {
             out = out + &encoded;
         }
 
-        // Now only the previous output gets used. The MAC has a size of 32, so
-        // we abort before we get to the remainder calculation.
+        // At this point, the rest of our input will be completely sourced from
+        // the previous output. The MAC has a size of 32, so we abort before we
+        // get to the remainder calculation.
         for i in (9..30).step_by(3) {
             let next = &out.as_bytes()[i..i + 3];
             let next_four = base64_encode(next);
