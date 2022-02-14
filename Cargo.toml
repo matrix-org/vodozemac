@@ -18,6 +18,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = ["libolm-compat"]
+wasm-bindgen = ["rand/wasm-bindgen"]
 strict-signatures = []
 libolm-compat = []
 
