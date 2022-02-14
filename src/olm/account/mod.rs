@@ -107,11 +107,11 @@ impl Account {
 
     /// Get the IdentityKeys of this Account
     pub fn identity_keys(&self) -> IdentityKeys {
-        IdentityKeys { ed25519: *self.ed25519_key(), curve25519: *self.curve25519_key() }
+        IdentityKeys { ed25519: self.ed25519_key(), curve25519: *self.curve25519_key() }
     }
 
     /// Get a reference to the account's public Ed25519 key
-    pub fn ed25519_key(&self) -> &Ed25519PublicKey {
+    pub fn ed25519_key(&self) -> Ed25519PublicKey {
         self.signing_key.public_key()
     }
 

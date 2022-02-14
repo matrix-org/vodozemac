@@ -18,7 +18,7 @@ pub use x25519_dalek::StaticSecret as Curve25519SecretKey;
 use x25519_dalek::{EphemeralSecret, PublicKey, ReusableSecret};
 use zeroize::Zeroize;
 
-use super::PublicKeyError;
+use super::KeyError;
 use crate::utilities::{base64_decode, base64_encode};
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -107,13 +107,13 @@ impl Curve25519PublicKey {
 
     /// Instantiate a Curve25519 public key from an unpadded base64
     /// representation.
-    pub fn from_base64(base64_key: &str) -> Result<Curve25519PublicKey, PublicKeyError> {
+    pub fn from_base64(base64_key: &str) -> Result<Curve25519PublicKey, KeyError> {
         let key = base64_decode(base64_key)?;
         Self::from_slice(&key)
     }
 
     /// Try to create a `Curve25519PublicKey` from a slice of bytes.
-    pub fn from_slice(slice: &[u8]) -> Result<Curve25519PublicKey, PublicKeyError> {
+    pub fn from_slice(slice: &[u8]) -> Result<Curve25519PublicKey, KeyError> {
         let key_len = slice.len();
 
         if key_len == Self::LENGTH {
@@ -122,7 +122,7 @@ impl Curve25519PublicKey {
 
             Ok(Self::from(key))
         } else {
-            Err(PublicKeyError::InvalidKeyLength(key_len))
+            Err(KeyError::InvalidKeyLength(key_len))
         }
     }
 
@@ -190,26 +190,26 @@ impl From<Curve25519Keypair> for Curve25519KeypairPickle {
 #[cfg(test)]
 mod tests {
     use super::Curve25519PublicKey;
-    use crate::{utilities::DecodeError, PublicKeyError};
+    use crate::{utilities::DecodeError, KeyError};
 
     #[test]
     fn decoding_invalid_base64_fails() {
         let base64_payload = "a";
         assert!(matches!(
             Curve25519PublicKey::from_base64(base64_payload),
-            Err(PublicKeyError::Base64Error(DecodeError::InvalidLength))
+            Err(KeyError::Base64Error(DecodeError::InvalidLength))
         ));
 
         let base64_payload = "a ";
         assert!(matches!(
             Curve25519PublicKey::from_base64(base64_payload),
-            Err(PublicKeyError::Base64Error(DecodeError::InvalidByte(..)))
+            Err(KeyError::Base64Error(DecodeError::InvalidByte(..)))
         ));
 
         let base64_payload = "aZ";
         assert!(matches!(
             Curve25519PublicKey::from_base64(base64_payload),
-            Err(PublicKeyError::Base64Error(DecodeError::InvalidLastSymbol(..)))
+            Err(KeyError::Base64Error(DecodeError::InvalidLastSymbol(..)))
         ));
     }
 
@@ -218,7 +218,7 @@ mod tests {
         let base64_payload = "aaaa";
         assert!(matches!(
             Curve25519PublicKey::from_base64(base64_payload),
-            Err(PublicKeyError::InvalidKeyLength(..))
+            Err(KeyError::InvalidKeyLength(..))
         ));
     }
 
