@@ -154,20 +154,32 @@ mod test {
 
         assert_eq!(session.session_id(), inbound.session_id());
 
-        let plaintext = "It's a secret to everybody";
-        let message = session.encrypt(plaintext);
+        let first_plaintext = "It's a secret to everybody";
+        let first_message = session.encrypt(first_plaintext);
+        let second_plaintext = "It's dangerous to go alone. Take this!";
+        let second_message = session.encrypt(second_plaintext);
 
-        let decrypted = inbound.decrypt(&message)?;
+        let decrypted = inbound.decrypt(&first_message)?;
 
-        assert_eq!(decrypted.plaintext, plaintext);
+        assert_eq!(decrypted.plaintext, first_plaintext);
         assert_eq!(decrypted.message_index, 0);
 
-        let export = inbound.export_at(1).expect("Can export at the initial index");
+        let export = inbound.export_at(1).expect("Can export at the initial index.");
         let mut imported = InboundGroupSession::import(&export)?;
 
         assert_eq!(session.session_id(), imported.session_id());
-        imported.decrypt(&message).expect_err("Can't decrypt at the initial index");
-        assert!(imported.export_at(0).is_none(), "Can't export at the initial index");
+
+        imported.decrypt(&first_message).expect_err("Can't decrypt at the initial index.");
+        let second_decrypted =
+            imported.decrypt(&second_message).expect("Can decrypt at the next index.");
+        assert_eq!(
+            second_plaintext, second_decrypted.plaintext,
+            "Decrypted plaintext differs from original."
+        );
+        assert_eq!(1, second_decrypted.message_index, "Expected message index to be 1.");
+
+        assert!(imported.export_at(0).is_none(), "Can't export at the initial index.");
+        assert!(imported.export_at(1).is_some(), "Can export at the next index.");
 
         Ok(())
     }
