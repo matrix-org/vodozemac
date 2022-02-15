@@ -451,20 +451,41 @@ mod test {
 
     #[test]
     fn calculate_mac() -> Result<()> {
-        let mut olm = OlmSas::new();
-        let dalek = Sas::new();
+        let alice_on_dalek = Sas::new();
+        let mut bob_on_libolm = OlmSas::new();
 
-        olm.set_their_public_key(dalek.public_key_encoded().to_string())
+        let alice_mxid = "@alice:example.com";
+        let alice_device_id = "AAAAAAAAAA";
+        let alice_public_key = alice_on_dalek.public_key_encoded();
+        let bob_mxid = "@bob:example.com";
+        let bob_device_id = "BBBBBBBBBB";
+        let bob_public_key = bob_on_libolm.public_key();
+
+        let message = format!("ed25519:{}", bob_device_id);
+        let extra_info = format!(
+            "{}{}{}{}{}{}{}",
+            "MATRIX_KEY_VERIFICATION_MAC",
+            bob_mxid,
+            bob_device_id,
+            alice_mxid,
+            alice_device_id,
+            "$1234567890",
+            "KEY_IDS"
+        );
+
+        bob_on_libolm
+            .set_their_public_key(alice_public_key.to_string())
             .expect("Couldn't set the public key for libolm");
-        let established = dalek.diffie_hellman_with_raw(&olm.public_key())?;
+        let established = alice_on_dalek.diffie_hellman_with_raw(&bob_public_key)?;
 
-        let olm_mac =
-            olm.calculate_mac_fixed_base64("", "").expect("libolm couldn't calculate a MAC");
-        assert_eq!(olm_mac, established.calculate_mac("", "").to_base64());
+        let olm_mac = bob_on_libolm
+            .calculate_mac_fixed_base64(&message, &extra_info)
+            .expect("libolm couldn't calculate a MAC");
+        assert_eq!(olm_mac, established.calculate_mac(&message, &extra_info).to_base64());
 
         let olm_mac = Mac::from_base64(&olm_mac).expect("Olm MAC wasn't valid base64");
 
-        established.verify_mac("", "", &olm_mac)?;
+        established.verify_mac(&message, &extra_info, &olm_mac)?;
 
         Ok(())
     }
