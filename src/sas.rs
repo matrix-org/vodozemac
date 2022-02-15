@@ -439,7 +439,7 @@ mod test {
     const BOB_DEVICE_ID: &str = "BBBBBBBBBB";
 
     #[test]
-    fn generate_bytes() -> Result<()> {
+    fn libolm_and_vodozemac_generate_same_bytes() -> Result<()> {
         let mut olm = OlmSas::new();
         let dalek = Sas::new();
 
@@ -451,6 +451,28 @@ mod test {
             olm.generate_bytes("TEST", 10).expect("libolm couldn't generate SAS bytes"),
             established.bytes_raw("TEST", 10)?
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn vodozemac_and_vodozemac_generate_same_bytes() -> Result<()> {
+        let alice = Sas::new();
+        let bob = Sas::new();
+
+        let alice_public_key = alice.public_key_encoded().to_owned();
+        let bob_public_key = bob.public_key_encoded();
+
+        let alice_established = alice.diffie_hellman_with_raw(bob_public_key)?;
+        let bob_established = bob.diffie_hellman_with_raw(&alice_public_key)?;
+
+        let alice_bytes = alice_established.bytes("TEST");
+        let bob_bytes = bob_established.bytes("TEST");
+
+        assert_eq!(alice_bytes, bob_bytes);
+        assert_eq!(alice_bytes.emoji_indices(), bob_bytes.emoji_indices());
+        assert_eq!(alice_bytes.decimals(), bob_bytes.decimals());
+        assert_eq!(alice_bytes.as_bytes(), bob_bytes.as_bytes());
 
         Ok(())
     }
@@ -480,6 +502,7 @@ mod test {
 
         let alice_mac = alice_established.calculate_mac(&message, &extra_info);
         let bob_mac = bob_established.calculate_mac(&message, &extra_info);
+
         assert_eq!(
             alice_mac.to_base64(),
             bob_mac.to_base64(),
