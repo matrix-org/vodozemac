@@ -51,17 +51,6 @@ jobs:
     - name: Checkout the repo
       uses: actions/checkout@v2
 
-    - name: Load cache
-      uses: actions/cache@v2
-      with:
-        path: |
-          ~/.cargo/bin/
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db
-          target/
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
     - name: Install rust
       uses: actions-rs/toolchain@v1
       with:
@@ -69,6 +58,8 @@ jobs:
         components: clippy
         profile: minimal
         override: true
+
+    - uses: Swatinem/rust-cache@v1
 
     - name: Clippy
       uses: actions-rs/cargo@v1
@@ -94,23 +85,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v1
 
-      - name: Load cache
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
       - name: Install rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ format('{0}-{1}', matrix.channel, matrix.target.toolchain) }}
           profile: minimal
           override: true
+
+      - uses: Swatinem/rust-cache@v1
 
       - name: Test
         uses: actions-rs/cargo@v1
