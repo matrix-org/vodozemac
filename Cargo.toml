@@ -18,7 +18,10 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = ["libolm-compat"]
-wasm-bindgen = ["rand/wasm-bindgen"]
+# rand has renamed the feature to js but we're still using rand 0.7 since the
+# dalek crates depend on that version.
+# Make sure to change the feature once we bump rand and the dalek crates.
+js = ["rand/wasm-bindgen"]
 strict-signatures = []
 libolm-compat = []
 
