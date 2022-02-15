@@ -439,6 +439,16 @@ mod test {
     const BOB_DEVICE_ID: &str = "BBBBBBBBBB";
 
     #[test]
+    fn mac_from_slice_as_bytes_is_identity() {
+        let bytes = "ABCDEFGH".as_bytes();
+        assert_eq!(
+            Mac::from_slice(bytes).as_bytes(),
+            bytes,
+            "as_bytes() after from_slice() is not identity"
+        );
+    }
+
+    #[test]
     fn libolm_and_vodozemac_generate_same_bytes() -> Result<()> {
         let mut olm = OlmSas::new();
         let dalek = Sas::new();
@@ -457,21 +467,36 @@ mod test {
 
     #[test]
     fn vodozemac_and_vodozemac_generate_same_bytes() -> Result<()> {
-        let alice = Sas::new();
-        let bob = Sas::new();
+        let alice = Sas::default();
+        let bob = Sas::default();
 
-        let alice_public_key = alice.public_key_encoded().to_owned();
-        let bob_public_key = bob.public_key_encoded();
+        let alice_public_key_encoded = alice.public_key_encoded().to_owned();
+        let alice_public_key = alice.public_key().to_owned();
+        let bob_public_key_encoded = bob.public_key_encoded();
+        let bob_public_key = bob.public_key();
 
-        let alice_established = alice.diffie_hellman_with_raw(bob_public_key)?;
-        let bob_established = bob.diffie_hellman_with_raw(&alice_public_key)?;
+        let alice_established = alice.diffie_hellman_with_raw(bob_public_key_encoded)?;
+        let bob_established = bob.diffie_hellman_with_raw(&alice_public_key_encoded)?;
+
+        assert_eq!(alice_established.our_public_key(), alice_public_key);
+        assert_eq!(alice_established.their_public_key(), bob_public_key);
+        assert_eq!(bob_established.our_public_key(), bob_public_key);
+        assert_eq!(bob_established.their_public_key(), alice_public_key);
 
         let alice_bytes = alice_established.bytes("TEST");
         let bob_bytes = bob_established.bytes("TEST");
 
-        assert_eq!(alice_bytes, bob_bytes);
-        assert_eq!(alice_bytes.emoji_indices(), bob_bytes.emoji_indices());
-        assert_eq!(alice_bytes.decimals(), bob_bytes.decimals());
+        assert_eq!(alice_bytes, bob_bytes, "The two sides calculated different bytes.");
+        assert_eq!(
+            alice_bytes.emoji_indices(),
+            bob_bytes.emoji_indices(),
+            "The two sides calculated different emoji indices."
+        );
+        assert_eq!(
+            alice_bytes.decimals(),
+            bob_bytes.decimals(),
+            "The two sides calculated different decimals."
+        );
         assert_eq!(alice_bytes.as_bytes(), bob_bytes.as_bytes());
 
         Ok(())
