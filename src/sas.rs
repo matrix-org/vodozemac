@@ -281,14 +281,15 @@ impl EstablishedSas {
     /// use the same info string.
     pub fn bytes(&self, info: &str) -> SasBytes {
         let mut bytes = [0u8; 6];
-        let byte_vec = self.bytes_raw(info, 6).expect("HKDF can always generate 6 bytes");
+        let byte_vec =
+            self.bytes_raw(info, 6).expect("HKDF should always be able to generate 6 bytes");
 
         bytes.copy_from_slice(&byte_vec);
 
         SasBytes { bytes }
     }
 
-    /// Generate the given number  of bytes using HKDF with the shared secret
+    /// Generate the given number of bytes using HKDF with the shared secret
     /// as the input key material.
     ///
     /// The info string should be agreed upon beforehand, both parties need to
