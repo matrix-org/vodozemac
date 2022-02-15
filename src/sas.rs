@@ -442,7 +442,7 @@ mod test {
         let established = dalek.diffie_hellman_with_raw(&olm.public_key())?;
 
         assert_eq!(
-            olm.generate_bytes("TEST", 10).expect("libolm coulnd't generate SAS bytes"),
+            olm.generate_bytes("TEST", 10).expect("libolm couldn't generate SAS bytes"),
             established.bytes_raw("TEST", 10)?
         );
 
