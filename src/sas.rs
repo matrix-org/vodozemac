@@ -281,14 +281,15 @@ impl EstablishedSas {
     /// use the same info string.
     pub fn bytes(&self, info: &str) -> SasBytes {
         let mut bytes = [0u8; 6];
-        let byte_vec = self.bytes_raw(info, 6).expect("HKDF can always generate 6 bytes");
+        let byte_vec =
+            self.bytes_raw(info, 6).expect("HKDF should always be able to generate 6 bytes");
 
         bytes.copy_from_slice(&byte_vec);
 
         SasBytes { bytes }
     }
 
-    /// Generate the given number  of bytes using HKDF with the shared secret
+    /// Generate the given number of bytes using HKDF with the shared secret
     /// as the input key material.
     ///
     /// The info string should be agreed upon beforehand, both parties need to
@@ -432,8 +433,23 @@ mod test {
 
     use super::{Mac, Sas, SasBytes};
 
+    const ALICE_MXID: &str = "@alice:example.com";
+    const ALICE_DEVICE_ID: &str = "AAAAAAAAAA";
+    const BOB_MXID: &str = "@bob:example.com";
+    const BOB_DEVICE_ID: &str = "BBBBBBBBBB";
+
     #[test]
-    fn generate_bytes() -> Result<()> {
+    fn mac_from_slice_as_bytes_is_identity() {
+        let bytes = "ABCDEFGH".as_bytes();
+        assert_eq!(
+            Mac::from_slice(bytes).as_bytes(),
+            bytes,
+            "as_bytes() after from_slice() is not identity"
+        );
+    }
+
+    #[test]
+    fn libolm_and_vodozemac_generate_same_bytes() -> Result<()> {
         let mut olm = OlmSas::new();
         let dalek = Sas::new();
 
@@ -442,7 +458,7 @@ mod test {
         let established = dalek.diffie_hellman_with_raw(&olm.public_key())?;
 
         assert_eq!(
-            olm.generate_bytes("TEST", 10).expect("libolm coulnd't generate SAS bytes"),
+            olm.generate_bytes("TEST", 10).expect("libolm couldn't generate SAS bytes"),
             established.bytes_raw("TEST", 10)?
         );
 
@@ -450,21 +466,114 @@ mod test {
     }
 
     #[test]
-    fn calculate_mac() -> Result<()> {
-        let mut olm = OlmSas::new();
-        let dalek = Sas::new();
+    fn vodozemac_and_vodozemac_generate_same_bytes() -> Result<()> {
+        let alice = Sas::default();
+        let bob = Sas::default();
 
-        olm.set_their_public_key(dalek.public_key_encoded().to_string())
+        let alice_public_key_encoded = alice.public_key_encoded().to_owned();
+        let alice_public_key = alice.public_key().to_owned();
+        let bob_public_key_encoded = bob.public_key_encoded();
+        let bob_public_key = bob.public_key();
+
+        let alice_established = alice.diffie_hellman_with_raw(bob_public_key_encoded)?;
+        let bob_established = bob.diffie_hellman_with_raw(&alice_public_key_encoded)?;
+
+        assert_eq!(alice_established.our_public_key(), alice_public_key);
+        assert_eq!(alice_established.their_public_key(), bob_public_key);
+        assert_eq!(bob_established.our_public_key(), bob_public_key);
+        assert_eq!(bob_established.their_public_key(), alice_public_key);
+
+        let alice_bytes = alice_established.bytes("TEST");
+        let bob_bytes = bob_established.bytes("TEST");
+
+        assert_eq!(alice_bytes, bob_bytes, "The two sides calculated different bytes.");
+        assert_eq!(
+            alice_bytes.emoji_indices(),
+            bob_bytes.emoji_indices(),
+            "The two sides calculated different emoji indices."
+        );
+        assert_eq!(
+            alice_bytes.decimals(),
+            bob_bytes.decimals(),
+            "The two sides calculated different decimals."
+        );
+        assert_eq!(alice_bytes.as_bytes(), bob_bytes.as_bytes());
+
+        Ok(())
+    }
+
+    #[test]
+    fn calculate_mac_vodozemac_vodozemac() -> Result<()> {
+        let alice = Sas::new();
+        let bob = Sas::new();
+
+        let alice_public_key = alice.public_key_encoded().to_owned();
+        let bob_public_key = bob.public_key_encoded();
+
+        let message = format!("ed25519:{}", BOB_DEVICE_ID);
+        let extra_info = format!(
+            "{}{}{}{}{}{}{}",
+            "MATRIX_KEY_VERIFICATION_MAC",
+            BOB_MXID,
+            BOB_DEVICE_ID,
+            ALICE_MXID,
+            ALICE_DEVICE_ID,
+            "$1234567890",
+            "KEY_IDS"
+        );
+
+        let alice_established = alice.diffie_hellman_with_raw(bob_public_key)?;
+        let bob_established = bob.diffie_hellman_with_raw(&alice_public_key)?;
+
+        let alice_mac = alice_established.calculate_mac(&message, &extra_info);
+        let bob_mac = bob_established.calculate_mac(&message, &extra_info);
+
+        assert_eq!(
+            alice_mac.to_base64(),
+            bob_mac.to_base64(),
+            "Two vodozemac devices calculated different SAS MACs."
+        );
+
+        alice_established.verify_mac(&message, &extra_info, &bob_mac)?;
+        bob_established.verify_mac(&message, &extra_info, &alice_mac)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn calculate_mac_vodozemac_libolm() -> Result<()> {
+        let alice_on_dalek = Sas::new();
+        let mut bob_on_libolm = OlmSas::new();
+
+        let alice_public_key = alice_on_dalek.public_key_encoded();
+        let bob_public_key = bob_on_libolm.public_key();
+
+        let message = format!("ed25519:{}", BOB_DEVICE_ID);
+        let extra_info = format!(
+            "{}{}{}{}{}{}{}",
+            "MATRIX_KEY_VERIFICATION_MAC",
+            BOB_MXID,
+            BOB_DEVICE_ID,
+            ALICE_MXID,
+            ALICE_DEVICE_ID,
+            "$1234567890",
+            "KEY_IDS"
+        );
+
+        bob_on_libolm
+            .set_their_public_key(alice_public_key.to_string())
             .expect("Couldn't set the public key for libolm");
-        let established = dalek.diffie_hellman_with_raw(&olm.public_key())?;
+        let established = alice_on_dalek.diffie_hellman_with_raw(&bob_public_key)?;
+
+        let olm_mac = bob_on_libolm
+            .calculate_mac_fixed_base64(&message, &extra_info)
+            .expect("libolm couldn't calculate SAS MAC.");
+        assert_eq!(olm_mac, established.calculate_mac(&message, &extra_info).to_base64());
 
         let olm_mac =
-            olm.calculate_mac_fixed_base64("", "").expect("libolm couldn't calculate a MAC");
-        assert_eq!(olm_mac, established.calculate_mac("", "").to_base64());
+            Mac::from_base64(&olm_mac).expect("SAS MAC generated by libolm wasn't valid base64.");
 
-        let olm_mac = Mac::from_base64(&olm_mac).expect("Olm MAC wasn't valid base64");
-
-        established.verify_mac("", "", &olm_mac)?;
+        established.verify_mac(&message, &extra_info, &olm_mac)?;
 
         Ok(())
     }
