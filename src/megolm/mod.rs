@@ -64,20 +64,20 @@ mod test {
         let olm_session = OlmInboundGroupSession::new(session_key.as_str())?;
 
         let plaintext = "It's a secret to everybody";
-        let message = session.encrypt(plaintext);
+        let message = session.encrypt(plaintext).to_base64();
 
         let (decrypted, _) = olm_session.decrypt(message)?;
 
         assert_eq!(decrypted, plaintext);
 
         let plaintext = "Another secret";
-        let message = session.encrypt(plaintext);
+        let message = session.encrypt(plaintext).to_base64();
 
         let (decrypted, _) = olm_session.decrypt(message)?;
         assert_eq!(decrypted, plaintext);
 
         let plaintext = "And another secret";
-        let message = session.encrypt(plaintext);
+        let message = session.encrypt(plaintext).to_base64();
         let (decrypted, _) = olm_session.decrypt(message)?;
 
         assert_eq!(decrypted, plaintext);
@@ -88,7 +88,7 @@ mod test {
             session.encrypt(plaintext);
         }
 
-        let message = session.encrypt(plaintext);
+        let message = session.encrypt(plaintext).to_base64();
         let (decrypted, _) = olm_session.decrypt(message)?;
 
         assert_eq!(decrypted, plaintext);
@@ -104,8 +104,8 @@ mod test {
 
         let mut session = InboundGroupSession::new(&session_key)?;
 
-        let plaintext = "It's a secret to everybody";
-        let message = olm_session.encrypt(plaintext);
+        let plaintext = "Hello";
+        let message = olm_session.encrypt(plaintext).as_str().try_into()?;
 
         let decrypted = session.decrypt(&message)?;
 
@@ -113,7 +113,7 @@ mod test {
         assert_eq!(decrypted.message_index, 0);
 
         let plaintext = "Another secret";
-        let message = olm_session.encrypt(plaintext);
+        let message = olm_session.encrypt(plaintext).as_str().try_into()?;
 
         let decrypted = session.decrypt(&message)?;
 
@@ -121,7 +121,7 @@ mod test {
         assert_eq!(decrypted.message_index, 1);
 
         let third_plaintext = "And another secret";
-        let third_message = olm_session.encrypt(third_plaintext);
+        let third_message = olm_session.encrypt(third_plaintext).as_str().try_into()?;
         let decrypted = session.decrypt(&third_message)?;
 
         assert_eq!(decrypted.plaintext, third_plaintext);
@@ -133,7 +133,7 @@ mod test {
             olm_session.encrypt(plaintext);
         }
 
-        let message = olm_session.encrypt(plaintext);
+        let message = olm_session.encrypt(plaintext).as_str().try_into()?;
         let decrypted = session.decrypt(&message)?;
 
         assert_eq!(decrypted.plaintext, plaintext);

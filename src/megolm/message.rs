@@ -1,4 +1,5 @@
 // Copyright 2021 The Matrix.org Foundation C.I.C.
+// Copyright 2022 Damir Jelić
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,18 +18,80 @@ use prost::Message;
 use crate::{
     cipher::Mac,
     types::Ed25519Signature,
-    utilities::{base64_decode, VarInt},
+    utilities::{base64_decode, base64_encode, VarInt},
     DecodeError,
 };
 
 const VERSION: u8 = 3;
 
-pub(super) struct MegolmMessage {
-    pub source: EncodedMegolmMessage,
+pub struct MegolmMessage {
     pub ciphertext: Vec<u8>,
     pub message_index: u32,
-    pub mac: [u8; 8],
+    pub mac: [u8; Mac::TRUNCATED_LEN],
     pub signature: Ed25519Signature,
+}
+
+impl MegolmMessage {
+    const MESSAGE_SUFFIX_LENGTH: usize = Mac::TRUNCATED_LEN + Ed25519Signature::LENGTH;
+
+    pub fn ciphertext(&self) -> &[u8] {
+        &self.ciphertext
+    }
+
+    pub fn message_index(&self) -> u32 {
+        self.message_index
+    }
+
+    pub fn to_base64(&self) -> String {
+        base64_encode(self.to_bytes())
+    }
+
+    pub fn from_base64(message: &str) -> Result<Self, DecodeError> {
+        Self::try_from(message)
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut message = self.encode_message();
+
+        message.extend(&self.mac);
+        message.extend(self.signature.to_bytes());
+
+        message
+    }
+
+    pub fn from_bytes(message: Vec<u8>) -> Result<Self, DecodeError> {
+        Self::try_from(message)
+    }
+
+    fn encode_message(&self) -> Vec<u8> {
+        let message = ProtobufMegolmMessage {
+            message_index: self.message_index,
+            ciphertext: self.ciphertext.clone(),
+        };
+
+        message.encode_manual()
+    }
+
+    pub(super) fn new(ciphertext: Vec<u8>, message_index: u32) -> Self {
+        Self {
+            ciphertext,
+            message_index,
+            mac: [0u8; Mac::TRUNCATED_LEN],
+            signature: Ed25519Signature::from_slice(&[0; Ed25519Signature::LENGTH])
+                .expect("Can't create an empty signature"),
+        }
+    }
+
+    pub(super) fn to_mac_bytes(&self) -> Vec<u8> {
+        self.encode_message()
+    }
+
+    pub(super) fn to_signature_bytes(&self) -> Vec<u8> {
+        let mut message = self.encode_message();
+        message.extend(self.mac);
+
+        message
+    }
 }
 
 impl TryFrom<&str> for MegolmMessage {
@@ -49,14 +112,14 @@ impl TryFrom<Vec<u8>> for MegolmMessage {
 
         if version != VERSION {
             Err(DecodeError::InvalidVersion(VERSION, version))
-        } else if message.len() < EncodedMegolmMessage::MESSAGE_SUFFIX_LENGTH + 2 {
+        } else if message.len() < Self::MESSAGE_SUFFIX_LENGTH + 2 {
             Err(DecodeError::MessageTooShort(message.len()))
         } else {
             let inner = ProtobufMegolmMessage::decode(
-                &message[1..message.len() - EncodedMegolmMessage::MESSAGE_SUFFIX_LENGTH],
+                &message[1..message.len() - Self::MESSAGE_SUFFIX_LENGTH],
             )?;
 
-            let mac_location = message.len() - EncodedMegolmMessage::MESSAGE_SUFFIX_LENGTH;
+            let mac_location = message.len() - Self::MESSAGE_SUFFIX_LENGTH;
             let signature_location = message.len() - Ed25519Signature::LENGTH;
 
             let mac_slice = &message[mac_location..mac_location + Mac::TRUNCATED_LEN];
@@ -66,62 +129,13 @@ impl TryFrom<Vec<u8>> for MegolmMessage {
             mac.copy_from_slice(mac_slice);
             let signature = Ed25519Signature::from_slice(signature_slice)?;
 
-            let decoded = MegolmMessage {
-                source: EncodedMegolmMessage(message),
+            Ok(MegolmMessage {
                 ciphertext: inner.ciphertext,
                 message_index: inner.message_index,
                 mac,
                 signature,
-            };
-
-            Ok(decoded)
+            })
         }
-    }
-}
-
-pub(super) struct EncodedMegolmMessage(Vec<u8>);
-
-impl EncodedMegolmMessage {
-    const MESSAGE_SUFFIX_LENGTH: usize = Mac::TRUNCATED_LEN + Ed25519Signature::LENGTH;
-
-    pub fn new(ciphertext: Vec<u8>, message_index: u32) -> Self {
-        let message = ProtobufMegolmMessage { message_index, ciphertext };
-
-        Self(message.encode_manual())
-    }
-
-    fn mac_start(&self) -> usize {
-        self.0.len() - Self::MESSAGE_SUFFIX_LENGTH
-    }
-
-    pub fn bytes_for_mac(&self) -> &[u8] {
-        &self.0[..self.mac_start()]
-    }
-
-    pub fn append_mac(&mut self, mac: Mac) {
-        let mac = mac.truncate();
-        let mac_start = self.mac_start();
-
-        self.0[mac_start..mac_start + mac.len()].copy_from_slice(&mac);
-    }
-
-    fn signature_start(&self) -> usize {
-        self.0.len() - Ed25519Signature::LENGTH
-    }
-
-    pub fn bytes_for_signing(&self) -> &[u8] {
-        &self.0[..self.signature_start()]
-    }
-
-    pub fn append_signature(&mut self, signature: Ed25519Signature) {
-        let signature_start = self.signature_start();
-        self.0[signature_start..].copy_from_slice(&signature.to_bytes());
-    }
-}
-
-impl AsRef<[u8]> for EncodedMegolmMessage {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
     }
 }
 
@@ -150,8 +164,6 @@ impl ProtobufMegolmMessage {
             Self::CIPHER_TAG.as_ref(),
             &ciphertext_len,
             &self.ciphertext,
-            &[0u8; Mac::TRUNCATED_LEN],
-            &[0u8; Ed25519Signature::LENGTH],
         ]
         .concat()
     }

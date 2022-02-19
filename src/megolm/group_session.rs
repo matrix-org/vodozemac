@@ -19,7 +19,7 @@ use thiserror::Error;
 use zeroize::Zeroize;
 
 use super::{
-    message::EncodedMegolmMessage,
+    message::MegolmMessage,
     ratchet::{MegolmRatchetUnpicklingError, Ratchet, RatchetPickle},
     SessionKey, SESSION_KEY_VERSION,
 };
@@ -81,21 +81,21 @@ impl GroupSession {
     ///
     /// The resulting ciphertext is MAC-ed, then signed with the group session's
     /// Ed25519 key pair and finally base64-encoded.
-    pub fn encrypt(&mut self, plaintext: &str) -> String {
+    pub fn encrypt(&mut self, plaintext: &str) -> MegolmMessage {
         let cipher = Cipher::new_megolm(self.ratchet.as_bytes());
 
         let ciphertext = cipher.encrypt(plaintext.as_ref());
-        let mut message = EncodedMegolmMessage::new(ciphertext, self.message_index());
+        let mut message = MegolmMessage::new(ciphertext, self.message_index());
 
-        let mac = cipher.mac(message.bytes_for_mac());
-        message.append_mac(mac);
+        let mac = cipher.mac(&message.to_mac_bytes());
+        message.mac = mac.truncate();
 
-        let signature = self.signing_key.sign(message.bytes_for_signing());
-        message.append_signature(signature);
+        let signature = self.signing_key.sign(&message.to_signature_bytes());
+        message.signature = signature;
 
         self.ratchet.advance();
 
-        base64_encode(message)
+        message
     }
 
     /// Export the group session into a session key.

@@ -201,15 +201,16 @@ impl InboundGroupSession {
         }
     }
 
-    pub fn decrypt(&mut self, ciphertext: &str) -> Result<DecryptedMessage, DecryptionError> {
-        let message = MegolmMessage::try_from(ciphertext)?;
-
-        self.signing_key.verify(message.source.bytes_for_signing(), &message.signature)?;
+    pub fn decrypt(
+        &mut self,
+        message: &MegolmMessage,
+    ) -> Result<DecryptedMessage, DecryptionError> {
+        self.signing_key.verify(&message.to_signature_bytes(), &message.signature)?;
 
         if let Some(ratchet) = self.find_ratchet(message.message_index) {
             let cipher = Cipher::new_megolm(ratchet.as_bytes());
 
-            cipher.verify_mac(message.source.bytes_for_mac(), &message.mac)?;
+            cipher.verify_mac(&message.to_mac_bytes(), &message.mac)?;
             let plaintext =
                 String::from_utf8_lossy(&cipher.decrypt(&message.ciphertext)?).to_string();
 
