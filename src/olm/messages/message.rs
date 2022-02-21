@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use prost::Message as ProstMessage;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     cipher::Mac,
@@ -28,6 +29,23 @@ pub struct Message {
     pub chain_index: u64,
     pub ciphertext: Vec<u8>,
     pub mac: [u8; Mac::TRUNCATED_LEN],
+}
+
+impl Serialize for Message {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let message = self.to_base64();
+        serializer.serialize_str(&message)
+    }
+}
+
+impl<'de> Deserialize<'de> for Message {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let ciphertext = String::deserialize(d)?;
+        Message::from_base64(&ciphertext).map_err(serde::de::Error::custom)
+    }
 }
 
 impl Message {

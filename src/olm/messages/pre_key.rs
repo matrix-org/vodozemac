@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use prost::Message as ProstMessage;
+use serde::{Deserialize, Serialize};
 
 use super::Message;
 use crate::{
@@ -26,6 +27,23 @@ pub struct PreKeyMessage {
     pub base_key: Curve25519PublicKey,
     pub identity_key: Curve25519PublicKey,
     pub message: Message,
+}
+
+impl Serialize for PreKeyMessage {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let message = self.to_base64();
+        serializer.serialize_str(&message)
+    }
+}
+
+impl<'de> Deserialize<'de> for PreKeyMessage {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let ciphertext = String::deserialize(d)?;
+        PreKeyMessage::from_base64(&ciphertext).map_err(serde::de::Error::custom)
+    }
 }
 
 impl PreKeyMessage {
