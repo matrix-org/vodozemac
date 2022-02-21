@@ -231,43 +231,42 @@ impl Account {
     pub fn create_inbound_session(
         &mut self,
         their_identity_key: &Curve25519PublicKey,
-        message: &PreKeyMessage,
+        pre_key_message: &PreKeyMessage,
     ) -> Result<InboundCreationResult, SessionCreationError> {
-        let message = message.decode()?;
-
-        if their_identity_key != &message.remote_identity_key {
+        if their_identity_key != &pre_key_message.identity_key {
             Err(SessionCreationError::MismatchedIdentityKey)
         } else {
             // Find the matching private key that the message claims to have
             // used to create the Session that encrypted it.
             let one_time_key = self
-                .find_one_time_key(&message.public_one_time_key)
+                .find_one_time_key(&pre_key_message.one_time_key)
                 .ok_or(SessionCreationError::MissingOneTimeKey)?;
 
             // Construct a 3DH shared secret from the various curve25519 keys.
             let shared_secret = RemoteShared3DHSecret::new(
                 self.diffie_hellman_key.secret_key(),
                 one_time_key,
-                &message.remote_identity_key,
-                &message.remote_one_time_key,
+                &pre_key_message.identity_key,
+                &pre_key_message.base_key,
             );
 
             // These will be used to uniquely identify the Session.
             let session_keys = SessionKeys {
-                identity_key: message.remote_identity_key,
-                base_key: message.remote_one_time_key,
-                one_time_key: message.public_one_time_key,
+                identity_key: pre_key_message.identity_key,
+                base_key: pre_key_message.base_key,
+                one_time_key: pre_key_message.one_time_key,
             };
-
-            let olm_message = message.message;
 
             // Create a Session, AKA a double ratchet, this one will have an
             // inactive sending chain until we decide to encrypt a message.
-            let mut session =
-                Session::new_remote(shared_secret, olm_message.ratchet_key, session_keys);
+            let mut session = Session::new_remote(
+                shared_secret,
+                pre_key_message.message.ratchet_key,
+                session_keys,
+            );
 
             // Decrypt the message to check if the Session is actually valid.
-            let plaintext = session.decrypt_decoded(olm_message)?;
+            let plaintext = session.decrypt_decoded(&pre_key_message.message)?;
             let plaintext = String::from_utf8_lossy(&plaintext).to_string();
 
             // We only drop the one-time key now, this is why we can't use a
@@ -277,7 +276,7 @@ impl Account {
             // try to use such an one-time key won't be able to commnuicate with
             // us. This is strictly worse than the one-time key exhaustion
             // scenario.
-            self.remove_one_time_key(&message.public_one_time_key);
+            self.remove_one_time_key(&pre_key_message.one_time_key);
 
             Ok(InboundCreationResult { session, plaintext })
         }
@@ -599,7 +598,6 @@ mod test {
     use crate::{
         cipher::Mac,
         olm::messages::{OlmMessage, PreKeyMessage},
-        utilities::{base64_decode, base64_encode},
         Curve25519PublicKey as PublicKey,
     };
 
@@ -882,7 +880,7 @@ mod test {
         let message = session.encrypt("Test");
 
         if let OlmMessage::PreKey(m) = message {
-            let mut message = base64_decode(m.inner)?;
+            let mut message = m.to_bytes();
             let message_len = message.len();
 
             // We mangle the MAC so decryption fails but creating a Session
@@ -890,8 +888,7 @@ mod test {
             message[message_len - Mac::TRUNCATED_LEN..message_len]
                 .copy_from_slice(&[0u8; Mac::TRUNCATED_LEN]);
 
-            let message = base64_encode(message);
-            let message = PreKeyMessage { inner: message };
+            let message = PreKeyMessage::try_from(message)?;
 
             match alice.create_inbound_session(malory.curve25519_key(), &message) {
                 Err(SessionCreationError::Decryption(_)) => {}

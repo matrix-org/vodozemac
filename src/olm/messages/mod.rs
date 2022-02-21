@@ -15,30 +15,10 @@
 mod message;
 mod pre_key;
 
-pub(crate) use message::{DecodedMessage, EncodedMessage};
-pub(crate) use pre_key::{DecodedPreKeyMessage, EncodedPrekeyMessage};
+pub use message::Message;
+pub use pre_key::PreKeyMessage;
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Message {
-    pub(super) inner: String,
-}
-
-impl Message {
-    pub(crate) fn decode(&self) -> Result<DecodedMessage, crate::DecodeError> {
-        DecodedMessage::try_from(self.inner.as_str())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct PreKeyMessage {
-    pub(super) inner: String,
-}
-
-impl PreKeyMessage {
-    pub(crate) fn decode(&self) -> Result<DecodedPreKeyMessage, crate::DecodeError> {
-        DecodedPreKeyMessage::try_from(self.inner.as_str())
-    }
-}
+use crate::DecodeError;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum OlmMessage {
@@ -47,18 +27,18 @@ pub enum OlmMessage {
 }
 
 impl OlmMessage {
-    pub fn from_parts(message_type: usize, ciphertext: String) -> Option<Self> {
+    pub fn from_parts(message_type: usize, ciphertext: &str) -> Result<Self, DecodeError> {
         match message_type {
-            0 => Some(Self::PreKey(PreKeyMessage { inner: ciphertext })),
-            1 => Some(Self::Normal(Message { inner: ciphertext })),
-            _ => None,
+            0 => Ok(Self::PreKey(PreKeyMessage::try_from(ciphertext)?)),
+            1 => Ok(Self::Normal(Message::try_from(ciphertext)?)),
+            m => Err(DecodeError::MessageType(m)),
         }
     }
 
-    pub fn ciphertext(&self) -> &str {
+    pub fn ciphertext(&self) -> &[u8] {
         match self {
-            OlmMessage::Normal(m) => &m.inner,
-            OlmMessage::PreKey(m) => &m.inner,
+            OlmMessage::Normal(m) => &m.ciphertext,
+            OlmMessage::PreKey(m) => &m.message.ciphertext,
         }
     }
 
@@ -73,8 +53,8 @@ impl OlmMessage {
         let message_type = self.message_type();
 
         match self {
-            OlmMessage::Normal(m) => (message_type.into(), m.inner),
-            OlmMessage::PreKey(m) => (message_type.into(), m.inner),
+            OlmMessage::Normal(m) => (message_type.into(), m.to_base64()),
+            OlmMessage::PreKey(m) => (message_type.into(), m.to_base64()),
         }
     }
 }
@@ -82,8 +62,8 @@ impl OlmMessage {
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[allow(missing_docs)]
 pub enum MessageType {
-    Normal,
-    PreKey,
+    PreKey = 0,
+    Normal = 1,
 }
 
 impl TryFrom<usize> for MessageType {
@@ -100,10 +80,7 @@ impl TryFrom<usize> for MessageType {
 
 impl From<MessageType> for usize {
     fn from(value: MessageType) -> usize {
-        match value {
-            MessageType::PreKey => 0,
-            MessageType::Normal => 1,
-        }
+        value as usize
     }
 }
 
@@ -115,24 +92,17 @@ impl From<LibolmMessage> for OlmMessage {
     fn from(other: LibolmMessage) -> Self {
         let (message_type, ciphertext) = other.to_tuple();
 
-        match message_type {
-            olm_rs::session::OlmMessageType::PreKey => {
-                Self::PreKey(PreKeyMessage { inner: ciphertext })
-            }
-            olm_rs::session::OlmMessageType::Message => Self::Normal(Message { inner: ciphertext }),
-        }
+        Self::from_parts(message_type.into(), &ciphertext).expect("Can't decode a libolm message")
     }
 }
 
 #[cfg(test)]
 impl From<OlmMessage> for LibolmMessage {
     fn from(value: OlmMessage) -> LibolmMessage {
-        let ciphertext = value.ciphertext().to_owned();
-
         match value {
-            OlmMessage::Normal(_) => LibolmMessage::from_type_and_ciphertext(1, ciphertext)
+            OlmMessage::Normal(m) => LibolmMessage::from_type_and_ciphertext(1, m.to_base64())
                 .expect("Can't create a valid libolm message"),
-            OlmMessage::PreKey(_) => LibolmMessage::from_type_and_ciphertext(0, ciphertext)
+            OlmMessage::PreKey(m) => LibolmMessage::from_type_and_ciphertext(0, m.to_base64())
                 .expect("Can't create a valid libolm pre-key message"),
         }
     }
@@ -140,61 +110,7 @@ impl From<OlmMessage> for LibolmMessage {
 
 #[cfg(test)]
 mod tests {
-    use anyhow::{Context, Result};
-
     use super::*;
-
-    static RAW_MESSAGE: &str = "FOOBAR";
-
-    #[test]
-    fn from_to_parts() -> Result<()> {
-        // Test pre-key Olm message construction
-        let prekey_message = OlmMessage::from_parts(0, RAW_MESSAGE.to_string())
-            .context("Failed constructing normal Olm message from ciphertext.")?;
-        assert_eq!(
-            prekey_message.ciphertext(),
-            RAW_MESSAGE,
-            "Constructed message content differs from original message."
-        );
-        assert_eq!(
-            prekey_message.message_type(),
-            MessageType::PreKey,
-            "Expected message to be recognized as a pre-key Olm message."
-        );
-        assert_eq!(
-            prekey_message.to_parts(),
-            (0, RAW_MESSAGE.to_string()),
-            "Roundtrip not identity."
-        );
-
-        // Test normal Olm message construction
-        let normal_message = OlmMessage::from_parts(1, RAW_MESSAGE.to_string())
-            .context("Failed constructing normal Olm message from ciphertext.")?;
-        assert_eq!(
-            normal_message.ciphertext(),
-            RAW_MESSAGE,
-            "Constructed message content differs from original message."
-        );
-        assert_eq!(
-            normal_message.message_type(),
-            MessageType::Normal,
-            "Expected message to be recognized as a normal Olm message."
-        );
-        assert_eq!(
-            normal_message.to_parts(),
-            (1, RAW_MESSAGE.to_string()),
-            "Roundtrip not identity."
-        );
-
-        // Test unknown message type
-        assert_eq!(
-            OlmMessage::from_parts(2, RAW_MESSAGE.to_string()),
-            None,
-            "Testing unknown Olm message type."
-        );
-
-        Ok(())
-    }
 
     #[test]
     fn message_type_from_usize() {

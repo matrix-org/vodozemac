@@ -61,6 +61,8 @@ pub enum LibolmUnpickleError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum DecodeError {
+    #[error("The message has an invalid type, expected 0 or 1, got {0}")]
+    MessageType(usize),
     #[error("The message didn't contain a version")]
     MissingVersion,
     #[error("The message was too short, it didn't contain a valid payload")]

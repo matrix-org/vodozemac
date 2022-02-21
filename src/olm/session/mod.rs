@@ -41,7 +41,7 @@ use super::{
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
 };
 use crate::{
-    olm::messages::{DecodedMessage, EncodedPrekeyMessage, Message, OlmMessage, PreKeyMessage},
+    olm::messages::{Message, OlmMessage, PreKeyMessage},
     utilities::base64_encode,
     Curve25519PublicKey, DecodeError,
 };
@@ -210,16 +210,16 @@ impl Session {
         let message = self.sending_ratchet.encrypt(plaintext);
 
         if self.has_received_message() {
-            OlmMessage::Normal(Message { inner: base64_encode(message) })
+            OlmMessage::Normal(message)
         } else {
-            let message = EncodedPrekeyMessage::new(
-                &self.session_keys.one_time_key,
-                &self.session_keys.base_key,
-                &self.session_keys.identity_key,
+            let message = PreKeyMessage::new(
+                self.session_keys.one_time_key,
+                self.session_keys.base_key,
+                self.session_keys.identity_key,
                 message,
             );
 
-            OlmMessage::PreKey(PreKeyMessage { inner: base64_encode(message) })
+            OlmMessage::PreKey(message)
         }
     }
 
@@ -229,14 +229,8 @@ impl Session {
     /// [`DecryptionError`]: self::DecryptionError
     pub fn decrypt(&mut self, message: &OlmMessage) -> Result<String, DecryptionError> {
         let decrypted = match message {
-            OlmMessage::Normal(m) => {
-                let message = m.decode()?;
-                self.decrypt_decoded(message)?
-            }
-            OlmMessage::PreKey(m) => {
-                let message = m.decode()?;
-                self.decrypt_decoded(message.message)?
-            }
+            OlmMessage::Normal(m) => self.decrypt_decoded(m)?,
+            OlmMessage::PreKey(m) => self.decrypt_decoded(&m.message)?,
         };
 
         Ok(String::from_utf8_lossy(&decrypted).to_string())
@@ -244,16 +238,16 @@ impl Session {
 
     pub(super) fn decrypt_decoded(
         &mut self,
-        message: DecodedMessage,
+        message: &Message,
     ) -> Result<Vec<u8>, DecryptionError> {
         let ratchet_key = RemoteRatchetKey::from(message.ratchet_key);
 
         if let Some(ratchet) = self.receiving_chains.find_ratchet(&ratchet_key) {
-            Ok(ratchet.decrypt(&message)?)
+            Ok(ratchet.decrypt(message)?)
         } else {
             let (sending_ratchet, mut remote_ratchet) = self.sending_ratchet.advance(ratchet_key);
 
-            let plaintext = remote_ratchet.decrypt(&message)?;
+            let plaintext = remote_ratchet.decrypt(message)?;
 
             self.sending_ratchet = sending_ratchet;
             self.receiving_chains.push(remote_ratchet);
@@ -577,10 +571,10 @@ mod test {
 
         let message = "It's a secret to everybody";
 
-        let olm_message: OlmMessage = alice_session.encrypt(message).into();
+        let olm_message = alice_session.encrypt(message);
         bob.mark_keys_as_published();
 
-        if let OlmMessage::PreKey(m) = olm_message {
+        if let OlmMessage::PreKey(m) = olm_message.into() {
             let session = bob.create_inbound_session_from(alice.curve25519_key_encoded(), m)?;
 
             Ok((alice, bob, alice_session, session))

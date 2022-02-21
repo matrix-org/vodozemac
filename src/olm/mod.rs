@@ -25,5 +25,5 @@ pub use account::{
     Account, AccountPickle, AccountPickledJSON, AccountUnpicklingError, IdentityKeys,
     InboundCreationResult,
 };
-pub use messages::{MessageType, OlmMessage, PreKeyMessage};
+pub use messages::{Message, MessageType, OlmMessage, PreKeyMessage};
 pub use session::{DecryptionError, Session, SessionPickle, SessionPickledJSON};

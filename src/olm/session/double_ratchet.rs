@@ -20,7 +20,7 @@ use super::{
     receiver_chain::ReceiverChain,
     root_key::{RemoteRootKey, RootKey},
 };
-use crate::olm::{messages::EncodedMessage, shared_secret::Shared3DHSecret};
+use crate::olm::{messages::Message, shared_secret::Shared3DHSecret};
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(transparent)]
@@ -29,7 +29,7 @@ pub(super) struct DoubleRatchet {
 }
 
 impl DoubleRatchet {
-    pub fn encrypt(&mut self, plaintext: &str) -> EncodedMessage {
+    pub fn encrypt(&mut self, plaintext: &str) -> Message {
         match &mut self.inner {
             DoubleRatchetState::Inactive(ratchet) => {
                 let mut ratchet = ratchet.activate();
@@ -152,7 +152,7 @@ impl ActiveDoubleRatchet {
         RatchetPublicKey::from(self.active_ratchet.ratchet_key())
     }
 
-    fn encrypt(&mut self, plaintext: &[u8]) -> EncodedMessage {
+    fn encrypt(&mut self, plaintext: &[u8]) -> Message {
         let message_key = self.symmetric_key_ratchet.create_message_key(self.ratchet_key());
 
         message_key.encrypt(plaintext)
