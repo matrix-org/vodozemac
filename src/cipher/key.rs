@@ -26,13 +26,8 @@ type Aes256Iv = GenericArray<u8, <Aes256Cbc as BlockMode<Aes256, Pkcs7>>::IvSize
 type HmacSha256Key = [u8; 32];
 
 #[derive(Zeroize)]
-struct ExpandedKeys([u8; 80]);
-
-impl Drop for ExpandedKeys {
-    fn drop(&mut self) {
-        self.0.zeroize();
-    }
-}
+#[zeroize(drop)]
+struct ExpandedKeys(Box<[u8; 80]>);
 
 impl ExpandedKeys {
     const OLM_HKDF_INFO: &'static [u8] = b"OLM_KEYS";
@@ -58,13 +53,13 @@ impl ExpandedKeys {
 
         hkdf.expand(info, &mut expanded_keys).expect("Can't expand message key");
 
-        Self(expanded_keys)
+        Self(Box::new(expanded_keys))
     }
 
-    fn split(self) -> ([u8; 32], [u8; 16], [u8; 32]) {
-        let mut aes_key = [0u8; 32];
-        let mut mac_key = [0u8; 32];
-        let mut aes_iv = [0u8; 16];
+    fn split(self) -> (Box<[u8; 32]>, Box<[u8; 16]>, Box<[u8; 32]>) {
+        let mut aes_key = Box::new([0u8; 32]);
+        let mut mac_key = Box::new([0u8; 32]);
+        let mut aes_iv = Box::new([0u8; 16]);
 
         aes_key.copy_from_slice(&self.0[0..32]);
         mac_key.copy_from_slice(&self.0[32..64]);
@@ -75,18 +70,11 @@ impl ExpandedKeys {
 }
 
 #[derive(Zeroize)]
+#[zeroize(drop)]
 pub(super) struct CipherKeys {
-    aes_key: [u8; 32],
-    aes_iv: [u8; 16],
-    mac_key: [u8; 32],
-}
-
-impl Drop for CipherKeys {
-    fn drop(&mut self) {
-        self.aes_key.zeroize();
-        self.aes_iv.zeroize();
-        self.mac_key.zeroize();
-    }
+    aes_key: Box<[u8; 32]>,
+    aes_iv: Box<[u8; 16]>,
+    mac_key: Box<[u8; 32]>,
 }
 
 impl CipherKeys {
@@ -116,7 +104,7 @@ impl CipherKeys {
     }
 
     pub fn aes_key(&self) -> &Aes256Key {
-        Aes256Key::from_slice(&self.aes_key)
+        Aes256Key::from_slice(self.aes_key.as_slice())
     }
 
     pub fn mac_key(&self) -> &HmacSha256Key {
@@ -124,6 +112,6 @@ impl CipherKeys {
     }
 
     pub fn iv(&self) -> &Aes256Iv {
-        Aes256Iv::from_slice(&self.aes_iv)
+        Aes256Iv::from_slice(self.aes_iv.as_slice())
     }
 }

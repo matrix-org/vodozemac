@@ -347,8 +347,10 @@ impl Session {
         impl From<&ReceivingChain> for ReceiverChain {
             fn from(chain: &ReceivingChain) -> Self {
                 let ratchet_key = RemoteRatchetKey::from(chain.ratchet_key);
-                let chain_key =
-                    RemoteChainKey::from_bytes_and_index(chain.chain_key, chain.chain_key_index);
+                let chain_key = RemoteChainKey::from_bytes_and_index(
+                    Box::new(chain.chain_key),
+                    chain.chain_key_index,
+                );
 
                 ReceiverChain::new(ratchet_key, chain_key)
             }
@@ -376,7 +378,7 @@ impl Session {
 
         impl From<&MessageKey> for RemoteMessageKey {
             fn from(key: &MessageKey) -> Self {
-                RemoteMessageKey { key: key.message_key, index: key.index.into() }
+                RemoteMessageKey { key: Box::new(key.message_key), index: key.index.into() }
             }
         }
 
@@ -439,10 +441,12 @@ impl Session {
                 if let Some(chain) = pickle.sender_chains.get(0) {
                     let ratchet_key =
                         RatchetKey::from(Curve25519SecretKey::from(chain.secret_ratchet_key));
-                    let chain_key =
-                        ChainKey::from_bytes_and_index(chain.chain_key, chain.chain_key_index);
+                    let chain_key = ChainKey::from_bytes_and_index(
+                        Box::new(chain.chain_key),
+                        chain.chain_key_index,
+                    );
 
-                    let root_key = RootKey::new(pickle.root_key);
+                    let root_key = RootKey::new(Box::new(pickle.root_key));
 
                     let ratchet = Ratchet::new_with_ratchet_key(root_key, ratchet_key);
                     let sending_ratchet =
@@ -455,7 +459,7 @@ impl Session {
                     })
                 } else if let Some(chain) = receiving_chains.get(0) {
                     let sending_ratchet = DoubleRatchet::inactive(
-                        RemoteRootKey::new(pickle.root_key),
+                        RemoteRootKey::new(Box::new(pickle.root_key)),
                         chain.ratchet_key(),
                     );
 

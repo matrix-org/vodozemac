@@ -24,27 +24,17 @@ use super::{
 
 const ADVANCEMENT_SEED: &[u8; 11] = b"OLM_RATCHET";
 
-#[derive(Serialize, Deserialize, Zeroize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Zeroize)]
 #[serde(transparent)]
+#[zeroize(drop)]
 pub(crate) struct RootKey {
-    pub key: [u8; 32],
-}
-
-impl Drop for RootKey {
-    fn drop(&mut self) {
-        self.key.zeroize()
-    }
+    pub key: Box<[u8; 32]>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Zeroize)]
+#[zeroize(drop)]
 pub(crate) struct RemoteRootKey {
-    pub key: [u8; 32],
-}
-
-impl Drop for RemoteRootKey {
-    fn drop(&mut self) {
-        self.key.zeroize()
-    }
+    pub key: Box<[u8; 32]>,
 }
 
 fn kdf(
@@ -62,7 +52,7 @@ fn kdf(
 }
 
 impl RemoteRootKey {
-    pub(super) fn new(bytes: [u8; 32]) -> Self {
+    pub(super) fn new(bytes: Box<[u8; 32]>) -> Self {
         Self { key: bytes }
     }
 
@@ -73,8 +63,8 @@ impl RemoteRootKey {
         let ratchet_key = RatchetKey::new();
         let output = kdf(&self.key, &ratchet_key, remote_ratchet_key);
 
-        let mut chain_key = [0u8; 32];
-        let mut root_key = [0u8; 32];
+        let mut chain_key = Box::new([0u8; 32]);
+        let mut root_key = Box::new([0u8; 32]);
 
         chain_key.copy_from_slice(&output[32..]);
         root_key.copy_from_slice(&output[..32]);
@@ -87,7 +77,7 @@ impl RemoteRootKey {
 }
 
 impl RootKey {
-    pub(super) fn new(bytes: [u8; 32]) -> Self {
+    pub(super) fn new(bytes: Box<[u8; 32]>) -> Self {
         Self { key: bytes }
     }
 
@@ -98,8 +88,8 @@ impl RootKey {
     ) -> (RemoteRootKey, RemoteChainKey) {
         let output = kdf(&self.key, old_ratchet_key, remote_ratchet_key);
 
-        let mut chain_key = [0u8; 32];
-        let mut root_key = [0u8; 32];
+        let mut chain_key = Box::new([0u8; 32]);
+        let mut root_key = Box::new([0u8; 32]);
 
         root_key.copy_from_slice(&output[..32]);
         chain_key.copy_from_slice(&output[32..]);
