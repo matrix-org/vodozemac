@@ -14,6 +14,7 @@
 // limitations under the License.
 
 use prost::Message;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     cipher::Mac,
@@ -29,6 +30,23 @@ pub struct MegolmMessage {
     pub message_index: u32,
     pub mac: [u8; Mac::TRUNCATED_LEN],
     pub signature: Ed25519Signature,
+}
+
+impl Serialize for MegolmMessage {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let message = self.to_base64();
+        serializer.serialize_str(&message)
+    }
+}
+
+impl<'de> Deserialize<'de> for MegolmMessage {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let ciphertext = String::deserialize(d)?;
+        Self::from_base64(&ciphertext).map_err(serde::de::Error::custom)
+    }
 }
 
 impl MegolmMessage {
