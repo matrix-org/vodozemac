@@ -501,7 +501,7 @@ impl Account {
                 Ok(Self {
                     signing_key: Ed25519Keypair::from_expanded_key(&pickle.private_ed25519_key)?,
                     diffie_hellman_key: Curve25519Keypair::from_secret_key(
-                        pickle.private_curve25519_key,
+                        &pickle.private_curve25519_key,
                     ),
                     one_time_keys,
                     fallback_keys,
