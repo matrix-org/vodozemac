@@ -27,7 +27,7 @@ const ADVANCEMENT_SEEDS: [&[u8; 1]; Ratchet::RATCHET_PART_COUNT] =
 #[serde(try_from = "RatchetPickle")]
 #[serde(into = "RatchetPickle")]
 pub(super) struct Ratchet {
-    inner: [u8; Self::RATCHET_LENGTH],
+    inner: Box<[u8; Self::RATCHET_LENGTH]>,
     counter: u32,
 }
 
@@ -92,14 +92,14 @@ impl Ratchet {
     pub fn new() -> Self {
         let mut rng = thread_rng();
 
-        let mut ratchet = Self { inner: [0u8; Self::RATCHET_LENGTH], counter: 0 };
+        let mut ratchet = Self { inner: Box::new([0u8; Self::RATCHET_LENGTH]), counter: 0 };
 
-        rng.fill_bytes(&mut ratchet.inner);
+        rng.fill_bytes(ratchet.inner.as_mut_slice());
 
         ratchet
     }
 
-    pub fn from_bytes(bytes: [u8; Self::RATCHET_LENGTH], counter: u32) -> Self {
+    pub fn from_bytes(bytes: Box<[u8; Self::RATCHET_LENGTH]>, counter: u32) -> Self {
         Self { inner: bytes, counter }
     }
 
@@ -208,7 +208,7 @@ pub(super) struct RatchetPickle {
 
 impl From<Ratchet> for RatchetPickle {
     fn from(ratchet: Ratchet) -> Self {
-        Self { key: ratchet.inner.into(), counter: ratchet.counter }
+        Self { key: (*ratchet.inner).into(), counter: ratchet.counter }
     }
 }
 
@@ -216,14 +216,13 @@ impl TryFrom<RatchetPickle> for Ratchet {
     type Error = MegolmRatchetUnpicklingError;
 
     fn try_from(pickle: RatchetPickle) -> Result<Self, Self::Error> {
-        Ok(Ratchet {
-            inner: pickle
-                .key
-                .clone()
-                .try_into()
-                .map_err(|_| MegolmRatchetUnpicklingError::InvalidKeyLength(pickle.key.len()))?,
-            counter: pickle.counter,
-        })
+        let ratchet =
+            Box::new(
+                pickle.key.clone().try_into().map_err(|_| {
+                    MegolmRatchetUnpicklingError::InvalidKeyLength(pickle.key.len())
+                })?,
+            );
+        Ok(Ratchet { inner: ratchet, counter: pickle.counter })
     }
 }
 
