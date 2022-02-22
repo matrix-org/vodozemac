@@ -154,9 +154,20 @@ impl From<OlmMessage> for LibolmMessage {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
+    use assert_matches::assert_matches;
     use serde_json::json;
 
     use super::*;
+
+    const PRE_KEY_MESSAGE: &str = "AwoghAEuxPZ+w7M3pgUae4tDNiggUpOsQ/zci457VAti\
+                                   AEYSIO3xOKRDBWKicIfxjSmYCYZ9DD4RMLjvvclbMlE5\
+                                   yIEWGiApLrCr853CKlPpW4Bi7S8ykRcejJ0lq7AfYLXK\
+                                   CjKdHSJPAwoghw3+P+cajhWj9Qzp5g87h+tbpiuh5wEa\
+                                   eUppqmWqug4QASIgRhZ2cgZcIWQbIa23R7U4y1Mo1R/t\
+                                   LCaMU+xjzRV5smGsCrJ6AHwktg";
+
+    const MESSAGE: &str = "AwogI7JhE/UsMZqXKb3xV6kUZWoJc6jTm2+AIgWYmaETIR0QASIQ\
+                           +X2zb7kEX/3JvoLspcNBcLWOFXYpV0nS";
 
     #[test]
     fn message_type_from_usize() {
@@ -177,21 +188,54 @@ mod tests {
     }
 
     #[test]
-    fn olm_message_from_json() -> Result<()> {
+    fn from_json() -> Result<()> {
         let value = json!({
-            "type": 0,
-            "body": "AwoghAEuxPZ+w7M3pgUae4tDNiggUpOsQ/zci457VAtiAEYSIO3xOKRDBW\
-                     KicIfxjSmYCYZ9DD4RMLjvvclbMlE5yIEWGiApLrCr853CKlPpW4Bi7S8y\
-                     kRcejJ0lq7AfYLXKCjKdHSJPAwoghw3+P+cajhWj9Qzp5g87h+tbpiuh5w\
-                     EaeUppqmWqug4QASIgRhZ2cgZcIWQbIa23R7U4y1Mo1R/tLCaMU+xjzRV5\
-                     smGsCrJ6AHwktg",
+            "type": 0u8,
+            "body": PRE_KEY_MESSAGE,
         });
 
         let message: OlmMessage = serde_json::from_value(value.clone())?;
+        assert_matches!(message, OlmMessage::PreKey(_));
 
         let serialized = serde_json::to_value(message)?;
-
         assert_eq!(value, serialized, "The serialization cycle isn't a noop");
+
+        let value = json!({
+            "type": 1u8,
+            "body": MESSAGE,
+        });
+
+        let message: OlmMessage = serde_json::from_value(value.clone())?;
+        assert_matches!(message, OlmMessage::Normal(_));
+
+        let serialized = serde_json::to_value(message)?;
+        assert_eq!(value, serialized, "The serialization cycle isn't a noop");
+
+        Ok(())
+    }
+
+    #[test]
+    fn from_parts() -> Result<()> {
+        let message = OlmMessage::from_parts(0, PRE_KEY_MESSAGE)?;
+        assert_matches!(message, OlmMessage::PreKey(_));
+        assert_eq!(
+            message.message_type(),
+            MessageType::PreKey,
+            "Expected message to be recognized as a pre-key Olm message."
+        );
+
+        assert_eq!(message.to_parts(), (0, PRE_KEY_MESSAGE.to_string()), "Roundtrip not identity.");
+
+        let message = OlmMessage::from_parts(1, MESSAGE)?;
+        assert_eq!(
+            message.message_type(),
+            MessageType::Normal,
+            "Expected message to be recognized as a normal Olm message."
+        );
+        assert_eq!(message.to_parts(), (1, MESSAGE.to_string()), "Roundtrip not identity.");
+
+        OlmMessage::from_parts(3, PRE_KEY_MESSAGE)
+            .expect_err("Unknown message types can't be parsed");
 
         Ok(())
     }
