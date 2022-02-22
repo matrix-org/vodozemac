@@ -21,9 +21,24 @@ use serde::{Deserialize, Serialize};
 
 use crate::DecodeError;
 
+/// Enum over the different Olm message types.
+///
+/// Olm uses two types of messages. The underlying transport protocol must
+/// provide a means for recipients to distinguish between them.
+///
+/// [`OlmMessage`] provides [`Serialize`] and [`Deserialize`] implementations
+/// that are compatible with [Matrix].
+///
+/// [Matrix]: https://spec.matrix.org/latest/client-server-api/#molmv1curve25519-aes-sha2
 #[derive(Debug, Clone, PartialEq)]
 pub enum OlmMessage {
+    /// A normal message, contains only the ciphertext and metadata to decrypt
+    /// it.
     Normal(Message),
+    /// A pre-key message, contains metadata to establish a [`Session`] as well
+    /// as a [`Message`].
+    ///
+    /// [`Session`]: crate::olm::Session
     PreKey(PreKeyMessage),
 }
 
@@ -70,6 +85,7 @@ impl<'de> Deserialize<'de> for OlmMessage {
 }
 
 impl OlmMessage {
+    /// Create a `OlmMessage` from a message type and a ciphertext.
     pub fn from_parts(message_type: usize, ciphertext: &str) -> Result<Self, DecodeError> {
         match message_type {
             0 => Ok(Self::PreKey(PreKeyMessage::try_from(ciphertext)?)),
@@ -78,13 +94,15 @@ impl OlmMessage {
         }
     }
 
-    pub fn ciphertext(&self) -> &[u8] {
+    /// Get the message as a byte array.
+    pub fn message(&self) -> &[u8] {
         match self {
             OlmMessage::Normal(m) => &m.ciphertext,
             OlmMessage::PreKey(m) => &m.message.ciphertext,
         }
     }
 
+    /// Get the type of the message.
     pub fn message_type(&self) -> MessageType {
         match self {
             OlmMessage::Normal(_) => MessageType::Normal,
@@ -92,6 +110,8 @@ impl OlmMessage {
         }
     }
 
+    /// Convert the `OlmMessage` into a message type, and base64 encoded message
+    /// tuple.
     pub fn to_parts(self) -> (usize, String) {
         let message_type = self.message_type();
 
@@ -102,10 +122,12 @@ impl OlmMessage {
     }
 }
 
+/// An enum over the two supported message types.
 #[derive(Debug, Clone, Copy, PartialEq)]
-#[allow(missing_docs)]
 pub enum MessageType {
+    /// The pre-key message type.
     PreKey = 0,
+    /// The normal message type.
     Normal = 1,
 }
 

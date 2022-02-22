@@ -27,6 +27,7 @@ pub use inbound_group_session::{
     InboundGroupSessionPickle, InboundGroupSessionPickledJSON, InboundGroupSessionUnpicklingError,
     SessionCreationError,
 };
+pub use message::MegolmMessage;
 use zeroize::Zeroize;
 
 #[derive(Zeroize)]

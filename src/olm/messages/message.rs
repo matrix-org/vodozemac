@@ -23,12 +23,107 @@ use crate::{
 
 const VERSION: u8 = 3;
 
+/// An encrypted Olm message.
+///
+/// Contains metadata that is required to find the correct ratchet state of a
+/// [`Session`] necessary to decrypt the message.
+///
+/// [`Session`]: crate::olm::Session
 #[derive(Debug, Clone, PartialEq)]
 pub struct Message {
-    pub ratchet_key: Curve25519PublicKey,
-    pub chain_index: u64,
-    pub ciphertext: Vec<u8>,
-    pub mac: [u8; Mac::TRUNCATED_LEN],
+    pub(crate) ratchet_key: Curve25519PublicKey,
+    pub(crate) chain_index: u64,
+    pub(crate) ciphertext: Vec<u8>,
+    pub(crate) mac: [u8; Mac::TRUNCATED_LEN],
+}
+
+impl Message {
+    /// The public part of the ratchet key, that was used when the message was
+    /// encrypted.
+    pub fn ratchet_key(&self) -> Curve25519PublicKey {
+        self.ratchet_key
+    }
+
+    /// The index of the chain that was used when the message was encrypted.
+    pub fn chain_index(&self) -> u64 {
+        self.chain_index
+    }
+
+    /// The actual ciphertext of the message.
+    pub fn ciphertext(&self) -> &[u8] {
+        &self.ciphertext
+    }
+
+    /// Try to decode the given byte slice as a Olm [`Message`].
+    ///
+    /// The expected format of the byte array is described in the
+    /// [`Message::to_bytes()`] method.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
+        Self::try_from(bytes)
+    }
+
+    /// Encode the `Message` as an array of bytes.
+    ///
+    /// Olm `Message`s consist of a one-byte version, followed by a variable
+    /// length payload and a fixed length message authentication code.
+    ///
+    /// ```text
+    /// +--------------+------------------------------------+-----------+
+    /// | Version Byte | Payload Bytes                      | MAC Bytes |
+    /// +--------------+------------------------------------+-----------+
+    /// ```
+    ///
+    /// The payload uses a format based on the Protocol Buffers encoding. It
+    /// consists of the following key-value pairs:
+    ///
+    /// **Name**   |**Tag**|**Type**|               **Meaning**
+    /// :---------:|:-----:|:------:|:-----------------------------------------:
+    /// Ratchet-Key|  0x0A | String |The public part of the ratchet key
+    /// Chain-Index|  0x10 | Integer|The chain index, of the message
+    /// Cipher-Text|  0x22 | String |The cipher-text of the message
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut message = self.encode();
+        message.extend(self.mac);
+
+        message
+    }
+
+    /// Try to decode the given string as a Olm [`Message`].
+    ///
+    /// The string needs to be a base64 encoded byte array that follows the
+    /// format described in the [`Message::to_bytes()`] method.
+    pub fn from_base64(message: &str) -> Result<Self, DecodeError> {
+        Self::try_from(message)
+    }
+
+    /// Encode the [`Message`] as a string.
+    ///
+    /// This method first calls [`Message::to_bytes()`] and then encodes the
+    /// resulting byte array as a string using base64 encoding.
+    pub fn to_base64(&self) -> String {
+        base64_encode(self.to_bytes())
+    }
+
+    pub(crate) fn new(
+        ratchet_key: Curve25519PublicKey,
+        chain_index: u64,
+        ciphertext: Vec<u8>,
+    ) -> Self {
+        Self { ratchet_key, chain_index, ciphertext, mac: [0u8; Mac::TRUNCATED_LEN] }
+    }
+
+    fn encode(&self) -> Vec<u8> {
+        ProtoBufMessage {
+            ratchet_key: self.ratchet_key.to_bytes().to_vec(),
+            chain_index: self.chain_index,
+            ciphertext: self.ciphertext.clone(),
+        }
+        .encode_manual()
+    }
+
+    pub(crate) fn to_mac_bytes(&self) -> Vec<u8> {
+        self.encode()
+    }
 }
 
 impl Serialize for Message {
@@ -48,44 +143,6 @@ impl<'de> Deserialize<'de> for Message {
     }
 }
 
-impl Message {
-    pub fn new(ratchet_key: Curve25519PublicKey, chain_index: u64, ciphertext: Vec<u8>) -> Self {
-        Self { ratchet_key, chain_index, ciphertext, mac: [0u8; Mac::TRUNCATED_LEN] }
-    }
-
-    fn encode(&self) -> Vec<u8> {
-        ProtoBufMessage {
-            ratchet_key: self.ratchet_key.to_bytes().to_vec(),
-            chain_index: self.chain_index,
-            ciphertext: self.ciphertext.clone(),
-        }
-        .encode_manual()
-    }
-
-    pub(crate) fn to_mac_bytes(&self) -> Vec<u8> {
-        self.encode()
-    }
-
-    pub fn from_bytes(bytes: Vec<u8>) -> Result<Self, DecodeError> {
-        Self::try_from(bytes)
-    }
-
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let mut message = self.encode();
-        message.extend(self.mac);
-
-        message
-    }
-
-    pub fn from_base64(message: &str) -> Result<Self, DecodeError> {
-        Self::try_from(message)
-    }
-
-    pub fn to_base64(&self) -> String {
-        base64_encode(self.to_bytes())
-    }
-}
-
 impl TryFrom<&str> for Message {
     type Error = DecodeError;
 
@@ -100,6 +157,14 @@ impl TryFrom<Vec<u8>> for Message {
     type Error = DecodeError;
 
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        Self::try_from(value.as_slice())
+    }
+}
+
+impl TryFrom<&[u8]> for Message {
+    type Error = DecodeError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         let version = *value.get(0).ok_or(DecodeError::MissingVersion)?;
 
         if version != VERSION {

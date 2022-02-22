@@ -25,49 +25,60 @@ use crate::{
 
 const VERSION: u8 = 3;
 
+/// An encrypted Megolm message.
+///
+/// Contains metadata that is required to find the correct ratchet state of a
+/// [`InboundGroupSession`] necessary to decryp the message.
+///
+/// [`InboundGroupSession`]: crate::megolm::InboundGroupSession
 pub struct MegolmMessage {
-    pub ciphertext: Vec<u8>,
-    pub message_index: u32,
-    pub mac: [u8; Mac::TRUNCATED_LEN],
-    pub signature: Ed25519Signature,
-}
-
-impl Serialize for MegolmMessage {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let message = self.to_base64();
-        serializer.serialize_str(&message)
-    }
-}
-
-impl<'de> Deserialize<'de> for MegolmMessage {
-    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let ciphertext = String::deserialize(d)?;
-        Self::from_base64(&ciphertext).map_err(serde::de::Error::custom)
-    }
+    pub(super) ciphertext: Vec<u8>,
+    pub(super) message_index: u32,
+    pub(super) mac: [u8; Mac::TRUNCATED_LEN],
+    pub(super) signature: Ed25519Signature,
 }
 
 impl MegolmMessage {
     const MESSAGE_SUFFIX_LENGTH: usize = Mac::TRUNCATED_LEN + Ed25519Signature::LENGTH;
 
+    /// The actual ciphertext of the message.
     pub fn ciphertext(&self) -> &[u8] {
         &self.ciphertext
     }
 
+    /// The index of the message that was used when the message was encrypted.
     pub fn message_index(&self) -> u32 {
         self.message_index
     }
 
-    pub fn to_base64(&self) -> String {
-        base64_encode(self.to_bytes())
-    }
-
-    pub fn from_base64(message: &str) -> Result<Self, DecodeError> {
+    /// Try to decode the given byte slice as a [`MegolmMessage`].
+    ///
+    /// The expected format of the byte array is described in the
+    /// [`MegolmMessage::to_bytes()`] method.
+    pub fn from_bytes(message: Vec<u8>) -> Result<Self, DecodeError> {
         Self::try_from(message)
     }
 
+    /// Encode the [`MegolmMessage`] as an array of bytes.
+    ///
+    /// Megolm messages consist of a one byte version, followed by a variable
+    /// length payload, a fixed length message authentication code, and a fixed
+    /// length signature.
+    ///
+    /// ```text
+    /// +---+------------------------------------+-----------+------------------+
+    /// | V | Payload Bytes                      | MAC Bytes | Signature Bytes  |
+    /// +---+------------------------------------+-----------+------------------+
+    /// 0   1                                    N          N+8                N+72   bytes
+    /// ```
+    ///
+    /// The payload uses a format based on the Protocol Buffers encoding. It
+    /// consists of the following key-value pairs:
+    ///
+    ///    **Name**  |**Tag**|**Type**|            **Meaning**
+    /// :-----------:|:-----:|:------:|:---------------------------------------:
+    /// Message-Index|  0x08 | Integer|The index of the ratchet, i
+    /// Cipher-Text  |  0x12 | String |The cipher-text, Xi, of the message
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut message = self.encode_message();
 
@@ -77,8 +88,20 @@ impl MegolmMessage {
         message
     }
 
-    pub fn from_bytes(message: Vec<u8>) -> Result<Self, DecodeError> {
+    /// Try to decode the given string as a [`MegolmMessage`].
+    ///
+    /// The string needs to be a base64 encoded byte array that follows the
+    /// format described in the [`MegolmMessage::to_bytes()`] method.
+    pub fn from_base64(message: &str) -> Result<Self, DecodeError> {
         Self::try_from(message)
+    }
+
+    /// Encode the [`MegolmMessage`] as a string.
+    ///
+    /// This method first calls [`MegolmMessage::to_bytes()`] and then encodes
+    /// the resulting byte array as a string using base64 encoding.
+    pub fn to_base64(&self) -> String {
+        base64_encode(self.to_bytes())
     }
 
     fn encode_message(&self) -> Vec<u8> {
@@ -112,6 +135,23 @@ impl MegolmMessage {
     }
 }
 
+impl Serialize for MegolmMessage {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let message = self.to_base64();
+        serializer.serialize_str(&message)
+    }
+}
+
+impl<'de> Deserialize<'de> for MegolmMessage {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let ciphertext = String::deserialize(d)?;
+        Self::from_base64(&ciphertext).map_err(serde::de::Error::custom)
+    }
+}
+
 impl TryFrom<&str> for MegolmMessage {
     type Error = DecodeError;
 
@@ -126,6 +166,14 @@ impl TryFrom<Vec<u8>> for MegolmMessage {
     type Error = DecodeError;
 
     fn try_from(message: Vec<u8>) -> Result<Self, Self::Error> {
+        Self::try_from(message.as_slice())
+    }
+}
+
+impl TryFrom<&[u8]> for MegolmMessage {
+    type Error = DecodeError;
+
+    fn try_from(message: &[u8]) -> Result<Self, Self::Error> {
         let version = *message.get(0).ok_or(DecodeError::MissingVersion)?;
 
         if version != VERSION {
