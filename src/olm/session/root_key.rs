@@ -41,12 +41,12 @@ fn kdf(
     root_key: &[u8; 32],
     ratchet_key: &RatchetKey,
     remote_ratchet_key: &RemoteRatchetKey,
-) -> [u8; 64] {
+) -> Box<[u8; 64]> {
     let shared_secret = ratchet_key.diffie_hellman(remote_ratchet_key);
     let hkdf: Hkdf<Sha256> = Hkdf::new(Some(root_key.as_ref()), shared_secret.as_bytes());
-    let mut output = [0u8; 64];
+    let mut output = Box::new([0u8; 64]);
 
-    hkdf.expand(ADVANCEMENT_SEED, &mut output).expect("Can't expand");
+    hkdf.expand(ADVANCEMENT_SEED, output.as_mut_slice()).expect("Can't expand");
 
     output
 }
