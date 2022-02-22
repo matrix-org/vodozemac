@@ -32,6 +32,14 @@ pub(super) struct OneTimeKeys {
     pub key_ids_by_key: HashMap<Curve25519PublicKey, KeyId>,
 }
 
+impl Drop for OneTimeKeys {
+    fn drop(&mut self) {
+        for key in self.private_keys.values_mut() {
+            key.zeroize();
+        }
+    }
+}
+
 impl Zeroize for OneTimeKeysPickle {
     fn zeroize(&mut self) {
         for k in self.private_keys.values_mut() {
@@ -140,7 +148,7 @@ impl From<OneTimeKeys> for OneTimeKeysPickle {
         OneTimeKeysPickle {
             key_id: keys.key_id,
             public_keys: keys.unpublished_public_keys.iter().map(|(&k, &v)| (k, v)).collect(),
-            private_keys: keys.private_keys,
+            private_keys: keys.private_keys.clone(),
         }
     }
 }
