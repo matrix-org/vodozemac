@@ -31,7 +31,7 @@ use super::{
 use crate::{
     cipher::Cipher,
     types::{Ed25519PublicKey, Ed25519Signature, SignatureError},
-    utilities::{base64_decode, base64_encode},
+    utilities::{base64_decode, base64_encode, DecodeSecret},
     DecodeError,
 };
 
@@ -278,20 +278,20 @@ impl InboundGroupSession {
         #[derive(Zeroize)]
         #[zeroize(drop)]
         struct RatchetPickle {
-            ratchet: [u8; 128],
+            ratchet: Box<[u8; 128]>,
             index: u32,
         }
 
         impl From<&RatchetPickle> for Ratchet {
             fn from(pickle: &RatchetPickle) -> Self {
-                Ratchet::from_bytes(Box::new(pickle.ratchet), pickle.index)
+                Ratchet::from_bytes(pickle.ratchet.clone(), pickle.index)
             }
         }
 
         impl Decode for RatchetPickle {
             fn decode(reader: &mut impl Read) -> Result<Self, crate::utilities::LibolmDecodeError> {
                 Ok(RatchetPickle {
-                    ratchet: <[u8; 128]>::decode(reader)?,
+                    ratchet: <[u8; 128]>::decode_secret(reader)?,
                     index: u32::decode(reader)?,
                 })
             }

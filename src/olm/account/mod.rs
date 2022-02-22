@@ -38,7 +38,7 @@ use crate::{
         Curve25519Keypair, Curve25519KeypairPickle, Curve25519PublicKey, Ed25519Keypair,
         Ed25519KeypairPickle, Ed25519KeypairUnpicklingError, Ed25519PublicKey, KeyId,
     },
-    utilities::base64_encode,
+    utilities::{base64_encode, DecodeSecret},
     DecodeError,
 };
 
@@ -368,7 +368,7 @@ impl Account {
             key_id: u32,
             published: bool,
             public_key: [u8; 32],
-            private_key: [u8; 32],
+            private_key: Box<[u8; 32]>,
         }
 
         impl Decode for OneTimeKey {
@@ -378,7 +378,7 @@ impl Account {
                 let key_id = u32::decode(reader)?;
                 let published = bool::decode(reader)?;
                 let public_key = <[u8; 32]>::decode(reader)?;
-                let private_key = <[u8; 32]>::decode(reader)?;
+                let private_key = <[u8; 32]>::decode_secret(reader)?;
 
                 Ok(Self { key_id, published, public_key, private_key })
             }
@@ -388,7 +388,8 @@ impl Account {
             fn from(key: &OneTimeKey) -> Self {
                 FallbackKey {
                     key_id: KeyId(key.key_id.into()),
-                    key: Curve25519SecretKey::from(key.private_key),
+                    // XXX: Passing in secret array as value.
+                    key: Curve25519SecretKey::from(*key.private_key),
                     published: key.published,
                 }
             }
@@ -427,9 +428,9 @@ impl Account {
         struct Pickle {
             version: u32,
             public_ed25519_key: [u8; 32],
-            private_ed25519_key: [u8; 64],
+            private_ed25519_key: Box<[u8; 64]>,
             public_curve25519_key: [u8; 32],
-            private_curve25519_key: [u8; 32],
+            private_curve25519_key: Box<[u8; 32]>,
             one_time_keys: Vec<OneTimeKey>,
             fallback_keys: FallbackKeysArray,
         }
@@ -441,10 +442,10 @@ impl Account {
                 let version = u32::decode(reader)?;
 
                 let public_ed25519_key = <[u8; 32]>::decode(reader)?;
-                let private_ed25519_key = <[u8; 64]>::decode(reader)?;
+                let private_ed25519_key = <[u8; 64]>::decode_secret(reader)?;
 
                 let public_curve25519_key = <[u8; 32]>::decode(reader)?;
-                let private_curve25519_key = <[u8; 32]>::decode(reader)?;
+                let private_curve25519_key = <[u8; 32]>::decode_secret(reader)?;
                 let one_time_keys = Vec::decode(reader)?;
                 let fallback_keys = FallbackKeysArray::decode(reader)?;
 
@@ -468,7 +469,8 @@ impl Account {
                 let mut max_key_id = 0;
 
                 for key in &pickle.one_time_keys {
-                    let secret_key = Curve25519SecretKey::from(key.private_key);
+                    // XXX: Passing in secret array as value.
+                    let secret_key = Curve25519SecretKey::from(*key.private_key);
                     let key_id = KeyId(key.key_id.into());
                     one_time_keys.insert_secret_key(key_id, secret_key, key.published);
 
