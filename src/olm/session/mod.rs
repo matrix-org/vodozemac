@@ -327,7 +327,7 @@ impl Session {
         #[derive(Debug, Zeroize)]
         #[zeroize(drop)]
         struct ReceivingChain {
-            ratchet_key: [u8; 32],
+            public_ratchet_key: [u8; 32],
             chain_key: [u8; 32],
             chain_key_index: u32,
         }
@@ -337,7 +337,7 @@ impl Session {
                 reader: &mut impl std::io::Read,
             ) -> Result<Self, crate::utilities::LibolmDecodeError> {
                 Ok(Self {
-                    ratchet_key: <[u8; 32]>::decode(reader)?,
+                    public_ratchet_key: <[u8; 32]>::decode(reader)?,
                     chain_key: <[u8; 32]>::decode(reader)?,
                     chain_key_index: u32::decode(reader)?,
                 })
@@ -346,7 +346,7 @@ impl Session {
 
         impl From<&ReceivingChain> for ReceiverChain {
             fn from(chain: &ReceivingChain) -> Self {
-                let ratchet_key = RemoteRatchetKey::from(chain.ratchet_key);
+                let ratchet_key = RemoteRatchetKey::from(chain.public_ratchet_key);
                 let chain_key = RemoteChainKey::from_bytes_and_index(
                     Box::new(chain.chain_key),
                     chain.chain_key_index,
