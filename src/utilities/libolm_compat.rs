@@ -104,8 +104,8 @@ pub(crate) fn unpickle_libolm<P: Decode, T: TryFrom<P, Error = LibolmUnpickleErr
 ///
 /// [bincode]: https://github.com/bincode-org/bincode/
 pub(crate) trait Decode {
-    /// Try to read and decode a non-secret value from the given reader which is reading from
-    /// a libolm-compatible pickle.
+    /// Try to read and decode a non-secret value from the given reader which is
+    /// reading from a libolm-compatible pickle.
     fn decode(reader: &mut impl Read) -> Result<Self, LibolmDecodeError>
     where
         Self: Sized;
@@ -113,12 +113,13 @@ pub(crate) trait Decode {
 
 /// Like `Decode`, but for decoding secret values.
 ///
-/// Unlike `Decode`, this trait allocates the buffer for the target value on the heap and returns
-/// it in a `Box`. This reduces the number of inadvertent copies made when the value is moved,
-/// allowing the value to be properly zeroized.
+/// Unlike `Decode`, this trait allocates the buffer for the target value on the
+/// heap and returns it in a `Box`. This reduces the number of inadvertent
+/// copies made when the value is moved, allowing the value to be properly
+/// zeroized.
 pub(crate) trait DecodeSecret {
-    /// Try to read and decode a secret value from the given reader which is reading from
-    /// a libolm-compatible pickle.
+    /// Try to read and decode a secret value from the given reader which is
+    /// reading from a libolm-compatible pickle.
     fn decode_secret(reader: &mut impl Read) -> Result<Box<Self>, LibolmDecodeError>
     where
         Self: Sized;
