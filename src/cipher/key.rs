@@ -55,18 +55,6 @@ impl ExpandedKeys {
 
         Self(Box::new(expanded_keys))
     }
-
-    fn split(self) -> (Box<[u8; 32]>, Box<[u8; 16]>, Box<[u8; 32]>) {
-        let mut aes_key = Box::new([0u8; 32]);
-        let mut mac_key = Box::new([0u8; 32]);
-        let mut aes_iv = Box::new([0u8; 16]);
-
-        aes_key.copy_from_slice(&self.0[0..32]);
-        mac_key.copy_from_slice(&self.0[32..64]);
-        aes_iv.copy_from_slice(&self.0[64..80]);
-
-        (aes_key, aes_iv, mac_key)
-    }
 }
 
 #[derive(Zeroize)]
@@ -81,24 +69,30 @@ impl CipherKeys {
     pub fn new(message_key: &[u8; 32]) -> Self {
         let expanded_keys = ExpandedKeys::new(message_key);
 
-        Self::new_helper(expanded_keys)
+        Self::from_expanded_keys(expanded_keys)
     }
 
     pub fn new_megolm(message_key: &[u8; 128]) -> Self {
         let expanded_keys = ExpandedKeys::new_megolm(message_key);
 
-        Self::new_helper(expanded_keys)
+        Self::from_expanded_keys(expanded_keys)
     }
 
     #[cfg(feature = "libolm-compat")]
     pub fn new_pickle(pickle_key: &[u8]) -> Self {
         let expanded_keys = ExpandedKeys::new_pickle(pickle_key);
 
-        Self::new_helper(expanded_keys)
+        Self::from_expanded_keys(expanded_keys)
     }
 
-    fn new_helper(expanded_keys: ExpandedKeys) -> Self {
-        let (aes_key, aes_iv, mac_key) = expanded_keys.split();
+    fn from_expanded_keys(expanded_keys: ExpandedKeys) -> Self {
+        let mut aes_key = Box::new([0u8; 32]);
+        let mut mac_key = Box::new([0u8; 32]);
+        let mut aes_iv = Box::new([0u8; 16]);
+
+        aes_key.copy_from_slice(&expanded_keys.0[0..32]);
+        mac_key.copy_from_slice(&expanded_keys.0[32..64]);
+        aes_iv.copy_from_slice(&expanded_keys.0[64..80]);
 
         Self { aes_key, aes_iv, mac_key }
     }
