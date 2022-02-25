@@ -42,7 +42,7 @@ use super::{
 };
 use crate::{
     olm::messages::{Message, OlmMessage, PreKeyMessage},
-    utilities::base64_encode,
+    utilities::{base64_encode, DecodeSecret},
     Curve25519PublicKey, DecodeError,
 };
 
@@ -306,8 +306,8 @@ impl Session {
         #[zeroize(drop)]
         struct SenderChain {
             public_ratchet_key: [u8; 32],
-            secret_ratchet_key: [u8; 32],
-            chain_key: [u8; 32],
+            secret_ratchet_key: Box<[u8; 32]>,
+            chain_key: Box<[u8; 32]>,
             chain_key_index: u32,
         }
 
@@ -317,8 +317,8 @@ impl Session {
             ) -> Result<Self, crate::utilities::LibolmDecodeError> {
                 Ok(Self {
                     public_ratchet_key: <[u8; 32]>::decode(reader)?,
-                    secret_ratchet_key: <[u8; 32]>::decode(reader)?,
-                    chain_key: <[u8; 32]>::decode(reader)?,
+                    secret_ratchet_key: <[u8; 32]>::decode_secret(reader)?,
+                    chain_key: <[u8; 32]>::decode_secret(reader)?,
                     chain_key_index: u32::decode(reader)?,
                 })
             }
@@ -327,8 +327,8 @@ impl Session {
         #[derive(Debug, Zeroize)]
         #[zeroize(drop)]
         struct ReceivingChain {
-            ratchet_key: [u8; 32],
-            chain_key: [u8; 32],
+            public_ratchet_key: [u8; 32],
+            chain_key: Box<[u8; 32]>,
             chain_key_index: u32,
         }
 
@@ -337,8 +337,8 @@ impl Session {
                 reader: &mut impl std::io::Read,
             ) -> Result<Self, crate::utilities::LibolmDecodeError> {
                 Ok(Self {
-                    ratchet_key: <[u8; 32]>::decode(reader)?,
-                    chain_key: <[u8; 32]>::decode(reader)?,
+                    public_ratchet_key: <[u8; 32]>::decode(reader)?,
+                    chain_key: <[u8; 32]>::decode_secret(reader)?,
                     chain_key_index: u32::decode(reader)?,
                 })
             }
@@ -346,9 +346,11 @@ impl Session {
 
         impl From<&ReceivingChain> for ReceiverChain {
             fn from(chain: &ReceivingChain) -> Self {
-                let ratchet_key = RemoteRatchetKey::from(chain.ratchet_key);
-                let chain_key =
-                    RemoteChainKey::from_bytes_and_index(chain.chain_key, chain.chain_key_index);
+                let ratchet_key = RemoteRatchetKey::from(chain.public_ratchet_key);
+                let chain_key = RemoteChainKey::from_bytes_and_index(
+                    chain.chain_key.clone(),
+                    chain.chain_key_index,
+                );
 
                 ReceiverChain::new(ratchet_key, chain_key)
             }
@@ -358,7 +360,7 @@ impl Session {
         #[zeroize(drop)]
         struct MessageKey {
             ratchet_key: [u8; 32],
-            message_key: [u8; 32],
+            message_key: Box<[u8; 32]>,
             index: u32,
         }
 
@@ -368,7 +370,7 @@ impl Session {
             ) -> Result<Self, crate::utilities::LibolmDecodeError> {
                 Ok(Self {
                     ratchet_key: <[u8; 32]>::decode(reader)?,
-                    message_key: <[u8; 32]>::decode(reader)?,
+                    message_key: <[u8; 32]>::decode_secret(reader)?,
                     index: u32::decode(reader)?,
                 })
             }
@@ -376,7 +378,7 @@ impl Session {
 
         impl From<&MessageKey> for RemoteMessageKey {
             fn from(key: &MessageKey) -> Self {
-                RemoteMessageKey { key: key.message_key, index: key.index.into() }
+                RemoteMessageKey { key: key.message_key.clone(), index: key.index.into() }
             }
         }
 
@@ -386,7 +388,7 @@ impl Session {
             #[allow(dead_code)]
             received_message: bool,
             session_keys: SessionKeys,
-            root_key: [u8; 32],
+            root_key: Box<[u8; 32]>,
             sender_chains: Vec<SenderChain>,
             receiver_chains: Vec<ReceivingChain>,
             message_keys: Vec<MessageKey>,
@@ -400,7 +402,7 @@ impl Session {
                     version: u32::decode(reader)?,
                     received_message: bool::decode(reader)?,
                     session_keys: SessionKeys::decode(reader)?,
-                    root_key: <[u8; 32]>::decode(reader)?,
+                    root_key: <[u8; 32]>::decode_secret(reader)?,
                     sender_chains: Vec::decode(reader)?,
                     receiver_chains: Vec::decode(reader)?,
                     message_keys: Vec::decode(reader)?,
@@ -437,12 +439,15 @@ impl Session {
                 }
 
                 if let Some(chain) = pickle.sender_chains.get(0) {
+                    // XXX: Passing in secret array as value.
                     let ratchet_key =
-                        RatchetKey::from(Curve25519SecretKey::from(chain.secret_ratchet_key));
-                    let chain_key =
-                        ChainKey::from_bytes_and_index(chain.chain_key, chain.chain_key_index);
+                        RatchetKey::from(Curve25519SecretKey::from(*chain.secret_ratchet_key));
+                    let chain_key = ChainKey::from_bytes_and_index(
+                        chain.chain_key.clone(),
+                        chain.chain_key_index,
+                    );
 
-                    let root_key = RootKey::new(pickle.root_key);
+                    let root_key = RootKey::new(pickle.root_key.clone());
 
                     let ratchet = Ratchet::new_with_ratchet_key(root_key, ratchet_key);
                     let sending_ratchet =
@@ -455,7 +460,7 @@ impl Session {
                     })
                 } else if let Some(chain) = receiving_chains.get(0) {
                     let sending_ratchet = DoubleRatchet::inactive(
-                        RemoteRootKey::new(pickle.root_key),
+                        RemoteRootKey::new(pickle.root_key.clone()),
                         chain.ratchet_key(),
                     );
 

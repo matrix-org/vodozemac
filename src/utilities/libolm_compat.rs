@@ -81,7 +81,7 @@ pub(crate) fn unpickle_libolm<P: Decode, T: TryFrom<P, Error = LibolmUnpickleErr
     }
 }
 
-/// A Decode trait for libolm compatible pickle decoding.
+/// A trait for decoding non-secret values out of a libolm-compatible pickle.
 ///
 /// This is almost exactly the same as what the [bincode] crate provides with
 /// the following config:
@@ -100,11 +100,27 @@ pub(crate) fn unpickle_libolm<P: Decode, T: TryFrom<P, Error = LibolmUnpickleErr
 /// The following Decode implementations decode primitive types in a libolm
 /// compatible way.
 ///
+/// For decoding values which are meant to be secret, see `DecodeSecret`.
+///
 /// [bincode]: https://github.com/bincode-org/bincode/
 pub(crate) trait Decode {
-    /// Try to read and decode data from the given reader that contains a libolm
-    /// compatible pickle.
+    /// Try to read and decode a non-secret value from the given reader which is
+    /// reading from a libolm-compatible pickle.
     fn decode(reader: &mut impl Read) -> Result<Self, LibolmDecodeError>
+    where
+        Self: Sized;
+}
+
+/// Like `Decode`, but for decoding secret values.
+///
+/// Unlike `Decode`, this trait allocates the buffer for the target value on the
+/// heap and returns it in a `Box`. This reduces the number of inadvertent
+/// copies made when the value is moved, allowing the value to be properly
+/// zeroized.
+pub(crate) trait DecodeSecret {
+    /// Try to read and decode a secret value from the given reader which is
+    /// reading from a libolm-compatible pickle.
+    fn decode_secret(reader: &mut impl Read) -> Result<Box<Self>, LibolmDecodeError>
     where
         Self: Sized;
 }
@@ -148,6 +164,15 @@ impl<const N: usize> Decode for [u8; N] {
     fn decode(reader: &mut impl Read) -> Result<Self, LibolmDecodeError> {
         let mut buffer = [0u8; N];
         reader.read_exact(&mut buffer)?;
+
+        Ok(buffer)
+    }
+}
+
+impl<const N: usize> DecodeSecret for [u8; N] {
+    fn decode_secret(reader: &mut impl Read) -> Result<Box<Self>, LibolmDecodeError> {
+        let mut buffer = Box::new([0u8; N]);
+        reader.read_exact(buffer.as_mut_slice())?;
 
         Ok(buffer)
     }

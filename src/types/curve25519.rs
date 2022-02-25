@@ -43,11 +43,10 @@ impl Curve25519Keypair {
     }
 
     #[cfg(feature = "libolm-compat")]
-    pub fn from_secret_key(mut key: [u8; 32]) -> Self {
-        let secret_key = Curve25519SecretKey::from(key);
+    pub fn from_secret_key(key: &[u8; 32]) -> Self {
+        // XXX: Passing in secret array as value.
+        let secret_key = Curve25519SecretKey::from(*key);
         let public_key = Curve25519PublicKey::from(&secret_key);
-
-        key.zeroize();
 
         Curve25519Keypair { secret_key, public_key, encoded_public_key: public_key.to_base64() }
     }

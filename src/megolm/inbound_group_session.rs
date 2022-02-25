@@ -31,7 +31,7 @@ use super::{
 use crate::{
     cipher::Cipher,
     types::{Ed25519PublicKey, Ed25519Signature, SignatureError},
-    utilities::{base64_decode, base64_encode},
+    utilities::{base64_decode, base64_encode, DecodeSecret},
     DecodeError,
 };
 
@@ -115,7 +115,7 @@ impl InboundGroupSession {
 
         let mut version = [0u8; 1];
         let mut index = [0u8; 4];
-        let mut ratchet = [0u8; 128];
+        let mut ratchet = Box::new([0u8; 128]);
         let mut public_key = [0u8; Ed25519PublicKey::LENGTH];
 
         cursor.read_exact(&mut version)?;
@@ -127,7 +127,7 @@ impl InboundGroupSession {
             Err(SessionCreationError::Version(SESSION_KEY_VERSION, version[0]))
         } else {
             cursor.read_exact(&mut index)?;
-            cursor.read_exact(&mut ratchet)?;
+            cursor.read_exact(ratchet.as_mut_slice())?;
             cursor.read_exact(&mut public_key)?;
 
             let signing_key = Ed25519PublicKey::from_slice(&public_key)?;
@@ -278,20 +278,20 @@ impl InboundGroupSession {
         #[derive(Zeroize)]
         #[zeroize(drop)]
         struct RatchetPickle {
-            ratchet: [u8; 128],
+            ratchet: Box<[u8; 128]>,
             index: u32,
         }
 
         impl From<&RatchetPickle> for Ratchet {
             fn from(pickle: &RatchetPickle) -> Self {
-                Ratchet::from_bytes(pickle.ratchet, pickle.index)
+                Ratchet::from_bytes(pickle.ratchet.clone(), pickle.index)
             }
         }
 
         impl Decode for RatchetPickle {
             fn decode(reader: &mut impl Read) -> Result<Self, crate::utilities::LibolmDecodeError> {
                 Ok(RatchetPickle {
-                    ratchet: <[u8; 128]>::decode(reader)?,
+                    ratchet: <[u8; 128]>::decode_secret(reader)?,
                     index: u32::decode(reader)?,
                 })
             }

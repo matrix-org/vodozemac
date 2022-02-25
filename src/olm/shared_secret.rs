@@ -39,27 +39,17 @@ use zeroize::Zeroize;
 use crate::Curve25519PublicKey as PublicKey;
 
 #[derive(Zeroize)]
-pub struct Shared3DHSecret([u8; 96]);
-
-impl Drop for Shared3DHSecret {
-    fn drop(&mut self) {
-        self.0.zeroize()
-    }
-}
+#[zeroize(drop)]
+pub struct Shared3DHSecret(Box<[u8; 96]>);
 
 #[derive(Zeroize)]
-pub struct RemoteShared3DHSecret([u8; 96]);
+#[zeroize(drop)]
+pub struct RemoteShared3DHSecret(Box<[u8; 96]>);
 
-impl Drop for RemoteShared3DHSecret {
-    fn drop(&mut self) {
-        self.0.zeroize()
-    }
-}
-
-fn expand(shared_secret: [u8; 96]) -> ([u8; 32], [u8; 32]) {
-    let hkdf: Hkdf<Sha256> = Hkdf::new(Some(&[0]), &shared_secret);
-    let mut root_key = [0u8; 32];
-    let mut chain_key = [0u8; 32];
+fn expand(shared_secret: &[u8; 96]) -> (Box<[u8; 32]>, Box<[u8; 32]>) {
+    let hkdf: Hkdf<Sha256> = Hkdf::new(Some(&[0]), shared_secret);
+    let mut root_key = Box::new([0u8; 32]);
+    let mut chain_key = Box::new([0u8; 32]);
 
     let mut expanded_keys = [0u8; 64];
 
@@ -78,8 +68,8 @@ fn merge_secrets(
     first_secret: SharedSecret,
     second_secret: SharedSecret,
     third_secret: SharedSecret,
-) -> [u8; 96] {
-    let mut secret = [0u8; 96];
+) -> Box<[u8; 96]> {
+    let mut secret = Box::new([0u8; 96]);
 
     secret[0..32].copy_from_slice(first_secret.as_bytes());
     secret[32..64].copy_from_slice(second_secret.as_bytes());
@@ -102,8 +92,8 @@ impl RemoteShared3DHSecret {
         Self(merge_secrets(first_secret, second_secret, third_secret))
     }
 
-    pub fn expand(self) -> ([u8; 32], [u8; 32]) {
-        expand(self.0)
+    pub fn expand(self) -> (Box<[u8; 32]>, Box<[u8; 32]>) {
+        expand(&self.0)
     }
 }
 
@@ -121,8 +111,8 @@ impl Shared3DHSecret {
         Self(merge_secrets(first_secret, second_secret, third_secret))
     }
 
-    pub fn expand(self) -> ([u8; 32], [u8; 32]) {
-        expand(self.0)
+    pub fn expand(self) -> (Box<[u8; 32]>, Box<[u8; 32]>) {
+        expand(&self.0)
     }
 }
 

@@ -1,0 +1,113 @@
+define is_zeroized_partial
+    set $addr_to_check = $arg0
+
+    # XXX: $_memeq is broken right now and treats the third argument as the number
+    # of 4-byte words instead of bytes.
+    if $_memeq(($addr_to_check as *u8) + 16, $zero, 16)
+        printf "✅ Object at addr %p partially zeroized (last 64 bytes are zero)\n", $addr_to_check
+        x/80b $addr_to_check
+    else
+        printf "❌ Object at addr %p *NOT* even partially zeroized (last 64 bytes are not zero)\n", $addr_to_check
+        x/80b $addr_to_check
+        quit 2
+    end
+end
+
+document is_zeroized_partial
+Checks whether the object at $arg0 is zeroized.
+
+Since free writes some stuff to the first 16 bytes of the buffer, this version
+only checks that the last 80 - 16 = 64 bytes are zeroized.
+end
+
+define is_zeroized_full
+    set $addr_to_check = $arg0
+
+    # XXX: $_memeq is broken right now and treats the third argument as the number
+    # of 4-byte words instead of bytes.
+    if $_memeq($addr_to_check as *u8, $zero, 20)
+        printf "✅ Object at addr %p fully zeroized\n", $addr_to_check
+        x/80b $addr_to_check
+    else
+        printf "❌ Object at addr %p *NOT* fully zeroized\n", $addr_to_check
+        x/80b $addr_to_check
+        quit 1
+    end
+end
+
+document is_zeroized_full
+Checks whether the object at $arg0 is fully zeroized (all of its 80 bytes are
+zero).
+end
+
+# Point B
+break use_keys
+
+run
+
+
+# We're now at point B.
+#
+# We save the address of both the original buffer in the frame above and the
+# address of the current buffer in `use_keys`.
+up
+set $addr1 = keys.0
+set $zero = &_zero
+
+down
+set $addr2 = _keys.0
+
+
+# Since we've placed the buffer behind a Box, these addresses should be the
+# same. We check and print whether that is the case.
+
+printf "addr1: %p, addr2: %p\n", $addr1, $addr2
+
+if $addr1 != $addr2
+    printf "[*] addr1 and addr2 are different objects.\n"
+else
+    printf "[*] addr1 and addr2 are *the same* object.\n"
+end
+
+
+# Then we ensure the buffer is not already all zeros, since that almost surely
+# indicates that something is wrong.
+
+if $_memeq($addr1, $addr2, 20)
+    printf "✅ The objects have the same content.\n"
+else
+    printf "❌ The objects have *different* content.\n"
+    quit 1
+end
+
+if ! $_memeq($addr1, $zero, 20)
+    printf "✅ This content isn't all null bytes.\n"
+    x/80b $addr1
+else
+    printf "❌ This content *is* all null bytes.\n"
+    quit 2
+end
+
+break free
+
+# Point C
+break 16
+
+# Proceed to the next `free` call. The object should have already been dropped
+# and should be fully zeroized (all 80 bytes).
+continue
+
+is_zeroized_full $addr1
+is_zeroized_full $addr2
+
+# Proceed to point C. Since `free` wrote some stuff to the buffer, it should
+# now only be partially equal to zero, namely its 64 trailing bytes. Check for
+# this.
+continue
+
+is_zeroized_partial $addr1
+is_zeroized_partial $addr2
+
+# If all was well, we've arrived at this point and the script will finish with
+# a success exit code. If something went wrong, we've never reached this point
+# and returned a non-zero exit code.

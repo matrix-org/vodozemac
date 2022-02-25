@@ -17,7 +17,6 @@ use std::collections::{BTreeMap, HashMap};
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use x25519_dalek::StaticSecret as Curve25519SecretKey;
-use zeroize::Zeroize;
 
 use super::PUBLIC_MAX_ONE_TIME_KEYS;
 use crate::{types::KeyId, Curve25519PublicKey};
@@ -30,14 +29,6 @@ pub(super) struct OneTimeKeys {
     pub unpublished_public_keys: BTreeMap<KeyId, Curve25519PublicKey>,
     pub private_keys: BTreeMap<KeyId, Curve25519SecretKey>,
     pub key_ids_by_key: HashMap<Curve25519PublicKey, KeyId>,
-}
-
-impl Zeroize for OneTimeKeysPickle {
-    fn zeroize(&mut self) {
-        for k in self.private_keys.values_mut() {
-            k.zeroize()
-        }
-    }
 }
 
 impl OneTimeKeys {

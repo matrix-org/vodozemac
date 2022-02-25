@@ -63,7 +63,7 @@ use crate::{
     Curve25519PublicKey, KeyError,
 };
 
-type HmacSha256Key = [u8; 32];
+type HmacSha256Key = Box<[u8; 32]>;
 
 /// The output type for the SAS MAC calculation.
 pub struct Mac(Vec<u8>);
@@ -411,17 +411,17 @@ impl EstablishedSas {
     }
 
     fn get_mac_key(&self, info: &str) -> HmacSha256Key {
-        let mut mac_key = [0u8; 32];
+        let mut mac_key = Box::new([0u8; 32]);
         let hkdf = self.get_hkdf();
 
-        hkdf.expand(info.as_bytes(), &mut mac_key).expect("Can't expand the MAC key");
+        hkdf.expand(info.as_bytes(), mac_key.as_mut_slice()).expect("Can't expand the MAC key");
 
         mac_key
     }
 
     fn get_mac(&self, info: &str) -> Hmac<Sha256> {
         let mac_key = self.get_mac_key(info);
-        Hmac::<Sha256>::new_from_slice(&mac_key).expect("Can't create a HMAC object")
+        Hmac::<Sha256>::new_from_slice(mac_key.as_slice()).expect("Can't create a HMAC object")
     }
 }
 

@@ -19,7 +19,7 @@ use super::{ratchet::RatchetPublicKey, DecryptionError};
 use crate::{cipher::Cipher, olm::messages::Message};
 
 pub(super) struct MessageKey {
-    key: [u8; 32],
+    key: Box<[u8; 32]>,
     ratchet_key: RatchetPublicKey,
     index: u64,
 }
@@ -32,7 +32,7 @@ impl Drop for MessageKey {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(super) struct RemoteMessageKey {
-    pub key: [u8; 32],
+    pub key: Box<[u8; 32]>,
     pub index: u64,
 }
 
@@ -43,7 +43,7 @@ impl Drop for RemoteMessageKey {
 }
 
 impl MessageKey {
-    pub fn new(key: [u8; 32], ratchet_key: RatchetPublicKey, index: u64) -> Self {
+    pub fn new(key: Box<[u8; 32]>, ratchet_key: RatchetPublicKey, index: u64) -> Self {
         Self { key, ratchet_key, index }
     }
 
@@ -62,7 +62,7 @@ impl MessageKey {
 }
 
 impl RemoteMessageKey {
-    pub fn new(key: [u8; 32], index: u64) -> Self {
+    pub fn new(key: Box<[u8; 32]>, index: u64) -> Self {
         Self { key, index }
     }
 
