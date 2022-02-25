@@ -215,6 +215,7 @@ impl From<Ratchet> for RatchetPickle {
 impl TryFrom<RatchetPickle> for Ratchet {
     type Error = MegolmRatchetUnpicklingError;
 
+    // TODO: Double-check zeroization is correct once simplified pickling is merged.
     fn try_from(pickle: RatchetPickle) -> Result<Self, Self::Error> {
         let ratchet =
             Box::new(
