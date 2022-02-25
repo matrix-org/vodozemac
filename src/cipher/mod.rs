@@ -107,7 +107,6 @@ impl Cipher {
         cipher.decrypt_vec(ciphertext)
     }
 
-    #[cfg(feature = "libolm-compat")]
     pub fn decrypt_pickle(&self, ciphertext: &[u8]) -> Result<Vec<u8>, DecryptionError> {
         if ciphertext.len() < Mac::TRUNCATED_LEN + 1 {
             Err(DecryptionError::MacMissing)
@@ -117,6 +116,15 @@ impl Cipher {
 
             Ok(self.decrypt(ciphertext)?)
         }
+    }
+
+    pub fn encrypt_pickle(&self, plaintext: &[u8]) -> Vec<u8> {
+        let mut ciphertext = self.encrypt(plaintext);
+        let mac = self.mac(&ciphertext);
+
+        ciphertext.extend(mac.truncate());
+
+        ciphertext
     }
 
     pub fn verify_mac(&self, message: &[u8], tag: &[u8]) -> Result<(), MacError> {

@@ -30,6 +30,36 @@ pub fn base64_encode(input: impl AsRef<[u8]>) -> String {
     base64::encode_config(input, base64::STANDARD_NO_PAD)
 }
 
+pub(crate) fn unpickle<T: for<'b> serde::Deserialize<'b>>(
+    ciphertext: &str,
+    pickle_key: &[u8; 32],
+) -> Result<T, crate::UnpickleError> {
+    use zeroize::Zeroize;
+
+    let cipher = crate::cipher::Cipher::new_pickle(pickle_key);
+    let decoded = base64_decode(ciphertext)?;
+    let mut plaintext = cipher.decrypt_pickle(&decoded)?;
+
+    let pickle = serde_json::from_slice(&plaintext)?;
+
+    plaintext.zeroize();
+
+    Ok(pickle)
+}
+
+pub(crate) fn pickle<T: serde::Serialize>(thing: &T, pickle_key: &[u8; 32]) -> String {
+    use zeroize::Zeroize;
+
+    let mut json = serde_json::to_vec(&thing).expect("Can't serialize a pickled object");
+    let cipher = crate::cipher::Cipher::new_pickle(pickle_key);
+
+    let ciphertext = cipher.encrypt_pickle(json.as_slice());
+
+    json.zeroize();
+
+    base64_encode(ciphertext)
+}
+
 // The integer encoding logic here has been taken from the integer-encoding[1]
 // crate and is under the MIT license.
 //

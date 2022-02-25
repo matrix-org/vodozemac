@@ -19,13 +19,10 @@ mod inbound_group_session;
 mod message;
 mod ratchet;
 
-pub use group_session::{
-    GroupSession, GroupSessionPickle, GroupSessionPickledJSON, GroupSessionUnpicklingError,
-};
+pub use group_session::{GroupSession, GroupSessionPickle};
 pub use inbound_group_session::{
     DecryptedMessage, DecryptionError, ExportedSessionKey, InboundGroupSession,
-    InboundGroupSessionPickle, InboundGroupSessionPickledJSON, InboundGroupSessionUnpicklingError,
-    SessionCreationError,
+    InboundGroupSessionPickle, SessionCreationError,
 };
 pub use message::MegolmMessage;
 use zeroize::Zeroize;
@@ -56,6 +53,9 @@ mod test {
     };
 
     use super::{GroupSession, InboundGroupSession, SessionKey};
+    use crate::megolm::{GroupSessionPickle, InboundGroupSessionPickle};
+
+    const PICKLE_KEY: [u8; 32] = [0u8; 32];
 
     #[test]
     fn encrypting() -> Result<()> {
@@ -189,13 +189,17 @@ mod test {
     fn group_session_pickling_roundtrip_is_identity() -> Result<()> {
         let session = GroupSession::new();
 
-        let pickle = session.pickle_to_json_string();
+        let pickle = session.pickle().encrypt(&PICKLE_KEY);
 
-        let unpickled_group_session: GroupSession = serde_json::from_str(&pickle)?;
-        let repickle = unpickled_group_session.pickle_to_json_string();
+        let decrypted_pickle = GroupSessionPickle::from_encrypted(&pickle, &PICKLE_KEY)?;
+        let unpickled_group_session = GroupSession::from_pickle(decrypted_pickle);
+        let repickle = unpickled_group_session.pickle();
 
-        let pickle: serde_json::Value = serde_json::from_str(&pickle)?;
-        let repickle: serde_json::Value = serde_json::from_str(&repickle)?;
+        assert_eq!(session.session_id(), unpickled_group_session.session_id());
+
+        let decrypted_pickle = GroupSessionPickle::from_encrypted(&pickle, &PICKLE_KEY)?;
+        let pickle = serde_json::to_value(decrypted_pickle)?;
+        let repickle = serde_json::to_value(repickle)?;
 
         assert_eq!(pickle, repickle);
 
@@ -205,15 +209,19 @@ mod test {
     #[test]
     fn inbound_group_session_pickling_roundtrip_is_identity() -> Result<()> {
         let session = GroupSession::new();
-        let inbound = InboundGroupSession::new(&session.session_key())?;
+        let session = InboundGroupSession::from(&session);
 
-        let pickle = inbound.pickle_to_json_string();
+        let pickle = session.pickle().encrypt(&PICKLE_KEY);
 
-        let unpickled_inbound: InboundGroupSession = serde_json::from_str(&pickle)?;
-        let repickle = unpickled_inbound.pickle_to_json_string();
+        let decrypted_pickle = InboundGroupSessionPickle::from_encrypted(&pickle, &PICKLE_KEY)?;
+        let unpickled_group_session = InboundGroupSession::from_pickle(decrypted_pickle);
+        let repickle = unpickled_group_session.pickle();
 
-        let pickle: serde_json::Value = serde_json::from_str(&pickle)?;
-        let repickle: serde_json::Value = serde_json::from_str(&repickle)?;
+        assert_eq!(session.session_id(), unpickled_group_session.session_id());
+
+        let decrypted_pickle = InboundGroupSessionPickle::from_encrypted(&pickle, &PICKLE_KEY)?;
+        let pickle = serde_json::to_value(decrypted_pickle)?;
+        let repickle = serde_json::to_value(repickle)?;
 
         assert_eq!(pickle, repickle);
 

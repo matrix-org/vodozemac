@@ -120,9 +120,8 @@ only *unpickling* is supported.
 
 ### Modern pickles
 
-The modern pickling mechanism used by this crate. The exact serialization
-format which will be used is undecided but for now we're pickling to JSON.
-Since the pickling support is based on `serde`, changing the format is easy.
+The modern pickling mechanism used by this crate. The serialization format is
+based on Serde.
 
 The following structs support pickling:
 
@@ -131,18 +130,14 @@ The following structs support pickling:
 - `GroupSession`
 - `InboundGroupSession`
 
-To pickle into a JSON string, simply call the `.pickle_to_json_string()` method,
-which will return a special struct implementing `.as_str()`,
-`Deref<Target=str>` and `AsRef<str>` which you can use to get to the actual
-serialized string. This struct will zeroize its memory once it drops so that
-any secrets within do not linger on.
-
 For example, the following will print out the JSON representing the serialized
 `Account` and will leave no new copies of the account's secrets in memory:
 
 ```rust
 use anyhow::Result;
-use vodozemac::olm::Account;
+use vodozemac::olm::{Account, AccountPickle};
+
+const PICKLE_KEY: [u8; 32] = [0u8; 32];
 
 fn main() -> Result<()>{
     let mut account = Account::new();
@@ -150,11 +145,11 @@ fn main() -> Result<()>{
     account.generate_one_time_keys(10);
     account.generate_fallback_key();
 
-    let pickle = account.pickle_to_json_string();
+    let pickle = account.pickle().encrypt(&PICKLE_KEY);
 
-    print!("{}", pickle.as_str());
+    let account2: Account = AccountPickle::from_encrypted(&pickle, &PICKLE_KEY)?.into();
 
-    let account2 = pickle.unpickle()?;  // this is the same as `account`
+    assert_eq!(account.identity_keys(), account2.identity_keys());
 
     Ok(())
 }
@@ -164,12 +159,13 @@ You can unpickle a pickle-able struct directly from its serialized form:
 
 ```rust
 # use anyhow::Result;
-# use vodozemac::olm::Account;
+# use vodozemac::olm::{Account, AccountPickle};
 #
 # fn main() -> Result<()> {
 #   let some_account = Account::new();
-    let json_str = some_account.pickle_to_json_string();
-    let account: Account = serde_json::from_str(&json_str)?;  // the same as `some_account`
+    let json_str = serde_json::to_string(&some_account.pickle())?;
+    // This will produce an account which is identitcal to `some_account`.
+    let account: Account = serde_json::from_str::<AccountPickle>(&json_str)?.into();
 #
 #    Ok(())
 # }
@@ -188,7 +184,7 @@ use vodozemac::olm::Account;
 
 fn main() -> Result<()> {
     let account = Account::new();
-    let account: Account = account.pickle().unpickle()?;  // this is identity
+    let account: Account = account.pickle().into();  // this is identity
 
     Ok(())
 }

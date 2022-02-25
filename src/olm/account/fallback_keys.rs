@@ -137,5 +137,3 @@ mod test {
         assert_eq!(secret_bytes, fetched_key.to_bytes());
     }
 }
-
-pub(super) type FallbackKeysPickle = FallbackKeys;

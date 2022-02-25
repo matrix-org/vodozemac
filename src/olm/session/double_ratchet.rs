@@ -158,5 +158,3 @@ impl ActiveDoubleRatchet {
         message_key.encrypt(plaintext)
     }
 }
-
-pub(super) type DoubleRatchetPickle = DoubleRatchet;

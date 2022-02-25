@@ -12,14 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::ops::Deref;
-
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 use zeroize::Zeroize;
 
 use super::{message::MegolmMessage, ratchet::Ratchet, SessionKey, SESSION_KEY_VERSION};
-use crate::{cipher::Cipher, types::Ed25519Keypair, utilities::base64_encode};
+use crate::{
+    cipher::Cipher,
+    types::Ed25519Keypair,
+    utilities::{base64_encode, pickle, unpickle},
+    UnpickleError,
+};
 
 /// A Megolm group session represents a single sending participant in an
 /// encrypted group communication context containing multiple receiving parties.
@@ -35,8 +37,6 @@ use crate::{cipher::Cipher, types::Ed25519Keypair, utilities::base64_encode};
 /// Such an inbound group session is typically sent by the outbound group
 /// session owner to each of the receiving parties via a secure peer-to-peer
 /// channel (e.g. an Olm channel).
-#[derive(Deserialize)]
-#[serde(try_from = "GroupSessionPickle")]
 pub struct GroupSession {
     ratchet: Ratchet,
     signing_key: Ed25519Keypair,
@@ -130,19 +130,8 @@ impl GroupSession {
         GroupSessionPickle { ratchet: self.ratchet.clone(), signing_key: self.signing_key.clone() }
     }
 
-    /// Pickle the group session and serialize it to a JSON string.
-    ///
-    /// The string is wrapped in [`GroupSessionPickledJSON`] which can be
-    /// derefed to access the content as a string slice. The string will zeroize
-    /// itself when it drops to prevent secrets contained inside from lingering
-    /// in memory.
-    ///
-    /// [`GroupSessionPickledJSON`]: self::GroupSessionPickledJSON
-    pub fn pickle_to_json_string(&self) -> GroupSessionPickledJSON {
-        let pickle: GroupSessionPickle = self.pickle();
-        GroupSessionPickledJSON(
-            serde_json::to_string_pretty(&pickle).expect("Group session serialization failed."),
-        )
+    pub fn from_pickle(pickle: GroupSessionPickle) -> Self {
+        pickle.into()
     }
 }
 
@@ -155,9 +144,12 @@ pub struct GroupSessionPickle {
 }
 
 impl GroupSessionPickle {
-    /// Convert the pickle format back into a [`GroupSession`].
-    pub fn unpickle(self) -> GroupSession {
-        self.into()
+    pub fn encrypt(self, pickle_key: &[u8; 32]) -> String {
+        pickle(&self, pickle_key)
+    }
+
+    pub fn from_encrypted(ciphertext: &str, pickle_key: &[u8; 32]) -> Result<Self, UnpickleError> {
+        unpickle(ciphertext, pickle_key)
     }
 }
 
@@ -165,41 +157,4 @@ impl From<GroupSessionPickle> for GroupSession {
     fn from(pickle: GroupSessionPickle) -> Self {
         Self { ratchet: pickle.ratchet, signing_key: pickle.signing_key }
     }
-}
-
-#[derive(Zeroize, Debug)]
-#[zeroize(drop)]
-pub struct GroupSessionPickledJSON(String);
-
-impl GroupSessionPickledJSON {
-    /// Access the serialized content as a string slice.
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-
-    /// Try to convert the serialized JSON string back into a [`GroupSession`].
-    pub fn unpickle(self) -> Result<GroupSession, GroupSessionUnpicklingError> {
-        let pickle: GroupSessionPickle = serde_json::from_str(&self.0)?;
-        Ok(pickle.unpickle())
-    }
-}
-
-impl AsRef<str> for GroupSessionPickledJSON {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl Deref for GroupSessionPickledJSON {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        self.as_ref()
-    }
-}
-
-#[derive(Error, Debug)]
-pub enum GroupSessionUnpicklingError {
-    #[error("Pickle format corrupted: {0}")]
-    CorruptedPickle(#[from] serde_json::error::Error),
 }

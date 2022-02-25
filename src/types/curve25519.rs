@@ -16,7 +16,6 @@ use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 pub use x25519_dalek::StaticSecret as Curve25519SecretKey;
 use x25519_dalek::{EphemeralSecret, PublicKey, ReusableSecret};
-use zeroize::Zeroize;
 
 use super::KeyError;
 use crate::utilities::{base64_decode, base64_encode};
@@ -29,8 +28,6 @@ pub(crate) struct Curve25519Keypair {
     pub public_key: Curve25519PublicKey,
     pub encoded_public_key: String,
 }
-
-const CURVE25519_SECRET_KEY_LEN: usize = 32;
 
 impl Curve25519Keypair {
     pub fn new() -> Self {
@@ -156,33 +153,22 @@ impl<'a> From<&'a ReusableSecret> for Curve25519PublicKey {
 }
 
 #[derive(Serialize, Deserialize)]
-pub(crate) struct Curve25519KeypairPickle {
-    secret: [u8; CURVE25519_SECRET_KEY_LEN],
-    public: [u8; Curve25519PublicKey::LENGTH],
-}
-
-impl Drop for Curve25519KeypairPickle {
-    fn drop(&mut self) {
-        self.secret.zeroize();
-    }
-}
+#[serde(transparent)]
+pub(crate) struct Curve25519KeypairPickle(Curve25519SecretKey);
 
 impl From<Curve25519KeypairPickle> for Curve25519Keypair {
     fn from(pickle: Curve25519KeypairPickle) -> Self {
-        Self {
-            secret_key: pickle.secret.into(),
-            public_key: pickle.public.into(),
-            encoded_public_key: base64_encode(pickle.public),
-        }
+        let secret_key = pickle.0;
+        let public_key: Curve25519PublicKey = (&secret_key).into();
+        let encoded_public_key = public_key.to_base64();
+
+        Self { secret_key, public_key, encoded_public_key }
     }
 }
 
 impl From<Curve25519Keypair> for Curve25519KeypairPickle {
     fn from(key: Curve25519Keypair) -> Self {
-        Curve25519KeypairPickle {
-            secret: key.secret_key.to_bytes(),
-            public: key.public_key.to_bytes(),
-        }
+        Curve25519KeypairPickle(key.secret_key)
     }
 }
 

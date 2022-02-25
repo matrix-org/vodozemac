@@ -304,21 +304,15 @@ impl From<ExpandedSecretKey> for SecretKeys {
     }
 }
 
-#[derive(Error, Debug)]
-#[error("Invalid Ed25519 keypair pickle: {0}")]
-pub struct Ed25519KeypairUnpicklingError(#[from] SignatureError);
-
 #[derive(Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Ed25519KeypairPickle(SecretKeys);
 
-impl TryFrom<Ed25519KeypairPickle> for Ed25519Keypair {
-    type Error = Ed25519KeypairUnpicklingError;
-
-    fn try_from(pickle: Ed25519KeypairPickle) -> Result<Self, Self::Error> {
+impl From<Ed25519KeypairPickle> for Ed25519Keypair {
+    fn from(pickle: Ed25519KeypairPickle) -> Self {
         let secret_key = pickle.0;
         let public_key = secret_key.public_key();
 
-        Ok(Self { secret_key, public_key, encoded_public_key: public_key.to_base64() })
+        Self { secret_key, public_key, encoded_public_key: public_key.to_base64() }
     }
 }

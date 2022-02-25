@@ -40,6 +40,16 @@ pub use types::{
     SignatureError,
 };
 
+#[derive(Debug, thiserror::Error)]
+pub enum UnpickleError {
+    #[error("The pickle wasn't valid base64: {0}")]
+    Base64(#[from] base64::DecodeError),
+    #[error("The pickle couldn't be decrypted: {0}")]
+    Decryption(#[from] crate::cipher::DecryptionError),
+    #[error("The pickle coudn't be deserialized: {0}")]
+    Serialization(#[from] serde_json::Error),
+}
+
 #[cfg(feature = "libolm-compat")]
 #[derive(Debug, thiserror::Error)]
 pub enum LibolmUnpickleError {

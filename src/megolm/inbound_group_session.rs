@@ -12,10 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::{
-    io::{Cursor, Read},
-    ops::Deref,
-};
+use std::io::{Cursor, Read};
 
 use block_modes::BlockModeError;
 use hmac::digest::MacError;
@@ -29,8 +26,8 @@ use super::{
 use crate::{
     cipher::Cipher,
     types::{Ed25519PublicKey, Ed25519Signature, SignatureError},
-    utilities::{base64_decode, base64_encode, DecodeSecret},
-    DecodeError,
+    utilities::{base64_decode, base64_encode, pickle, unpickle, DecodeSecret},
+    DecodeError, UnpickleError,
 };
 
 const SESSION_KEY_EXPORT_VERSION: u8 = 1;
@@ -244,26 +241,16 @@ impl InboundGroupSession {
         }
     }
 
-    pub fn pickle_to_json_string(&self) -> InboundGroupSessionPickledJSON {
-        let pickle: InboundGroupSessionPickle = self.pickle();
-        InboundGroupSessionPickledJSON(
-            serde_json::to_string_pretty(&pickle)
-                .expect("Inbound group session serialization failed."),
-        )
-    }
-
-    pub fn unpickle_from_json_str(input: &str) -> Result<Self, InboundGroupSessionUnpicklingError> {
-        let pickle: InboundGroupSessionPickle = serde_json::from_str(input)?;
-        Ok(pickle.into())
-    }
-
     pub fn pickle(&self) -> InboundGroupSessionPickle {
         InboundGroupSessionPickle {
             initial_ratchet: self.initial_ratchet.clone(),
-            latest_ratchet: self.latest_ratchet.clone(),
             signing_key: self.signing_key,
             signing_key_verified: self.signing_key_verified,
         }
+    }
+
+    pub fn from_pickle(pickle: InboundGroupSessionPickle) -> Self {
+        Self::from(pickle)
     }
 
     #[cfg(feature = "libolm-compat")]
@@ -343,55 +330,35 @@ impl InboundGroupSession {
 #[derive(Serialize, Deserialize)]
 pub struct InboundGroupSessionPickle {
     initial_ratchet: Ratchet,
-    latest_ratchet: Ratchet,
     signing_key: Ed25519PublicKey,
     #[allow(dead_code)]
     signing_key_verified: bool,
 }
 
 impl InboundGroupSessionPickle {
-    pub fn unpickle(self) -> InboundGroupSession {
-        self.into()
+    pub fn encrypt(self, pickle_key: &[u8; 32]) -> String {
+        pickle(&self, pickle_key)
+    }
+
+    pub fn from_encrypted(ciphertext: &str, pickle_key: &[u8; 32]) -> Result<Self, UnpickleError> {
+        unpickle(ciphertext, pickle_key)
+    }
+}
+
+impl From<&InboundGroupSession> for InboundGroupSessionPickle {
+    fn from(session: &InboundGroupSession) -> Self {
+        session.pickle()
     }
 }
 
 impl From<InboundGroupSessionPickle> for InboundGroupSession {
     fn from(pickle: InboundGroupSessionPickle) -> Self {
         Self {
-            initial_ratchet: pickle.initial_ratchet,
-            latest_ratchet: pickle.latest_ratchet,
+            initial_ratchet: pickle.initial_ratchet.clone(),
+            latest_ratchet: pickle.initial_ratchet,
             signing_key: pickle.signing_key,
             signing_key_verified: pickle.signing_key_verified,
         }
-    }
-}
-
-#[derive(Zeroize, Debug)]
-#[zeroize(drop)]
-pub struct InboundGroupSessionPickledJSON(String);
-
-impl InboundGroupSessionPickledJSON {
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-
-    pub fn unpickle(self) -> Result<InboundGroupSession, InboundGroupSessionUnpicklingError> {
-        let pickle: InboundGroupSessionPickle = serde_json::from_str(&self.0)?;
-        Ok(pickle.unpickle())
-    }
-}
-
-impl AsRef<str> for InboundGroupSessionPickledJSON {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl Deref for InboundGroupSessionPickledJSON {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        self.as_ref()
     }
 }
 
@@ -399,14 +366,6 @@ impl From<&GroupSession> for InboundGroupSession {
     fn from(session: &GroupSession) -> Self {
         Self::new(&session.session_key()).expect("Can't import the session key export")
     }
-}
-
-#[derive(Error, Debug)]
-pub enum InboundGroupSessionUnpicklingError {
-    #[error("Invalid public signing key: {0}")]
-    InvalidSigningPublicKey(SignatureError),
-    #[error("Pickle format corrupted: {0}")]
-    CorruptedPickle(#[from] serde_json::error::Error),
 }
 
 #[cfg(test)]

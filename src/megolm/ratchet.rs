@@ -246,7 +246,7 @@ impl Ratchet {
 }
 
 #[derive(Error, Debug)]
-pub enum RatchetError {
+enum RatchetError {
     #[error("Invalid Megolm ratchet length: expected 128, got {0}")]
     InvalidLength(usize),
 }

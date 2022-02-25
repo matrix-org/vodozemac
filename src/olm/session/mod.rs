@@ -20,8 +20,6 @@ mod ratchet;
 mod receiver_chain;
 mod root_key;
 
-use std::ops::Deref;
-
 use arrayvec::ArrayVec;
 use block_modes::BlockModeError;
 use chain_key::RemoteChainKey;
@@ -35,15 +33,14 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 use zeroize::Zeroize;
 
-use self::double_ratchet::DoubleRatchetPickle;
 use super::{
-    session_keys::{SessionKeys, SessionKeysPickle},
+    session_keys::SessionKeys,
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
 };
 use crate::{
     olm::messages::{Message, OlmMessage, PreKeyMessage},
-    utilities::{base64_encode, DecodeSecret},
-    Curve25519PublicKey, DecodeError,
+    utilities::{base64_encode, pickle, unpickle, DecodeSecret},
+    Curve25519PublicKey, DecodeError, UnpickleError,
 };
 
 const MAX_RECEIVING_CHAINS: usize = 5;
@@ -136,8 +133,6 @@ impl Default for ChainStore {
 /// [`Account`]: crate::olm::Account
 /// [`Account::create_outbound_session`]: crate::olm::Account::create_outbound_session
 /// [`Account::create_inbound_session`]: crate::olm::Account::create_inbound_session
-#[derive(Deserialize)]
-#[serde(from = "SessionPickle")]
 pub struct Session {
     session_keys: SessionKeys,
     sending_ratchet: DoubleRatchet,
@@ -259,27 +254,15 @@ impl Session {
     /// Convert the session into a struct which implements [`serde::Serialize`]
     /// and [`serde::Deserialize`].
     pub fn pickle(&self) -> SessionPickle {
-        let session_keys: SessionKeysPickle = self.session_keys.clone();
         SessionPickle {
-            session_keys,
+            session_keys: self.session_keys.clone(),
             sending_ratchet: self.sending_ratchet.clone(),
             receiving_chains: self.receiving_chains.clone(),
         }
     }
 
-    /// Pickle the session and serialize it to a JSON string.
-    ///
-    /// The string is wrapped in [`SessionPickledJSON`] which can be derefed to
-    /// access the content as a string slice. The string will zeroize itself
-    /// when it drops to prevent secrets contained inside from lingering in
-    /// memory.
-    ///
-    /// [`SessionPickledJSON`]: self::SessionPickledJSON
-    pub fn pickle_to_json_string(&self) -> SessionPickledJSON {
-        let pickle: SessionPickle = self.pickle();
-        SessionPickledJSON(
-            serde_json::to_string_pretty(&pickle).expect("Session serialization failed."),
-        )
+    pub fn from_pickle(pickle: SessionPickle) -> Self {
+        pickle.into()
     }
 
     /// Create a [`Session`] object by unpickling a session pickle in libolm
@@ -484,15 +467,18 @@ impl Session {
 /// and [`serde::Deserialize`]. Obtainable by calling [`Session::pickle`].
 #[derive(Deserialize, Serialize)]
 pub struct SessionPickle {
-    session_keys: SessionKeysPickle,
-    sending_ratchet: DoubleRatchetPickle,
-    receiving_chains: ChainStorePickle,
+    session_keys: SessionKeys,
+    sending_ratchet: DoubleRatchet,
+    receiving_chains: ChainStore,
 }
 
 impl SessionPickle {
-    /// Convert the pickle format back into a [`Session`].
-    pub fn unpickle(self) -> Session {
-        self.into()
+    pub fn encrypt(self, pickle_key: &[u8; 32]) -> String {
+        pickle(&self, pickle_key)
+    }
+
+    pub fn from_encrypted(ciphertext: &str, pickle_key: &[u8; 32]) -> Result<Self, UnpickleError> {
+        unpickle(ciphertext, pickle_key)
     }
 }
 
@@ -506,45 +492,6 @@ impl From<SessionPickle> for Session {
     }
 }
 
-#[derive(Zeroize, Debug)]
-#[zeroize(drop)]
-pub struct SessionPickledJSON(String);
-
-impl SessionPickledJSON {
-    /// Access the serialized content as a string slice.
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-
-    /// Try to convert the serialized JSON string back into a [`Session`].
-    pub fn unpickle(self) -> Result<Session, SessionUnpicklingError> {
-        let pickle: SessionPickle = serde_json::from_str(&self.0)?;
-        Ok(pickle.unpickle())
-    }
-}
-
-impl AsRef<str> for SessionPickledJSON {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl Deref for SessionPickledJSON {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        self.as_ref()
-    }
-}
-
-#[derive(Error, Debug)]
-pub enum SessionUnpicklingError {
-    #[error("Pickle format corrupted: {0}")]
-    CorruptedPickle(#[from] serde_json::error::Error),
-}
-
-type ChainStorePickle = ChainStore;
-
 #[cfg(test)]
 mod test {
     use anyhow::{bail, Result};
@@ -554,7 +501,12 @@ mod test {
     };
 
     use super::Session;
-    use crate::{olm::Account, Curve25519PublicKey};
+    use crate::{
+        olm::{Account, SessionPickle},
+        Curve25519PublicKey,
+    };
+
+    const PICKLE_KEY: [u8; 32] = [0u8; 32];
 
     fn sessions() -> Result<(Account, OlmAccount, Session, OlmSession)> {
         let alice = Account::new();
@@ -663,13 +615,17 @@ mod test {
     fn session_pickling_roundtrip_is_identity() -> Result<()> {
         let (_, _, session, _) = sessions()?;
 
-        let pickle = session.pickle_to_json_string();
+        let pickle = session.pickle().encrypt(&PICKLE_KEY);
 
-        let unpickled_session: Session = serde_json::from_str(&pickle)?;
-        let repickle = unpickled_session.pickle_to_json_string();
+        let decrypted_pickle = SessionPickle::from_encrypted(&pickle, &PICKLE_KEY)?;
+        let unpickled_group_session = Session::from_pickle(decrypted_pickle);
+        let repickle = unpickled_group_session.pickle();
 
-        let pickle: serde_json::Value = serde_json::from_str(&pickle)?;
-        let repickle: serde_json::Value = serde_json::from_str(&repickle)?;
+        assert_eq!(session.session_id(), unpickled_group_session.session_id());
+
+        let decrypted_pickle = SessionPickle::from_encrypted(&pickle, &PICKLE_KEY)?;
+        let pickle = serde_json::to_value(decrypted_pickle)?;
+        let repickle = serde_json::to_value(repickle)?;
 
         assert_eq!(pickle, repickle);
 

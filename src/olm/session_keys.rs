@@ -37,5 +37,3 @@ impl crate::utilities::Decode for SessionKeys {
         })
     }
 }
-
-pub(crate) type SessionKeysPickle = SessionKeys;
