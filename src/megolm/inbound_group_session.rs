@@ -27,7 +27,7 @@ use crate::{
     cipher::Cipher,
     types::{Ed25519PublicKey, Ed25519Signature, SignatureError},
     utilities::{base64_decode, base64_encode, pickle, unpickle, DecodeSecret},
-    DecodeError, UnpickleError,
+    DecodeError, PickleError,
 };
 
 const SESSION_KEY_EXPORT_VERSION: u8 = 1;
@@ -257,7 +257,7 @@ impl InboundGroupSession {
     pub fn from_libolm_pickle(
         pickle: &str,
         pickle_key: &str,
-    ) -> Result<Self, crate::LibolmUnpickleError> {
+    ) -> Result<Self, crate::LibolmPickleError> {
         use crate::utilities::{unpickle_libolm, Decode};
 
         #[derive(Zeroize)]
@@ -305,7 +305,7 @@ impl InboundGroupSession {
         }
 
         impl TryFrom<Pickle> for InboundGroupSession {
-            type Error = crate::LibolmUnpickleError;
+            type Error = crate::LibolmPickleError;
 
             fn try_from(pickle: Pickle) -> Result<Self, Self::Error> {
                 // Removing the borrow doesn't work and clippy complains about
@@ -340,7 +340,7 @@ impl InboundGroupSessionPickle {
         pickle(&self, pickle_key)
     }
 
-    pub fn from_encrypted(ciphertext: &str, pickle_key: &[u8; 32]) -> Result<Self, UnpickleError> {
+    pub fn from_encrypted(ciphertext: &str, pickle_key: &[u8; 32]) -> Result<Self, PickleError> {
         unpickle(ciphertext, pickle_key)
     }
 }

@@ -39,7 +39,7 @@ use crate::{
         Ed25519KeypairPickle, Ed25519PublicKey, KeyId,
     },
     utilities::{base64_encode, pickle, unpickle, DecodeSecret},
-    DecodeError, UnpickleError,
+    DecodeError, PickleError,
 };
 
 const PUBLIC_MAX_ONE_TIME_KEYS: usize = 50;
@@ -347,7 +347,7 @@ impl Account {
     pub fn from_libolm_pickle(
         pickle: &str,
         pickle_key: &str,
-    ) -> Result<Self, crate::LibolmUnpickleError> {
+    ) -> Result<Self, crate::LibolmPickleError> {
         use self::fallback_keys::FallbackKey;
         use crate::utilities::{unpickle_libolm, Decode};
 
@@ -451,7 +451,7 @@ impl Account {
         }
 
         impl TryFrom<Pickle> for Account {
-            type Error = crate::LibolmUnpickleError;
+            type Error = crate::LibolmPickleError;
 
             fn try_from(pickle: Pickle) -> Result<Self, Self::Error> {
                 let mut one_time_keys = OneTimeKeys::new();
@@ -526,7 +526,7 @@ impl AccountPickle {
         pickle(&self, pickle_key)
     }
 
-    pub fn from_encrypted(ciphertext: &str, pickle_key: &[u8; 32]) -> Result<Self, UnpickleError> {
+    pub fn from_encrypted(ciphertext: &str, pickle_key: &[u8; 32]) -> Result<Self, PickleError> {
         unpickle(ciphertext, pickle_key)
     }
 }

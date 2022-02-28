@@ -18,7 +18,7 @@ use thiserror::Error;
 use zeroize::Zeroize;
 
 use super::base64_decode;
-use crate::{cipher::Cipher, LibolmUnpickleError};
+use crate::{cipher::Cipher, LibolmPickleError};
 
 /// Error type describing failure modes for libolm pickle decoding.
 #[derive(Debug, Error)]
@@ -44,11 +44,11 @@ pub enum LibolmDecodeError {
 /// * pickle_key - The key that was used to encrypt the libolm pickle
 /// * pickle_version - The expected version of the pickle. Unpickling will fail
 ///   if the version in the pickle doesn't match this one.
-pub(crate) fn unpickle_libolm<P: Decode, T: TryFrom<P, Error = LibolmUnpickleError>>(
+pub(crate) fn unpickle_libolm<P: Decode, T: TryFrom<P, Error = LibolmPickleError>>(
     pickle: &str,
     pickle_key: &str,
     pickle_version: u32,
-) -> Result<T, LibolmUnpickleError> {
+) -> Result<T, LibolmPickleError> {
     /// Fetch the pickle version from the given pickle source.
     fn get_version(source: &[u8]) -> Option<u32> {
         // Pickle versions are always u32 encoded as a fixed sized integer in
@@ -68,7 +68,7 @@ pub(crate) fn unpickle_libolm<P: Decode, T: TryFrom<P, Error = LibolmUnpickleErr
     // A pickle starts with a version, which will decide how we need to decode.
     // We only support the latest version so bail out if it isn't the expected
     // pickle version.
-    let version = get_version(&decrypted).ok_or(LibolmUnpickleError::MissingVersion)?;
+    let version = get_version(&decrypted).ok_or(LibolmPickleError::MissingVersion)?;
 
     if version == pickle_version {
         let mut cursor = Cursor::new(&decrypted);
@@ -77,7 +77,7 @@ pub(crate) fn unpickle_libolm<P: Decode, T: TryFrom<P, Error = LibolmUnpickleErr
         decrypted.zeroize();
         pickle.try_into()
     } else {
-        Err(LibolmUnpickleError::Version(pickle_version, version))
+        Err(LibolmPickleError::Version(pickle_version, version))
     }
 }
 

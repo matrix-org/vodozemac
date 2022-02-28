@@ -40,7 +40,7 @@ use super::{
 use crate::{
     olm::messages::{Message, OlmMessage, PreKeyMessage},
     utilities::{base64_encode, pickle, unpickle, DecodeSecret},
-    Curve25519PublicKey, DecodeError, UnpickleError,
+    Curve25519PublicKey, DecodeError, PickleError,
 };
 
 const MAX_RECEIVING_CHAINS: usize = 5;
@@ -274,7 +274,7 @@ impl Session {
     pub fn from_libolm_pickle(
         pickle: &str,
         pickle_key: &str,
-    ) -> Result<Self, crate::LibolmUnpickleError> {
+    ) -> Result<Self, crate::LibolmPickleError> {
         use chain_key::ChainKey;
         use message_key::RemoteMessageKey;
         use ratchet::{Ratchet, RatchetKey};
@@ -403,7 +403,7 @@ impl Session {
         }
 
         impl TryFrom<Pickle> for Session {
-            type Error = crate::LibolmUnpickleError;
+            type Error = crate::LibolmPickleError;
 
             fn try_from(pickle: Pickle) -> Result<Self, Self::Error> {
                 let mut receiving_chains = ChainStore::new();
@@ -453,7 +453,7 @@ impl Session {
                         receiving_chains,
                     })
                 } else {
-                    Err(crate::LibolmUnpickleError::InvalidSession)
+                    Err(crate::LibolmPickleError::InvalidSession)
                 }
             }
         }
@@ -477,7 +477,7 @@ impl SessionPickle {
         pickle(&self, pickle_key)
     }
 
-    pub fn from_encrypted(ciphertext: &str, pickle_key: &[u8; 32]) -> Result<Self, UnpickleError> {
+    pub fn from_encrypted(ciphertext: &str, pickle_key: &[u8; 32]) -> Result<Self, PickleError> {
         unpickle(ciphertext, pickle_key)
     }
 }

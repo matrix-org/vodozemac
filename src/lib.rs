@@ -41,7 +41,7 @@ pub use types::{
 };
 
 #[derive(Debug, thiserror::Error)]
-pub enum UnpickleError {
+pub enum PickleError {
     #[error("The pickle wasn't valid base64: {0}")]
     Base64(#[from] base64::DecodeError),
     #[error("The pickle couldn't be decrypted: {0}")]
@@ -52,7 +52,7 @@ pub enum UnpickleError {
 
 #[cfg(feature = "libolm-compat")]
 #[derive(Debug, thiserror::Error)]
-pub enum LibolmUnpickleError {
+pub enum LibolmPickleError {
     #[error("The pickle doesn't contain a version")]
     MissingVersion,
     #[error("The pickle uses an unsupported version, expected {0}, got {1}")]

@@ -20,7 +20,7 @@ use crate::{
     cipher::Cipher,
     types::Ed25519Keypair,
     utilities::{base64_encode, pickle, unpickle},
-    UnpickleError,
+    PickleError,
 };
 
 /// A Megolm group session represents a single sending participant in an
@@ -148,7 +148,7 @@ impl GroupSessionPickle {
         pickle(&self, pickle_key)
     }
 
-    pub fn from_encrypted(ciphertext: &str, pickle_key: &[u8; 32]) -> Result<Self, UnpickleError> {
+    pub fn from_encrypted(ciphertext: &str, pickle_key: &[u8; 32]) -> Result<Self, PickleError> {
         unpickle(ciphertext, pickle_key)
     }
 }

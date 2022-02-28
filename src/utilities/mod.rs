@@ -33,7 +33,7 @@ pub fn base64_encode(input: impl AsRef<[u8]>) -> String {
 pub(crate) fn unpickle<T: for<'b> serde::Deserialize<'b>>(
     ciphertext: &str,
     pickle_key: &[u8; 32],
-) -> Result<T, crate::UnpickleError> {
+) -> Result<T, crate::PickleError> {
     use zeroize::Zeroize;
 
     let cipher = crate::cipher::Cipher::new_pickle(pickle_key);
