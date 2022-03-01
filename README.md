@@ -120,8 +120,10 @@ only *unpickling* is supported.
 
 ### Modern pickles
 
-The modern pickling mechanism used by this crate. The serialization format is
-based on Serde.
+The crate also implements a modern pickling mechanism using
+[Serde](https://serde.rs/). The exact serialization format is not mandated or
+specified by this crate, but you can serialize to and deserialize from any
+format supported by Serde.
 
 The following structs support pickling:
 
@@ -160,12 +162,15 @@ You can unpickle a pickle-able struct directly from its serialized form:
 ```rust
 # use anyhow::Result;
 # use vodozemac::olm::{Account, AccountPickle};
+# use zeroize::Zeroize;
 #
 # fn main() -> Result<()> {
 #   let some_account = Account::new();
-    let json_str = serde_json::to_string(&some_account.pickle())?;
-    // This will produce an account which is identitcal to `some_account`.
+    let mut json_str = serde_json::to_string(&some_account.pickle())?;
+    // This will produce an account which is identical to `some_account`.
     let account: Account = serde_json::from_str::<AccountPickle>(&json_str)?.into();
+
+    json_str.zeroize();
 #
 #    Ok(())
 # }

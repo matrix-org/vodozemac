@@ -46,7 +46,7 @@ pub enum PickleError {
     Base64(#[from] base64::DecodeError),
     #[error("The pickle couldn't be decrypted: {0}")]
     Decryption(#[from] crate::cipher::DecryptionError),
-    #[error("The pickle coudn't be deserialized: {0}")]
+    #[error("The pickle couldn't be deserialized: {0}")]
     Serialization(#[from] serde_json::Error),
 }
 
