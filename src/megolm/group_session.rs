@@ -130,6 +130,8 @@ impl GroupSession {
         GroupSessionPickle { ratchet: self.ratchet.clone(), signing_key: self.signing_key.clone() }
     }
 
+    /// Restore an [`GroupSession`] from a previously saved
+    /// [`GroupSessionPickle`].
     pub fn from_pickle(pickle: GroupSessionPickle) -> Self {
         pickle.into()
     }
@@ -144,10 +146,18 @@ pub struct GroupSessionPickle {
 }
 
 impl GroupSessionPickle {
+    /// Serialize and encrypt the pickle using the given key.
+    ///
+    /// This method is the inverse of the
+    /// [`GroupSessionPickle::from_encrypted()`] method.
     pub fn encrypt(self, pickle_key: &[u8; 32]) -> String {
         pickle(&self, pickle_key)
     }
 
+    /// Decrypt and deserialize a pickle using the given ciphertext and key.
+    ///
+    /// This method is the inverse of the [`GroupSessionPickle::encrypt()`]
+    /// method.
     pub fn from_encrypted(ciphertext: &str, pickle_key: &[u8; 32]) -> Result<Self, PickleError> {
         unpickle(ciphertext, pickle_key)
     }

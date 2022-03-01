@@ -261,6 +261,7 @@ impl Session {
         }
     }
 
+    /// Restore a [`Session`] from a previously saved [`SessionPickle`].
     pub fn from_pickle(pickle: SessionPickle) -> Self {
         pickle.into()
     }
@@ -473,10 +474,17 @@ pub struct SessionPickle {
 }
 
 impl SessionPickle {
+    /// Serialize and encrypt the pickle using the given key.
+    ///
+    /// This method is the inverse of the [`SessionPickle::from_encrypted()`]
+    /// method.
     pub fn encrypt(self, pickle_key: &[u8; 32]) -> String {
         pickle(&self, pickle_key)
     }
 
+    /// Decrypt and deserialize a pickle using the given ciphertext and key.
+    ///
+    /// This method is the inverse of the [`SessionPickle::encrypt()`] method.
     pub fn from_encrypted(ciphertext: &str, pickle_key: &[u8; 32]) -> Result<Self, PickleError> {
         unpickle(ciphertext, pickle_key)
     }

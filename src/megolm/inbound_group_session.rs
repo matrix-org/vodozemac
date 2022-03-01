@@ -241,6 +241,8 @@ impl InboundGroupSession {
         }
     }
 
+    /// Convert the inbound group session into a struct which implements
+    /// [`serde::Serialize`] and [`serde::Deserialize`].
     pub fn pickle(&self) -> InboundGroupSessionPickle {
         InboundGroupSessionPickle {
             initial_ratchet: self.initial_ratchet.clone(),
@@ -249,6 +251,8 @@ impl InboundGroupSession {
         }
     }
 
+    /// Restore an [`InboundGroupSession`] from a previously saved
+    /// [`InboundGroupSessionPickle`].
     pub fn from_pickle(pickle: InboundGroupSessionPickle) -> Self {
         Self::from(pickle)
     }
@@ -327,6 +331,9 @@ impl InboundGroupSession {
     }
 }
 
+/// A format suitable for serialization which implements [`serde::Serialize`]
+/// and [`serde::Deserialize`]. Obtainable by calling
+/// [`InboundGroupSession::pickle`].
 #[derive(Serialize, Deserialize)]
 pub struct InboundGroupSessionPickle {
     initial_ratchet: Ratchet,
@@ -336,10 +343,18 @@ pub struct InboundGroupSessionPickle {
 }
 
 impl InboundGroupSessionPickle {
+    /// Serialize and encrypt the pickle using the given key.
+    ///
+    /// This method is the inverse of the
+    /// [`InboundGroupSessionPickle::from_encrypted()`] method.
     pub fn encrypt(self, pickle_key: &[u8; 32]) -> String {
         pickle(&self, pickle_key)
     }
 
+    /// Decrypt and deserialize a pickle using the given ciphertext and key.
+    ///
+    /// This method is the inverse of the
+    /// [`InboundGroupSessionPickle::encrypt()`] method.
     pub fn from_encrypted(ciphertext: &str, pickle_key: &[u8; 32]) -> Result<Self, PickleError> {
         unpickle(ciphertext, pickle_key)
     }
