@@ -49,27 +49,17 @@ fn advance(key: &[u8; 32]) -> CtOutput<Hmac<Sha256>> {
 }
 
 #[derive(Clone, Zeroize, Serialize, Deserialize)]
+#[zeroize(drop)]
 pub(super) struct ChainKey {
     key: Box<[u8; 32]>,
     index: u64,
 }
 
-impl Drop for ChainKey {
-    fn drop(&mut self) {
-        self.key.zeroize()
-    }
-}
-
 #[derive(Clone, Zeroize, Serialize, Deserialize)]
+#[zeroize(drop)]
 pub(super) struct RemoteChainKey {
     key: Box<[u8; 32]>,
     index: u64,
-}
-
-impl Drop for RemoteChainKey {
-    fn drop(&mut self) {
-        self.key.zeroize()
-    }
 }
 
 impl RemoteChainKey {

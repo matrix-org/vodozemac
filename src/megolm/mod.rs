@@ -28,17 +28,12 @@ pub use message::MegolmMessage;
 use zeroize::Zeroize;
 
 #[derive(Zeroize)]
+#[zeroize(drop)]
 pub struct SessionKey(pub String);
 
 impl SessionKey {
     pub fn as_str(&self) -> &str {
         &self.0
-    }
-}
-
-impl Drop for SessionKey {
-    fn drop(&mut self) {
-        self.0.zeroize()
     }
 }
 

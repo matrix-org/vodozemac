@@ -24,18 +24,14 @@ const ADVANCEMENT_SEEDS: [&[u8; 1]; Ratchet::RATCHET_PART_COUNT] =
     [b"\x00", b"\x01", b"\x02", b"\x03"];
 
 #[derive(Serialize, Deserialize, Zeroize, Clone)]
+#[zeroize(drop)]
 pub(super) struct Ratchet {
     inner: RatchetBytes,
     counter: u32,
 }
 
-impl Drop for Ratchet {
-    fn drop(&mut self) {
-        self.counter.zeroize();
-    }
-}
-
 #[derive(Zeroize, Clone)]
+#[zeroize(drop)]
 struct RatchetBytes(Box<[u8; Ratchet::RATCHET_LENGTH]>);
 
 impl RatchetBytes {
@@ -50,12 +46,6 @@ impl RatchetBytes {
 
             Ok(ratchet)
         }
-    }
-}
-
-impl Drop for RatchetBytes {
-    fn drop(&mut self) {
-        self.0.zeroize();
     }
 }
 

@@ -81,17 +81,12 @@ pub struct DecryptedMessage {
 
 #[derive(Zeroize, Serialize, Deserialize)]
 #[serde(transparent)]
+#[zeroize(drop)]
 pub struct ExportedSessionKey(pub String);
 
 impl ExportedSessionKey {
     pub fn as_str(&self) -> &str {
         &self.0
-    }
-}
-
-impl Drop for ExportedSessionKey {
-    fn drop(&mut self) {
-        self.0.zeroize()
     }
 }
 
