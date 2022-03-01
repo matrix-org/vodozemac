@@ -20,7 +20,7 @@ use std::collections::HashMap;
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use x25519_dalek::{ReusableSecret, StaticSecret as Curve25519SecretKey};
+use x25519_dalek::ReusableSecret;
 use zeroize::Zeroize;
 
 use self::{
@@ -35,8 +35,8 @@ use super::{
 };
 use crate::{
     types::{
-        Curve25519Keypair, Curve25519KeypairPickle, Curve25519PublicKey, Ed25519Keypair,
-        Ed25519KeypairPickle, Ed25519PublicKey, KeyId,
+        Curve25519Keypair, Curve25519KeypairPickle, Curve25519PublicKey, Curve25519SecretKey,
+        Ed25519Keypair, Ed25519KeypairPickle, Ed25519PublicKey, KeyId,
     },
     utilities::{base64_encode, pickle, unpickle, DecodeSecret},
     DecodeError, PickleError,
@@ -378,8 +378,7 @@ impl Account {
             fn from(key: &OneTimeKey) -> Self {
                 FallbackKey {
                     key_id: KeyId(key.key_id.into()),
-                    // XXX: Passing in secret array as value.
-                    key: Curve25519SecretKey::from(*key.private_key),
+                    key: Curve25519SecretKey::from_slice(&key.private_key),
                     published: key.published,
                 }
             }
@@ -459,8 +458,7 @@ impl Account {
                 let mut max_key_id = 0;
 
                 for key in &pickle.one_time_keys {
-                    // XXX: Passing in secret array as value.
-                    let secret_key = Curve25519SecretKey::from(*key.private_key);
+                    let secret_key = Curve25519SecretKey::from_slice(&key.private_key);
                     let key_id = KeyId(key.key_id.into());
                     one_time_keys.insert_secret_key(key_id, secret_key, key.published);
 

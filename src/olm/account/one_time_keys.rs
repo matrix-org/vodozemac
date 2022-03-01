@@ -14,12 +14,13 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use rand::thread_rng;
 use serde::{Deserialize, Serialize};
-use x25519_dalek::StaticSecret as Curve25519SecretKey;
 
 use super::PUBLIC_MAX_ONE_TIME_KEYS;
-use crate::{types::KeyId, Curve25519PublicKey};
+use crate::{
+    types::{Curve25519SecretKey, KeyId},
+    Curve25519PublicKey,
+};
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(from = "OneTimeKeysPickle")]
@@ -89,11 +90,9 @@ impl OneTimeKeys {
     }
 
     pub fn generate(&mut self, count: usize) {
-        let mut rng = thread_rng();
-
         for _ in 0..count {
             let key_id = KeyId(self.key_id);
-            let key = Curve25519SecretKey::new(&mut rng);
+            let key = Curve25519SecretKey::new();
 
             self.insert_secret_key(key_id, key, false);
 

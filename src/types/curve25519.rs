@@ -14,11 +14,41 @@
 
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
-pub use x25519_dalek::StaticSecret as Curve25519SecretKey;
-use x25519_dalek::{EphemeralSecret, PublicKey, ReusableSecret};
+use x25519_dalek::{EphemeralSecret, PublicKey, ReusableSecret, SharedSecret, StaticSecret};
 
 use super::KeyError;
 use crate::utilities::{base64_decode, base64_encode};
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(transparent)]
+pub struct Curve25519SecretKey(Box<StaticSecret>);
+
+impl Curve25519SecretKey {
+    pub fn new() -> Self {
+        let mut rng = thread_rng();
+
+        Self(Box::new(StaticSecret::new(&mut rng)))
+    }
+
+    pub fn from_slice(bytes: &[u8; 32]) -> Self {
+        // XXX: Passing in secret array as value.
+        Self(Box::new(StaticSecret::from(*bytes)))
+    }
+
+    pub fn diffie_hellman(&self, their_public_key: &Curve25519PublicKey) -> SharedSecret {
+        self.0.diffie_hellman(&their_public_key.inner)
+    }
+
+    pub fn to_bytes(&self) -> [u8; 32] {
+        self.0.to_bytes()
+    }
+}
+
+impl Default for Curve25519SecretKey {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(from = "Curve25519KeypairPickle")]
@@ -31,8 +61,7 @@ pub(crate) struct Curve25519Keypair {
 
 impl Curve25519Keypair {
     pub fn new() -> Self {
-        let mut rng = thread_rng();
-        let secret_key = Curve25519SecretKey::new(&mut rng);
+        let secret_key = Curve25519SecretKey::new();
         let public_key = Curve25519PublicKey::from(&secret_key);
         let encoded_public_key = base64_encode(public_key.as_bytes());
 
@@ -41,8 +70,7 @@ impl Curve25519Keypair {
 
     #[cfg(feature = "libolm-compat")]
     pub fn from_secret_key(key: &[u8; 32]) -> Self {
-        // XXX: Passing in secret array as value.
-        let secret_key = Curve25519SecretKey::from(*key);
+        let secret_key = Curve25519SecretKey::from_slice(key);
         let public_key = Curve25519PublicKey::from(&secret_key);
 
         Curve25519Keypair { secret_key, public_key, encoded_public_key: public_key.to_base64() }
@@ -136,7 +164,7 @@ impl From<[u8; Self::LENGTH]> for Curve25519PublicKey {
 
 impl<'a> From<&'a Curve25519SecretKey> for Curve25519PublicKey {
     fn from(secret: &'a Curve25519SecretKey) -> Curve25519PublicKey {
-        Curve25519PublicKey { inner: PublicKey::from(secret) }
+        Curve25519PublicKey { inner: PublicKey::from(secret.0.as_ref()) }
     }
 }
 

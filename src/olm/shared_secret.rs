@@ -33,10 +33,10 @@
 
 use hkdf::Hkdf;
 use sha2::Sha256;
-use x25519_dalek::{ReusableSecret, SharedSecret, StaticSecret};
+use x25519_dalek::{ReusableSecret, SharedSecret};
 use zeroize::Zeroize;
 
-use crate::Curve25519PublicKey as PublicKey;
+use crate::{types::Curve25519SecretKey as StaticSecret, Curve25519PublicKey as PublicKey};
 
 #[derive(Zeroize)]
 #[zeroize(drop)]
@@ -85,9 +85,9 @@ impl RemoteShared3DHSecret {
         remote_identity_key: &PublicKey,
         remote_one_time_key: &PublicKey,
     ) -> Self {
-        let first_secret = one_time_key.diffie_hellman(&remote_identity_key.inner);
-        let second_secret = identity_key.diffie_hellman(&remote_one_time_key.inner);
-        let third_secret = one_time_key.diffie_hellman(&remote_one_time_key.inner);
+        let first_secret = one_time_key.diffie_hellman(remote_identity_key);
+        let second_secret = identity_key.diffie_hellman(remote_one_time_key);
+        let third_secret = one_time_key.diffie_hellman(remote_one_time_key);
 
         Self(merge_secrets(first_secret, second_secret, third_secret))
     }
@@ -104,7 +104,7 @@ impl Shared3DHSecret {
         remote_identity_key: &PublicKey,
         remote_one_time_key: &PublicKey,
     ) -> Self {
-        let first_secret = identity_key.diffie_hellman(&remote_one_time_key.inner);
+        let first_secret = identity_key.diffie_hellman(remote_one_time_key);
         let second_secret = one_time_key.diffie_hellman(&remote_identity_key.inner);
         let third_secret = one_time_key.diffie_hellman(&remote_one_time_key.inner);
 
@@ -119,20 +119,20 @@ impl Shared3DHSecret {
 #[cfg(test)]
 mod test {
     use rand::thread_rng;
-    use x25519_dalek::{ReusableSecret, StaticSecret};
+    use x25519_dalek::ReusableSecret;
 
     use super::{RemoteShared3DHSecret, Shared3DHSecret};
-    use crate::Curve25519PublicKey as PublicKey;
+    use crate::{types::Curve25519SecretKey as StaticSecret, Curve25519PublicKey as PublicKey};
 
     #[test]
     fn triple_diffie_hellman() {
         let mut rng = thread_rng();
 
-        let alice_identity = StaticSecret::new(&mut rng);
+        let alice_identity = StaticSecret::new();
         let alice_one_time = ReusableSecret::new(&mut rng);
 
-        let bob_identity = StaticSecret::new(&mut rng);
-        let bob_one_time = StaticSecret::new(&mut rng);
+        let bob_identity = StaticSecret::new();
+        let bob_one_time = StaticSecret::new();
 
         let alice_secret = Shared3DHSecret::new(
             &alice_identity,

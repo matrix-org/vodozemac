@@ -424,8 +424,9 @@ impl Session {
 
                 if let Some(chain) = pickle.sender_chains.get(0) {
                     // XXX: Passing in secret array as value.
-                    let ratchet_key =
-                        RatchetKey::from(Curve25519SecretKey::from(*chain.secret_ratchet_key));
+                    let ratchet_key = RatchetKey::from(Curve25519SecretKey::from_slice(
+                        chain.secret_ratchet_key.as_ref(),
+                    ));
                     let chain_key = ChainKey::from_bytes_and_index(
                         chain.chain_key.clone(),
                         chain.chain_key_index,

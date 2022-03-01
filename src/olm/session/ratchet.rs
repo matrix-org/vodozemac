@@ -12,15 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use rand::thread_rng;
 use serde::{Deserialize, Serialize};
-use x25519_dalek::{SharedSecret, StaticSecret as Curve25519SecretKey};
+use x25519_dalek::SharedSecret;
 
 use super::{
     chain_key::RemoteChainKey,
     root_key::{RemoteRootKey, RootKey},
 };
-use crate::Curve25519PublicKey;
+use crate::{types::Curve25519SecretKey, Curve25519PublicKey};
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(transparent)]
@@ -46,12 +45,11 @@ impl crate::utilities::Decode for RemoteRatchetKey {
 
 impl RatchetKey {
     pub fn new() -> Self {
-        let rng = thread_rng();
-        Self(Curve25519SecretKey::new(rng))
+        Self(Curve25519SecretKey::new())
     }
 
     pub fn diffie_hellman(&self, other: &RemoteRatchetKey) -> SharedSecret {
-        self.0.diffie_hellman(&other.0.inner)
+        self.0.diffie_hellman(&other.0)
     }
 }
 
