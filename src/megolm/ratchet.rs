@@ -39,11 +39,11 @@ impl Drop for Ratchet {
 struct RatchetBytes(Box<[u8; Ratchet::RATCHET_LENGTH]>);
 
 impl RatchetBytes {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, RatchetError> {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, RatchetBytesError> {
         let length = bytes.len();
 
         if length != Ratchet::RATCHET_LENGTH {
-            Err(RatchetError::InvalidLength(length))
+            Err(RatchetBytesError::InvalidLength(length))
         } else {
             let mut ratchet = Self(Box::new([0u8; Ratchet::RATCHET_LENGTH]));
             ratchet.0.copy_from_slice(bytes);
@@ -246,7 +246,7 @@ impl Ratchet {
 }
 
 #[derive(Error, Debug)]
-enum RatchetError {
+enum RatchetBytesError {
     #[error("Invalid Megolm ratchet length: expected 128, got {0}")]
     InvalidLength(usize),
 }
