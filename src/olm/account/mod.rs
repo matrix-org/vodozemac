@@ -525,15 +525,15 @@ pub struct AccountPickle {
 impl AccountPickle {
     /// Serialize and encrypt the pickle using the given key.
     ///
-    /// This method is the inverse of the [`AccountPickle::from_encrypted()`]
-    /// method.
+    /// This is the inverse of [`AccountPickle::from_encrypted`].
     pub fn encrypt(self, pickle_key: &[u8; 32]) -> String {
         pickle(&self, pickle_key)
     }
 
-    /// Decrypt and deserialize a pickle using the given ciphertext and key.
+    /// Obtain a pickle from a ciphertext by decrypting and deserializing using
+    /// the given key.
     ///
-    /// This method is the inverse of the [`AccountPickle::encrypt()`] method.
+    /// This is the inverse of [`AccountPickle::encrypt`].
     pub fn from_encrypted(ciphertext: &str, pickle_key: &[u8; 32]) -> Result<Self, PickleError> {
         unpickle(ciphertext, pickle_key)
     }

@@ -40,7 +40,7 @@ pub enum LibolmDecodeError {
 ///
 /// # Arguments
 ///
-/// * pickle - The base64 encoded and encrypted libolm pickle string
+/// * pickle - The base64-encoded and encrypted libolm pickle string
 /// * pickle_key - The key that was used to encrypt the libolm pickle
 /// * pickle_version - The expected version of the pickle. Unpickling will fail
 ///   if the version in the pickle doesn't match this one.
