@@ -83,13 +83,13 @@ impl Ed25519Keypair {
 /// An Ed25519 secret key, used to create digital signatures.
 #[derive(Deserialize, Serialize)]
 #[serde(transparent)]
-pub struct Ed25519SecretKey(SecretKey);
+pub struct Ed25519SecretKey(Box<SecretKey>);
 
 impl Ed25519SecretKey {
     /// Create a new random `Ed25519SecretKey`.
     pub fn new() -> Self {
         let mut rng = thread_rng();
-        let key = SecretKey::generate(&mut rng);
+        let key = Box::new(SecretKey::generate(&mut rng));
 
         Self(key)
     }
@@ -101,7 +101,7 @@ impl Ed25519SecretKey {
 
     /// Try to create a `Ed25519SecretKey` from a slice of bytes.
     pub fn from_slice(bytes: &[u8]) -> Result<Self, crate::KeyError> {
-        let key = SecretKey::from_bytes(bytes).map_err(SignatureError::from)?;
+        let key = Box::new(SecretKey::from_bytes(bytes).map_err(SignatureError::from)?);
 
         Ok(Self(key))
     }
@@ -129,7 +129,7 @@ impl Ed25519SecretKey {
 
     /// Get the public key that matches this `Ed25519SecretKey`.
     pub fn public_key(&self) -> Ed25519PublicKey {
-        Ed25519PublicKey(PublicKey::from(&self.0))
+        Ed25519PublicKey(PublicKey::from(self.0.as_ref()))
     }
 
     /// Sign the given slice of bytes with this `Ed25519SecretKey`.
@@ -151,7 +151,7 @@ impl Ed25519SecretKey {
     /// public_key.verify(message.as_bytes(), &signature).expect("The signature has to be valid");
     /// ```
     pub fn sign(&self, message: &[u8]) -> Ed25519Signature {
-        let expanded = ExpandedSecretKey::from(&self.0);
+        let expanded = ExpandedSecretKey::from(self.0.as_ref());
         Ed25519Signature(expanded.sign(message, &self.public_key().0))
     }
 }
@@ -164,22 +164,22 @@ impl Default for Ed25519SecretKey {
 
 #[derive(Serialize, Deserialize)]
 enum SecretKeys {
-    Normal(SecretKey),
-    Expanded(ExpandedSecretKey),
+    Normal(Box<SecretKey>),
+    Expanded(Box<ExpandedSecretKey>),
 }
 
 impl SecretKeys {
     fn public_key(&self) -> Ed25519PublicKey {
         match &self {
-            SecretKeys::Normal(k) => Ed25519PublicKey(PublicKey::from(k)),
-            SecretKeys::Expanded(k) => Ed25519PublicKey(PublicKey::from(k)),
+            SecretKeys::Normal(k) => Ed25519PublicKey(PublicKey::from(k.as_ref())),
+            SecretKeys::Expanded(k) => Ed25519PublicKey(PublicKey::from(k.as_ref())),
         }
     }
 
     fn sign(&self, message: &[u8], public_key: &Ed25519PublicKey) -> Ed25519Signature {
         let signature = match &self {
             SecretKeys::Normal(k) => {
-                let expanded = ExpandedSecretKey::from(k);
+                let expanded = ExpandedSecretKey::from(k.as_ref());
                 expanded.sign(message.as_ref(), &public_key.0)
             }
             SecretKeys::Expanded(k) => k.sign(message.as_ref(), &public_key.0),
@@ -294,13 +294,13 @@ impl From<Ed25519Keypair> for Ed25519KeypairPickle {
 
 impl From<SecretKey> for SecretKeys {
     fn from(key: SecretKey) -> Self {
-        Self::Normal(key)
+        Self::Normal(Box::new(key))
     }
 }
 
 impl From<ExpandedSecretKey> for SecretKeys {
     fn from(key: ExpandedSecretKey) -> Self {
-        Self::Expanded(key)
+        Self::Expanded(Box::new(key))
     }
 }
 
