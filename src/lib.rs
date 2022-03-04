@@ -22,7 +22,8 @@
     unsafe_op_in_unsafe_fn,
     unused_extern_crates,
     unused_import_braces,
-    unused_qualifications
+    unused_qualifications,
+    rust_2018_idioms
 )]
 #![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]

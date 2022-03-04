@@ -147,7 +147,7 @@ impl Ratchet {
         &self.inner.0
     }
 
-    fn as_parts(&mut self) -> RatchetParts {
+    fn as_parts(&mut self) -> RatchetParts<'_> {
         let (top, bottom) = self.inner.0.split_at_mut(64);
 
         let (r_0, r_1) = top.split_at_mut(32);
