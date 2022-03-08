@@ -51,6 +51,16 @@ impl MegolmMessage {
         self.message_index
     }
 
+    /// Get the megolm message's mac.
+    pub fn mac(&self) -> [u8; Mac::TRUNCATED_LEN] {
+        self.mac
+    }
+
+    /// Get a reference to the megolm message's signature.
+    pub fn signature(&self) -> &Ed25519Signature {
+        &self.signature
+    }
+
     /// Try to decode the given byte slice as a [`MegolmMessage`].
     ///
     /// The expected format of the byte array is described in the
