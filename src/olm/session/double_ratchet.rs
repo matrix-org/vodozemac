@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     chain_key::ChainKey,
+    message_key::MessageKey,
     ratchet::{Ratchet, RatchetPublicKey, RemoteRatchetKey},
     receiver_chain::ReceiverChain,
     root_key::{RemoteRootKey, RootKey},
@@ -29,18 +30,22 @@ pub(super) struct DoubleRatchet {
 }
 
 impl DoubleRatchet {
-    pub fn encrypt(&mut self, plaintext: &str) -> Message {
+    pub fn next_message_key(&mut self) -> MessageKey {
         match &mut self.inner {
             DoubleRatchetState::Inactive(ratchet) => {
                 let mut ratchet = ratchet.activate();
 
-                let message = ratchet.encrypt(plaintext.as_bytes());
+                let message_key = ratchet.next_message_key();
                 self.inner = DoubleRatchetState::Active(ratchet);
 
-                message
+                message_key
             }
-            DoubleRatchetState::Active(ratchet) => ratchet.encrypt(plaintext.as_bytes()),
+            DoubleRatchetState::Active(ratchet) => ratchet.next_message_key(),
         }
+    }
+
+    pub fn encrypt(&mut self, plaintext: &str) -> Message {
+        self.next_message_key().encrypt(plaintext.as_bytes())
     }
 
     pub fn active(shared_secret: Shared3DHSecret) -> Self {
@@ -152,9 +157,7 @@ impl ActiveDoubleRatchet {
         RatchetPublicKey::from(self.active_ratchet.ratchet_key())
     }
 
-    fn encrypt(&mut self, plaintext: &[u8]) -> Message {
-        let message_key = self.symmetric_key_ratchet.create_message_key(self.ratchet_key());
-
-        message_key.encrypt(plaintext)
+    fn next_message_key(&mut self) -> MessageKey {
+        self.symmetric_key_ratchet.create_message_key(self.ratchet_key())
     }
 }

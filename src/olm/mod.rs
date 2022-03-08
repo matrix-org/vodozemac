@@ -23,4 +23,5 @@ mod shared_secret;
 
 pub use account::{Account, AccountPickle, IdentityKeys, InboundCreationResult};
 pub use messages::{Message, MessageType, OlmMessage, PreKeyMessage};
-pub use session::{DecryptionError, Session, SessionPickle};
+pub use session::{message_key::MessageKey, DecryptionError, Session, SessionPickle};
+pub use session_keys::SessionKeys;

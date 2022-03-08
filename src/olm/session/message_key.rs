@@ -18,7 +18,7 @@ use zeroize::Zeroize;
 use super::{ratchet::RatchetPublicKey, DecryptionError};
 use crate::{cipher::Cipher, olm::messages::Message};
 
-pub(super) struct MessageKey {
+pub struct MessageKey {
     key: Box<[u8; 32]>,
     ratchet_key: RatchetPublicKey,
     index: u64,
@@ -43,7 +43,7 @@ impl Drop for RemoteMessageKey {
 }
 
 impl MessageKey {
-    pub fn new(key: Box<[u8; 32]>, ratchet_key: RatchetPublicKey, index: u64) -> Self {
+    pub(super) fn new(key: Box<[u8; 32]>, ratchet_key: RatchetPublicKey, index: u64) -> Self {
         Self { key, ratchet_key, index }
     }
 
