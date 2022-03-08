@@ -15,14 +15,20 @@
 
 mod key;
 
-use aes::Aes256;
-use block_modes::{block_padding::Pkcs7, BlockMode, BlockModeError, Cbc};
+use aes::{
+    cipher::{
+        block_padding::{Pkcs7, UnpadError},
+        BlockDecryptMut, BlockEncryptMut, KeyIvInit,
+    },
+    Aes256,
+};
 use hmac::{digest::MacError, Hmac, Mac as MacT};
 use key::CipherKeys;
 use sha2::Sha256;
 use thiserror::Error;
 
-type Aes256Cbc = Cbc<Aes256, Pkcs7>;
+type Aes256CbcEnc = cbc::Encryptor<Aes256>;
+type Aes256CbcDec = cbc::Decryptor<Aes256>;
 type HmacSha256 = Hmac<Sha256>;
 
 pub(crate) struct Mac([u8; 32]);
@@ -41,7 +47,7 @@ impl Mac {
 #[derive(Debug, Error)]
 pub enum DecryptionError {
     #[error("Failed decrypting, invalid ciphertext: {0}")]
-    InvalidCiphertext(#[from] BlockModeError),
+    InvalidCiphertext(#[from] UnpadError),
     #[error("The MAC of the ciphertext didn't pass validation {0}")]
     Mac(#[from] MacError),
     #[allow(dead_code)]
@@ -73,10 +79,6 @@ impl Cipher {
         Self { keys }
     }
 
-    fn get_cipher(&self) -> Aes256Cbc {
-        Aes256Cbc::new_fix(self.keys.aes_key(), self.keys.iv())
-    }
-
     fn get_hmac(&self) -> HmacSha256 {
         // We don't use HmacSha256::new() here because it expects a 64-byte
         // large HMAC key while the Olm spec defines a 32-byte one instead.
@@ -86,8 +88,8 @@ impl Cipher {
     }
 
     pub fn encrypt(&self, plaintext: &[u8]) -> Vec<u8> {
-        let cipher = self.get_cipher();
-        cipher.encrypt_vec(plaintext)
+        let cipher = Aes256CbcEnc::new(self.keys.aes_key(), self.keys.iv());
+        cipher.encrypt_padded_vec_mut::<Pkcs7>(plaintext)
     }
 
     pub fn mac(&self, message: &[u8]) -> Mac {
@@ -102,9 +104,9 @@ impl Cipher {
         Mac(mac)
     }
 
-    pub fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>, BlockModeError> {
-        let cipher = self.get_cipher();
-        cipher.decrypt_vec(ciphertext)
+    pub fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>, UnpadError> {
+        let cipher = Aes256CbcDec::new(self.keys.aes_key(), self.keys.iv());
+        cipher.decrypt_padded_vec_mut::<Pkcs7>(ciphertext)
     }
 
     pub fn decrypt_pickle(&self, ciphertext: &[u8]) -> Result<Vec<u8>, DecryptionError> {

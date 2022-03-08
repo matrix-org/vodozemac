@@ -13,16 +13,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use aes::{cipher::generic_array::GenericArray, Aes256, NewBlockCipher};
-use block_modes::{block_padding::Pkcs7, BlockMode};
+use aes::{
+    cipher::{generic_array::GenericArray, IvSizeUser, KeySizeUser},
+    Aes256,
+};
 use hkdf::Hkdf;
 use sha2::Sha256;
 use zeroize::Zeroize;
 
-use super::Aes256Cbc;
+use super::Aes256CbcEnc;
 
-type Aes256Key = GenericArray<u8, <Aes256 as NewBlockCipher>::KeySize>;
-type Aes256Iv = GenericArray<u8, <Aes256Cbc as BlockMode<Aes256, Pkcs7>>::IvSize>;
+type Aes256Key = GenericArray<u8, <Aes256 as KeySizeUser>::KeySize>;
+type Aes256Iv = GenericArray<u8, <Aes256CbcEnc as IvSizeUser>::IvSize>;
 type HmacSha256Key = [u8; 32];
 
 #[derive(Zeroize)]

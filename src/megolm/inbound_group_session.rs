@@ -14,7 +14,7 @@
 
 use std::io::{Cursor, Read};
 
-use block_modes::BlockModeError;
+use aes::cipher::block_padding::UnpadError;
 use hmac::digest::MacError;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -53,7 +53,7 @@ pub enum DecryptionError {
     #[error("Failed decrypting Megolm message, invalid MAC: {0}")]
     InvalidMAC(#[from] MacError),
     #[error("Failed decrypting Megolm message, invalid ciphertext: {0}")]
-    InvalidCiphertext(#[from] BlockModeError),
+    InvalidCiphertext(#[from] UnpadError),
     #[error(
         "The message was encrypted using an unknown message index, \
         first known index {0}, index of the message {1}"

@@ -26,10 +26,10 @@ strict-signatures = []
 libolm-compat = []
 
 [dependencies]
-aes = "0.7.5"
+aes = "0.8.1"
 arrayvec = { version = "0.7.2", features = ["serde"] }
 base64 = "0.13.0"
-block-modes = "0.8.1"
+cbc = { version = "0.1.1", features = ["std"] }
 ed25519-dalek = { version = "1.0.1", default-features = false, features = [
     "rand",
     "std",

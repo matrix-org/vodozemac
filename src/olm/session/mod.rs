@@ -20,8 +20,8 @@ mod ratchet;
 mod receiver_chain;
 mod root_key;
 
+use aes::cipher::block_padding::UnpadError;
 use arrayvec::ArrayVec;
-use block_modes::BlockModeError;
 use chain_key::RemoteChainKey;
 use double_ratchet::DoubleRatchet;
 use hmac::digest::MacError;
@@ -89,7 +89,7 @@ pub enum DecryptionError {
     #[error("Failed decrypting Olm message, invalid MAC: {0}")]
     InvalidMAC(#[from] MacError),
     #[error("Failed decrypting Olm message, invalid ciphertext: {0}")]
-    InvalidCiphertext(#[from] BlockModeError),
+    InvalidCiphertext(#[from] UnpadError),
     #[error("The message key with the given key can't be created, message index: {0}")]
     MissingMessageKey(u64),
     #[error("The message gap was too big, got {0}, max allowed {}")]
