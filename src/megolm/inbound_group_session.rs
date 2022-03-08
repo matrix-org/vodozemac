@@ -174,6 +174,19 @@ impl InboundGroupSession {
         }
     }
 
+    #[cfg(feature = "low-level-api")]
+    pub fn get_cipher_at(&self, message_index: u32) -> Option<Cipher> {
+        if self.initial_ratchet.index() >= message_index {
+            let mut ratchet = self.initial_ratchet.clone();
+            if self.initial_ratchet.index() > message_index {
+                ratchet.advance_to(message_index);
+            }
+            Some(Cipher::new_megolm(ratchet.as_bytes()))
+        } else {
+            None
+        }
+    }
+
     fn find_ratchet(&mut self, message_index: u32) -> Option<&Ratchet> {
         if self.initial_ratchet.index() == message_index {
             Some(&self.initial_ratchet)

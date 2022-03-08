@@ -36,6 +36,8 @@ pub mod megolm;
 pub mod olm;
 pub mod sas;
 
+#[cfg(feature = "low-level-api")]
+pub use cipher::{Cipher, Mac};
 pub use types::{
     Curve25519PublicKey, Ed25519PublicKey, Ed25519SecretKey, Ed25519Signature, KeyError, KeyId,
     SignatureError,
