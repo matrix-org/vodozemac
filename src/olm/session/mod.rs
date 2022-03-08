@@ -33,6 +33,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 use zeroize::Zeroize;
 
+#[cfg(feature = "low-level-api")]
 use self::message_key::MessageKey;
 use super::{
     session_keys::SessionKeys,

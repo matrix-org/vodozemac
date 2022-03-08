@@ -80,6 +80,12 @@ impl Ed25519Keypair {
     }
 }
 
+impl Default for Ed25519Keypair {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// An Ed25519 secret key, used to create digital signatures.
 #[derive(Deserialize, Serialize)]
 #[serde(transparent)]

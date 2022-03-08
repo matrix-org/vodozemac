@@ -20,8 +20,10 @@ use crate::{
     cipher::{Cipher, Mac},
     types::{Ed25519Keypair, Ed25519Signature},
     utilities::{base64_decode, base64_encode, VarInt},
-    DecodeError, Ed25519PublicKey, SignatureError,
+    DecodeError,
 };
+#[cfg(feature = "low-level-api")]
+use crate::{Ed25519PublicKey, SignatureError};
 
 const VERSION: u8 = 3;
 
