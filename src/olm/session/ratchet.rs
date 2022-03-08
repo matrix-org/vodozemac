@@ -25,8 +25,8 @@ use crate::{types::Curve25519SecretKey, Curve25519PublicKey};
 #[serde(transparent)]
 pub(super) struct RatchetKey(Curve25519SecretKey);
 
-#[derive(Debug, PartialEq)]
-pub(super) struct RatchetPublicKey(pub(super) Curve25519PublicKey);
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub struct RatchetPublicKey(Curve25519PublicKey);
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]

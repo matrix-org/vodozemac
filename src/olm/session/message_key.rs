@@ -43,6 +43,12 @@ impl Drop for RemoteMessageKey {
 }
 
 impl MessageKey {
+    #[cfg(feature = "low-level-api")]
+    pub fn new(key: Box<[u8; 32]>, ratchet_key: RatchetPublicKey, index: u64) -> Self {
+        Self { key, ratchet_key, index }
+    }
+
+    #[cfg(not(feature = "low-level-api"))]
     pub(super) fn new(key: Box<[u8; 32]>, ratchet_key: RatchetPublicKey, index: u64) -> Self {
         Self { key, ratchet_key, index }
     }
@@ -52,12 +58,27 @@ impl MessageKey {
 
         let ciphertext = cipher.encrypt(plaintext);
 
-        let mut message = Message::new(self.ratchet_key.0, self.index, ciphertext);
+        let mut message = Message::new(*self.ratchet_key.as_ref(), self.index, ciphertext);
 
         let mac = cipher.mac(&message.to_mac_bytes());
         message.mac = mac.truncate();
 
         message
+    }
+
+    /// Get a reference to the message key's key.
+    pub fn key(&self) -> &[u8; 32] {
+        self.key.as_ref()
+    }
+
+    /// Get a reference to the message key's ratchet key.
+    pub fn ratchet_key(&self) -> &RatchetPublicKey {
+        &self.ratchet_key
+    }
+
+    /// Get the message key's index.
+    pub fn index(&self) -> u64 {
+        self.index
     }
 }
 

@@ -16,7 +16,7 @@
 mod chain_key;
 mod double_ratchet;
 pub mod message_key;
-mod ratchet;
+pub mod ratchet;
 mod receiver_chain;
 mod root_key;
 
