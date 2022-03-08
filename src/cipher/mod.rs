@@ -46,8 +46,8 @@ impl Mac {
 
 #[derive(Debug, Error)]
 pub enum DecryptionError {
-    #[error("Failed decrypting, invalid ciphertext: {0}")]
-    InvalidCiphertext(#[from] UnpadError),
+    #[error("Failed decrypting, invalid padding")]
+    InvalidPadding(#[from] UnpadError),
     #[error("The MAC of the ciphertext didn't pass validation {0}")]
     Mac(#[from] MacError),
     #[allow(dead_code)]

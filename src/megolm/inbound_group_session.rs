@@ -52,8 +52,8 @@ pub enum DecryptionError {
     Signature(#[from] SignatureError),
     #[error("Failed decrypting Megolm message, invalid MAC: {0}")]
     InvalidMAC(#[from] MacError),
-    #[error("Failed decrypting Megolm message, invalid ciphertext: {0}")]
-    InvalidCiphertext(#[from] UnpadError),
+    #[error("Failed decrypting Megolm message, invalid padding")]
+    InvalidPadding(#[from] UnpadError),
     #[error(
         "The message was encrypted using an unknown message index, \
         first known index {0}, index of the message {1}"

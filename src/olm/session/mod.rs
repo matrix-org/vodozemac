@@ -88,8 +88,8 @@ pub enum DecryptionError {
     Base64(#[from] base64::DecodeError),
     #[error("Failed decrypting Olm message, invalid MAC: {0}")]
     InvalidMAC(#[from] MacError),
-    #[error("Failed decrypting Olm message, invalid ciphertext: {0}")]
-    InvalidCiphertext(#[from] UnpadError),
+    #[error("Failed decrypting Olm message, invalid padding")]
+    InvalidPadding(#[from] UnpadError),
     #[error("The message key with the given key can't be created, message index: {0}")]
     MissingMessageKey(u64),
     #[error("The message gap was too big, got {0}, max allowed {}")]
