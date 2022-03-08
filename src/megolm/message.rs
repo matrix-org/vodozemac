@@ -20,7 +20,7 @@ use crate::{
     cipher::Mac,
     types::Ed25519Signature,
     utilities::{base64_decode, base64_encode, VarInt},
-    DecodeError,
+    DecodeError, Ed25519PublicKey, SignatureError,
 };
 
 const VERSION: u8 = 3;
@@ -102,6 +102,21 @@ impl MegolmMessage {
     /// the resulting byte array as a string using base64 encoding.
     pub fn to_base64(&self) -> String {
         base64_encode(self.to_bytes())
+    }
+
+    #[cfg(feature = "low-level-api")]
+    /// Set the signature of the message, verifying that the signature matches
+    /// the signing key.
+    pub fn add_signature(
+        &mut self,
+        signature: Ed25519Signature,
+        signing_key: Ed25519PublicKey,
+    ) -> Result<(), SignatureError> {
+        signing_key.verify(&self.to_signature_bytes(), &signature)?;
+
+        self.signature = signature;
+
+        Ok(())
     }
 
     fn encode_message(&self) -> Vec<u8> {
