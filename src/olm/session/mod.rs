@@ -192,7 +192,7 @@ impl Session {
     }
 
     // Have we ever received and decrypted a message from the other side?
-    fn has_received_message(&self) -> bool {
+    pub fn has_received_message(&self) -> bool {
         !self.receiving_chains.is_empty()
     }
 
