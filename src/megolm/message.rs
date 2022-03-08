@@ -17,8 +17,8 @@ use prost::Message;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    cipher::Mac,
-    types::Ed25519Signature,
+    cipher::{Cipher, Mac},
+    types::{Ed25519Keypair, Ed25519Signature},
     utilities::{base64_decode, base64_encode, VarInt},
     DecodeError, Ed25519PublicKey, SignatureError,
 };
@@ -126,6 +126,25 @@ impl MegolmMessage {
         };
 
         message.encode_manual()
+    }
+
+    /// Create a new [`MegolmMessage`] with the given plaintext and keys.
+    pub fn encrypt(
+        message_index: u32,
+        cipher: &Cipher,
+        signing_key: &Ed25519Keypair,
+        plaintext: &[u8],
+    ) -> MegolmMessage {
+        let ciphertext = cipher.encrypt(plaintext);
+        let mut message = MegolmMessage::new(ciphertext, message_index);
+
+        let mac = cipher.mac(&message.to_mac_bytes());
+        message.mac = mac.truncate();
+
+        let signature = signing_key.sign(&message.to_signature_bytes());
+        message.signature = signature;
+
+        message
     }
 
     pub(super) fn new(ciphertext: Vec<u8>, message_index: u32) -> Self {

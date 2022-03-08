@@ -37,7 +37,7 @@ pub enum SignatureError {
 #[derive(Deserialize, Serialize)]
 #[serde(try_from = "Ed25519KeypairPickle")]
 #[serde(into = "Ed25519KeypairPickle")]
-pub(crate) struct Ed25519Keypair {
+pub struct Ed25519Keypair {
     secret_key: SecretKeys,
     public_key: Ed25519PublicKey,
     encoded_public_key: String,
