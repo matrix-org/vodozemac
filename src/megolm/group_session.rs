@@ -80,7 +80,7 @@ impl GroupSession {
     pub fn encrypt(&mut self, plaintext: &str) -> MegolmMessage {
         let cipher = Cipher::new_megolm(self.ratchet.as_bytes());
 
-        let message = MegolmMessage::encrypt(
+        let message = MegolmMessage::encrypt_private(
             self.message_index(),
             &cipher,
             &self.signing_key,

@@ -141,7 +141,19 @@ impl MegolmMessage {
     }
 
     /// Create a new [`MegolmMessage`] with the given plaintext and keys.
+    #[cfg(feature = "low-level-api")]
     pub fn encrypt(
+        message_index: u32,
+        cipher: &Cipher,
+        signing_key: &Ed25519Keypair,
+        plaintext: &[u8],
+    ) -> MegolmMessage {
+        MegolmMessage::encrypt_private(message_index, cipher, signing_key, plaintext)
+    }
+
+    /// Implementation of [`MegolmMessage::encrypt`] that is used by rest of the
+    /// crate.
+    pub(super) fn encrypt_private(
         message_index: u32,
         cipher: &Cipher,
         signing_key: &Ed25519Keypair,
