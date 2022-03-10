@@ -66,10 +66,10 @@ impl MessageKey {
         self.key.as_ref()
     }
 
-    /// Get a reference to the message key's ratchet key.
+    /// Get the message key's ratchet key.
     #[cfg(feature = "low-level-api")]
-    pub fn ratchet_key(&self) -> &RatchetPublicKey {
-        &self.ratchet_key
+    pub fn ratchet_key(&self) -> RatchetPublicKey {
+        self.ratchet_key
     }
 
     /// Get the message key's index.
