@@ -116,9 +116,9 @@ impl MegolmMessage {
         base64_encode(self.to_bytes())
     }
 
-    #[cfg(feature = "low-level-api")]
     /// Set the signature of the message, verifying that the signature matches
     /// the signing key.
+    #[cfg(feature = "low-level-api")]
     pub fn add_signature(
         &mut self,
         signature: Ed25519Signature,

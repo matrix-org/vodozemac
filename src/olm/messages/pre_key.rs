@@ -133,8 +133,8 @@ impl PreKeyMessage {
         base64_encode(self.to_bytes())
     }
 
-    #[cfg(feature = "low-level-api")]
     /// Create a new pre-key message from the session keys and standard message.
+    #[cfg(feature = "low-level-api")]
     pub fn wrap(session_keys: SessionKeys, message: Message) -> Self {
         PreKeyMessage::new(session_keys, message)
     }
