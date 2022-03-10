@@ -192,7 +192,10 @@ impl Session {
         base64_encode(digest)
     }
 
-    // Have we ever received and decrypted a message from the other side?
+    /// Have we ever received and decrypted a message from the other side?
+    ///
+    /// Used to decide if outgoing messages should be sent as normal or pre-key
+    /// messages.
     pub fn has_received_message(&self) -> bool {
         !self.receiving_chains.is_empty()
     }
