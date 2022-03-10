@@ -33,12 +33,12 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 use zeroize::Zeroize;
 
-#[cfg(feature = "low-level-api")]
-use self::message_key::MessageKey;
 use super::{
     session_keys::SessionKeys,
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
 };
+#[cfg(feature = "low-level-api")]
+use crate::hazmat::olm::MessageKey;
 use crate::{
     olm::messages::{Message, OlmMessage, PreKeyMessage},
     utilities::{base64_encode, pickle, unpickle, DecodeSecret},
