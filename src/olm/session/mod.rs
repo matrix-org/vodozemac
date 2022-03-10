@@ -222,7 +222,7 @@ impl Session {
 
     /// Get the [`MessageKey`] to encrypt the next message.
     ///
-    /// **Note**: This *must* be used to encrypt the next message.
+    /// **Note**: This *must* be used to encrypt the message.
     #[cfg(feature = "low-level-api")]
     pub fn next_message_key(&mut self) -> MessageKey {
         self.sending_ratchet.next_message_key()
