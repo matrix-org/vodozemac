@@ -22,8 +22,8 @@ mod session_keys;
 mod shared_secret;
 
 pub use account::{Account, AccountPickle, IdentityKeys, InboundCreationResult};
+#[cfg(features = "low-level-api")]
+pub use message_key::MessageKey;
 pub use messages::{Message, MessageType, OlmMessage, PreKeyMessage};
-pub use session::{
-    message_key::MessageKey, ratchet::RatchetPublicKey, DecryptionError, Session, SessionPickle,
-};
+pub use session::{ratchet::RatchetPublicKey, DecryptionError, Session, SessionPickle};
 pub use session_keys::SessionKeys;
