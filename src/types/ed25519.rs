@@ -37,7 +37,7 @@ pub enum SignatureError {
 #[derive(Deserialize, Serialize)]
 #[serde(try_from = "Ed25519KeypairPickle")]
 #[serde(into = "Ed25519KeypairPickle")]
-pub(crate) struct Ed25519Keypair {
+pub struct Ed25519Keypair {
     secret_key: SecretKeys,
     public_key: Ed25519PublicKey,
     encoded_public_key: String,
@@ -77,6 +77,12 @@ impl Ed25519Keypair {
 
     pub fn sign(&self, message: &[u8]) -> Ed25519Signature {
         self.secret_key.sign(message, &self.public_key())
+    }
+}
+
+impl Default for Ed25519Keypair {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

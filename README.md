@@ -212,3 +212,14 @@ earlier state. This preserves forward secrecy.
 
 A detailed technical specification can be found at
 <https://gitlab.matrix.org/matrix-org/olm/-/blob/master/docs/megolm.md>.
+
+
+# Low level API
+
+Vodozemac exposes some lower level structs and functions that are only useful in
+very advanced use cases. These are exposed via the `low-level-api` feature,
+which is disabled by default. These should *not* be needed by the vast majority
+of users.
+
+Extreme care must be taken when using such APIs, as incorrect usage can lead to
+broken sessions.

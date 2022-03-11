@@ -24,6 +24,9 @@ default = ["libolm-compat"]
 js = ["rand/wasm-bindgen"]
 strict-signatures = []
 libolm-compat = []
+# The low-level-api feature exposes extra APIs that are only useful in advanced
+# use cases and require extra care to use.
+low-level-api = []
 
 [dependencies]
 aes = "0.8.1"

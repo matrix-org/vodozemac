@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 
 use super::Message;
 use crate::{
+    olm::SessionKeys,
     utilities::{base64_decode, base64_encode},
     Curve25519PublicKey, DecodeError,
 };
@@ -132,13 +133,19 @@ impl PreKeyMessage {
         base64_encode(self.to_bytes())
     }
 
-    pub(crate) fn new(
-        one_time_key: Curve25519PublicKey,
-        base_key: Curve25519PublicKey,
-        identity_key: Curve25519PublicKey,
-        message: Message,
-    ) -> Self {
-        Self { one_time_key, base_key, identity_key, message }
+    /// Create a new pre-key message from the session keys and standard message.
+    #[cfg(feature = "low-level-api")]
+    pub fn wrap(session_keys: SessionKeys, message: Message) -> Self {
+        PreKeyMessage::new(session_keys, message)
+    }
+
+    pub(crate) fn new(session_keys: SessionKeys, message: Message) -> Self {
+        Self {
+            one_time_key: session_keys.one_time_key,
+            base_key: session_keys.base_key,
+            identity_key: session_keys.identity_key,
+            message,
+        }
     }
 }
 

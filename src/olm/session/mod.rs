@@ -15,8 +15,8 @@
 
 mod chain_key;
 mod double_ratchet;
-mod message_key;
-mod ratchet;
+pub mod message_key;
+pub mod ratchet;
 mod receiver_chain;
 mod root_key;
 
@@ -37,6 +37,8 @@ use super::{
     session_keys::SessionKeys,
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
 };
+#[cfg(feature = "low-level-api")]
+use crate::hazmat::olm::MessageKey;
 use crate::{
     olm::messages::{Message, OlmMessage, PreKeyMessage},
     utilities::{base64_encode, pickle, unpickle, DecodeSecret},
@@ -190,8 +192,11 @@ impl Session {
         base64_encode(digest)
     }
 
-    // Have we ever received and decrypted a message from the other side?
-    fn has_received_message(&self) -> bool {
+    /// Have we ever received and decrypted a message from the other side?
+    ///
+    /// Used to decide if outgoing messages should be sent as normal or pre-key
+    /// messages.
+    pub fn has_received_message(&self) -> bool {
         !self.receiving_chains.is_empty()
     }
 
@@ -207,15 +212,29 @@ impl Session {
         if self.has_received_message() {
             OlmMessage::Normal(message)
         } else {
-            let message = PreKeyMessage::new(
-                self.session_keys.one_time_key,
-                self.session_keys.base_key,
-                self.session_keys.identity_key,
-                message,
-            );
+            let message = PreKeyMessage::new(self.session_keys, message);
 
             OlmMessage::PreKey(message)
         }
+    }
+
+    /// Get the keys associated with this session.
+    pub fn session_keys(&self) -> SessionKeys {
+        self.session_keys
+    }
+
+    /// Get the [`MessageKey`] to encrypt the next message.
+    ///
+    /// **Note**: Each key obtained in this way should be used to encrypt
+    /// a message and the message must then be sent to the recipient.
+    ///
+    /// Failing to do so will increase the number of out-of-order messages on
+    /// the recipient side. Given that a `Session` can only support a limited
+    /// number of out-of-order messages, this will eventually lead to
+    /// undecryptable messages.
+    #[cfg(feature = "low-level-api")]
+    pub fn next_message_key(&mut self) -> MessageKey {
+        self.sending_ratchet.next_message_key()
     }
 
     /// Try to decrypt an Olm message, which will either return the plaintext or
@@ -255,7 +274,7 @@ impl Session {
     /// and [`serde::Deserialize`].
     pub fn pickle(&self) -> SessionPickle {
         SessionPickle {
-            session_keys: self.session_keys.clone(),
+            session_keys: self.session_keys,
             sending_ratchet: self.sending_ratchet.clone(),
             receiving_chains: self.receiving_chains.clone(),
         }
@@ -439,7 +458,7 @@ impl Session {
                         DoubleRatchet::from_ratchet_and_chain_key(ratchet, chain_key);
 
                     Ok(Self {
-                        session_keys: pickle.session_keys.clone(),
+                        session_keys: pickle.session_keys,
                         sending_ratchet,
                         receiving_chains,
                     })
@@ -450,7 +469,7 @@ impl Session {
                     );
 
                     Ok(Self {
-                        session_keys: pickle.session_keys.clone(),
+                        session_keys: pickle.session_keys,
                         sending_ratchet,
                         receiving_chains,
                     })

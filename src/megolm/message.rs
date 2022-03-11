@@ -17,11 +17,13 @@ use prost::Message;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    cipher::Mac,
-    types::Ed25519Signature,
+    cipher::{Cipher, Mac},
+    types::{Ed25519Keypair, Ed25519Signature},
     utilities::{base64_decode, base64_encode, VarInt},
     DecodeError,
 };
+#[cfg(feature = "low-level-api")]
+use crate::{Ed25519PublicKey, SignatureError};
 
 const VERSION: u8 = 3;
 
@@ -49,6 +51,16 @@ impl MegolmMessage {
     /// The index of the message that was used when the message was encrypted.
     pub fn message_index(&self) -> u32 {
         self.message_index
+    }
+
+    /// Get the megolm message's mac.
+    pub fn mac(&self) -> [u8; Mac::TRUNCATED_LEN] {
+        self.mac
+    }
+
+    /// Get a reference to the megolm message's signature.
+    pub fn signature(&self) -> &Ed25519Signature {
+        &self.signature
     }
 
     /// Try to decode the given byte slice as a [`MegolmMessage`].
@@ -104,6 +116,21 @@ impl MegolmMessage {
         base64_encode(self.to_bytes())
     }
 
+    /// Set the signature of the message, verifying that the signature matches
+    /// the signing key.
+    #[cfg(feature = "low-level-api")]
+    pub fn add_signature(
+        &mut self,
+        signature: Ed25519Signature,
+        signing_key: Ed25519PublicKey,
+    ) -> Result<(), SignatureError> {
+        signing_key.verify(&self.to_signature_bytes(), &signature)?;
+
+        self.signature = signature;
+
+        Ok(())
+    }
+
     fn encode_message(&self) -> Vec<u8> {
         let message = ProtobufMegolmMessage {
             message_index: self.message_index,
@@ -111,6 +138,37 @@ impl MegolmMessage {
         };
 
         message.encode_manual()
+    }
+
+    /// Create a new [`MegolmMessage`] with the given plaintext and keys.
+    #[cfg(feature = "low-level-api")]
+    pub fn encrypt(
+        message_index: u32,
+        cipher: &Cipher,
+        signing_key: &Ed25519Keypair,
+        plaintext: &[u8],
+    ) -> MegolmMessage {
+        MegolmMessage::encrypt_private(message_index, cipher, signing_key, plaintext)
+    }
+
+    /// Implementation of [`MegolmMessage::encrypt`] that is used by rest of the
+    /// crate.
+    pub(super) fn encrypt_private(
+        message_index: u32,
+        cipher: &Cipher,
+        signing_key: &Ed25519Keypair,
+        plaintext: &[u8],
+    ) -> MegolmMessage {
+        let ciphertext = cipher.encrypt(plaintext);
+        let mut message = MegolmMessage::new(ciphertext, message_index);
+
+        let mac = cipher.mac(&message.to_mac_bytes());
+        message.mac = mac.truncate();
+
+        let signature = signing_key.sign(&message.to_signature_bytes());
+        message.signature = signature;
+
+        message
     }
 
     pub(super) fn new(ciphertext: Vec<u8>, message_index: u32) -> Self {

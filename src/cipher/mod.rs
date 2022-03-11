@@ -31,7 +31,7 @@ type Aes256CbcEnc = cbc::Encryptor<Aes256>;
 type Aes256CbcDec = cbc::Decryptor<Aes256>;
 type HmacSha256 = Hmac<Sha256>;
 
-pub(crate) struct Mac([u8; 32]);
+pub struct Mac([u8; 32]);
 
 impl Mac {
     pub const TRUNCATED_LEN: usize = 8;
@@ -55,7 +55,7 @@ pub enum DecryptionError {
     MacMissing,
 }
 
-pub(super) struct Cipher {
+pub struct Cipher {
     keys: CipherKeys,
 }
 
