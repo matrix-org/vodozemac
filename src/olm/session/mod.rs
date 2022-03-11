@@ -225,7 +225,13 @@ impl Session {
 
     /// Get the [`MessageKey`] to encrypt the next message.
     ///
-    /// **Note**: This *must* be used to encrypt the message.
+    /// **Note**: Each key obtained in this way should be used to encrypt
+    /// a message and the message must then be sent to the recipient.
+    ///
+    /// Failing to do so will increase the number of out-of-order messages on
+    /// the recipient side. Given that a `Session` can only support a limited
+    /// number of out-of-order messages, this will eventually lead to
+    /// undecryptable messages.
     #[cfg(feature = "low-level-api")]
     pub fn next_message_key(&mut self) -> MessageKey {
         self.sending_ratchet.next_message_key()
