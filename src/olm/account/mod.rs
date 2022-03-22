@@ -38,7 +38,7 @@ use crate::{
         Curve25519Keypair, Curve25519KeypairPickle, Curve25519PublicKey, Curve25519SecretKey,
         Ed25519Keypair, Ed25519KeypairPickle, Ed25519PublicKey, KeyId,
     },
-    utilities::{base64_encode, pickle, unpickle, DecodeSecret},
+    utilities::{pickle, unpickle, DecodeSecret},
     DecodeError, PickleError,
 };
 
@@ -298,14 +298,11 @@ impl Account {
     /// The fallback key should be published just like the one-time keys, after
     /// it has been successfully published it needs to be marked as published
     /// using the `mark_keys_as_published()` method as well.
-    pub fn fallback_key(&self) -> HashMap<KeyId, String> {
+    pub fn fallback_key(&self) -> HashMap<KeyId, Curve25519PublicKey> {
         let fallback_key = self.fallback_keys.unpublished_fallback_key();
 
         if let Some(fallback_key) = fallback_key {
-            HashMap::from([(
-                fallback_key.key_id(),
-                base64_encode(fallback_key.public_key().as_bytes()),
-            )])
+            HashMap::from([(fallback_key.key_id(), fallback_key.public_key())])
         } else {
             HashMap::new()
         }
@@ -732,8 +729,8 @@ mod test {
             bob.fallback_key().values().next().cloned().expect("Didn't find a valid fallback key");
         assert!(bob.one_time_keys.private_keys.is_empty());
 
-        let alice_session =
-            alice.create_outbound_session(bob.curve25519_key_encoded(), &one_time_key)?;
+        let alice_session = alice
+            .create_outbound_session(bob.curve25519_key_encoded(), &one_time_key.to_base64())?;
 
         let text = "It's a secret to everybody";
 
@@ -809,7 +806,12 @@ mod test {
             olm.parsed_fallback_key().expect("libolm should have a fallback key");
         assert_eq!(
             olm_fallback_key.curve25519(),
-            unpickled.fallback_key().values().next().expect("We should have a fallback key")
+            unpickled
+                .fallback_key()
+                .values()
+                .next()
+                .expect("We should have a fallback key")
+                .to_base64()
         );
 
         Ok(())
