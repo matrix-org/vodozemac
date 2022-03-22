@@ -39,7 +39,7 @@ use crate::{
         Ed25519Keypair, Ed25519KeypairPickle, Ed25519PublicKey, KeyId,
     },
     utilities::{pickle, unpickle, DecodeSecret},
-    DecodeError, PickleError,
+    DecodeError, Ed25519Signature, PickleError,
 };
 
 const PUBLIC_MAX_ONE_TIME_KEYS: usize = 50;
@@ -131,8 +131,8 @@ impl Account {
     }
 
     /// Sign the given message using our Ed25519 fingerprint key.
-    pub fn sign(&self, message: &str) -> String {
-        self.signing_key.sign(message.as_bytes()).to_base64()
+    pub fn sign(&self, message: &str) -> Ed25519Signature {
+        self.signing_key.sign(message.as_bytes())
     }
 
     /// Get the maximum number of one-time keys the client should keep on the

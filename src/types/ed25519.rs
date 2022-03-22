@@ -249,6 +249,7 @@ impl Ed25519PublicKey {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Ed25519Signature(pub(crate) Signature);
 
 impl Ed25519Signature {
