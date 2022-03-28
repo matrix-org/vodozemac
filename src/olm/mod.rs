@@ -21,7 +21,9 @@ pub(crate) mod session;
 mod session_keys;
 mod shared_secret;
 
-pub use account::{Account, AccountPickle, IdentityKeys, InboundCreationResult};
+pub use account::{
+    Account, AccountPickle, IdentityKeys, InboundCreationResult, SessionCreationError,
+};
 pub use messages::{Message, MessageType, OlmMessage, PreKeyMessage};
 pub use session::{ratchet::RatchetPublicKey, DecryptionError, Session, SessionPickle};
 pub use session_keys::SessionKeys;
