@@ -178,7 +178,7 @@ impl InboundGroupSession {
     /// advancing the internal ratchets.
     #[cfg(feature = "low-level-api")]
     pub fn get_cipher_at(&self, message_index: u32) -> Option<Cipher> {
-        if self.initial_ratchet.index() >= message_index {
+        if self.initial_ratchet.index() <= message_index {
             let mut ratchet = self.initial_ratchet.clone();
             if self.initial_ratchet.index() > message_index {
                 ratchet.advance_to(message_index);
