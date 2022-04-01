@@ -180,7 +180,7 @@ impl InboundGroupSession {
     pub fn get_cipher_at(&self, message_index: u32) -> Option<Cipher> {
         if self.initial_ratchet.index() <= message_index {
             let mut ratchet = self.initial_ratchet.clone();
-            if self.initial_ratchet.index() > message_index {
+            if self.initial_ratchet.index() < message_index {
                 ratchet.advance_to(message_index);
             }
             Some(Cipher::new_megolm(ratchet.as_bytes()))
@@ -437,5 +437,16 @@ mod test {
         assert!(session.get_cipher_at(1).is_none());
         assert!(session.get_cipher_at(2).is_some());
         assert!(session.get_cipher_at(1000).is_some());
+
+        // Now check that we actually *do* advance the ratchet. We do this by
+        // checking that the ratchet changes.
+        assert_ne!(
+            session.get_cipher_at(2).unwrap().encrypt(b""),
+            session.get_cipher_at(3).unwrap().encrypt(b"")
+        );
+        assert_ne!(
+            session.get_cipher_at(3).unwrap().encrypt(b""),
+            session.get_cipher_at(1000).unwrap().encrypt(b"")
+        );
     }
 }
