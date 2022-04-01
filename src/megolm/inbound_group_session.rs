@@ -178,9 +178,9 @@ impl InboundGroupSession {
     /// advancing the internal ratchets.
     #[cfg(feature = "low-level-api")]
     pub fn get_cipher_at(&self, message_index: u32) -> Option<Cipher> {
-        if self.initial_ratchet.index() >= message_index {
+        if self.initial_ratchet.index() <= message_index {
             let mut ratchet = self.initial_ratchet.clone();
-            if self.initial_ratchet.index() > message_index {
+            if self.initial_ratchet.index() < message_index {
                 ratchet.advance_to(message_index);
             }
             Some(Cipher::new_megolm(ratchet.as_bytes()))
@@ -413,5 +413,40 @@ mod test {
         assert!(session.advance_to(20));
         assert_eq!(session.first_known_index(), 20);
         assert_eq!(session.latest_ratchet.index(), 20);
+    }
+
+    /// Test that [`InboundGroupSession::get_cipher_at`] correctly handles the
+    /// correct range of message indices.`
+    #[cfg(feature = "low-level-api")]
+    #[test]
+    fn get_cipher_at() {
+        let mut group_session = GroupSession::new();
+
+        // Advance the ratchet a few times by calling `encrypt`.
+        group_session.encrypt("test1");
+        group_session.encrypt("test2");
+
+        let session = InboundGroupSession::from(&group_session);
+
+        println!("{}", session.first_known_index());
+
+        // The inbound session will only be able to decrypt messages from
+        // indices starting at 2 (as we advanced the ratchet twice before
+        // creating the inbound session)
+        assert!(session.get_cipher_at(0).is_none());
+        assert!(session.get_cipher_at(1).is_none());
+        assert!(session.get_cipher_at(2).is_some());
+        assert!(session.get_cipher_at(1000).is_some());
+
+        // Now check that we actually *do* advance the ratchet. We do this by
+        // checking that the ratchet changes.
+        assert_ne!(
+            session.get_cipher_at(2).unwrap().encrypt(b""),
+            session.get_cipher_at(3).unwrap().encrypt(b"")
+        );
+        assert_ne!(
+            session.get_cipher_at(3).unwrap().encrypt(b""),
+            session.get_cipher_at(1000).unwrap().encrypt(b"")
+        );
     }
 }
