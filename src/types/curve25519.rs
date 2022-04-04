@@ -89,7 +89,7 @@ impl Curve25519Keypair {
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Copy, Clone, Debug, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Hash, Copy, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Curve25519PublicKey {
     pub(crate) inner: PublicKey,
@@ -153,6 +153,12 @@ impl Curve25519PublicKey {
     /// Serialize a Curve25519 public key to an unpadded base64 representation.
     pub fn to_base64(&self) -> String {
         base64_encode(self.inner.as_bytes())
+    }
+}
+
+impl std::fmt::Debug for Curve25519PublicKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Curve25519PublicKey({})", self.to_base64())
     }
 }
 

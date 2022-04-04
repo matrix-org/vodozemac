@@ -195,7 +195,7 @@ impl SecretKeys {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq)]
 #[serde(transparent)]
 pub struct Ed25519PublicKey(PublicKey);
 
@@ -246,6 +246,12 @@ impl Ed25519PublicKey {
         } else {
             Ok(self.0.verify(message, &signature.0)?)
         }
+    }
+}
+
+impl std::fmt::Debug for Ed25519PublicKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Ed25519PublicKey({})", self.to_base64())
     }
 }
 
