@@ -30,9 +30,7 @@ use crate::{
 /// [`Session`]: crate::olm::Session
 #[derive(Clone, Debug, PartialEq)]
 pub struct PreKeyMessage {
-    pub(crate) one_time_key: Curve25519PublicKey,
-    pub(crate) base_key: Curve25519PublicKey,
-    pub(crate) identity_key: Curve25519PublicKey,
+    pub(crate) session_keys: SessionKeys,
     pub(crate) message: Message,
 }
 
@@ -44,7 +42,7 @@ impl PreKeyMessage {
     ///
     /// [`Session`]: crate::olm::Session
     pub fn one_time_key(&self) -> Curve25519PublicKey {
-        self.one_time_key
+        self.session_keys.one_time_key
     }
 
     /// The base key, a single use key that was created just in time by the
@@ -52,7 +50,7 @@ impl PreKeyMessage {
     ///
     /// [`Session`]: crate::olm::Session
     pub fn base_key(&self) -> Curve25519PublicKey {
-        self.base_key
+        self.session_keys.base_key
     }
 
     /// The long term identity key of the sender of the message. Should be used
@@ -60,7 +58,13 @@ impl PreKeyMessage {
     ///
     /// [`Session`]: crate::olm::Session
     pub fn identity_key(&self) -> Curve25519PublicKey {
-        self.identity_key
+        self.session_keys.identity_key
+    }
+
+    /// The keys that can be used to establish an Olm [`Session`] from this
+    /// pre-key message.
+    pub fn session_keys(&self) -> SessionKeys {
+        self.session_keys
     }
 
     /// The actual message that contains the ciphertext.
@@ -101,9 +105,9 @@ impl PreKeyMessage {
     /// [`Message`].
     pub fn to_bytes(&self) -> Vec<u8> {
         let message = ProtoBufPreKeyMessage {
-            one_time_key: self.one_time_key.as_bytes().to_vec(),
-            base_key: self.base_key.as_bytes().to_vec(),
-            identity_key: self.identity_key.as_bytes().to_vec(),
+            one_time_key: self.session_keys.one_time_key.as_bytes().to_vec(),
+            base_key: self.session_keys.base_key.as_bytes().to_vec(),
+            identity_key: self.session_keys.identity_key.as_bytes().to_vec(),
             message: self.message.to_bytes(),
         };
 
@@ -140,12 +144,7 @@ impl PreKeyMessage {
     }
 
     pub(crate) fn new(session_keys: SessionKeys, message: Message) -> Self {
-        Self {
-            one_time_key: session_keys.one_time_key,
-            base_key: session_keys.base_key,
-            identity_key: session_keys.identity_key,
-            message,
-        }
+        Self { session_keys, message }
     }
 }
 
@@ -200,7 +199,9 @@ impl TryFrom<&[u8]> for PreKeyMessage {
 
             let message = decoded.message.try_into()?;
 
-            Ok(Self { one_time_key, base_key, identity_key, message })
+            let session_keys = SessionKeys { one_time_key, identity_key, base_key };
+
+            Ok(Self { session_keys, message })
         }
     }
 }

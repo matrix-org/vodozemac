@@ -207,28 +207,28 @@ impl Account {
         their_identity_key: &Curve25519PublicKey,
         pre_key_message: &PreKeyMessage,
     ) -> Result<InboundCreationResult, SessionCreationError> {
-        if their_identity_key != &pre_key_message.identity_key {
+        if their_identity_key != &pre_key_message.identity_key() {
             Err(SessionCreationError::MismatchedIdentityKey)
         } else {
             // Find the matching private key that the message claims to have
             // used to create the Session that encrypted it.
             let one_time_key = self
-                .find_one_time_key(&pre_key_message.one_time_key)
+                .find_one_time_key(&pre_key_message.one_time_key())
                 .ok_or(SessionCreationError::MissingOneTimeKey)?;
 
             // Construct a 3DH shared secret from the various curve25519 keys.
             let shared_secret = RemoteShared3DHSecret::new(
                 self.diffie_hellman_key.secret_key(),
                 one_time_key,
-                &pre_key_message.identity_key,
-                &pre_key_message.base_key,
+                &pre_key_message.identity_key(),
+                &pre_key_message.base_key(),
             );
 
             // These will be used to uniquely identify the Session.
             let session_keys = SessionKeys {
-                identity_key: pre_key_message.identity_key,
-                base_key: pre_key_message.base_key,
-                one_time_key: pre_key_message.one_time_key,
+                identity_key: pre_key_message.identity_key(),
+                base_key: pre_key_message.base_key(),
+                one_time_key: pre_key_message.one_time_key(),
             };
 
             // Create a Session, AKA a double ratchet, this one will have an
@@ -250,7 +250,7 @@ impl Account {
             // try to use such an one-time key won't be able to commnuicate with
             // us. This is strictly worse than the one-time key exhaustion
             // scenario.
-            self.remove_one_time_key(&pre_key_message.one_time_key);
+            self.remove_one_time_key(&pre_key_message.one_time_key());
 
             Ok(InboundCreationResult { session, plaintext })
         }
@@ -646,12 +646,15 @@ mod test {
         bob.mark_keys_as_published();
 
         let message = "It's a secret to everybody";
-        let olm_message: OlmMessage = alice_session.encrypt(message);
+        let olm_message = alice_session.encrypt(message);
 
         if let OlmMessage::PreKey(m) = olm_message {
+            assert_eq!(m.session_keys(), alice_session.session_keys());
+
             let InboundCreationResult { session: mut bob_session, plaintext } =
                 bob.create_inbound_session(alice.curve25519_key(), &m)?;
             assert_eq!(alice_session.session_id(), bob_session.session_id());
+            assert_eq!(m.session_keys(), bob_session.session_keys());
 
             assert_eq!(message, plaintext);
 
@@ -737,16 +740,18 @@ mod test {
         let message = alice_session.encrypt(text).into();
         let identity_key = PublicKey::from_base64(alice.parsed_identity_keys().curve25519())?;
 
-        let InboundCreationResult { session, plaintext } = if let OlmMessage::PreKey(m) = &message {
-            bob.create_inbound_session(&identity_key, m)?
+        if let OlmMessage::PreKey(m) = &message {
+            let InboundCreationResult { session, plaintext } =
+                bob.create_inbound_session(&identity_key, m)?;
+
+            assert_eq!(m.session_keys(), session.session_keys());
+            assert_eq!(alice_session.session_id(), session.session_id());
+            assert!(bob.fallback_keys.fallback_key.is_some());
+
+            assert_eq!(text, plaintext);
         } else {
             bail!("Got invalid message type from olm_rs");
         };
-
-        assert_eq!(alice_session.session_id(), session.session_id());
-        assert!(bob.fallback_keys.fallback_key.is_some());
-
-        assert_eq!(text, plaintext);
 
         Ok(())
     }

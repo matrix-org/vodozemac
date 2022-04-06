@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use crate::Curve25519PublicKey;
 
 /// The set of keys that were used to establish the Olm Session,
-#[derive(Serialize, Deserialize, Clone, Copy)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
 pub struct SessionKeys {
     pub identity_key: Curve25519PublicKey,
     pub base_key: Curve25519PublicKey,
