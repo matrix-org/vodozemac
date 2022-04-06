@@ -61,8 +61,13 @@ impl PreKeyMessage {
         self.session_keys.identity_key
     }
 
-    /// The keys that can be used to establish an Olm [`Session`] from this
-    /// pre-key message.
+    /// The collection of all keys required for establishing an Olm [`Session`]
+    /// from this pre-key message.
+    ///
+    /// Other methods on this struct (like [`identity_key`]) can be used to
+    /// retrieve individual keys from this collection.
+    ///
+    /// [`Session`]: crate::olm::Session
     pub fn session_keys(&self) -> SessionKeys {
         self.session_keys
     }
