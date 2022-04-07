@@ -37,6 +37,8 @@ pub mod megolm;
 pub mod olm;
 pub mod sas;
 
+pub use base64::DecodeError as Base64DecodeError;
+pub use prost::DecodeError as ProtoBufDecodeError;
 pub use types::{
     Curve25519PublicKey, Ed25519Keypair, Ed25519PublicKey, Ed25519SecretKey, Ed25519Signature,
     KeyError, KeyId, SignatureError,
@@ -60,7 +62,7 @@ pub enum LibolmPickleError {
     #[error("The pickle uses an unsupported version, expected {0}, got {1}")]
     Version(u32, u32),
     #[error("The pickle wasn't valid base64: {0}")]
-    Base64(#[from] base64::DecodeError),
+    Base64(#[from] Base64DecodeError),
     #[error("The pickle couldn't be decrypted: {0}")]
     Decryption(#[from] crate::cipher::DecryptionError),
     #[error("The pickle contained an invalid ed25519 public key {0}")]
@@ -88,7 +90,7 @@ pub enum DecodeError {
     #[error("The message contained an invalid Signature: {0}")]
     Signature(#[from] SignatureError),
     #[error(transparent)]
-    ProtoBufError(#[from] prost::DecodeError),
+    ProtoBufError(#[from] ProtoBufDecodeError),
     #[error("The message wasn't valid base64: {0}")]
-    Base64(#[from] base64::DecodeError),
+    Base64(#[from] Base64DecodeError),
 }
