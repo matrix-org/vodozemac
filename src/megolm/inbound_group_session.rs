@@ -179,11 +179,11 @@ impl InboundGroupSession {
     pub fn export_at(&mut self, index: u32) -> Option<ExportedSessionKey> {
         let signing_key = self.signing_key;
 
-        if let Some(ratchet) = self.find_ratchet(index) {
-            Some(ExportedSessionKey::new(ratchet, signing_key))
-        } else {
-            None
-        }
+        self.find_ratchet(index).map(|ratchet| ExportedSessionKey::new(ratchet, signing_key))
+    }
+
+    pub fn export_at_first_known_index(&self) -> ExportedSessionKey {
+        ExportedSessionKey::new(&self.initial_ratchet, self.signing_key)
     }
 
     /// Convert the inbound group session into a struct which implements
