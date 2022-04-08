@@ -13,13 +13,12 @@
 // limitations under the License.
 
 use serde::{Deserialize, Serialize};
-use zeroize::Zeroize;
 
-use super::{message::MegolmMessage, ratchet::Ratchet, SessionKey, SESSION_KEY_VERSION};
+use super::{message::MegolmMessage, ratchet::Ratchet, session_keys::SessionKey};
 use crate::{
     cipher::Cipher,
     types::Ed25519Keypair,
-    utilities::{base64_encode, pickle, unpickle},
+    utilities::{pickle, unpickle},
     PickleError,
 };
 
@@ -103,23 +102,11 @@ impl GroupSession {
     /// can reconstruct an inbound group session in order to decrypt messages
     /// sent by this group session.
     pub fn session_key(&self) -> SessionKey {
-        let index = self.ratchet.index().to_be_bytes();
+        let mut session_key = SessionKey::new(&self.ratchet, self.signing_key.public_key());
+        let signature = self.signing_key.sign(&session_key.to_signature_bytes());
+        session_key.signature = signature;
 
-        let mut export: Vec<u8> = [
-            [SESSION_KEY_VERSION].as_ref(),
-            index.as_ref(),
-            self.ratchet.as_bytes(),
-            self.signing_key.public_key().as_bytes(),
-        ]
-        .concat();
-
-        let signature = self.signing_key.sign(&export);
-        export.extend(signature.to_bytes());
-
-        let result = base64_encode(&export);
-        export.zeroize();
-
-        SessionKey(result)
+        session_key
     }
 
     /// Convert the group session into a struct which implements

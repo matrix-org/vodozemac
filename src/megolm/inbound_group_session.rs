@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::{Cursor, Read};
+use std::io::Read;
 
 use aes::cipher::block_padding::UnpadError;
 use hmac::digest::MacError;
@@ -21,30 +21,17 @@ use thiserror::Error;
 use zeroize::Zeroize;
 
 use super::{
-    message::MegolmMessage, ratchet::Ratchet, GroupSession, SessionKey, SESSION_KEY_VERSION,
+    message::MegolmMessage,
+    ratchet::Ratchet,
+    session_keys::{ExportedSessionKey, SessionKey},
+    GroupSession,
 };
 use crate::{
     cipher::Cipher,
-    types::{Ed25519PublicKey, Ed25519Signature, SignatureError},
-    utilities::{base64_decode, base64_encode, pickle, unpickle, DecodeSecret},
+    types::{Ed25519PublicKey, SignatureError},
+    utilities::{base64_encode, pickle, unpickle, DecodeSecret},
     DecodeError, PickleError,
 };
-
-const SESSION_KEY_EXPORT_VERSION: u8 = 1;
-
-#[derive(Debug, Error)]
-pub enum SessionCreationError {
-    #[error("The session had a invalid version, expected {0}, got {1}")]
-    Version(u8, u8),
-    #[error("The session key was too short {0}")]
-    Read(#[from] std::io::Error),
-    #[error("The session key wasn't valid base64: {0}")]
-    Base64(#[from] base64::DecodeError),
-    #[error("The signature on the session key was invalid: {0}")]
-    Signature(#[from] SignatureError),
-    #[error("The public key of session was invalid: {0}")]
-    PublicKey(#[from] crate::KeyError),
-}
 
 #[derive(Debug, Error)]
 pub enum DecryptionError {
@@ -79,69 +66,30 @@ pub struct DecryptedMessage {
     pub message_index: u32,
 }
 
-#[derive(Zeroize, Serialize, Deserialize)]
-#[serde(transparent)]
-#[zeroize(drop)]
-pub struct ExportedSessionKey(pub String);
-
-impl ExportedSessionKey {
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
 impl InboundGroupSession {
-    pub fn new(session_key: &SessionKey) -> Result<Self, SessionCreationError> {
-        Self::new_helper(&session_key.0, false)
+    pub fn new(key: &SessionKey) -> Self {
+        let initial_ratchet =
+            Ratchet::from_bytes(key.session_key.ratchet.clone(), key.session_key.ratchet_index);
+        let latest_ratchet = initial_ratchet.clone();
+
+        Self {
+            initial_ratchet,
+            latest_ratchet,
+            signing_key: key.session_key.signing_key,
+            signing_key_verified: true,
+        }
     }
 
-    pub fn import(exported_session_key: &ExportedSessionKey) -> Result<Self, SessionCreationError> {
-        Self::new_helper(&exported_session_key.0, true)
-    }
+    pub fn import(session_key: &ExportedSessionKey) -> Self {
+        let initial_ratchet =
+            Ratchet::from_bytes(session_key.ratchet.clone(), session_key.ratchet_index);
+        let latest_ratchet = initial_ratchet.clone();
 
-    fn new_helper(session_key: &str, is_export: bool) -> Result<Self, SessionCreationError> {
-        let decoded = base64_decode(session_key)?;
-        let mut cursor = Cursor::new(decoded);
-
-        let mut version = [0u8; 1];
-        let mut index = [0u8; 4];
-        let mut ratchet = Box::new([0u8; 128]);
-        let mut public_key = [0u8; Ed25519PublicKey::LENGTH];
-
-        cursor.read_exact(&mut version)?;
-
-        let expected_version =
-            if is_export { SESSION_KEY_EXPORT_VERSION } else { SESSION_KEY_VERSION };
-
-        if version[0] != expected_version {
-            Err(SessionCreationError::Version(SESSION_KEY_VERSION, version[0]))
-        } else {
-            cursor.read_exact(&mut index)?;
-            cursor.read_exact(ratchet.as_mut_slice())?;
-            cursor.read_exact(&mut public_key)?;
-
-            let signing_key = Ed25519PublicKey::from_slice(&public_key)?;
-
-            let signing_key_verified = if !is_export {
-                let mut signature = [0u8; Ed25519Signature::LENGTH];
-
-                cursor.read_exact(&mut signature)?;
-                let signature = Ed25519Signature::from_slice(&signature)?;
-
-                let decoded = cursor.into_inner();
-
-                signing_key.verify(&decoded[..decoded.len() - 64], &signature)?;
-
-                true
-            } else {
-                false
-            };
-
-            let index = u32::from_be_bytes(index);
-            let initial_ratchet = Ratchet::from_bytes(ratchet, index);
-            let latest_ratchet = initial_ratchet.clone();
-
-            Ok(Self { initial_ratchet, latest_ratchet, signing_key, signing_key_verified })
+        Self {
+            initial_ratchet,
+            latest_ratchet,
+            signing_key: session_key.signing_key,
+            signing_key_verified: false,
         }
     }
 
@@ -232,20 +180,7 @@ impl InboundGroupSession {
         let signing_key = self.signing_key;
 
         if let Some(ratchet) = self.find_ratchet(index) {
-            let index = ratchet.index().to_be_bytes();
-
-            let mut export: Vec<u8> = [
-                [SESSION_KEY_EXPORT_VERSION].as_ref(),
-                index.as_ref(),
-                ratchet.as_bytes(),
-                signing_key.as_bytes(),
-            ]
-            .concat();
-
-            let result = base64_encode(&export);
-            export.zeroize();
-
-            Some(ExportedSessionKey(result))
+            Some(ExportedSessionKey::new(ratchet, signing_key))
         } else {
             None
         }
@@ -388,7 +323,7 @@ impl From<InboundGroupSessionPickle> for InboundGroupSession {
 
 impl From<&GroupSession> for InboundGroupSession {
     fn from(session: &GroupSession) -> Self {
-        Self::new(&session.session_key()).expect("Can't import the session key export")
+        Self::new(&session.session_key())
     }
 }
 
