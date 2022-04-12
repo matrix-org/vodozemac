@@ -62,31 +62,6 @@ impl Drop for ExportedSessionKey {
     }
 }
 
-fn decode_key(
-    expected_version: u8,
-    cursor: &mut Cursor<&[u8]>,
-) -> Result<(u32, Box<[u8; Ratchet::RATCHET_LENGTH]>, Ed25519PublicKey), SessionKeyDecodeError> {
-    let mut version = [0u8; 1];
-    let mut index = [0u8; 4];
-    let mut ratchet = Box::new([0u8; 128]);
-    let mut public_key = [0u8; Ed25519PublicKey::LENGTH];
-
-    cursor.read_exact(&mut version)?;
-
-    if version[0] != expected_version {
-        Err(SessionKeyDecodeError::Version(expected_version, version[0]))
-    } else {
-        cursor.read_exact(&mut index)?;
-        cursor.read_exact(ratchet.as_mut_slice())?;
-        cursor.read_exact(&mut public_key)?;
-
-        let signing_key = Ed25519PublicKey::from_slice(&public_key)?;
-        let ratchet_index = u32::from_be_bytes(index);
-
-        Ok((ratchet_index, ratchet, signing_key))
-    }
-}
-
 impl ExportedSessionKey {
     const VERSION: u8 = 1;
 
@@ -112,10 +87,7 @@ impl ExportedSessionKey {
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, SessionKeyDecodeError> {
         let mut cursor = Cursor::new(bytes);
-
-        let (ratchet_index, ratchet, signing_key) = decode_key(Self::VERSION, &mut cursor)?;
-
-        Ok(Self { ratchet_index, ratchet, signing_key })
+        Self::decode_key(Self::VERSION, &mut cursor)
     }
 
     pub fn to_base64(&self) -> String {
@@ -135,6 +107,31 @@ impl ExportedSessionKey {
         bytes.zeroize();
 
         ret
+    }
+
+    fn decode_key(
+        expected_version: u8,
+        cursor: &mut Cursor<&[u8]>,
+    ) -> Result<ExportedSessionKey, SessionKeyDecodeError> {
+        let mut version = [0u8; 1];
+        let mut index = [0u8; 4];
+        let mut ratchet = Box::new([0u8; 128]);
+        let mut public_key = [0u8; Ed25519PublicKey::LENGTH];
+
+        cursor.read_exact(&mut version)?;
+
+        if version[0] != expected_version {
+            Err(SessionKeyDecodeError::Version(expected_version, version[0]))
+        } else {
+            cursor.read_exact(&mut index)?;
+            cursor.read_exact(ratchet.as_mut_slice())?;
+            cursor.read_exact(&mut public_key)?;
+
+            let signing_key = Ed25519PublicKey::from_slice(&public_key)?;
+            let ratchet_index = u32::from_be_bytes(index);
+
+            Ok(ExportedSessionKey { ratchet_index, ratchet, signing_key })
+        }
     }
 }
 
@@ -164,7 +161,7 @@ impl SessionKey {
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, SessionKeyDecodeError> {
         let mut cursor = Cursor::new(bytes);
-        let (ratchet_index, ratchet, signing_key) = decode_key(Self::VERSION, &mut cursor)?;
+        let session_key = ExportedSessionKey::decode_key(Self::VERSION, &mut cursor)?;
 
         let mut signature = [0u8; Ed25519Signature::LENGTH];
 
@@ -173,16 +170,15 @@ impl SessionKey {
 
         let decoded = cursor.into_inner();
 
-        signing_key.verify(&decoded[..decoded.len() - Ed25519Signature::LENGTH], &signature)?;
-
-        let session_key = ExportedSessionKey { ratchet_index, ratchet, signing_key };
+        session_key
+            .signing_key
+            .verify(&decoded[..decoded.len() - Ed25519Signature::LENGTH], &signature)?;
 
         Ok(Self { session_key, signature })
     }
 
     pub fn to_base64(&self) -> String {
         let mut bytes = self.to_bytes();
-
         let ret = base64_encode(&bytes);
 
         bytes.zeroize();
