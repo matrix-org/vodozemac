@@ -25,7 +25,7 @@ pub use inbound_group_session::{
     DecryptedMessage, DecryptionError, InboundGroupSession, InboundGroupSessionPickle,
 };
 pub use message::MegolmMessage;
-pub use session_keys::{ExportedSessionKey, SessionKey};
+pub use session_keys::{ExportedSessionKey, SessionKey, SessionKeyDecodeError};
 
 #[cfg(test)]
 mod test {
