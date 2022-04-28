@@ -39,21 +39,27 @@ use crate::{
         Ed25519Keypair, Ed25519KeypairPickle, Ed25519PublicKey, KeyId,
     },
     utilities::{pickle, unpickle, DecodeSecret},
-    DecodeError, Ed25519Signature, PickleError,
+    Ed25519Signature, PickleError,
 };
 
 const PUBLIC_MAX_ONE_TIME_KEYS: usize = 50;
 
+/// Error describing failure modes when creating a Olm Session from an incoming
+/// Olm message.
 #[derive(Error, Debug)]
 pub enum SessionCreationError {
-    #[error("The pre-key message wasn't valid base64: {0}")]
-    Base64(#[from] base64::DecodeError),
-    #[error("The pre-key message couldn't be decoded: {0}")]
-    DecodeError(#[from] DecodeError),
+    /// The pre-key message contained an unknown one-time key. This happens
+    /// either because we never had such a one-time key, or because it has
+    /// already been used up.
     #[error("The pre-key message contained an unknown one-time key")]
     MissingOneTimeKey,
+    /// The pre-key message contains a curve25519 identity key that doesn't
+    /// match to the identity key that was given.
     #[error("The given identity key doesn't match the one in the pre-key message")]
     MismatchedIdentityKey,
+    /// The pre-key message that was used to establish the Session couldn't be
+    /// decrypted. The message needs to be decryptable, otherwise we will have
+    /// created a Session that wasn't used to encrypt the pre-key message.
     #[error("The message that was used to establish the Session couldn't be decrypted")]
     Decryption(#[from] DecryptionError),
 }
