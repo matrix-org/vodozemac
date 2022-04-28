@@ -44,53 +44,78 @@ pub use types::{
     KeyError, KeyId, SignatureError,
 };
 
+/// Error type describing the various ways Vodozemac pickles can fail to be
+/// decoded.
 #[derive(Debug, thiserror::Error)]
 pub enum PickleError {
+    /// The pickle wasn't valid base64.
     #[error("The pickle wasn't valid base64: {0}")]
     Base64(#[from] base64::DecodeError),
+    /// The encrypted pickle could not have been decrypted.
     #[error("The pickle couldn't be decrypted: {0}")]
     Decryption(#[from] crate::cipher::DecryptionError),
+    /// The serialized Vodozemac object couldn't be deserialzied.
     #[error("The pickle couldn't be deserialized: {0}")]
     Serialization(#[from] serde_json::Error),
 }
 
+/// Error type describing the various ways libolm pickles can fail to be
+/// decoded.
 #[cfg(feature = "libolm-compat")]
 #[derive(Debug, thiserror::Error)]
 pub enum LibolmPickleError {
+    /// The pickle is missing a valid version.
     #[error("The pickle doesn't contain a version")]
     MissingVersion,
+    /// The pickle has a unsupported version.
     #[error("The pickle uses an unsupported version, expected {0}, got {1}")]
     Version(u32, u32),
+    /// The pickle wasn't valid base64.
     #[error("The pickle wasn't valid base64: {0}")]
     Base64(#[from] Base64DecodeError),
+    /// The pickle could not have been decrypted.
     #[error("The pickle couldn't be decrypted: {0}")]
     Decryption(#[from] crate::cipher::DecryptionError),
+    /// The pickle contains an invalid public key.
     #[error("The pickle contained an invalid ed25519 public key {0}")]
     PublicKey(#[from] KeyError),
+    /// The pickle does not contain a valid receiving or sending chain. A valid
+    /// Olm session needs to have at least one of them.
     #[error("The pickle didn't contain a valid Olm session")]
     InvalidSession,
+    /// The payload of the pickle could not be decoded.
     #[error(transparent)]
     Decode(#[from] crate::utilities::LibolmDecodeError),
 }
 
+/// Error type describing the different ways message decoding can fail.
 #[derive(Debug, thiserror::Error)]
 pub enum DecodeError {
+    /// The Olm message has an invalid type.
     #[error("The message has an invalid type, expected 0 or 1, got {0}")]
     MessageType(usize),
+    /// The message is missing a valid version.
     #[error("The message didn't contain a version")]
     MissingVersion,
+    /// The message doesn't have enough data to be correctly decoded.
     #[error("The message was too short, it didn't contain a valid payload")]
     MessageTooShort(usize),
+    /// The message has a unsupported version.
     #[error("The message didn't have a valid version, expected {0}, got {1}")]
     InvalidVersion(u8, u8),
+    /// An embedded public key couldn't be decoded.
     #[error("The message contained an invalid public key: {0}")]
     InvalidKey(#[from] KeyError),
+    /// The embedded message authentication code couldn't be decoded.
     #[error("The message contained a MAC with an invalid size, expected {0}, got {1}")]
     InvalidMacLength(usize, usize),
+    /// An embedded signature couldn't be decoded.
     #[error("The message contained an invalid Signature: {0}")]
     Signature(#[from] SignatureError),
+    /// The message couldn't be decoded as a valid protocol buffer message.
     #[error(transparent)]
     ProtoBufError(#[from] ProtoBufDecodeError),
+    /// The message wasn't valid base64.
     #[error("The message wasn't valid base64: {0}")]
     Base64(#[from] Base64DecodeError),
 }
