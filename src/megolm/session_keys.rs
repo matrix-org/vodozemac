@@ -45,12 +45,35 @@ pub enum SessionKeyDecodeError {
     PublicKey(#[from] crate::KeyError),
 }
 
+/// The exported session key.
+///
+/// This uses the same format as the `SessionKey` minus the signature at the
+/// end.
 pub struct ExportedSessionKey {
     pub(crate) ratchet_index: u32,
     pub(crate) ratchet: Box<[u8; 128]>,
     pub(crate) signing_key: Ed25519PublicKey,
 }
 
+/// The session key, can be used to create a [`InboundGroupSession`].
+///
+/// Uses the session-sharing format described in the [Olm spec].
+///
+/// +---+----+--------+--------+--------+--------+------+-----------+
+/// | V | i  | R(i,0) | R(i,1) | R(i,2) | R(i,3) | Kpub | Signature |
+/// +---+----+--------+--------+--------+--------+------+-----------+
+/// 0   1    5        37       69      101      133    165         229   bytes
+///
+/// The version byte, V, is "\x02".
+/// This is followed by the ratchet index, iii, which is encoded as a
+/// big-endian 32-bit integer; the 128 bytes of the ratchet; and the public
+/// part of the Ed25519 keypair.
+///
+/// The data is then signed using the Ed25519 key, and the 64-byte signature is
+/// appended.
+///
+/// [`InboundGroupSession`]: #crate.megolm.InboundGroupSession
+/// [Olm spec]: https://gitlab.matrix.org/matrix-org/olm/blob/master/docs/megolm.md#session-sharing-format
 pub struct SessionKey {
     pub(super) session_key: ExportedSessionKey,
     pub(super) signature: Ed25519Signature,
@@ -81,10 +104,6 @@ impl ExportedSessionKey {
         Self { ratchet_index, ratchet: ratchet_bytes, signing_key }
     }
 
-    pub fn to_bytes(&self) -> Vec<u8> {
-        self.to_bytes_with_version(Self::VERSION)
-    }
-
     fn to_bytes_with_version(&self, version: u8) -> Vec<u8> {
         let index = self.ratchet_index.to_be_bytes();
 
@@ -92,11 +111,22 @@ impl ExportedSessionKey {
             .concat()
     }
 
+    /// Serialize the `ExportedSessionKey` to a byte vector.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.to_bytes_with_version(Self::VERSION)
+    }
+
+    /// Deserialize the `ExportedSessionKey` from a byte slice.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, SessionKeyDecodeError> {
         let mut cursor = Cursor::new(bytes);
         Self::decode_key(Self::VERSION, &mut cursor)
     }
 
+    /// Serialize the `ExportedSessionKey` to a base64 encoded string.
+    ///
+    /// This method will first use the [`ExportedSessionKey::to_bytes()`] to
+    /// convert the session key to a byte vector and then encode the byte vector
+    /// to a string using unpadded base64 as the encoding.
     pub fn to_base64(&self) -> String {
         let mut bytes = self.to_bytes();
 
@@ -107,6 +137,7 @@ impl ExportedSessionKey {
         ret
     }
 
+    /// Deserialize the `ExportedSessionKey` from base64 encoded string.
     pub fn from_base64(key: &str) -> Result<Self, SessionKeyDecodeError> {
         let mut bytes = base64_decode(key)?;
         let ret = Self::from_bytes(&bytes);
@@ -155,10 +186,11 @@ impl SessionKey {
         }
     }
 
-    pub fn to_signature_bytes(&self) -> Vec<u8> {
+    pub(crate) fn to_signature_bytes(&self) -> Vec<u8> {
         self.session_key.to_bytes_with_version(Self::VERSION)
     }
 
+    /// Serialize the `SessionKey` to a byte vector.
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = self.to_signature_bytes();
         bytes.extend(self.signature.to_bytes());
@@ -166,6 +198,7 @@ impl SessionKey {
         bytes
     }
 
+    /// Deserialize the `SessionKey` from a byte slice.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, SessionKeyDecodeError> {
         let mut cursor = Cursor::new(bytes);
         let session_key = ExportedSessionKey::decode_key(Self::VERSION, &mut cursor)?;
@@ -184,6 +217,11 @@ impl SessionKey {
         Ok(Self { session_key, signature })
     }
 
+    /// Serialize the `SessionKey` to a base64 encoded string.
+    ///
+    /// This method will first use the [`SessionKey::to_bytes()`] to
+    /// convert the session key to a byte vector and then encode the byte vector
+    /// to a string using unpadded base64 as the encoding.
     pub fn to_base64(&self) -> String {
         let mut bytes = self.to_bytes();
         let ret = base64_encode(&bytes);
@@ -193,6 +231,7 @@ impl SessionKey {
         ret
     }
 
+    /// Deserialize the `SessionKey` from base64 encoded string.
     pub fn from_base64(key: &str) -> Result<Self, SessionKeyDecodeError> {
         let mut bytes = base64_decode(key)?;
         let ret = Self::from_bytes(&bytes);
