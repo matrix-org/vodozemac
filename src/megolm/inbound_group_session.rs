@@ -30,24 +30,29 @@ use crate::{
     cipher::Cipher,
     types::{Ed25519PublicKey, SignatureError},
     utilities::{base64_encode, pickle, unpickle, DecodeSecret},
-    DecodeError, PickleError,
+    PickleError,
 };
 
+/// Error type for Megolm-based decryption failuers.
 #[derive(Debug, Error)]
 pub enum DecryptionError {
-    #[error("The signature on the session key was invalid: {0}")]
+    /// The signature on the message was invalid.
+    #[error("The signature on the message was invalid: {0}")]
     Signature(#[from] SignatureError),
+    /// The message authentication code of the message was invalid.
     #[error("Failed decrypting Megolm message, invalid MAC: {0}")]
     InvalidMAC(#[from] MacError),
+    /// The ciphertext of the message isn't padded correctly.
     #[error("Failed decrypting Megolm message, invalid padding")]
     InvalidPadding(#[from] UnpadError),
+    /// The session is missing the correct message key to decrypt the message,
+    /// The Session has been ratcheted forwards and the message key isn't
+    /// available anymore.
     #[error(
         "The message was encrypted using an unknown message index, \
         first known index {0}, index of the message {1}"
     )]
     UnknownMessageIndex(u32, u32),
-    #[error("The message couldn't be decoded: {0}")]
-    DecodeError(#[from] DecodeError),
 }
 
 #[derive(Deserialize)]

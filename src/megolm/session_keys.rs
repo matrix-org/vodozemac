@@ -24,16 +24,23 @@ use crate::{
     Ed25519PublicKey, Ed25519Signature, SignatureError,
 };
 
+/// Error type describing failure modes for the `SessionKey` and
+/// `ExportedSessionKey` decoding.
 #[derive(Debug, Error)]
 pub enum SessionKeyDecodeError {
-    #[error("The session had a invalid version, expected {0}, got {1}")]
+    /// The encoded session key had a unsupported version.
+    #[error("The session key had a invalid version, expected {0}, got {1}")]
     Version(u8, u8),
+    /// The encoded session key didn't contain enough data to be decoded.
     #[error("The session key was too short {0}")]
     Read(#[from] std::io::Error),
+    /// The encoded session key wasn't valid base64.
     #[error("The session key wasn't valid base64: {0}")]
     Base64(#[from] base64::DecodeError),
+    /// The signature on the session key was invalid.
     #[error("The signature on the session key was invalid: {0}")]
     Signature(#[from] SignatureError),
+    /// The encoded session key contains an invalid public key.
     #[error("The public key of session was invalid: {0}")]
     PublicKey(#[from] crate::KeyError),
 }
