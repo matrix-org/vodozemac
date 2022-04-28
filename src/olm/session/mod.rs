@@ -42,10 +42,29 @@ use crate::hazmat::olm::MessageKey;
 use crate::{
     olm::messages::{Message, OlmMessage, PreKeyMessage},
     utilities::{base64_encode, pickle, unpickle, DecodeSecret},
-    Curve25519PublicKey, DecodeError, PickleError,
+    Curve25519PublicKey, PickleError,
 };
 
 const MAX_RECEIVING_CHAINS: usize = 5;
+
+/// Error type for Olm-based decryption failuers.
+#[derive(Error, Debug)]
+pub enum DecryptionError {
+    /// The message authentication code of the message was invalid.
+    #[error("Failed decrypting Olm message, invalid MAC: {0}")]
+    InvalidMAC(#[from] MacError),
+    /// The ciphertext of the message isn't padded correctly.
+    #[error("Failed decrypting Olm message, invalid padding")]
+    InvalidPadding(#[from] UnpadError),
+    /// The session is missing the correct message key to decrypt the message,
+    /// either because it was already used up, or because the Session has been
+    /// ratcheted forwards and the message key has been discarded.
+    #[error("The message key with the given key can't be created, message index: {0}")]
+    MissingMessageKey(u64),
+    /// Too many messages have been skipped to attempt decrypting this message.
+    #[error("The message gap was too big, got {0}, max allowed {}")]
+    TooBigMessageGap(u64, u64),
+}
 
 #[derive(Serialize, Deserialize, Clone)]
 struct ChainStore {
@@ -82,22 +101,6 @@ impl ChainStore {
     fn find_ratchet(&mut self, ratchet_key: &RemoteRatchetKey) -> Option<&mut ReceiverChain> {
         self.inner.iter_mut().find(|r| r.belongs_to(ratchet_key))
     }
-}
-
-#[derive(Error, Debug)]
-pub enum DecryptionError {
-    #[error("The message wasn't valid base64: {0}")]
-    Base64(#[from] base64::DecodeError),
-    #[error("Failed decrypting Olm message, invalid MAC: {0}")]
-    InvalidMAC(#[from] MacError),
-    #[error("Failed decrypting Olm message, invalid padding")]
-    InvalidPadding(#[from] UnpadError),
-    #[error("The message key with the given key can't be created, message index: {0}")]
-    MissingMessageKey(u64),
-    #[error("The message gap was too big, got {0}, max allowed {}")]
-    TooBigMessageGap(u64, u64),
-    #[error("The message couldn't be decoded: {0}")]
-    DecodeError(#[from] DecodeError),
 }
 
 impl Default for ChainStore {
