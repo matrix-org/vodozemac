@@ -22,5 +22,4 @@
 #![cfg(feature = "low-level-api")]
 
 pub mod olm;
-
 pub use crate::cipher::{Cipher, Mac};

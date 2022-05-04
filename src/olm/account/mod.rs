@@ -513,6 +513,8 @@ impl Default for Account {
     }
 }
 
+/// A format suitable for serialization which implements [`serde::Serialize`]
+/// and [`serde::Deserialize`]. Obtainable by calling [`Account::pickle`].
 #[derive(Serialize, Deserialize)]
 pub struct AccountPickle {
     signing_key: Ed25519KeypairPickle,

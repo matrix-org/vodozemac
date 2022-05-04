@@ -79,7 +79,7 @@ fn merge_secrets(
 }
 
 impl RemoteShared3DHSecret {
-    pub fn new(
+    pub(crate) fn new(
         identity_key: &StaticSecret,
         one_time_key: &StaticSecret,
         remote_identity_key: &PublicKey,
@@ -98,7 +98,7 @@ impl RemoteShared3DHSecret {
 }
 
 impl Shared3DHSecret {
-    pub fn new(
+    pub(crate) fn new(
         identity_key: &StaticSecret,
         one_time_key: &ReusableSecret,
         remote_identity_key: &PublicKey,
