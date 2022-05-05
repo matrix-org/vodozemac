@@ -40,7 +40,6 @@ pub enum SignatureError {
 pub struct Ed25519Keypair {
     secret_key: SecretKeys,
     public_key: Ed25519PublicKey,
-    encoded_public_key: String,
 }
 
 impl Ed25519Keypair {
@@ -48,31 +47,19 @@ impl Ed25519Keypair {
         let mut rng = thread_rng();
         let keypair = Keypair::generate(&mut rng);
 
-        let public_key = Ed25519PublicKey(keypair.public);
-        let encoded_public_key = public_key.to_base64();
-
-        Self {
-            secret_key: keypair.secret.into(),
-            public_key: Ed25519PublicKey(keypair.public),
-            encoded_public_key,
-        }
+        Self { secret_key: keypair.secret.into(), public_key: Ed25519PublicKey(keypair.public) }
     }
 
     #[cfg(feature = "libolm-compat")]
     pub(crate) fn from_expanded_key(secret_key: &[u8; 64]) -> Result<Self, crate::KeyError> {
         let secret_key = ExpandedSecretKey::from_bytes(secret_key).map_err(SignatureError::from)?;
         let public_key = Ed25519PublicKey(PublicKey::from(&secret_key));
-        let encoded_public_key = public_key.to_base64();
 
-        Ok(Self { secret_key: secret_key.into(), public_key, encoded_public_key })
+        Ok(Self { secret_key: secret_key.into(), public_key })
     }
 
     pub fn public_key(&self) -> Ed25519PublicKey {
         self.public_key
-    }
-
-    pub fn public_key_encoded(&self) -> &str {
-        &self.encoded_public_key
     }
 
     pub fn sign(&self, message: &[u8]) -> Ed25519Signature {
@@ -294,7 +281,6 @@ impl Clone for Ed25519Keypair {
         Self {
             secret_key: secret_key.expect("Couldn't create a secret key copy."),
             public_key: self.public_key,
-            encoded_public_key: self.encoded_public_key.clone(),
         }
     }
 }
@@ -326,6 +312,6 @@ impl From<Ed25519KeypairPickle> for Ed25519Keypair {
         let secret_key = pickle.0;
         let public_key = secret_key.public_key();
 
-        Self { secret_key, public_key, encoded_public_key: public_key.to_base64() }
+        Self { secret_key, public_key }
     }
 }

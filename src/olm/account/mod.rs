@@ -119,12 +119,6 @@ impl Account {
         self.signing_key.public_key()
     }
 
-    /// Get a reference to the account's public Ed25519 key as an unpadded
-    /// base64 encoded string.
-    pub fn ed25519_key_encoded(&self) -> &str {
-        self.signing_key.public_key_encoded()
-    }
-
     /// Get a reference to the account's public Curve25519 key
     pub fn curve25519_key(&self) -> &Curve25519PublicKey {
         self.diffie_hellman_key.public_key()
@@ -803,7 +797,7 @@ mod test {
 
         let unpickled = Account::from_libolm_pickle(&pickle, key)?;
 
-        assert_eq!(olm.parsed_identity_keys().ed25519(), unpickled.ed25519_key_encoded());
+        assert_eq!(olm.parsed_identity_keys().ed25519(), unpickled.ed25519_key().to_base64());
         assert_eq!(olm.parsed_identity_keys().curve25519(), unpickled.curve25519_key_encoded());
 
         let mut olm_one_time_keys: Vec<_> =
