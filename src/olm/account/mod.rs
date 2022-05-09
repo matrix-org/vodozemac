@@ -39,21 +39,27 @@ use crate::{
         Ed25519Keypair, Ed25519KeypairPickle, Ed25519PublicKey, KeyId,
     },
     utilities::{pickle, unpickle, DecodeSecret},
-    DecodeError, Ed25519Signature, PickleError,
+    Ed25519Signature, PickleError,
 };
 
 const PUBLIC_MAX_ONE_TIME_KEYS: usize = 50;
 
+/// Error describing failure modes when creating a Olm Session from an incoming
+/// Olm message.
 #[derive(Error, Debug)]
 pub enum SessionCreationError {
-    #[error("The pre-key message wasn't valid base64: {0}")]
-    Base64(#[from] base64::DecodeError),
-    #[error("The pre-key message couldn't be decoded: {0}")]
-    DecodeError(#[from] DecodeError),
+    /// The pre-key message contained an unknown one-time key. This happens
+    /// either because we never had such a one-time key, or because it has
+    /// already been used up.
     #[error("The pre-key message contained an unknown one-time key")]
     MissingOneTimeKey,
+    /// The pre-key message contains a curve25519 identity key that doesn't
+    /// match to the identity key that was given.
     #[error("The given identity key doesn't match the one in the pre-key message")]
     MismatchedIdentityKey,
+    /// The pre-key message that was used to establish the Session couldn't be
+    /// decrypted. The message needs to be decryptable, otherwise we will have
+    /// created a Session that wasn't used to encrypt the pre-key message.
     #[error("The message that was used to establish the Session couldn't be decrypted")]
     Decryption(#[from] DecryptionError),
 }
@@ -111,12 +117,6 @@ impl Account {
     /// Get a reference to the account's public Ed25519 key
     pub fn ed25519_key(&self) -> Ed25519PublicKey {
         self.signing_key.public_key()
-    }
-
-    /// Get a reference to the account's public Ed25519 key as an unpadded
-    /// base64 encoded string.
-    pub fn ed25519_key_encoded(&self) -> &str {
-        self.signing_key.public_key_encoded()
     }
 
     /// Get a reference to the account's public Curve25519 key
@@ -507,6 +507,8 @@ impl Default for Account {
     }
 }
 
+/// A format suitable for serialization which implements [`serde::Serialize`]
+/// and [`serde::Deserialize`]. Obtainable by calling [`Account::pickle`].
 #[derive(Serialize, Deserialize)]
 pub struct AccountPickle {
     signing_key: Ed25519KeypairPickle,
@@ -795,7 +797,7 @@ mod test {
 
         let unpickled = Account::from_libolm_pickle(&pickle, key)?;
 
-        assert_eq!(olm.parsed_identity_keys().ed25519(), unpickled.ed25519_key_encoded());
+        assert_eq!(olm.parsed_identity_keys().ed25519(), unpickled.ed25519_key().to_base64());
         assert_eq!(olm.parsed_identity_keys().curve25519(), unpickled.curve25519_key_encoded());
 
         let mut olm_one_time_keys: Vec<_> =

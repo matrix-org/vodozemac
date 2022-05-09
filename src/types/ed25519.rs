@@ -34,47 +34,38 @@ pub enum SignatureError {
     Signature(#[from] ed25519_dalek::SignatureError),
 }
 
+/// A struct collecting both a public, and a secret, Ed25519 key.
 #[derive(Deserialize, Serialize)]
 #[serde(try_from = "Ed25519KeypairPickle")]
 #[serde(into = "Ed25519KeypairPickle")]
 pub struct Ed25519Keypair {
     secret_key: SecretKeys,
     public_key: Ed25519PublicKey,
-    encoded_public_key: String,
 }
 
 impl Ed25519Keypair {
+    /// Create a new, random, `Ed25519Keypair`.
     pub fn new() -> Self {
         let mut rng = thread_rng();
         let keypair = Keypair::generate(&mut rng);
 
-        let public_key = Ed25519PublicKey(keypair.public);
-        let encoded_public_key = public_key.to_base64();
-
-        Self {
-            secret_key: keypair.secret.into(),
-            public_key: Ed25519PublicKey(keypair.public),
-            encoded_public_key,
-        }
+        Self { secret_key: keypair.secret.into(), public_key: Ed25519PublicKey(keypair.public) }
     }
 
     #[cfg(feature = "libolm-compat")]
     pub(crate) fn from_expanded_key(secret_key: &[u8; 64]) -> Result<Self, crate::KeyError> {
         let secret_key = ExpandedSecretKey::from_bytes(secret_key).map_err(SignatureError::from)?;
         let public_key = Ed25519PublicKey(PublicKey::from(&secret_key));
-        let encoded_public_key = public_key.to_base64();
 
-        Ok(Self { secret_key: secret_key.into(), public_key, encoded_public_key })
+        Ok(Self { secret_key: secret_key.into(), public_key })
     }
 
+    /// Get the public Ed25519 key of this keypair.
     pub fn public_key(&self) -> Ed25519PublicKey {
         self.public_key
     }
 
-    pub fn public_key_encoded(&self) -> &str {
-        &self.encoded_public_key
-    }
-
+    /// Sign the given message with our secret key.
     pub fn sign(&self, message: &[u8]) -> Ed25519Signature {
         self.secret_key.sign(message, &self.public_key())
     }
@@ -195,17 +186,21 @@ impl SecretKeys {
     }
 }
 
+/// An Ed25519 public key, used to verify digital signatures.
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq)]
 #[serde(transparent)]
 pub struct Ed25519PublicKey(PublicKey);
 
 impl Ed25519PublicKey {
+    /// The number of bytes a Ed25519 public key has.
     pub const LENGTH: usize = PUBLIC_KEY_LENGTH;
 
+    /// Try to create a `Ed25519PublicKey` from a slice of bytes.
     pub fn from_slice(bytes: &[u8]) -> Result<Self, crate::KeyError> {
         Ok(Self(PublicKey::from_bytes(bytes).map_err(SignatureError::from)?))
     }
 
+    /// View this public key as a byte array.
     pub fn as_bytes(&self) -> &[u8; Self::LENGTH] {
         self.0.as_bytes()
     }
@@ -217,6 +212,8 @@ impl Ed25519PublicKey {
         Self::from_slice(&key)
     }
 
+    /// Serialize a Ed25519PublicKey public key to an unpadded base64
+    /// representation.
     pub fn to_base64(&self) -> String {
         base64_encode(self.as_bytes())
     }
@@ -255,24 +252,32 @@ impl std::fmt::Debug for Ed25519PublicKey {
     }
 }
 
+/// An Ed25519 digital signature, can be used to verify the authenticity of a
+/// message.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Ed25519Signature(pub(crate) Signature);
 
 impl Ed25519Signature {
+    /// The number of bytes a Ed25519 signature has.
     pub const LENGTH: usize = SIGNATURE_LENGTH;
 
+    /// Try to create a `Ed25519Signature` from a slice of bytes.
     pub fn from_slice(bytes: &[u8]) -> Result<Self, SignatureError> {
         Ok(Self(Signature::try_from(bytes)?))
     }
 
+    /// Try to create a `Ed25519Signature` from an unpadded base64
+    /// representation.
     pub fn from_base64(signature: &str) -> Result<Self, SignatureError> {
         Ok(Self(Signature::try_from(base64_decode(signature)?.as_slice())?))
     }
 
+    /// Serialize an `Ed25519Signature` to an unpadded base64 representation.
     pub fn to_base64(&self) -> String {
         base64_encode(self.0.to_bytes())
     }
 
+    /// Convert the `Ed25519Signature` to a byte array.
     pub fn to_bytes(&self) -> [u8; Self::LENGTH] {
         self.0.to_bytes()
     }
@@ -294,7 +299,6 @@ impl Clone for Ed25519Keypair {
         Self {
             secret_key: secret_key.expect("Couldn't create a secret key copy."),
             public_key: self.public_key,
-            encoded_public_key: self.encoded_public_key.clone(),
         }
     }
 }
@@ -326,6 +330,6 @@ impl From<Ed25519KeypairPickle> for Ed25519Keypair {
         let secret_key = pickle.0;
         let public_key = secret_key.public_key();
 
-        Self { secret_key, public_key, encoded_public_key: public_key.to_base64() }
+        Self { secret_key, public_key }
     }
 }

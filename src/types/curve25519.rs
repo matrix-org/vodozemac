@@ -19,26 +19,37 @@ use x25519_dalek::{EphemeralSecret, PublicKey, ReusableSecret, SharedSecret, Sta
 use super::KeyError;
 use crate::utilities::{base64_decode, base64_encode};
 
+/// Struct representing a Curve25519 secret key.
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(transparent)]
 pub struct Curve25519SecretKey(Box<StaticSecret>);
 
 impl Curve25519SecretKey {
+    /// Generate a new, random, Curve25519SecretKey.
     pub fn new() -> Self {
         let mut rng = thread_rng();
 
         Self(Box::new(StaticSecret::new(&mut rng)))
     }
 
+    /// Create a `Curve25519SecretKey` from the given slice of bytes.
     pub fn from_slice(bytes: &[u8; 32]) -> Self {
         // XXX: Passing in secret array as value.
         Self(Box::new(StaticSecret::from(*bytes)))
     }
 
-    pub fn diffie_hellman(&self, their_public_key: &Curve25519PublicKey) -> SharedSecret {
+    /// Perform a Diffie-Hellman key exchange between the given
+    /// `Curve25519PublicKey` and this `Curve25519SecretKey` and return a shared
+    /// secret.
+    pub(crate) fn diffie_hellman(&self, their_public_key: &Curve25519PublicKey) -> SharedSecret {
         self.0.diffie_hellman(&their_public_key.inner)
     }
 
+    /// Convert the `Curve25519SecretKey` to a byte array.
+    ///
+    /// **Note**: This creates a copy of the key which won't be zeroized, the
+    /// caller of the method needs to make sure to zeroize the returned array.
+    #[cfg(test)]
     pub fn to_bytes(&self) -> [u8; 32] {
         self.0.to_bytes()
     }
@@ -89,6 +100,7 @@ impl Curve25519Keypair {
     }
 }
 
+/// Struct representing a Curve25519 public key.
 #[derive(PartialEq, Eq, Hash, Copy, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Curve25519PublicKey {
@@ -107,6 +119,7 @@ impl crate::utilities::Decode for Curve25519PublicKey {
 }
 
 impl Curve25519PublicKey {
+    /// The number of bytes a Curve25519 public key has.
     pub const LENGTH: usize = 32;
 
     /// Convert this public key to a byte array.
@@ -121,10 +134,12 @@ impl Curve25519PublicKey {
         self.inner.as_bytes()
     }
 
+    /// Convert the public key to a vector of bytes.
     pub fn to_vec(&self) -> Vec<u8> {
         self.inner.as_bytes().to_vec()
     }
 
+    /// Create a `Curve25519PublicKey` from a byte array.
     pub fn from_bytes(bytes: [u8; 32]) -> Self {
         Self { inner: PublicKey::from(bytes) }
     }

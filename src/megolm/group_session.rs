@@ -60,8 +60,8 @@ impl GroupSession {
     /// A session ID is the public part of the Ed25519 key pair associated with
     /// the group session. Due to the construction, every session ID is
     /// (probabilistically) globally unique.
-    pub fn session_id(&self) -> &str {
-        self.signing_key.public_key_encoded()
+    pub fn session_id(&self) -> String {
+        self.signing_key.public_key().to_base64()
     }
 
     /// Return the current message index.
