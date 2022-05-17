@@ -111,7 +111,7 @@ impl Account {
 
     /// Get the IdentityKeys of this Account
     pub fn identity_keys(&self) -> IdentityKeys {
-        IdentityKeys { ed25519: self.ed25519_key(), curve25519: *self.curve25519_key() }
+        IdentityKeys { ed25519: self.ed25519_key(), curve25519: self.curve25519_key() }
     }
 
     /// Get a reference to the account's public Ed25519 key
@@ -120,14 +120,8 @@ impl Account {
     }
 
     /// Get a reference to the account's public Curve25519 key
-    pub fn curve25519_key(&self) -> &Curve25519PublicKey {
+    pub fn curve25519_key(&self) -> Curve25519PublicKey {
         self.diffie_hellman_key.public_key()
-    }
-
-    /// Get a reference to the account's public Curve25519 key as an unpadded
-    /// base64-encoded string.
-    pub fn curve25519_key_encoded(&self) -> &str {
-        self.diffie_hellman_key.public_key_encoded()
     }
 
     /// Sign the given message using our Ed25519 fingerprint key.
@@ -173,7 +167,7 @@ impl Account {
         );
 
         let session_keys = SessionKeys {
-            identity_key: *self.curve25519_key(),
+            identity_key: self.curve25519_key(),
             base_key: public_base_key,
             one_time_key,
         };
@@ -204,10 +198,10 @@ impl Account {
     /// Create a [`Session`] from the given pre-key message and identity key
     pub fn create_inbound_session(
         &mut self,
-        their_identity_key: &Curve25519PublicKey,
+        their_identity_key: Curve25519PublicKey,
         pre_key_message: &PreKeyMessage,
     ) -> Result<InboundCreationResult, SessionCreationError> {
-        if their_identity_key != &pre_key_message.identity_key() {
+        if their_identity_key != pre_key_message.identity_key() {
             Err(SessionCreationError::MismatchedIdentityKey)
         } else {
             // Find the matching private key that the message claims to have
@@ -593,7 +587,7 @@ mod test {
 
         if let LibolmOlmMessage::PreKey(m) = olm_message.clone() {
             let libolm_session =
-                bob.create_inbound_session_from(alice.curve25519_key_encoded(), m)?;
+                bob.create_inbound_session_from(&alice.curve25519_key().to_base64(), m)?;
             assert_eq!(alice_session.session_id(), libolm_session.session_id());
 
             let plaintext = libolm_session.decrypt(olm_message)?;
@@ -637,7 +631,7 @@ mod test {
         bob.generate_one_time_keys(1);
 
         let mut alice_session = alice.create_outbound_session(
-            *bob.curve25519_key(),
+            bob.curve25519_key(),
             *bob.one_time_keys()
                 .iter()
                 .next()
@@ -702,7 +696,7 @@ mod test {
             .expect("Didn't find a valid one-time key");
 
         let alice_session =
-            alice.create_outbound_session(bob.curve25519_key_encoded(), &one_time_key)?;
+            alice.create_outbound_session(&bob.curve25519_key().to_base64(), &one_time_key)?;
 
         let text = "It's a secret to everybody";
         let message = alice_session.encrypt(text).into();
@@ -710,7 +704,7 @@ mod test {
         let identity_key = PublicKey::from_base64(alice.parsed_identity_keys().curve25519())?;
 
         let InboundCreationResult { session, plaintext } = if let OlmMessage::PreKey(m) = &message {
-            bob.create_inbound_session(&identity_key, m)?
+            bob.create_inbound_session(identity_key, m)?
         } else {
             bail!("Got invalid message type from olm_rs {:?}", message);
         };
@@ -734,8 +728,10 @@ mod test {
             bob.fallback_key().values().next().cloned().expect("Didn't find a valid fallback key");
         assert!(bob.one_time_keys.private_keys.is_empty());
 
-        let alice_session = alice
-            .create_outbound_session(bob.curve25519_key_encoded(), &one_time_key.to_base64())?;
+        let alice_session = alice.create_outbound_session(
+            &bob.curve25519_key().to_base64(),
+            &one_time_key.to_base64(),
+        )?;
 
         let text = "It's a secret to everybody";
 
@@ -744,7 +740,7 @@ mod test {
 
         if let OlmMessage::PreKey(m) = &message {
             let InboundCreationResult { session, plaintext } =
-                bob.create_inbound_session(&identity_key, m)?;
+                bob.create_inbound_session(identity_key, m)?;
 
             assert_eq!(m.session_keys(), session.session_keys());
             assert_eq!(alice_session.session_id(), session.session_id());
@@ -798,7 +794,7 @@ mod test {
         let unpickled = Account::from_libolm_pickle(&pickle, key)?;
 
         assert_eq!(olm.parsed_identity_keys().ed25519(), unpickled.ed25519_key().to_base64());
-        assert_eq!(olm.parsed_identity_keys().curve25519(), unpickled.curve25519_key_encoded());
+        assert_eq!(olm.parsed_identity_keys().curve25519(), unpickled.curve25519_key().to_base64());
 
         let mut olm_one_time_keys: Vec<_> =
             olm.parsed_one_time_keys().curve25519().values().map(|k| k.to_owned()).collect();
@@ -850,7 +846,7 @@ mod test {
         alice.generate_one_time_keys(1);
 
         let mut session = malory.create_outbound_session(
-            *alice.curve25519_key(),
+            alice.curve25519_key(),
             *alice.one_time_keys().values().next().expect("Should have one-time key"),
         );
 

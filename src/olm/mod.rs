@@ -60,7 +60,7 @@
 //!     let bob_otk = *bob.one_time_keys().values().next().unwrap();
 //!
 //!     let mut alice_session = alice
-//!         .create_outbound_session(*bob.curve25519_key(), bob_otk);
+//!         .create_outbound_session(bob.curve25519_key(), bob_otk);
 //!
 //!     bob.mark_keys_as_published();
 //!

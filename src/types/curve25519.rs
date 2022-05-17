@@ -67,16 +67,14 @@ impl Default for Curve25519SecretKey {
 pub(crate) struct Curve25519Keypair {
     pub secret_key: Curve25519SecretKey,
     pub public_key: Curve25519PublicKey,
-    pub encoded_public_key: String,
 }
 
 impl Curve25519Keypair {
     pub fn new() -> Self {
         let secret_key = Curve25519SecretKey::new();
         let public_key = Curve25519PublicKey::from(&secret_key);
-        let encoded_public_key = base64_encode(public_key.as_bytes());
 
-        Self { secret_key, public_key, encoded_public_key }
+        Self { secret_key, public_key }
     }
 
     #[cfg(feature = "libolm-compat")]
@@ -84,19 +82,15 @@ impl Curve25519Keypair {
         let secret_key = Curve25519SecretKey::from_slice(key);
         let public_key = Curve25519PublicKey::from(&secret_key);
 
-        Curve25519Keypair { secret_key, public_key, encoded_public_key: public_key.to_base64() }
+        Curve25519Keypair { secret_key, public_key }
     }
 
     pub fn secret_key(&self) -> &Curve25519SecretKey {
         &self.secret_key
     }
 
-    pub fn public_key(&self) -> &Curve25519PublicKey {
-        &self.public_key
-    }
-
-    pub fn public_key_encoded(&self) -> &str {
-        &self.encoded_public_key
+    pub fn public_key(&self) -> Curve25519PublicKey {
+        self.public_key
     }
 }
 
@@ -209,9 +203,8 @@ impl From<Curve25519KeypairPickle> for Curve25519Keypair {
     fn from(pickle: Curve25519KeypairPickle) -> Self {
         let secret_key = pickle.0;
         let public_key: Curve25519PublicKey = (&secret_key).into();
-        let encoded_public_key = public_key.to_base64();
 
-        Self { secret_key, public_key, encoded_public_key }
+        Self { secret_key, public_key }
     }
 }
 

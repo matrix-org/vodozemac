@@ -563,7 +563,8 @@ mod test {
         bob.mark_keys_as_published();
 
         if let OlmMessage::PreKey(m) = olm_message.into() {
-            let session = bob.create_inbound_session_from(alice.curve25519_key_encoded(), m)?;
+            let session =
+                bob.create_inbound_session_from(&alice.curve25519_key().to_base64(), m)?;
 
             Ok((alice, bob, alice_session, session))
         } else {
