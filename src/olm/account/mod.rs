@@ -267,18 +267,6 @@ impl Account {
             .collect()
     }
 
-    /// Get the currently unpublished one-time keys in base64-encoded form.
-    ///
-    /// The one-time keys should be published to a server and marked as
-    /// published using the `mark_keys_as_published()` method.
-    pub fn one_time_keys_encoded(&self) -> HashMap<String, String> {
-        self.one_time_keys
-            .unpublished_public_keys
-            .iter()
-            .map(|(key_id, key)| (key_id.to_base64(), key.to_base64()))
-            .collect()
-    }
-
     /// Generate a single new fallback key.
     ///
     /// The fallback key will be used by other users to establish a `Session` if
@@ -688,15 +676,13 @@ mod test {
 
         bob.generate_one_time_keys(1);
 
-        let one_time_key = bob
-            .one_time_keys_encoded()
-            .values()
-            .next()
-            .cloned()
-            .expect("Didn't find a valid one-time key");
+        let one_time_key =
+            bob.one_time_keys().values().next().cloned().expect("Didn't find a valid one-time key");
 
-        let alice_session =
-            alice.create_outbound_session(&bob.curve25519_key().to_base64(), &one_time_key)?;
+        let alice_session = alice.create_outbound_session(
+            &bob.curve25519_key().to_base64(),
+            &one_time_key.to_base64(),
+        )?;
 
         let text = "It's a secret to everybody";
         let message = alice_session.encrypt(text).into();
@@ -799,7 +785,7 @@ mod test {
         let mut olm_one_time_keys: Vec<_> =
             olm.parsed_one_time_keys().curve25519().values().map(|k| k.to_owned()).collect();
         let mut one_time_keys: Vec<_> =
-            unpickled.one_time_keys_encoded().values().map(|k| k.to_owned()).collect();
+            unpickled.one_time_keys().values().map(|k| k.to_base64()).collect();
 
         olm_one_time_keys.sort();
         one_time_keys.sort();
