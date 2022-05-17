@@ -112,7 +112,6 @@ pub enum SasError {
 pub struct Sas {
     secret_key: EphemeralSecret,
     public_key: Curve25519PublicKey,
-    encoded_public_key: String,
 }
 
 /// A struct representing a short auth string verification object where the
@@ -226,19 +225,13 @@ impl Sas {
 
         let secret_key = EphemeralSecret::new(rng);
         let public_key = Curve25519PublicKey::from(&secret_key);
-        let encoded_public_key = base64_encode(public_key.as_bytes());
 
-        Self { secret_key, public_key, encoded_public_key }
+        Self { secret_key, public_key }
     }
 
     /// Get the public key that can be used to establish a shared secret.
     pub fn public_key(&self) -> Curve25519PublicKey {
         self.public_key
-    }
-
-    /// Get the public key as a base64 encoded string.
-    pub fn public_key_encoded(&self) -> &str {
-        &self.encoded_public_key
     }
 
     /// Establishes a SAS secret by performing a DH handshake with another
@@ -453,7 +446,7 @@ mod test {
         let mut olm = OlmSas::new();
         let dalek = Sas::new();
 
-        olm.set_their_public_key(dalek.public_key_encoded().to_string())
+        olm.set_their_public_key(dalek.public_key().to_base64())
             .expect("Couldn't set the public key for libolm");
         let established = dalek.diffie_hellman_with_raw(&olm.public_key())?;
 
@@ -470,12 +463,12 @@ mod test {
         let alice = Sas::default();
         let bob = Sas::default();
 
-        let alice_public_key_encoded = alice.public_key_encoded().to_owned();
+        let alice_public_key_encoded = alice.public_key().to_base64();
         let alice_public_key = alice.public_key().to_owned();
-        let bob_public_key_encoded = bob.public_key_encoded();
+        let bob_public_key_encoded = bob.public_key().to_base64();
         let bob_public_key = bob.public_key();
 
-        let alice_established = alice.diffie_hellman_with_raw(bob_public_key_encoded)?;
+        let alice_established = alice.diffie_hellman_with_raw(&bob_public_key_encoded)?;
         let bob_established = bob.diffie_hellman_with_raw(&alice_public_key_encoded)?;
 
         assert_eq!(alice_established.our_public_key(), alice_public_key);
@@ -507,8 +500,8 @@ mod test {
         let alice = Sas::new();
         let bob = Sas::new();
 
-        let alice_public_key = alice.public_key_encoded().to_owned();
-        let bob_public_key = bob.public_key_encoded();
+        let alice_public_key = alice.public_key().to_base64();
+        let bob_public_key = bob.public_key().to_base64();
 
         let message = format!("ed25519:{}", BOB_DEVICE_ID);
         let extra_info = format!(
@@ -522,7 +515,7 @@ mod test {
             "KEY_IDS"
         );
 
-        let alice_established = alice.diffie_hellman_with_raw(bob_public_key)?;
+        let alice_established = alice.diffie_hellman_with_raw(&bob_public_key)?;
         let bob_established = bob.diffie_hellman_with_raw(&alice_public_key)?;
 
         let alice_mac = alice_established.calculate_mac(&message, &extra_info);
@@ -545,7 +538,7 @@ mod test {
         let alice_on_dalek = Sas::new();
         let mut bob_on_libolm = OlmSas::new();
 
-        let alice_public_key = alice_on_dalek.public_key_encoded();
+        let alice_public_key = alice_on_dalek.public_key().to_base64();
         let bob_public_key = bob_on_libolm.public_key();
 
         let message = format!("ed25519:{}", BOB_DEVICE_ID);
@@ -561,7 +554,7 @@ mod test {
         );
 
         bob_on_libolm
-            .set_their_public_key(alice_public_key.to_string())
+            .set_their_public_key(alice_public_key)
             .expect("Couldn't set the public key for libolm");
         let established = alice_on_dalek.diffie_hellman_with_raw(&bob_public_key)?;
 
@@ -583,7 +576,7 @@ mod test {
         let mut olm = OlmSas::new();
         let dalek = Sas::new();
 
-        olm.set_their_public_key(dalek.public_key_encoded().to_string())
+        olm.set_their_public_key(dalek.public_key().to_base64())
             .expect("Couldn't set the public key for libolm");
         let established = dalek.diffie_hellman_with_raw(&olm.public_key())?;
 
