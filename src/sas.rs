@@ -52,7 +52,7 @@
 //! [ZRTP]: https://tools.ietf.org/html/rfc6189#section-4.4.1
 
 use hkdf::Hkdf;
-use hmac::{digest::MacError, Hmac, Mac};
+use hmac::{digest::MacError, Hmac, Mac as _};
 use rand::thread_rng;
 use sha2::Sha256;
 use thiserror::Error;
@@ -60,10 +60,37 @@ use x25519_dalek::{EphemeralSecret, SharedSecret};
 
 use crate::{
     utilities::{base64_decode, base64_encode},
-    Curve25519KeyError, Curve25519PublicKey,
+    Curve25519PublicKey, KeyError,
 };
 
-type HmacSha256Key = [u8; 32];
+type HmacSha256Key = Box<[u8; 32]>;
+
+/// The output type for the SAS MAC calculation.
+pub struct Mac(Vec<u8>);
+
+impl Mac {
+    /// Convert the MAC to a base64 encoded string.
+    pub fn to_base64(&self) -> String {
+        base64_encode(&self.0)
+    }
+
+    /// Get the byte slice of the MAC.
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+
+    /// Create a new `Mac` object from a byte slice.
+    pub fn from_slice(bytes: &[u8]) -> Self {
+        Self(bytes.to_vec())
+    }
+
+    /// Create a new `Mac` object from a base64 encoded string.
+    pub fn from_base64(mac: &str) -> Result<Self, base64::DecodeError> {
+        let bytes = base64_decode(mac)?;
+
+        Ok(Self(bytes))
+    }
+}
 
 /// Error type for the case when we try to generate too many SAS bytes.
 #[derive(Debug, Clone, Error)]
@@ -73,25 +100,9 @@ pub struct InvalidCount;
 /// Error type describing failures that can happen during the key verification.
 #[derive(Debug, Error)]
 pub enum SasError {
-    /// The MAC code that was given wasn't valid base64.
-    #[error("The SAS MAC wasn't valid base64: {0}")]
-    Base64(#[from] base64::DecodeError),
     /// The MAC failed to be validated.
     #[error("The SAS MAC validation didn't succeed: {0}")]
     Mac(#[from] MacError),
-}
-
-/// Error type describing failures that can happen when we try to create a
-/// shared secret.
-#[derive(Debug, Error)]
-pub enum PublicKeyError {
-    /// The given public curve25519 key wasn't valid.
-    #[error(transparent)]
-    PublicKey(#[from] Curve25519KeyError),
-    /// At least one of the keys did not have contributory behaviour and the
-    /// resulting shared secret would have been insecure.
-    #[error("At least one of the keys did not have contributory behaviour")]
-    NonContributoryKey,
 }
 
 /// A struct representing a short auth string verification object.
@@ -101,7 +112,6 @@ pub enum PublicKeyError {
 pub struct Sas {
     secret_key: EphemeralSecret,
     public_key: Curve25519PublicKey,
-    encoded_public_key: String,
 }
 
 /// A struct representing a short auth string verification object where the
@@ -111,6 +121,17 @@ pub struct Sas {
 /// verify a MAC that protects information about the keys being verified.
 pub struct EstablishedSas {
     shared_secret: SharedSecret,
+    our_public_key: Curve25519PublicKey,
+    their_public_key: Curve25519PublicKey,
+}
+
+impl std::fmt::Debug for EstablishedSas {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EstablishedSas")
+            .field("our_public_key", &self.our_public_key.to_base64())
+            .field("their_public_key", &self.their_public_key.to_base64())
+            .finish_non_exhaustive()
+    }
 }
 
 /// Bytes generated from an shared secret that can be used as the short auth
@@ -204,19 +225,13 @@ impl Sas {
 
         let secret_key = EphemeralSecret::new(rng);
         let public_key = Curve25519PublicKey::from(&secret_key);
-        let encoded_public_key = base64_encode(public_key.as_bytes());
 
-        Self { secret_key, public_key, encoded_public_key }
+        Self { secret_key, public_key }
     }
 
     /// Get the public key that can be used to establish a shared secret.
     pub fn public_key(&self) -> Curve25519PublicKey {
         self.public_key
-    }
-
-    /// Get the public key as a base64 encoded string.
-    pub fn public_key_encoded(&self) -> &str {
-        &self.encoded_public_key
     }
 
     /// Establishes a SAS secret by performing a DH handshake with another
@@ -226,14 +241,14 @@ impl Sas {
     /// [`SasBytes`] if the given public key was valid, otherwise `None`.
     pub fn diffie_hellman(
         self,
-        other_public_key: Curve25519PublicKey,
-    ) -> Result<EstablishedSas, PublicKeyError> {
-        let shared_secret = self.secret_key.diffie_hellman(&other_public_key.inner);
+        their_public_key: Curve25519PublicKey,
+    ) -> Result<EstablishedSas, KeyError> {
+        let shared_secret = self.secret_key.diffie_hellman(&their_public_key.inner);
 
         if shared_secret.was_contributory() {
-            Ok(EstablishedSas { shared_secret })
+            Ok(EstablishedSas { shared_secret, our_public_key: self.public_key, their_public_key })
         } else {
-            Err(PublicKeyError::NonContributoryKey)
+            Err(KeyError::NonContributoryKey)
         }
     }
 
@@ -245,7 +260,7 @@ impl Sas {
     pub fn diffie_hellman_with_raw(
         self,
         other_public_key: &str,
-    ) -> Result<EstablishedSas, PublicKeyError> {
+    ) -> Result<EstablishedSas, KeyError> {
         let other_public_key = Curve25519PublicKey::from_base64(other_public_key)?;
         self.diffie_hellman(other_public_key)
     }
@@ -259,14 +274,15 @@ impl EstablishedSas {
     /// use the same info string.
     pub fn bytes(&self, info: &str) -> SasBytes {
         let mut bytes = [0u8; 6];
-        let byte_vec = self.bytes_raw(info, 6).expect("HKDF can always generate 6 bytes");
+        let byte_vec =
+            self.bytes_raw(info, 6).expect("HKDF should always be able to generate 6 bytes");
 
         bytes.copy_from_slice(&byte_vec);
 
         SasBytes { bytes }
     }
 
-    /// Generate the given number  of bytes using HKDF with the shared secret
+    /// Generate the given number of bytes using HKDF with the shared secret
     /// as the input key material.
     ///
     /// The info string should be agreed upon beforehand, both parties need to
@@ -294,12 +310,69 @@ impl EstablishedSas {
     /// The MAC is returned as a base64 encoded string.
     ///
     /// [`Account`]: crate::olm::Account
-    pub fn calculate_mac(&self, input: &str, info: &str) -> String {
+    pub fn calculate_mac(&self, input: &str, info: &str) -> Mac {
         let mut mac = self.get_mac(info);
 
         mac.update(input.as_ref());
 
-        base64_encode(mac.finalize().into_bytes())
+        Mac(mac.finalize().into_bytes().to_vec())
+    }
+
+    /// Calculate a MAC for the given input using the info string as additional
+    /// data, the MAC is returned as an invalid base64 encoded string.
+    ///
+    /// **Warning**: This method should never be used unless you require libolm
+    /// compatibility. Libolm used to incorrectly encode their MAC because the
+    /// input buffer was reused as the output buffer. This method replicates the
+    /// buggy behaviour.
+    #[cfg(feature = "libolm-compat")]
+    pub fn calculate_mac_invalid_base64(&self, input: &str, info: &str) -> String {
+        // First calculate the MAC as usual.
+        let mac = self.calculate_mac(input, info);
+
+        // Since the input buffer is reused as an output buffer, and base64
+        // operates on 3 input bytes to generate 4 output bytes, the input
+        // buffer gets overrun by the output.
+        //
+        // Only 6 bytes of the MAC get to be used before the output overwrites
+        // the input.
+
+        // All three bytes of the first input chunk are used successfully.
+        let mut out = base64_encode(&mac.as_bytes()[0..3]);
+
+        // For the next input chunk, only two bytes are sourced from the actual
+        // MAC, since the first byte gets overwritten by the output.
+        let mut bytes_from_mac = 2;
+
+        // Subsequent input chunks get progressively more overwritten by the
+        // output, so that after two iterations, none of the original input
+        // bytes remain.
+        for i in (6..10).step_by(3) {
+            let from_mac = &mac.as_bytes()[i - bytes_from_mac..i];
+            let from_out = &out.as_bytes()[out.len() - (3 - bytes_from_mac)..];
+
+            let bytes = [from_out, from_mac].concat();
+            let encoded = base64_encode(bytes);
+            bytes_from_mac -= 1;
+
+            out = out + &encoded;
+        }
+
+        // At this point, the rest of our input will be completely sourced from
+        // the previous output. The MAC has a size of 32, so we abort before we
+        // get to the remainder calculation.
+        for i in (9..30).step_by(3) {
+            let next = &out.as_bytes()[i..i + 3];
+            let next_four = base64_encode(next);
+            out = out + &next_four;
+        }
+
+        // Finally, use the remainder to get the last 3 bytes of output. No
+        // padding is used.
+        let next = &out.as_bytes()[30..32];
+        let next = base64_encode(next);
+
+        out + &next
     }
 
     /// Verify a MAC that was previously created using the
@@ -307,13 +380,23 @@ impl EstablishedSas {
     ///
     /// Users should calculate a MAC and send it to the other side, they should
     /// then verify each other's MAC using this method.
-    pub fn verify_mac(&self, input: &str, info: &str, tag: &str) -> Result<(), SasError> {
-        let tag = base64_decode(tag)?;
-
+    pub fn verify_mac(&self, input: &str, info: &str, tag: &Mac) -> Result<(), SasError> {
         let mut mac = self.get_mac(info);
         mac.update(input.as_bytes());
 
-        Ok(mac.verify_slice(&tag)?)
+        Ok(mac.verify_slice(&tag.0)?)
+    }
+
+    /// Get the public key that was created by us, that was used to establish
+    /// the shared secret.
+    pub fn our_public_key(&self) -> Curve25519PublicKey {
+        self.our_public_key
+    }
+
+    /// Get the public key that was created by the other party, that was used to
+    /// establish the shared secret.
+    pub fn their_public_key(&self) -> Curve25519PublicKey {
+        self.their_public_key
     }
 
     fn get_hkdf(&self) -> Hkdf<Sha256> {
@@ -321,17 +404,17 @@ impl EstablishedSas {
     }
 
     fn get_mac_key(&self, info: &str) -> HmacSha256Key {
-        let mut mac_key = [0u8; 32];
+        let mut mac_key = Box::new([0u8; 32]);
         let hkdf = self.get_hkdf();
 
-        hkdf.expand(info.as_bytes(), &mut mac_key).expect("Can't expand the MAC key");
+        hkdf.expand(info.as_bytes(), mac_key.as_mut_slice()).expect("Can't expand the MAC key");
 
         mac_key
     }
 
     fn get_mac(&self, info: &str) -> Hmac<Sha256> {
         let mac_key = self.get_mac_key(info);
-        Hmac::<Sha256>::new_from_slice(&mac_key).expect("Can't create a HMAC object")
+        Hmac::<Sha256>::new_from_slice(mac_key.as_slice()).expect("Can't create a HMAC object")
     }
 }
 
@@ -341,19 +424,34 @@ mod test {
     use olm_rs::sas::OlmSas;
     use proptest::prelude::*;
 
-    use super::{Sas, SasBytes};
+    use super::{Mac, Sas, SasBytes};
+
+    const ALICE_MXID: &str = "@alice:example.com";
+    const ALICE_DEVICE_ID: &str = "AAAAAAAAAA";
+    const BOB_MXID: &str = "@bob:example.com";
+    const BOB_DEVICE_ID: &str = "BBBBBBBBBB";
 
     #[test]
-    fn generate_bytes() -> Result<()> {
+    fn mac_from_slice_as_bytes_is_identity() {
+        let bytes = "ABCDEFGH".as_bytes();
+        assert_eq!(
+            Mac::from_slice(bytes).as_bytes(),
+            bytes,
+            "as_bytes() after from_slice() is not identity"
+        );
+    }
+
+    #[test]
+    fn libolm_and_vodozemac_generate_same_bytes() -> Result<()> {
         let mut olm = OlmSas::new();
         let dalek = Sas::new();
 
-        olm.set_their_public_key(dalek.public_key_encoded().to_string())
+        olm.set_their_public_key(dalek.public_key().to_base64())
             .expect("Couldn't set the public key for libolm");
         let established = dalek.diffie_hellman_with_raw(&olm.public_key())?;
 
         assert_eq!(
-            olm.generate_bytes("TEST", 10).expect("libolm coulnd't generate SAS bytes"),
+            olm.generate_bytes("TEST", 10).expect("libolm couldn't generate SAS bytes"),
             established.bytes_raw("TEST", 10)?
         );
 
@@ -361,20 +459,129 @@ mod test {
     }
 
     #[test]
-    // Allowed to fail due to https://gitlab.matrix.org/matrix-org/olm/-/merge_requests/16
-    fn calculate_mac() -> Result<()> {
+    fn vodozemac_and_vodozemac_generate_same_bytes() -> Result<()> {
+        let alice = Sas::default();
+        let bob = Sas::default();
+
+        let alice_public_key_encoded = alice.public_key().to_base64();
+        let alice_public_key = alice.public_key().to_owned();
+        let bob_public_key_encoded = bob.public_key().to_base64();
+        let bob_public_key = bob.public_key();
+
+        let alice_established = alice.diffie_hellman_with_raw(&bob_public_key_encoded)?;
+        let bob_established = bob.diffie_hellman_with_raw(&alice_public_key_encoded)?;
+
+        assert_eq!(alice_established.our_public_key(), alice_public_key);
+        assert_eq!(alice_established.their_public_key(), bob_public_key);
+        assert_eq!(bob_established.our_public_key(), bob_public_key);
+        assert_eq!(bob_established.their_public_key(), alice_public_key);
+
+        let alice_bytes = alice_established.bytes("TEST");
+        let bob_bytes = bob_established.bytes("TEST");
+
+        assert_eq!(alice_bytes, bob_bytes, "The two sides calculated different bytes.");
+        assert_eq!(
+            alice_bytes.emoji_indices(),
+            bob_bytes.emoji_indices(),
+            "The two sides calculated different emoji indices."
+        );
+        assert_eq!(
+            alice_bytes.decimals(),
+            bob_bytes.decimals(),
+            "The two sides calculated different decimals."
+        );
+        assert_eq!(alice_bytes.as_bytes(), bob_bytes.as_bytes());
+
+        Ok(())
+    }
+
+    #[test]
+    fn calculate_mac_vodozemac_vodozemac() -> Result<()> {
+        let alice = Sas::new();
+        let bob = Sas::new();
+
+        let alice_public_key = alice.public_key().to_base64();
+        let bob_public_key = bob.public_key().to_base64();
+
+        let message = format!("ed25519:{}", BOB_DEVICE_ID);
+        let extra_info = format!(
+            "{}{}{}{}{}{}{}",
+            "MATRIX_KEY_VERIFICATION_MAC",
+            BOB_MXID,
+            BOB_DEVICE_ID,
+            ALICE_MXID,
+            ALICE_DEVICE_ID,
+            "$1234567890",
+            "KEY_IDS"
+        );
+
+        let alice_established = alice.diffie_hellman_with_raw(&bob_public_key)?;
+        let bob_established = bob.diffie_hellman_with_raw(&alice_public_key)?;
+
+        let alice_mac = alice_established.calculate_mac(&message, &extra_info);
+        let bob_mac = bob_established.calculate_mac(&message, &extra_info);
+
+        assert_eq!(
+            alice_mac.to_base64(),
+            bob_mac.to_base64(),
+            "Two vodozemac devices calculated different SAS MACs."
+        );
+
+        alice_established.verify_mac(&message, &extra_info, &bob_mac)?;
+        bob_established.verify_mac(&message, &extra_info, &alice_mac)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn calculate_mac_vodozemac_libolm() -> Result<()> {
+        let alice_on_dalek = Sas::new();
+        let mut bob_on_libolm = OlmSas::new();
+
+        let alice_public_key = alice_on_dalek.public_key().to_base64();
+        let bob_public_key = bob_on_libolm.public_key();
+
+        let message = format!("ed25519:{}", BOB_DEVICE_ID);
+        let extra_info = format!(
+            "{}{}{}{}{}{}{}",
+            "MATRIX_KEY_VERIFICATION_MAC",
+            BOB_MXID,
+            BOB_DEVICE_ID,
+            ALICE_MXID,
+            ALICE_DEVICE_ID,
+            "$1234567890",
+            "KEY_IDS"
+        );
+
+        bob_on_libolm
+            .set_their_public_key(alice_public_key)
+            .expect("Couldn't set the public key for libolm");
+        let established = alice_on_dalek.diffie_hellman_with_raw(&bob_public_key)?;
+
+        let olm_mac = bob_on_libolm
+            .calculate_mac_fixed_base64(&message, &extra_info)
+            .expect("libolm couldn't calculate SAS MAC.");
+        assert_eq!(olm_mac, established.calculate_mac(&message, &extra_info).to_base64());
+
+        let olm_mac =
+            Mac::from_base64(&olm_mac).expect("SAS MAC generated by libolm wasn't valid base64.");
+
+        established.verify_mac(&message, &extra_info, &olm_mac)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn calculate_mac_invalid_base64() -> Result<()> {
         let mut olm = OlmSas::new();
         let dalek = Sas::new();
 
-        olm.set_their_public_key(dalek.public_key_encoded().to_string())
+        olm.set_their_public_key(dalek.public_key().to_base64())
             .expect("Couldn't set the public key for libolm");
         let established = dalek.diffie_hellman_with_raw(&olm.public_key())?;
 
-        let olm_mac =
-            olm.calculate_mac_fixed_base64("", "").expect("libolm couldn't calculate a MAC");
-        assert_eq!(olm_mac, established.calculate_mac("", ""));
-
-        established.verify_mac("", "", olm_mac.as_str())?;
+        let olm_mac = olm.calculate_mac("", "").expect("libolm couldn't calculate a MAC");
+        assert_eq!(olm_mac, established.calculate_mac_invalid_base64("", ""));
 
         Ok(())
     }

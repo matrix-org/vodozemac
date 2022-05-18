@@ -13,20 +13,51 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::{Cursor, Read, Seek, SeekFrom};
+#[cfg(feature = "libolm-compat")]
+mod libolm_compat;
 
 pub use base64::DecodeError;
-use base64::{decode_config, encode_config, STANDARD_NO_PAD};
-use x25519_dalek::StaticSecret as Curve25519SecretKey;
+#[cfg(feature = "libolm-compat")]
+pub(crate) use libolm_compat::{unpickle_libolm, Decode, DecodeSecret, LibolmDecodeError};
 
 /// Decode the input as base64 with no padding.
 pub fn base64_decode(input: impl AsRef<[u8]>) -> Result<Vec<u8>, DecodeError> {
-    decode_config(input, STANDARD_NO_PAD)
+    base64::decode_config(input, base64::STANDARD_NO_PAD)
 }
 
 /// Encode the input as base64 with no padding.
 pub fn base64_encode(input: impl AsRef<[u8]>) -> String {
-    encode_config(input, STANDARD_NO_PAD)
+    base64::encode_config(input, base64::STANDARD_NO_PAD)
+}
+
+pub(crate) fn unpickle<T: for<'b> serde::Deserialize<'b>>(
+    ciphertext: &str,
+    pickle_key: &[u8; 32],
+) -> Result<T, crate::PickleError> {
+    use zeroize::Zeroize;
+
+    let cipher = crate::cipher::Cipher::new_pickle(pickle_key);
+    let decoded = base64_decode(ciphertext)?;
+    let mut plaintext = cipher.decrypt_pickle(&decoded)?;
+
+    let pickle = serde_json::from_slice(&plaintext)?;
+
+    plaintext.zeroize();
+
+    Ok(pickle)
+}
+
+pub(crate) fn pickle<T: serde::Serialize>(thing: &T, pickle_key: &[u8; 32]) -> String {
+    use zeroize::Zeroize;
+
+    let mut json = serde_json::to_vec(&thing).expect("Can't serialize a pickled object");
+    let cipher = crate::cipher::Cipher::new_pickle(pickle_key);
+
+    let ciphertext = cipher.encrypt_pickle(json.as_slice());
+
+    json.zeroize();
+
+    base64_encode(ciphertext)
 }
 
 // The integer encoding logic here has been taken from the integer-encoding[1]
@@ -92,25 +123,4 @@ impl VarInt for u64 {
 
         v
     }
-}
-
-pub(crate) fn read_u32(cursor: &mut Cursor<Vec<u8>>) -> std::io::Result<u32> {
-    let mut num = [0u8; 4];
-    cursor.read_exact(&mut num)?;
-    Ok(u32::from_be_bytes(num))
-}
-
-pub(crate) fn read_curve_key(cursor: &mut Cursor<Vec<u8>>) -> std::io::Result<Curve25519SecretKey> {
-    // Skip the public key.
-    cursor.seek(SeekFrom::Current(32))?;
-    let mut private_key = [0u8; 32];
-    cursor.read_exact(&mut private_key)?;
-
-    Ok(Curve25519SecretKey::from(private_key))
-}
-
-pub(crate) fn read_bool(cursor: &mut Cursor<Vec<u8>>) -> std::io::Result<bool> {
-    let mut published = [0u8; 1];
-    cursor.read_exact(&mut published)?;
-    Ok(published[0] != 0)
 }

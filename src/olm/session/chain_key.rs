@@ -25,15 +25,17 @@ use super::{
 const MESSAGE_KEY_SEED: &[u8; 1] = b"\x01";
 const ADVANCEMENT_SEED: &[u8; 1] = b"\x02";
 
-fn expand_chain_key(key: &[u8; 32]) -> [u8; 32] {
+fn expand_chain_key(key: &[u8; 32]) -> Box<[u8; 32]> {
     let mut mac =
         Hmac::<Sha256>::new_from_slice(key).expect("Can't create HmacSha256 from the key");
     mac.update(MESSAGE_KEY_SEED);
 
-    let output = mac.finalize().into_bytes();
+    let mut output = mac.finalize().into_bytes();
 
-    let mut key = [0u8; 32];
+    let mut key = Box::new([0u8; 32]);
     key.copy_from_slice(output.as_slice());
+
+    output.zeroize();
 
     key
 }
@@ -47,31 +49,21 @@ fn advance(key: &[u8; 32]) -> CtOutput<Hmac<Sha256>> {
 }
 
 #[derive(Clone, Zeroize, Serialize, Deserialize)]
+#[zeroize(drop)]
 pub(super) struct ChainKey {
-    key: [u8; 32],
+    key: Box<[u8; 32]>,
     index: u64,
-}
-
-impl Drop for ChainKey {
-    fn drop(&mut self) {
-        self.key.zeroize()
-    }
 }
 
 #[derive(Clone, Zeroize, Serialize, Deserialize)]
+#[zeroize(drop)]
 pub(super) struct RemoteChainKey {
-    key: [u8; 32],
+    key: Box<[u8; 32]>,
     index: u64,
 }
 
-impl Drop for RemoteChainKey {
-    fn drop(&mut self) {
-        self.key.zeroize()
-    }
-}
-
 impl RemoteChainKey {
-    pub fn new(bytes: [u8; 32]) -> Self {
+    pub fn new(bytes: Box<[u8; 32]>) -> Self {
         Self { key: bytes, index: 0 }
     }
 
@@ -79,7 +71,8 @@ impl RemoteChainKey {
         self.index
     }
 
-    pub fn from_bytes_and_index(bytes: [u8; 32], index: u32) -> Self {
+    #[cfg(feature = "libolm-compat")]
+    pub fn from_bytes_and_index(bytes: Box<[u8; 32]>, index: u32) -> Self {
         Self { key: bytes, index: index.into() }
     }
 
@@ -100,11 +93,12 @@ impl RemoteChainKey {
 }
 
 impl ChainKey {
-    pub fn new(bytes: [u8; 32]) -> Self {
+    pub fn new(bytes: Box<[u8; 32]>) -> Self {
         Self { key: bytes, index: 0 }
     }
 
-    pub fn from_bytes_and_index(bytes: [u8; 32], index: u32) -> Self {
+    #[cfg(feature = "libolm-compat")]
+    pub fn from_bytes_and_index(bytes: Box<[u8; 32]>, index: u32) -> Self {
         Self { key: bytes, index: index.into() }
     }
 

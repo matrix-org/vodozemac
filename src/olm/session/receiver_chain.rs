@@ -19,7 +19,7 @@ use super::{
     chain_key::RemoteChainKey, message_key::RemoteMessageKey, ratchet::RemoteRatchetKey,
     DecryptionError,
 };
-use crate::olm::messages::DecodedMessage;
+use crate::olm::messages::Message;
 
 const MAX_MESSAGE_GAP: u64 = 2000;
 const MAX_MESSAGE_KEYS: usize = 40;
@@ -79,7 +79,7 @@ impl ReceiverChain {
         }
     }
 
-    pub fn decrypt(&mut self, message: &DecodedMessage) -> Result<Vec<u8>, DecryptionError> {
+    pub fn decrypt(&mut self, message: &Message) -> Result<Vec<u8>, DecryptionError> {
         let message_gap = message.chain_index.saturating_sub(self.hkdf_ratchet.chain_index());
 
         if message_gap > MAX_MESSAGE_GAP {
@@ -121,10 +121,12 @@ impl ReceiverChain {
         }
     }
 
+    #[cfg(feature = "libolm-compat")]
     pub fn ratchet_key(&self) -> RemoteRatchetKey {
         self.ratchet_key
     }
 
+    #[cfg(feature = "libolm-compat")]
     pub fn insert_message_key(&mut self, message_key: RemoteMessageKey) {
         self.skipped_message_keys.push(message_key)
     }

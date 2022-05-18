@@ -15,7 +15,7 @@
 
 use hmac::{Hmac, Mac as _};
 use rand::{thread_rng, RngCore};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{digest::CtOutput, Sha256};
 use thiserror::Error;
 use zeroize::Zeroize;
@@ -24,17 +24,52 @@ const ADVANCEMENT_SEEDS: [&[u8; 1]; Ratchet::RATCHET_PART_COUNT] =
     [b"\x00", b"\x01", b"\x02", b"\x03"];
 
 #[derive(Serialize, Deserialize, Zeroize, Clone)]
-#[serde(try_from = "RatchetPickle")]
-#[serde(into = "RatchetPickle")]
+#[zeroize(drop)]
 pub(super) struct Ratchet {
-    inner: [u8; Self::RATCHET_LENGTH],
+    inner: RatchetBytes,
     counter: u32,
 }
 
-impl Drop for Ratchet {
-    fn drop(&mut self) {
-        self.inner.zeroize();
-        self.counter.zeroize();
+#[derive(Zeroize, Clone)]
+#[zeroize(drop)]
+struct RatchetBytes(Box<[u8; Ratchet::RATCHET_LENGTH]>);
+
+impl RatchetBytes {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, RatchetBytesError> {
+        let length = bytes.len();
+
+        if length != Ratchet::RATCHET_LENGTH {
+            Err(RatchetBytesError::InvalidLength(length))
+        } else {
+            let mut ratchet = Self(Box::new([0u8; Ratchet::RATCHET_LENGTH]));
+            ratchet.0.copy_from_slice(bytes);
+
+            Ok(ratchet)
+        }
+    }
+}
+
+impl Serialize for RatchetBytes {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let bytes = &self.0;
+        bytes.serialize(serializer)
+    }
+}
+
+impl<'d> Deserialize<'d> for RatchetBytes {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'d>,
+    {
+        let mut bytes = <Vec<u8>>::deserialize(deserializer)?;
+        let ratchet = Self::from_bytes(bytes.as_ref()).map_err(serde::de::Error::custom)?;
+
+        bytes.zeroize();
+
+        Ok(ratchet)
     }
 }
 
@@ -87,19 +122,21 @@ impl<'a> RatchetParts<'a> {
 impl Ratchet {
     pub const RATCHET_LENGTH: usize = 128;
     const RATCHET_PART_COUNT: usize = 4;
+    const LAST_RATCHET_INDEX: usize = Self::RATCHET_PART_COUNT - 1;
 
     pub fn new() -> Self {
         let mut rng = thread_rng();
 
-        let mut ratchet = Self { inner: [0u8; Self::RATCHET_LENGTH], counter: 0 };
+        let mut ratchet =
+            Self { inner: RatchetBytes(Box::new([0u8; Self::RATCHET_LENGTH])), counter: 0 };
 
-        rng.fill_bytes(&mut ratchet.inner);
+        rng.fill_bytes(&mut *ratchet.inner.0);
 
         ratchet
     }
 
-    pub fn from_bytes(bytes: [u8; Self::RATCHET_LENGTH], counter: u32) -> Self {
-        Self { inner: bytes, counter }
+    pub fn from_bytes(bytes: Box<[u8; Self::RATCHET_LENGTH]>, counter: u32) -> Self {
+        Self { inner: RatchetBytes(bytes), counter }
     }
 
     pub fn index(&self) -> u32 {
@@ -107,11 +144,11 @@ impl Ratchet {
     }
 
     pub fn as_bytes(&self) -> &[u8; Self::RATCHET_LENGTH] {
-        &self.inner
+        &self.inner.0
     }
 
-    fn as_parts(&mut self) -> RatchetParts {
-        let (top, bottom) = self.inner.split_at_mut(64);
+    fn as_parts(&mut self) -> RatchetParts<'_> {
+        let (top, bottom) = self.inner.0.split_at_mut(64);
 
         let (r_0, r_1) = top.split_at_mut(32);
         let (r_2, r_3) = bottom.split_at_mut(32);
@@ -126,11 +163,14 @@ impl Ratchet {
 
     pub fn advance(&mut self) {
         let mut mask: u32 = 0x00FFFFFF;
+
+        // The index of the "slowest" part of the ratchet that needs to be
+        // advanced.
         let mut h = 0;
 
         self.counter += 1;
 
-        // figure out how much we need to rekey
+        // Figure out which parts of the ratchet need to be advanced.
         while h < Self::RATCHET_PART_COUNT {
             if (self.counter & mask) == 0 {
                 break;
@@ -140,31 +180,29 @@ impl Ratchet {
             mask >>= 8;
         }
 
-        let mut i = Self::RATCHET_PART_COUNT - 1;
+        let parts_to_advance = (h..=Self::LAST_RATCHET_INDEX).rev();
 
-        // now update R(h)...R(3) based on R(h)
-        while i >= h {
+        // Now advance R(h)...R(3) based on R(h).
+        for i in parts_to_advance {
             let mut parts = self.as_parts();
             parts.update(h, i);
-
-            i -= 1;
         }
     }
 
     pub fn advance_to(&mut self, advance_to: u32) {
         for j in 0..Self::RATCHET_PART_COUNT {
-            let shift = (Self::RATCHET_PART_COUNT - j - 1) * 8;
+            let shift = (Self::LAST_RATCHET_INDEX - j) * 8;
             let mask: u32 = !0u32 << shift;
 
-            // how many times do we need to rehash this part?
-            // '& 0xff' ensures we handle integer wraparound correctly
+            // How many times do we need to rehash this part? `& 0xff` ensures
+            // we handle integer wrap-around correctly.
             let mut steps = ((advance_to >> shift) - (self.counter >> shift)) & 0xff;
 
             if steps == 0 {
-                // deal with the edge case where megolm->counter is slightly
-                // larger than advance_to. This should only happen for R(0), and
-                // implies that advance_to has wrapped around and we need to
-                // advance R(0) 256 times.
+                // Deal with the edge case where the ratchet counter is slightly
+                // larger than the index we need to advance to. This should only
+                // happen for R(0) and implies that advance_to has wrapped
+                // around and we need to advance R(0) 256 times.
                 if advance_to < self.counter {
                     steps = 0x100;
                 } else {
@@ -172,7 +210,7 @@ impl Ratchet {
                 }
             }
 
-            // for all but the last step, we can just bump R(j) without regard
+            // For all but the last step, we can just bump R(j) without regard
             // to R(j+1)...R(3).
             while steps > 1 {
                 let mut parts = self.as_parts();
@@ -180,18 +218,16 @@ impl Ratchet {
                 steps -= 1;
             }
 
-            // on the last step we also need to bump R(j+1)...R(3).
-            // (Theoretically, we could skip bumping R(j+2) if we're going to bump
-            // R(j+1) again, but the code to figure that out is a bit baroque and
-            // doesn't save us much).
+            // On the last step we also need to bump R(j+1)...R(3).
+            // (Theoretically, we could skip bumping R(j+2) if we're going to
+            // bump R(j+1) again, but the code to figure that out is a bit
+            // baroque and doesn't save us much).
 
-            let mut k = Self::RATCHET_PART_COUNT - 1;
+            let parts_to_update = (j..=Self::LAST_RATCHET_INDEX).rev();
 
-            while k >= j {
+            for k in parts_to_update {
                 let mut parts = self.as_parts();
                 parts.update(j, k);
-
-                k -= 1;
             }
 
             self.counter = advance_to & mask;
@@ -199,36 +235,27 @@ impl Ratchet {
     }
 }
 
-#[derive(Serialize, Deserialize, Zeroize)]
-#[zeroize(drop)]
-pub(super) struct RatchetPickle {
-    key: Vec<u8>,
-    counter: u32,
-}
-
-impl From<Ratchet> for RatchetPickle {
-    fn from(ratchet: Ratchet) -> Self {
-        Self { key: ratchet.inner.into(), counter: ratchet.counter }
-    }
-}
-
-impl TryFrom<RatchetPickle> for Ratchet {
-    type Error = MegolmRatchetUnpicklingError;
-
-    fn try_from(pickle: RatchetPickle) -> Result<Self, Self::Error> {
-        Ok(Ratchet {
-            inner: pickle
-                .key
-                .clone()
-                .try_into()
-                .map_err(|_| MegolmRatchetUnpicklingError::InvalidKeyLength(pickle.key.len()))?,
-            counter: pickle.counter,
-        })
-    }
-}
-
 #[derive(Error, Debug)]
-pub enum MegolmRatchetUnpicklingError {
-    #[error("Invalid Megolm ratchet key length: expected 128, got {0}")]
-    InvalidKeyLength(usize),
+enum RatchetBytesError {
+    #[error("Invalid Megolm ratchet length: expected 128, got {0}")]
+    InvalidLength(usize),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn advancing_high_counter_ratchet_doesnt_panic() {
+        let mut ratchet = Ratchet::new();
+        ratchet.counter = 0x00FFFFFF;
+        ratchet.advance();
+    }
+
+    #[test]
+    fn advance_to_with_high_counter_doesnt_panic() {
+        let mut ratchet = Ratchet::new();
+        ratchet.counter = (1 << 24) - 1;
+        ratchet.advance_to(1 << 24);
+    }
 }

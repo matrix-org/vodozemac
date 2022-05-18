@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use rand::thread_rng;
 use serde::{Deserialize, Serialize};
-use x25519_dalek::StaticSecret as Curve25519SecretKey;
-use zeroize::Zeroize;
 
-use crate::{types::KeyId, Curve25519PublicKey};
+use crate::{
+    types::{Curve25519SecretKey, KeyId},
+    Curve25519PublicKey,
+};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(super) struct FallbackKey {
@@ -28,8 +28,7 @@ pub(super) struct FallbackKey {
 
 impl FallbackKey {
     fn new(key_id: KeyId) -> Self {
-        let mut rng = thread_rng();
-        let key = Curve25519SecretKey::new(&mut rng);
+        let key = Curve25519SecretKey::new();
 
         Self { key_id, key, published: false }
     }
@@ -52,12 +51,6 @@ impl FallbackKey {
 
     pub fn published(&self) -> bool {
         self.published
-    }
-}
-
-impl Zeroize for FallbackKey {
-    fn zeroize(&mut self) {
-        self.key.zeroize();
     }
 }
 
@@ -137,5 +130,3 @@ mod test {
         assert_eq!(secret_bytes, fetched_key.to_bytes());
     }
 }
-
-pub(super) type FallbackKeysPickle = FallbackKeys;

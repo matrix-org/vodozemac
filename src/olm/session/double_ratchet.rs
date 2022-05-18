@@ -16,11 +16,12 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     chain_key::ChainKey,
+    message_key::MessageKey,
     ratchet::{Ratchet, RatchetPublicKey, RemoteRatchetKey},
     receiver_chain::ReceiverChain,
     root_key::{RemoteRootKey, RootKey},
 };
-use crate::olm::{messages::EncodedMessage, shared_secret::Shared3DHSecret};
+use crate::olm::{messages::Message, shared_secret::Shared3DHSecret};
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(transparent)]
@@ -29,18 +30,22 @@ pub(super) struct DoubleRatchet {
 }
 
 impl DoubleRatchet {
-    pub fn encrypt(&mut self, plaintext: &str) -> EncodedMessage {
+    pub fn next_message_key(&mut self) -> MessageKey {
         match &mut self.inner {
             DoubleRatchetState::Inactive(ratchet) => {
                 let mut ratchet = ratchet.activate();
 
-                let message = ratchet.encrypt(plaintext.as_bytes());
+                let message_key = ratchet.next_message_key();
                 self.inner = DoubleRatchetState::Active(ratchet);
 
-                message
+                message_key
             }
-            DoubleRatchetState::Active(ratchet) => ratchet.encrypt(plaintext.as_bytes()),
+            DoubleRatchetState::Active(ratchet) => ratchet.next_message_key(),
         }
+    }
+
+    pub fn encrypt(&mut self, plaintext: &str) -> Message {
+        self.next_message_key().encrypt(plaintext.as_bytes())
     }
 
     pub fn active(shared_secret: Shared3DHSecret) -> Self {
@@ -49,15 +54,22 @@ impl DoubleRatchet {
         let root_key = RootKey::new(root_key);
         let chain_key = ChainKey::new(chain_key);
 
-        let ratchet =
-            ActiveDoubleRatchet { active_ratchet: Ratchet::new(root_key), hkdf_ratchet: chain_key };
+        let ratchet = ActiveDoubleRatchet {
+            active_ratchet: Ratchet::new(root_key),
+            symmetric_key_ratchet: chain_key,
+        };
 
         Self { inner: ratchet.into() }
     }
 
+    #[cfg(feature = "libolm-compat")]
     pub fn from_ratchet_and_chain_key(ratchet: Ratchet, chain_key: ChainKey) -> Self {
         Self {
-            inner: ActiveDoubleRatchet { active_ratchet: ratchet, hkdf_ratchet: chain_key }.into(),
+            inner: ActiveDoubleRatchet {
+                active_ratchet: ratchet,
+                symmetric_key_ratchet: chain_key,
+            }
+            .into(),
         }
     }
 
@@ -121,14 +133,14 @@ impl InactiveDoubleRatchet {
         let (root_key, chain_key, ratchet_key) = self.root_key.advance(&self.ratchet_key);
         let active_ratchet = Ratchet::new_with_ratchet_key(root_key, ratchet_key);
 
-        ActiveDoubleRatchet { active_ratchet, hkdf_ratchet: chain_key }
+        ActiveDoubleRatchet { active_ratchet, symmetric_key_ratchet: chain_key }
     }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 struct ActiveDoubleRatchet {
     active_ratchet: Ratchet,
-    hkdf_ratchet: ChainKey,
+    symmetric_key_ratchet: ChainKey,
 }
 
 impl ActiveDoubleRatchet {
@@ -145,11 +157,7 @@ impl ActiveDoubleRatchet {
         RatchetPublicKey::from(self.active_ratchet.ratchet_key())
     }
 
-    fn encrypt(&mut self, plaintext: &[u8]) -> EncodedMessage {
-        let message_key = self.hkdf_ratchet.create_message_key(self.ratchet_key());
-
-        message_key.encrypt(plaintext)
+    fn next_message_key(&mut self) -> MessageKey {
+        self.symmetric_key_ratchet.create_message_key(self.ratchet_key())
     }
 }
-
-pub(super) type DoubleRatchetPickle = DoubleRatchet;

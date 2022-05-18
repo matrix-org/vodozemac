@@ -15,53 +15,94 @@
 mod message;
 mod pre_key;
 
-pub use message::{DecodedMessage, EncodedMessage};
-pub use pre_key::{DecodedPreKeyMessage, EncodedPrekeyMessage};
+pub use message::Message;
+pub use pre_key::PreKeyMessage;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Message {
-    pub(super) inner: String,
-}
+use crate::DecodeError;
 
-impl Message {
-    pub(crate) fn decode(&self) -> Result<DecodedMessage, crate::DecodeError> {
-        DecodedMessage::try_from(self.inner.as_str())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct PreKeyMessage {
-    pub(super) inner: String,
-}
-
-impl PreKeyMessage {
-    pub(crate) fn decode(&self) -> Result<DecodedPreKeyMessage, crate::DecodeError> {
-        DecodedPreKeyMessage::try_from(self.inner.as_str())
-    }
-}
-
+/// Enum over the different Olm message types.
+///
+/// Olm uses two types of messages. The underlying transport protocol must
+/// provide a means for recipients to distinguish between them.
+///
+/// [`OlmMessage`] provides [`Serialize`] and [`Deserialize`] implementations
+/// that are compatible with [Matrix].
+///
+/// [Matrix]: https://spec.matrix.org/latest/client-server-api/#molmv1curve25519-aes-sha2
 #[derive(Debug, Clone, PartialEq)]
 pub enum OlmMessage {
+    /// A normal message, contains only the ciphertext and metadata to decrypt
+    /// it.
     Normal(Message),
+    /// A pre-key message, contains metadata to establish a [`Session`] as well
+    /// as a [`Message`].
+    ///
+    /// [`Session`]: crate::olm::Session
     PreKey(PreKeyMessage),
 }
 
+impl From<Message> for OlmMessage {
+    fn from(m: Message) -> Self {
+        Self::Normal(m)
+    }
+}
+
+impl From<PreKeyMessage> for OlmMessage {
+    fn from(m: PreKeyMessage) -> Self {
+        Self::PreKey(m)
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct MessageSerdeHelper {
+    #[serde(rename = "type")]
+    message_type: usize,
+    #[serde(rename = "body")]
+    ciphertext: String,
+}
+
+impl Serialize for OlmMessage {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let (message_type, ciphertext) = self.clone().to_parts();
+
+        let message = MessageSerdeHelper { message_type, ciphertext };
+
+        message.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for OlmMessage {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let value = MessageSerdeHelper::deserialize(d)?;
+
+        OlmMessage::from_parts(value.message_type, &value.ciphertext)
+            .map_err(serde::de::Error::custom)
+    }
+}
+
 impl OlmMessage {
-    pub fn from_parts(message_type: usize, ciphertext: String) -> Option<Self> {
+    /// Create a `OlmMessage` from a message type and a ciphertext.
+    pub fn from_parts(message_type: usize, ciphertext: &str) -> Result<Self, DecodeError> {
         match message_type {
-            0 => Some(Self::PreKey(PreKeyMessage { inner: ciphertext })),
-            1 => Some(Self::Normal(Message { inner: ciphertext })),
-            _ => None,
+            0 => Ok(Self::PreKey(PreKeyMessage::try_from(ciphertext)?)),
+            1 => Ok(Self::Normal(Message::try_from(ciphertext)?)),
+            m => Err(DecodeError::MessageType(m)),
         }
     }
 
-    pub fn ciphertext(&self) -> &str {
+    /// Get the message as a byte array.
+    pub fn message(&self) -> &[u8] {
         match self {
-            OlmMessage::Normal(m) => &m.inner,
-            OlmMessage::PreKey(m) => &m.inner,
+            OlmMessage::Normal(m) => &m.ciphertext,
+            OlmMessage::PreKey(m) => &m.message.ciphertext,
         }
     }
 
+    /// Get the type of the message.
     pub fn message_type(&self) -> MessageType {
         match self {
             OlmMessage::Normal(_) => MessageType::Normal,
@@ -69,21 +110,25 @@ impl OlmMessage {
         }
     }
 
+    /// Convert the `OlmMessage` into a message type, and base64 encoded message
+    /// tuple.
     pub fn to_parts(self) -> (usize, String) {
         let message_type = self.message_type();
 
         match self {
-            OlmMessage::Normal(m) => (message_type.into(), m.inner),
-            OlmMessage::PreKey(m) => (message_type.into(), m.inner),
+            OlmMessage::Normal(m) => (message_type.into(), m.to_base64()),
+            OlmMessage::PreKey(m) => (message_type.into(), m.to_base64()),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-#[allow(missing_docs)]
+/// An enum over the two supported message types.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MessageType {
-    Normal,
-    PreKey,
+    /// The pre-key message type.
+    PreKey = 0,
+    /// The normal message type.
+    Normal = 1,
 }
 
 impl TryFrom<usize> for MessageType {
@@ -100,10 +145,7 @@ impl TryFrom<usize> for MessageType {
 
 impl From<MessageType> for usize {
     fn from(value: MessageType) -> usize {
-        match value {
-            MessageType::PreKey => 0,
-            MessageType::Normal => 1,
-        }
+        value as usize
     }
 }
 
@@ -115,25 +157,108 @@ impl From<LibolmMessage> for OlmMessage {
     fn from(other: LibolmMessage) -> Self {
         let (message_type, ciphertext) = other.to_tuple();
 
-        match message_type {
-            olm_rs::session::OlmMessageType::PreKey => {
-                Self::PreKey(PreKeyMessage { inner: ciphertext })
-            }
-            olm_rs::session::OlmMessageType::Message => Self::Normal(Message { inner: ciphertext }),
-        }
+        Self::from_parts(message_type.into(), &ciphertext).expect("Can't decode a libolm message")
     }
 }
 
 #[cfg(test)]
 impl From<OlmMessage> for LibolmMessage {
     fn from(value: OlmMessage) -> LibolmMessage {
-        let ciphertext = value.ciphertext().to_owned();
-
         match value {
-            OlmMessage::Normal(_) => LibolmMessage::from_type_and_ciphertext(1, ciphertext)
+            OlmMessage::Normal(m) => LibolmMessage::from_type_and_ciphertext(1, m.to_base64())
                 .expect("Can't create a valid libolm message"),
-            OlmMessage::PreKey(_) => LibolmMessage::from_type_and_ciphertext(0, ciphertext)
+            OlmMessage::PreKey(m) => LibolmMessage::from_type_and_ciphertext(0, m.to_base64())
                 .expect("Can't create a valid libolm pre-key message"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use assert_matches::assert_matches;
+    use serde_json::json;
+
+    use super::*;
+
+    const PRE_KEY_MESSAGE: &str = "AwoghAEuxPZ+w7M3pgUae4tDNiggUpOsQ/zci457VAti\
+                                   AEYSIO3xOKRDBWKicIfxjSmYCYZ9DD4RMLjvvclbMlE5\
+                                   yIEWGiApLrCr853CKlPpW4Bi7S8ykRcejJ0lq7AfYLXK\
+                                   CjKdHSJPAwoghw3+P+cajhWj9Qzp5g87h+tbpiuh5wEa\
+                                   eUppqmWqug4QASIgRhZ2cgZcIWQbIa23R7U4y1Mo1R/t\
+                                   LCaMU+xjzRV5smGsCrJ6AHwktg";
+
+    const MESSAGE: &str = "AwogI7JhE/UsMZqXKb3xV6kUZWoJc6jTm2+AIgWYmaETIR0QASIQ\
+                           +X2zb7kEX/3JvoLspcNBcLWOFXYpV0nS";
+
+    #[test]
+    fn message_type_from_usize() {
+        assert_eq!(
+            MessageType::try_from(0),
+            Ok(MessageType::PreKey),
+            "0 should denote a pre-key Olm message"
+        );
+        assert_eq!(
+            MessageType::try_from(1),
+            Ok(MessageType::Normal),
+            "1 should denote a normal Olm message"
+        );
+        assert!(
+            MessageType::try_from(2).is_err(),
+            "2 should be recognized as an unknown Olm message type"
+        );
+    }
+
+    #[test]
+    fn from_json() -> Result<()> {
+        let value = json!({
+            "type": 0u8,
+            "body": PRE_KEY_MESSAGE,
+        });
+
+        let message: OlmMessage = serde_json::from_value(value.clone())?;
+        assert_matches!(message, OlmMessage::PreKey(_));
+
+        let serialized = serde_json::to_value(message)?;
+        assert_eq!(value, serialized, "The serialization cycle isn't a noop");
+
+        let value = json!({
+            "type": 1u8,
+            "body": MESSAGE,
+        });
+
+        let message: OlmMessage = serde_json::from_value(value.clone())?;
+        assert_matches!(message, OlmMessage::Normal(_));
+
+        let serialized = serde_json::to_value(message)?;
+        assert_eq!(value, serialized, "The serialization cycle isn't a noop");
+
+        Ok(())
+    }
+
+    #[test]
+    fn from_parts() -> Result<()> {
+        let message = OlmMessage::from_parts(0, PRE_KEY_MESSAGE)?;
+        assert_matches!(message, OlmMessage::PreKey(_));
+        assert_eq!(
+            message.message_type(),
+            MessageType::PreKey,
+            "Expected message to be recognized as a pre-key Olm message."
+        );
+
+        assert_eq!(message.to_parts(), (0, PRE_KEY_MESSAGE.to_string()), "Roundtrip not identity.");
+
+        let message = OlmMessage::from_parts(1, MESSAGE)?;
+        assert_eq!(
+            message.message_type(),
+            MessageType::Normal,
+            "Expected message to be recognized as a normal Olm message."
+        );
+        assert_eq!(message.to_parts(), (1, MESSAGE.to_string()), "Roundtrip not identity.");
+
+        OlmMessage::from_parts(3, PRE_KEY_MESSAGE)
+            .expect_err("Unknown message types can't be parsed");
+
+        Ok(())
     }
 }

@@ -15,18 +15,13 @@
 
 mod chain_key;
 mod double_ratchet;
-mod message_key;
-mod ratchet;
+pub mod message_key;
+pub mod ratchet;
 mod receiver_chain;
 mod root_key;
 
-use std::{
-    io::{Cursor, Read, Seek, SeekFrom},
-    ops::Deref,
-};
-
+use aes::cipher::block_padding::UnpadError;
 use arrayvec::ArrayVec;
-use block_modes::BlockModeError;
 use chain_key::RemoteChainKey;
 use double_ratchet::DoubleRatchet;
 use hmac::digest::MacError;
@@ -38,18 +33,38 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 use zeroize::Zeroize;
 
-use self::double_ratchet::DoubleRatchetPickle;
 use super::{
-    session_keys::{SessionKeys, SessionKeysPickle},
+    session_keys::SessionKeys,
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
 };
+#[cfg(feature = "low-level-api")]
+use crate::hazmat::olm::MessageKey;
 use crate::{
-    olm::messages::{DecodedMessage, EncodedPrekeyMessage, Message, OlmMessage, PreKeyMessage},
-    utilities::{base64_decode, base64_encode},
-    Curve25519PublicKey, DecodeError,
+    olm::messages::{Message, OlmMessage, PreKeyMessage},
+    utilities::{base64_encode, pickle, unpickle, DecodeSecret},
+    Curve25519PublicKey, PickleError,
 };
 
 const MAX_RECEIVING_CHAINS: usize = 5;
+
+/// Error type for Olm-based decryption failuers.
+#[derive(Error, Debug)]
+pub enum DecryptionError {
+    /// The message authentication code of the message was invalid.
+    #[error("Failed decrypting Olm message, invalid MAC: {0}")]
+    InvalidMAC(#[from] MacError),
+    /// The ciphertext of the message isn't padded correctly.
+    #[error("Failed decrypting Olm message, invalid padding")]
+    InvalidPadding(#[from] UnpadError),
+    /// The session is missing the correct message key to decrypt the message,
+    /// either because it was already used up, or because the Session has been
+    /// ratcheted forwards and the message key has been discarded.
+    #[error("The message key with the given key can't be created, message index: {0}")]
+    MissingMessageKey(u64),
+    /// Too many messages have been skipped to attempt decrypting this message.
+    #[error("The message gap was too big, got {0}, max allowed {}")]
+    TooBigMessageGap(u64, u64),
+}
 
 #[derive(Serialize, Deserialize, Clone)]
 struct ChainStore {
@@ -78,6 +93,7 @@ impl ChainStore {
         self.inner.len()
     }
 
+    #[cfg(feature = "libolm-compat")]
     pub fn get(&self, index: usize) -> Option<&ReceiverChain> {
         self.inner.get(index)
     }
@@ -85,22 +101,6 @@ impl ChainStore {
     fn find_ratchet(&mut self, ratchet_key: &RemoteRatchetKey) -> Option<&mut ReceiverChain> {
         self.inner.iter_mut().find(|r| r.belongs_to(ratchet_key))
     }
-}
-
-#[derive(Error, Debug)]
-pub enum DecryptionError {
-    #[error("The message wasn't valid base64: {0}")]
-    Base64(#[from] base64::DecodeError),
-    #[error("Failed decrypting Olm message, invalid MAC: {0}")]
-    InvalidMAC(#[from] MacError),
-    #[error("Failed decrypting Olm message, invalid ciphertext: {0}")]
-    InvalidCiphertext(#[from] BlockModeError),
-    #[error("The message key with the given key can't be created, message index: {0}")]
-    MissingMessageKey(u64),
-    #[error("The message gap was too big, got {0}, max allowed {}")]
-    TooBigMessageGap(u64, u64),
-    #[error("The message couldn't be decoded: {0}")]
-    DecodeError(#[from] DecodeError),
 }
 
 impl Default for ChainStore {
@@ -138,8 +138,6 @@ impl Default for ChainStore {
 /// [`Account`]: crate::olm::Account
 /// [`Account::create_outbound_session`]: crate::olm::Account::create_outbound_session
 /// [`Account::create_inbound_session`]: crate::olm::Account::create_inbound_session
-#[derive(Deserialize)]
-#[serde(from = "SessionPickle")]
 pub struct Session {
     session_keys: SessionKeys,
     sending_ratchet: DoubleRatchet,
@@ -197,8 +195,11 @@ impl Session {
         base64_encode(digest)
     }
 
-    // Have we ever received and decrypted a message from the other side?
-    fn has_received_message(&self) -> bool {
+    /// Have we ever received and decrypted a message from the other side?
+    ///
+    /// Used to decide if outgoing messages should be sent as normal or pre-key
+    /// messages.
+    pub fn has_received_message(&self) -> bool {
         !self.receiving_chains.is_empty()
     }
 
@@ -212,17 +213,31 @@ impl Session {
         let message = self.sending_ratchet.encrypt(plaintext);
 
         if self.has_received_message() {
-            OlmMessage::Normal(Message { inner: base64_encode(message) })
+            OlmMessage::Normal(message)
         } else {
-            let message = EncodedPrekeyMessage::new(
-                &self.session_keys.one_time_key,
-                &self.session_keys.base_key,
-                &self.session_keys.identity_key,
-                message,
-            );
+            let message = PreKeyMessage::new(self.session_keys, message);
 
-            OlmMessage::PreKey(PreKeyMessage { inner: base64_encode(message) })
+            OlmMessage::PreKey(message)
         }
+    }
+
+    /// Get the keys associated with this session.
+    pub fn session_keys(&self) -> SessionKeys {
+        self.session_keys
+    }
+
+    /// Get the [`MessageKey`] to encrypt the next message.
+    ///
+    /// **Note**: Each key obtained in this way should be used to encrypt
+    /// a message and the message must then be sent to the recipient.
+    ///
+    /// Failing to do so will increase the number of out-of-order messages on
+    /// the recipient side. Given that a `Session` can only support a limited
+    /// number of out-of-order messages, this will eventually lead to
+    /// undecryptable messages.
+    #[cfg(feature = "low-level-api")]
+    pub fn next_message_key(&mut self) -> MessageKey {
+        self.sending_ratchet.next_message_key()
     }
 
     /// Try to decrypt an Olm message, which will either return the plaintext or
@@ -231,14 +246,8 @@ impl Session {
     /// [`DecryptionError`]: self::DecryptionError
     pub fn decrypt(&mut self, message: &OlmMessage) -> Result<String, DecryptionError> {
         let decrypted = match message {
-            OlmMessage::Normal(m) => {
-                let message = m.decode()?;
-                self.decrypt_decoded(message)?
-            }
-            OlmMessage::PreKey(m) => {
-                let message = m.decode()?;
-                self.decrypt_decoded(message.message)?
-            }
+            OlmMessage::Normal(m) => self.decrypt_decoded(m)?,
+            OlmMessage::PreKey(m) => self.decrypt_decoded(&m.message)?,
         };
 
         Ok(String::from_utf8_lossy(&decrypted).to_string())
@@ -246,16 +255,16 @@ impl Session {
 
     pub(super) fn decrypt_decoded(
         &mut self,
-        message: DecodedMessage,
+        message: &Message,
     ) -> Result<Vec<u8>, DecryptionError> {
         let ratchet_key = RemoteRatchetKey::from(message.ratchet_key);
 
         if let Some(ratchet) = self.receiving_chains.find_ratchet(&ratchet_key) {
-            Ok(ratchet.decrypt(&message)?)
+            Ok(ratchet.decrypt(message)?)
         } else {
             let (sending_ratchet, mut remote_ratchet) = self.sending_ratchet.advance(ratchet_key);
 
-            let plaintext = remote_ratchet.decrypt(&message)?;
+            let plaintext = remote_ratchet.decrypt(message)?;
 
             self.sending_ratchet = sending_ratchet;
             self.receiving_chains.push(remote_ratchet);
@@ -267,27 +276,16 @@ impl Session {
     /// Convert the session into a struct which implements [`serde::Serialize`]
     /// and [`serde::Deserialize`].
     pub fn pickle(&self) -> SessionPickle {
-        let session_keys: SessionKeysPickle = self.session_keys.clone();
         SessionPickle {
-            session_keys,
+            session_keys: self.session_keys,
             sending_ratchet: self.sending_ratchet.clone(),
             receiving_chains: self.receiving_chains.clone(),
         }
     }
 
-    /// Pickle the session and serialize it to a JSON string.
-    ///
-    /// The string is wrapped in [`SessionPickledJSON`] which can be derefed to
-    /// access the content as a string slice. The string will zeroize itself
-    /// when it drops to prevent secrets contained inside from lingering in
-    /// memory.
-    ///
-    /// [`SessionPickledJSON`]: self::SessionPickledJSON
-    pub fn pickle_to_json_string(&self) -> SessionPickledJSON {
-        let pickle: SessionPickle = self.pickle();
-        SessionPickledJSON(
-            serde_json::to_string_pretty(&pickle).expect("Session serialization failed."),
-        )
+    /// Restore a [`Session`] from a previously saved [`SessionPickle`].
+    pub fn from_pickle(pickle: SessionPickle) -> Self {
+        pickle.into()
     }
 
     /// Create a [`Session`] object by unpickling a session pickle in libolm
@@ -295,124 +293,197 @@ impl Session {
     ///
     /// Such pickles are encrypted and need to first be decrypted using
     /// `pickle_key`.
+    #[cfg(feature = "libolm-compat")]
     pub fn from_libolm_pickle(
         pickle: &str,
         pickle_key: &str,
-    ) -> Result<Self, crate::LibolmUnpickleError> {
+    ) -> Result<Self, crate::LibolmPickleError> {
         use chain_key::ChainKey;
         use message_key::RemoteMessageKey;
         use ratchet::{Ratchet, RatchetKey};
         use root_key::RootKey;
 
         use crate::{
-            cipher::Cipher,
-            utilities::{read_curve_key, read_u32},
+            types::Curve25519SecretKey,
+            utilities::{unpickle_libolm, Decode},
         };
 
-        const PICKLE_VERSION: u32 = 1;
+        #[derive(Debug, Zeroize)]
+        #[zeroize(drop)]
+        struct SenderChain {
+            public_ratchet_key: [u8; 32],
+            secret_ratchet_key: Box<[u8; 32]>,
+            chain_key: Box<[u8; 32]>,
+            chain_key_index: u32,
+        }
 
-        let cipher = Cipher::new_pickle(pickle_key.as_ref());
-
-        let decoded = base64_decode(pickle)?;
-        let decrypted = cipher.decrypt_pickle(&decoded)?;
-        let mut cursor = Cursor::new(decrypted);
-
-        let version = read_u32(&mut cursor)?;
-
-        if version != PICKLE_VERSION {
-            Err(crate::LibolmUnpickleError::Version(PICKLE_VERSION, version))
-        } else {
-            // We skip fetching the received_message boolean, if there's a
-            // receiving chain, we must have received a message.
-            cursor.seek(SeekFrom::Current(1))?;
-
-            let mut identity_key = [0u8; 32];
-            let mut base_key = [0u8; 32];
-            let mut one_time_key = [0u8; 32];
-
-            cursor.read_exact(&mut identity_key)?;
-            cursor.read_exact(&mut base_key)?;
-            cursor.read_exact(&mut one_time_key)?;
-
-            let identity_key = Curve25519PublicKey::from(identity_key);
-            let base_key = Curve25519PublicKey::from(base_key);
-            let one_time_key = Curve25519PublicKey::from(one_time_key);
-
-            let session_keys = SessionKeys { identity_key, base_key, one_time_key };
-
-            let mut root_key = [0u8; 32];
-            cursor.read_exact(&mut root_key)?;
-
-            let sender_chain_count = read_u32(&mut cursor)?;
-
-            let sending_ratchet = if sender_chain_count == 1 {
-                let mut chain_key = [0u8; 32];
-
-                let ratchet_key = read_curve_key(&mut cursor)?;
-                cursor.read_exact(&mut chain_key)?;
-                let chain_key_index = read_u32(&mut cursor)?;
-
-                let ratchet_key = RatchetKey::from(ratchet_key);
-                let chain_key = ChainKey::from_bytes_and_index(chain_key, chain_key_index);
-
-                let root_key = RootKey::new(root_key);
-
-                let ratchet = Ratchet::new_with_ratchet_key(root_key, ratchet_key);
-                Some(DoubleRatchet::from_ratchet_and_chain_key(ratchet, chain_key))
-            } else {
-                None
-            };
-
-            let receiving_chain_count = read_u32(&mut cursor)?;
-
-            let mut receiving_chains = ChainStore::new();
-
-            for _ in 0..receiving_chain_count {
-                let mut ratchet_key = [0u8; 32];
-                let mut chain_key = [0u8; 32];
-
-                cursor.read_exact(&mut ratchet_key)?;
-                cursor.read_exact(&mut chain_key)?;
-                let chain_key_index = read_u32(&mut cursor)?;
-
-                let ratchet_key = RemoteRatchetKey::from(ratchet_key);
-                let chain_key = RemoteChainKey::from_bytes_and_index(chain_key, chain_key_index);
-
-                let receiving_chain = ReceiverChain::new(ratchet_key, chain_key);
-
-                receiving_chains.push(receiving_chain);
-            }
-
-            let message_key_count = read_u32(&mut cursor)?;
-
-            for _ in 0..message_key_count {
-                let mut ratchet_key = [0u8; 32];
-                let mut message_key = [0u8; 32];
-
-                cursor.read_exact(&mut ratchet_key)?;
-                cursor.read_exact(&mut message_key)?;
-
-                let index = read_u32(&mut cursor)?.into();
-                let ratchet_key = RemoteRatchetKey::from(ratchet_key);
-
-                let message_key = RemoteMessageKey { key: message_key, index };
-
-                if let Some(receiving_chain) = receiving_chains.find_ratchet(&ratchet_key) {
-                    receiving_chain.insert_message_key(message_key)
-                }
-            }
-
-            if let Some(sending_ratchet) = sending_ratchet {
-                Ok(Self { session_keys, sending_ratchet, receiving_chains })
-            } else if let Some(chain) = receiving_chains.get(0) {
-                let sending_ratchet =
-                    DoubleRatchet::inactive(RemoteRootKey::new(root_key), chain.ratchet_key());
-
-                Ok(Self { session_keys, sending_ratchet, receiving_chains })
-            } else {
-                Err(crate::LibolmUnpickleError::InvalidSession)
+        impl Decode for SenderChain {
+            fn decode(
+                reader: &mut impl std::io::Read,
+            ) -> Result<Self, crate::utilities::LibolmDecodeError> {
+                Ok(Self {
+                    public_ratchet_key: <[u8; 32]>::decode(reader)?,
+                    secret_ratchet_key: <[u8; 32]>::decode_secret(reader)?,
+                    chain_key: <[u8; 32]>::decode_secret(reader)?,
+                    chain_key_index: u32::decode(reader)?,
+                })
             }
         }
+
+        #[derive(Debug, Zeroize)]
+        #[zeroize(drop)]
+        struct ReceivingChain {
+            public_ratchet_key: [u8; 32],
+            chain_key: Box<[u8; 32]>,
+            chain_key_index: u32,
+        }
+
+        impl Decode for ReceivingChain {
+            fn decode(
+                reader: &mut impl std::io::Read,
+            ) -> Result<Self, crate::utilities::LibolmDecodeError> {
+                Ok(Self {
+                    public_ratchet_key: <[u8; 32]>::decode(reader)?,
+                    chain_key: <[u8; 32]>::decode_secret(reader)?,
+                    chain_key_index: u32::decode(reader)?,
+                })
+            }
+        }
+
+        impl From<&ReceivingChain> for ReceiverChain {
+            fn from(chain: &ReceivingChain) -> Self {
+                let ratchet_key = RemoteRatchetKey::from(chain.public_ratchet_key);
+                let chain_key = RemoteChainKey::from_bytes_and_index(
+                    chain.chain_key.clone(),
+                    chain.chain_key_index,
+                );
+
+                ReceiverChain::new(ratchet_key, chain_key)
+            }
+        }
+
+        #[derive(Debug, Zeroize)]
+        #[zeroize(drop)]
+        struct MessageKey {
+            ratchet_key: [u8; 32],
+            message_key: Box<[u8; 32]>,
+            index: u32,
+        }
+
+        impl Decode for MessageKey {
+            fn decode(
+                reader: &mut impl std::io::Read,
+            ) -> Result<Self, crate::utilities::LibolmDecodeError> {
+                Ok(Self {
+                    ratchet_key: <[u8; 32]>::decode(reader)?,
+                    message_key: <[u8; 32]>::decode_secret(reader)?,
+                    index: u32::decode(reader)?,
+                })
+            }
+        }
+
+        impl From<&MessageKey> for RemoteMessageKey {
+            fn from(key: &MessageKey) -> Self {
+                RemoteMessageKey { key: key.message_key.clone(), index: key.index.into() }
+            }
+        }
+
+        struct Pickle {
+            #[allow(dead_code)]
+            version: u32,
+            #[allow(dead_code)]
+            received_message: bool,
+            session_keys: SessionKeys,
+            root_key: Box<[u8; 32]>,
+            sender_chains: Vec<SenderChain>,
+            receiver_chains: Vec<ReceivingChain>,
+            message_keys: Vec<MessageKey>,
+        }
+
+        impl Decode for Pickle {
+            fn decode(
+                reader: &mut impl std::io::Read,
+            ) -> Result<Self, crate::utilities::LibolmDecodeError> {
+                Ok(Self {
+                    version: u32::decode(reader)?,
+                    received_message: bool::decode(reader)?,
+                    session_keys: SessionKeys::decode(reader)?,
+                    root_key: <[u8; 32]>::decode_secret(reader)?,
+                    sender_chains: Vec::decode(reader)?,
+                    receiver_chains: Vec::decode(reader)?,
+                    message_keys: Vec::decode(reader)?,
+                })
+            }
+        }
+
+        impl Drop for Pickle {
+            fn drop(&mut self) {
+                self.root_key.zeroize();
+                self.sender_chains.zeroize();
+                self.receiver_chains.zeroize();
+                self.message_keys.zeroize();
+            }
+        }
+
+        impl TryFrom<Pickle> for Session {
+            type Error = crate::LibolmPickleError;
+
+            fn try_from(pickle: Pickle) -> Result<Self, Self::Error> {
+                let mut receiving_chains = ChainStore::new();
+
+                for chain in &pickle.receiver_chains {
+                    receiving_chains.push(chain.into())
+                }
+
+                for key in &pickle.message_keys {
+                    let ratchet_key =
+                        RemoteRatchetKey::from(Curve25519PublicKey::from(key.ratchet_key));
+
+                    if let Some(receiving_chain) = receiving_chains.find_ratchet(&ratchet_key) {
+                        receiving_chain.insert_message_key(key.into())
+                    }
+                }
+
+                if let Some(chain) = pickle.sender_chains.get(0) {
+                    // XXX: Passing in secret array as value.
+                    let ratchet_key = RatchetKey::from(Curve25519SecretKey::from_slice(
+                        chain.secret_ratchet_key.as_ref(),
+                    ));
+                    let chain_key = ChainKey::from_bytes_and_index(
+                        chain.chain_key.clone(),
+                        chain.chain_key_index,
+                    );
+
+                    let root_key = RootKey::new(pickle.root_key.clone());
+
+                    let ratchet = Ratchet::new_with_ratchet_key(root_key, ratchet_key);
+                    let sending_ratchet =
+                        DoubleRatchet::from_ratchet_and_chain_key(ratchet, chain_key);
+
+                    Ok(Self {
+                        session_keys: pickle.session_keys,
+                        sending_ratchet,
+                        receiving_chains,
+                    })
+                } else if let Some(chain) = receiving_chains.get(0) {
+                    let sending_ratchet = DoubleRatchet::inactive(
+                        RemoteRootKey::new(pickle.root_key.clone()),
+                        chain.ratchet_key(),
+                    );
+
+                    Ok(Self {
+                        session_keys: pickle.session_keys,
+                        sending_ratchet,
+                        receiving_chains,
+                    })
+                } else {
+                    Err(crate::LibolmPickleError::InvalidSession)
+                }
+            }
+        }
+
+        const PICKLE_VERSION: u32 = 1;
+        unpickle_libolm::<Pickle, _>(pickle, pickle_key, PICKLE_VERSION)
     }
 }
 
@@ -420,15 +491,25 @@ impl Session {
 /// and [`serde::Deserialize`]. Obtainable by calling [`Session::pickle`].
 #[derive(Deserialize, Serialize)]
 pub struct SessionPickle {
-    session_keys: SessionKeysPickle,
-    sending_ratchet: DoubleRatchetPickle,
-    receiving_chains: ChainStorePickle,
+    session_keys: SessionKeys,
+    sending_ratchet: DoubleRatchet,
+    receiving_chains: ChainStore,
 }
 
 impl SessionPickle {
-    /// Convert the pickle format back into a [`Session`].
-    pub fn unpickle(self) -> Session {
-        self.into()
+    /// Serialize and encrypt the pickle using the given key.
+    ///
+    /// This is the inverse of [`SessionPickle::from_encrypted`].
+    pub fn encrypt(self, pickle_key: &[u8; 32]) -> String {
+        pickle(&self, pickle_key)
+    }
+
+    /// Obtain a pickle from a ciphertext by decrypting and deserializing using
+    /// the given key.
+    ///
+    /// This is the inverse of [`SessionPickle::encrypt`].
+    pub fn from_encrypted(ciphertext: &str, pickle_key: &[u8; 32]) -> Result<Self, PickleError> {
+        unpickle(ciphertext, pickle_key)
     }
 }
 
@@ -442,56 +523,21 @@ impl From<SessionPickle> for Session {
     }
 }
 
-#[derive(Zeroize, Debug)]
-#[zeroize(drop)]
-pub struct SessionPickledJSON(String);
-
-impl SessionPickledJSON {
-    /// Access the serialized content as a string slice.
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-
-    /// Try to convert the serialized JSON string back into a [`Session`].
-    pub fn unpickle(self) -> Result<Session, SessionUnpicklingError> {
-        let pickle: SessionPickle = serde_json::from_str(&self.0)?;
-        Ok(pickle.unpickle())
-    }
-}
-
-impl AsRef<str> for SessionPickledJSON {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl Deref for SessionPickledJSON {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        self.as_ref()
-    }
-}
-
-#[derive(Error, Debug)]
-pub enum SessionUnpicklingError {
-    #[error("Pickle format corrupted: {0}")]
-    CorruptedPickle(#[from] serde_json::error::Error),
-}
-
-type ChainStorePickle = ChainStore;
-
 #[cfg(test)]
 mod test {
     use anyhow::{bail, Result};
     use olm_rs::{
         account::OlmAccount,
         session::{OlmMessage, OlmSession},
-        PicklingMode,
     };
 
     use super::Session;
-    use crate::{olm::Account, Curve25519PublicKey};
+    use crate::{
+        olm::{Account, SessionPickle},
+        Curve25519PublicKey,
+    };
+
+    const PICKLE_KEY: [u8; 32] = [0u8; 32];
 
     fn sessions() -> Result<(Account, OlmAccount, Session, OlmSession)> {
         let alice = Account::new();
@@ -502,8 +548,8 @@ mod test {
             .parsed_one_time_keys()
             .curve25519()
             .values()
-            .cloned()
             .next()
+            .cloned()
             .expect("Couldn't find a one-time key");
 
         let identity_keys = bob.parsed_identity_keys();
@@ -513,11 +559,12 @@ mod test {
 
         let message = "It's a secret to everybody";
 
-        let olm_message: OlmMessage = alice_session.encrypt(message).into();
+        let olm_message = alice_session.encrypt(message);
         bob.mark_keys_as_published();
 
-        if let OlmMessage::PreKey(m) = olm_message {
-            let session = bob.create_inbound_session_from(alice.curve25519_key_encoded(), m)?;
+        if let OlmMessage::PreKey(m) = olm_message.into() {
+            let session =
+                bob.create_inbound_session_from(&alice.curve25519_key().to_base64(), m)?;
 
             Ok((alice, bob, alice_session, session))
         } else {
@@ -566,6 +613,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "libolm-compat")]
     fn libolm_unpickling() -> Result<()> {
         let (_, _, mut session, olm) = sessions()?;
 
@@ -580,7 +628,7 @@ mod test {
         olm.decrypt(message.into())?;
 
         let key = "DEFAULT_PICKLE_KEY";
-        let pickle = olm.pickle(PicklingMode::Encrypted { key: key.as_bytes().to_vec() });
+        let pickle = olm.pickle(olm_rs::PicklingMode::Encrypted { key: key.as_bytes().to_vec() });
 
         let mut unpickled = Session::from_libolm_pickle(&pickle, key)?;
 
@@ -599,13 +647,17 @@ mod test {
     fn session_pickling_roundtrip_is_identity() -> Result<()> {
         let (_, _, session, _) = sessions()?;
 
-        let pickle = session.pickle_to_json_string();
+        let pickle = session.pickle().encrypt(&PICKLE_KEY);
 
-        let unpickled_session: Session = serde_json::from_str(&pickle)?;
-        let repickle = unpickled_session.pickle_to_json_string();
+        let decrypted_pickle = SessionPickle::from_encrypted(&pickle, &PICKLE_KEY)?;
+        let unpickled_group_session = Session::from_pickle(decrypted_pickle);
+        let repickle = unpickled_group_session.pickle();
 
-        let pickle: serde_json::Value = serde_json::from_str(&pickle)?;
-        let repickle: serde_json::Value = serde_json::from_str(&repickle)?;
+        assert_eq!(session.session_id(), unpickled_group_session.session_id());
+
+        let decrypted_pickle = SessionPickle::from_encrypted(&pickle, &PICKLE_KEY)?;
+        let pickle = serde_json::to_value(decrypted_pickle)?;
+        let repickle = serde_json::to_value(repickle)?;
 
         assert_eq!(pickle, repickle);
 

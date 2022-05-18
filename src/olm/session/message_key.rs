@@ -16,13 +16,10 @@ use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
 
 use super::{ratchet::RatchetPublicKey, DecryptionError};
-use crate::{
-    cipher::Cipher,
-    olm::messages::{DecodedMessage, EncodedMessage},
-};
+use crate::{cipher::Cipher, olm::messages::Message};
 
-pub(super) struct MessageKey {
-    key: [u8; 32],
+pub struct MessageKey {
+    key: Box<[u8; 32]>,
     ratchet_key: RatchetPublicKey,
     index: u64,
 }
@@ -35,7 +32,7 @@ impl Drop for MessageKey {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(super) struct RemoteMessageKey {
-    pub key: [u8; 32],
+    pub key: Box<[u8; 32]>,
     pub index: u64,
 }
 
@@ -46,26 +43,44 @@ impl Drop for RemoteMessageKey {
 }
 
 impl MessageKey {
-    pub fn new(key: [u8; 32], ratchet_key: RatchetPublicKey, index: u64) -> Self {
+    pub fn new(key: Box<[u8; 32]>, ratchet_key: RatchetPublicKey, index: u64) -> Self {
         Self { key, ratchet_key, index }
     }
 
-    pub fn encrypt(self, plaintext: &[u8]) -> EncodedMessage {
+    pub fn encrypt(self, plaintext: &[u8]) -> Message {
         let cipher = Cipher::new(&self.key);
 
         let ciphertext = cipher.encrypt(plaintext);
 
-        let mut message = EncodedMessage::new(self.ratchet_key.as_ref(), self.index, ciphertext);
+        let mut message = Message::new(*self.ratchet_key.as_ref(), self.index, ciphertext);
 
-        let mac = cipher.mac(message.as_payload_bytes());
-        message.append_mac(mac);
+        let mac = cipher.mac(&message.to_mac_bytes());
+        message.mac = mac.truncate();
 
         message
+    }
+
+    /// Get a reference to the message key's key.
+    #[cfg(feature = "low-level-api")]
+    pub fn key(&self) -> &[u8; 32] {
+        self.key.as_ref()
+    }
+
+    /// Get the message key's ratchet key.
+    #[cfg(feature = "low-level-api")]
+    pub fn ratchet_key(&self) -> RatchetPublicKey {
+        self.ratchet_key
+    }
+
+    /// Get the message key's index.
+    #[cfg(feature = "low-level-api")]
+    pub fn index(&self) -> u64 {
+        self.index
     }
 }
 
 impl RemoteMessageKey {
-    pub fn new(key: [u8; 32], index: u64) -> Self {
+    pub fn new(key: Box<[u8; 32]>, index: u64) -> Self {
         Self { key, index }
     }
 
@@ -73,10 +88,10 @@ impl RemoteMessageKey {
         self.index
     }
 
-    pub fn decrypt(&self, message: &DecodedMessage) -> Result<Vec<u8>, DecryptionError> {
+    pub fn decrypt(&self, message: &Message) -> Result<Vec<u8>, DecryptionError> {
         let cipher = Cipher::new(&self.key);
 
-        cipher.verify_mac(message.source.as_payload_bytes(), &message.mac)?;
+        cipher.verify_mac(&message.to_mac_bytes(), &message.mac)?;
         Ok(cipher.decrypt(&message.ciphertext)?)
     }
 }

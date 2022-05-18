@@ -18,62 +18,50 @@ mod group_session;
 mod inbound_group_session;
 pub(crate) mod message;
 mod ratchet;
+mod session_keys;
 
-pub use group_session::{GroupSession, GroupSessionPickledJSON};
+pub use group_session::{GroupSession, GroupSessionPickle};
 pub use inbound_group_session::{
-    DecryptionError, ExportedSessionKey, InboundGroupSession, SessionCreationError,
+    DecryptedMessage, DecryptionError, InboundGroupSession, InboundGroupSessionPickle,
 };
-use zeroize::Zeroize;
-
-#[derive(Zeroize)]
-pub struct SessionKey(pub String);
-
-impl SessionKey {
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl Drop for SessionKey {
-    fn drop(&mut self) {
-        self.0.zeroize()
-    }
-}
-
-const SESSION_KEY_VERSION: u8 = 2;
+pub use message::MegolmMessage;
+pub use session_keys::{ExportedSessionKey, SessionKey, SessionKeyDecodeError};
 
 #[cfg(test)]
 mod test {
     use anyhow::Result;
     use olm_rs::{
         inbound_group_session::OlmInboundGroupSession,
-        outbound_group_session::OlmOutboundGroupSession, PicklingMode,
+        outbound_group_session::OlmOutboundGroupSession,
     };
 
-    use super::{GroupSession, InboundGroupSession, SessionKey};
+    use super::{GroupSession, InboundGroupSession};
+    use crate::megolm::{GroupSessionPickle, InboundGroupSessionPickle, SessionKey};
+
+    const PICKLE_KEY: [u8; 32] = [0u8; 32];
 
     #[test]
     fn encrypting() -> Result<()> {
         let mut session = GroupSession::new();
         let session_key = session.session_key();
 
-        let olm_session = OlmInboundGroupSession::new(session_key.as_str())?;
+        let olm_session = OlmInboundGroupSession::new(&session_key.to_base64())?;
 
         let plaintext = "It's a secret to everybody";
-        let message = session.encrypt(plaintext);
+        let message = session.encrypt(plaintext).to_base64();
 
         let (decrypted, _) = olm_session.decrypt(message)?;
 
         assert_eq!(decrypted, plaintext);
 
         let plaintext = "Another secret";
-        let message = session.encrypt(plaintext);
+        let message = session.encrypt(plaintext).to_base64();
 
         let (decrypted, _) = olm_session.decrypt(message)?;
         assert_eq!(decrypted, plaintext);
 
         let plaintext = "And another secret";
-        let message = session.encrypt(plaintext);
+        let message = session.encrypt(plaintext).to_base64();
         let (decrypted, _) = olm_session.decrypt(message)?;
 
         assert_eq!(decrypted, plaintext);
@@ -84,7 +72,7 @@ mod test {
             session.encrypt(plaintext);
         }
 
-        let message = session.encrypt(plaintext);
+        let message = session.encrypt(plaintext).to_base64();
         let (decrypted, _) = olm_session.decrypt(message)?;
 
         assert_eq!(decrypted, plaintext);
@@ -96,12 +84,12 @@ mod test {
     fn decrypting() -> Result<()> {
         let olm_session = OlmOutboundGroupSession::new();
 
-        let session_key = SessionKey(olm_session.session_key());
+        let session_key = SessionKey::from_base64(&olm_session.session_key())?;
 
-        let mut session = InboundGroupSession::new(&session_key)?;
+        let mut session = InboundGroupSession::new(&session_key);
 
-        let plaintext = "It's a secret to everybody";
-        let message = olm_session.encrypt(plaintext);
+        let plaintext = "Hello";
+        let message = olm_session.encrypt(plaintext).as_str().try_into()?;
 
         let decrypted = session.decrypt(&message)?;
 
@@ -109,7 +97,7 @@ mod test {
         assert_eq!(decrypted.message_index, 0);
 
         let plaintext = "Another secret";
-        let message = olm_session.encrypt(plaintext);
+        let message = olm_session.encrypt(plaintext).as_str().try_into()?;
 
         let decrypted = session.decrypt(&message)?;
 
@@ -117,7 +105,7 @@ mod test {
         assert_eq!(decrypted.message_index, 1);
 
         let third_plaintext = "And another secret";
-        let third_message = olm_session.encrypt(third_plaintext);
+        let third_message = olm_session.encrypt(third_plaintext).as_str().try_into()?;
         let decrypted = session.decrypt(&third_message)?;
 
         assert_eq!(decrypted.plaintext, third_plaintext);
@@ -129,7 +117,7 @@ mod test {
             olm_session.encrypt(plaintext);
         }
 
-        let message = olm_session.encrypt(plaintext);
+        let message = olm_session.encrypt(plaintext).as_str().try_into()?;
         let decrypted = session.decrypt(&message)?;
 
         assert_eq!(decrypted.plaintext, plaintext);
@@ -146,24 +134,36 @@ mod test {
     #[test]
     fn exporting() -> Result<()> {
         let mut session = GroupSession::new();
-        let mut inbound = InboundGroupSession::new(&session.session_key())?;
+        let mut inbound = InboundGroupSession::new(&session.session_key());
 
         assert_eq!(session.session_id(), inbound.session_id());
 
-        let plaintext = "It's a secret to everybody";
-        let message = session.encrypt(plaintext);
+        let first_plaintext = "It's a secret to everybody";
+        let first_message = session.encrypt(first_plaintext);
+        let second_plaintext = "It's dangerous to go alone. Take this!";
+        let second_message = session.encrypt(second_plaintext);
 
-        let decrypted = inbound.decrypt(&message)?;
+        let decrypted = inbound.decrypt(&first_message)?;
 
-        assert_eq!(decrypted.plaintext, plaintext);
+        assert_eq!(decrypted.plaintext, first_plaintext);
         assert_eq!(decrypted.message_index, 0);
 
-        let export = inbound.export_at(1).expect("Can export at the initial index");
-        let mut imported = InboundGroupSession::import(&export)?;
+        let export = inbound.export_at(1).expect("Can export at the initial index.");
+        let mut imported = InboundGroupSession::import(&export);
 
         assert_eq!(session.session_id(), imported.session_id());
-        imported.decrypt(&message).expect_err("Can't decrypt at the initial index");
-        assert!(imported.export_at(0).is_none(), "Can't export at the initial index");
+
+        imported.decrypt(&first_message).expect_err("Can't decrypt at the initial index.");
+        let second_decrypted =
+            imported.decrypt(&second_message).expect("Can decrypt at the next index.");
+        assert_eq!(
+            second_plaintext, second_decrypted.plaintext,
+            "Decrypted plaintext differs from original."
+        );
+        assert_eq!(1, second_decrypted.message_index, "Expected message index to be 1.");
+
+        assert!(imported.export_at(0).is_none(), "Can't export at the initial index.");
+        assert!(imported.export_at(1).is_some(), "Can export at the next index.");
 
         Ok(())
     }
@@ -172,13 +172,17 @@ mod test {
     fn group_session_pickling_roundtrip_is_identity() -> Result<()> {
         let session = GroupSession::new();
 
-        let pickle = session.pickle_to_json_string();
+        let pickle = session.pickle().encrypt(&PICKLE_KEY);
 
-        let unpickled_group_session: GroupSession = serde_json::from_str(&pickle)?;
-        let repickle = unpickled_group_session.pickle_to_json_string();
+        let decrypted_pickle = GroupSessionPickle::from_encrypted(&pickle, &PICKLE_KEY)?;
+        let unpickled_group_session = GroupSession::from_pickle(decrypted_pickle);
+        let repickle = unpickled_group_session.pickle();
 
-        let pickle: serde_json::Value = serde_json::from_str(&pickle)?;
-        let repickle: serde_json::Value = serde_json::from_str(&repickle)?;
+        assert_eq!(session.session_id(), unpickled_group_session.session_id());
+
+        let decrypted_pickle = GroupSessionPickle::from_encrypted(&pickle, &PICKLE_KEY)?;
+        let pickle = serde_json::to_value(decrypted_pickle)?;
+        let repickle = serde_json::to_value(repickle)?;
 
         assert_eq!(pickle, repickle);
 
@@ -188,15 +192,19 @@ mod test {
     #[test]
     fn inbound_group_session_pickling_roundtrip_is_identity() -> Result<()> {
         let session = GroupSession::new();
-        let inbound = InboundGroupSession::new(&session.session_key())?;
+        let session = InboundGroupSession::from(&session);
 
-        let pickle = inbound.pickle_to_json_string();
+        let pickle = session.pickle().encrypt(&PICKLE_KEY);
 
-        let unpickled_inbound: InboundGroupSession = serde_json::from_str(&pickle)?;
-        let repickle = unpickled_inbound.pickle_to_json_string();
+        let decrypted_pickle = InboundGroupSessionPickle::from_encrypted(&pickle, &PICKLE_KEY)?;
+        let unpickled_group_session = InboundGroupSession::from_pickle(decrypted_pickle);
+        let repickle = unpickled_group_session.pickle();
 
-        let pickle: serde_json::Value = serde_json::from_str(&pickle)?;
-        let repickle: serde_json::Value = serde_json::from_str(&repickle)?;
+        assert_eq!(session.session_id(), unpickled_group_session.session_id());
+
+        let decrypted_pickle = InboundGroupSessionPickle::from_encrypted(&pickle, &PICKLE_KEY)?;
+        let pickle = serde_json::to_value(decrypted_pickle)?;
+        let repickle = serde_json::to_value(repickle)?;
 
         assert_eq!(pickle, repickle);
 
@@ -204,14 +212,15 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "libolm-compat")]
     fn libolm_unpickling() -> Result<()> {
         let session = GroupSession::new();
         let session_key = session.session_key();
 
-        let olm = OlmInboundGroupSession::new(session_key.as_str())?;
+        let olm = OlmInboundGroupSession::new(&session_key.to_base64())?;
 
         let key = "DEFAULT_PICKLE_KEY";
-        let pickle = olm.pickle(PicklingMode::Encrypted { key: key.as_bytes().to_vec() });
+        let pickle = olm.pickle(olm_rs::PicklingMode::Encrypted { key: key.as_bytes().to_vec() });
 
         let unpickled = InboundGroupSession::from_libolm_pickle(&pickle, key)?;
 

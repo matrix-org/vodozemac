@@ -18,11 +18,22 @@ use serde::{Deserialize, Serialize};
 use crate::Curve25519PublicKey;
 
 /// The set of keys that were used to establish the Olm Session,
-#[derive(Serialize, Deserialize, Clone)]
-pub(crate) struct SessionKeys {
-    pub(crate) identity_key: Curve25519PublicKey,
-    pub(crate) base_key: Curve25519PublicKey,
-    pub(crate) one_time_key: Curve25519PublicKey,
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct SessionKeys {
+    pub identity_key: Curve25519PublicKey,
+    pub base_key: Curve25519PublicKey,
+    pub one_time_key: Curve25519PublicKey,
 }
 
-pub(crate) type SessionKeysPickle = SessionKeys;
+#[cfg(feature = "libolm-compat")]
+impl crate::utilities::Decode for SessionKeys {
+    fn decode(
+        reader: &mut impl std::io::Read,
+    ) -> Result<Self, crate::utilities::LibolmDecodeError> {
+        Ok(Self {
+            identity_key: Curve25519PublicKey::decode(reader)?,
+            base_key: Curve25519PublicKey::decode(reader)?,
+            one_time_key: Curve25519PublicKey::decode(reader)?,
+        })
+    }
+}
