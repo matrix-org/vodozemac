@@ -212,8 +212,6 @@ mod cipher;
 mod types;
 mod utilities;
 
-#[cfg(fuzzing)]
-pub mod fuzzing;
 pub mod hazmat;
 pub mod megolm;
 pub mod olm;
