@@ -298,6 +298,38 @@ impl<'de> Deserialize<'de> for ExportedSessionKey {
     }
 }
 
+impl TryFrom<&[u8]> for SessionKey {
+    type Error = SessionKeyDecodeError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        Self::from_bytes(value)
+    }
+}
+
+impl TryFrom<&str> for SessionKey {
+    type Error = SessionKeyDecodeError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::from_base64(value)
+    }
+}
+
+impl TryFrom<&[u8]> for ExportedSessionKey {
+    type Error = SessionKeyDecodeError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        Self::from_bytes(value)
+    }
+}
+
+impl TryFrom<&str> for ExportedSessionKey {
+    type Error = SessionKeyDecodeError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::from_base64(value)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use crate::megolm::{ExportedSessionKey, GroupSession, InboundGroupSession, SessionKey};
