@@ -30,7 +30,7 @@ use crate::DecodeError;
 /// that are compatible with [Matrix].
 ///
 /// [Matrix]: https://spec.matrix.org/latest/client-server-api/#molmv1curve25519-aes-sha2
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OlmMessage {
     /// A normal message, contains only the ciphertext and metadata to decrypt
     /// it.
@@ -123,7 +123,7 @@ impl OlmMessage {
 }
 
 /// An enum over the two supported message types.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MessageType {
     /// The pre-key message type.
     PreKey = 0,

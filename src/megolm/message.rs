@@ -33,7 +33,7 @@ const VERSION: u8 = 3;
 /// [`InboundGroupSession`] necessary to decryp the message.
 ///
 /// [`InboundGroupSession`]: crate::megolm::InboundGroupSession
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct MegolmMessage {
     pub(super) ciphertext: Vec<u8>,
     pub(super) message_index: u32,
@@ -264,7 +264,7 @@ impl TryFrom<&[u8]> for MegolmMessage {
     }
 }
 
-#[derive(Clone, Message, PartialEq)]
+#[derive(Clone, Message, PartialEq, Eq)]
 struct ProtobufMegolmMessage {
     #[prost(uint32, tag = "1")]
     pub message_index: u32,

@@ -136,7 +136,7 @@ impl std::fmt::Debug for EstablishedSas {
 
 /// Bytes generated from an shared secret that can be used as the short auth
 /// string.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SasBytes {
     bytes: [u8; 6],
 }

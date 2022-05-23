@@ -29,7 +29,7 @@ const VERSION: u8 = 3;
 /// [`Session`] necessary to decrypt the message.
 ///
 /// [`Session`]: crate::olm::Session
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Message {
     pub(crate) ratchet_key: Curve25519PublicKey,
     pub(crate) chain_index: u64,
@@ -194,7 +194,7 @@ impl TryFrom<&[u8]> for Message {
     }
 }
 
-#[derive(ProstMessage, PartialEq)]
+#[derive(ProstMessage, PartialEq, Eq)]
 struct ProtoBufMessage {
     #[prost(bytes, tag = "1")]
     ratchet_key: Vec<u8>,
