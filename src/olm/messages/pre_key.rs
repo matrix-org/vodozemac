@@ -28,7 +28,7 @@ use crate::{
 /// Olm [`Message`].
 ///
 /// [`Session`]: crate::olm::Session
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PreKeyMessage {
     pub(crate) session_keys: SessionKeys,
     pub(crate) message: Message,

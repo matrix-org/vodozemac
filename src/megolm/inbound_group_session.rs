@@ -65,7 +65,7 @@ pub struct InboundGroupSession {
     signing_key_verified: bool,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DecryptedMessage {
     pub plaintext: String,
     pub message_index: u32,

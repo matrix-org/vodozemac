@@ -189,7 +189,7 @@ impl SecretKeys {
 }
 
 /// An Ed25519 public key, used to verify digital signatures.
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 #[serde(transparent)]
 pub struct Ed25519PublicKey(PublicKey);
 

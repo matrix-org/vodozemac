@@ -65,7 +65,7 @@ pub enum SessionCreationError {
 }
 
 /// Struct holding the two public identity keys of an [`Account`].
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IdentityKeys {
     /// The ed25519 key, used for signing.
     pub ed25519: Ed25519PublicKey,
