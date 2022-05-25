@@ -46,7 +46,7 @@ pub enum LibolmDecodeError {
 ///   if the version in the pickle doesn't match this one.
 pub(crate) fn unpickle_libolm<P: Decode, T: TryFrom<P, Error = LibolmPickleError>>(
     pickle: &str,
-    pickle_key: &str,
+    pickle_key: &[u8],
     pickle_version: u32,
 ) -> Result<T, LibolmPickleError> {
     /// Fetch the pickle version from the given pickle source.
@@ -62,7 +62,7 @@ pub(crate) fn unpickle_libolm<P: Decode, T: TryFrom<P, Error = LibolmPickleError
 
     // The pickle is always encrypted, even if a zero key is given. Try to
     // decrypt next.
-    let cipher = Cipher::new_pickle(pickle_key.as_ref());
+    let cipher = Cipher::new_pickle(pickle_key);
     let mut decrypted = cipher.decrypt_pickle(&decoded)?;
 
     // A pickle starts with a version, which will decide how we need to decode.

@@ -219,8 +219,8 @@ mod test {
 
         let olm = OlmInboundGroupSession::new(&session_key.to_base64())?;
 
-        let key = "DEFAULT_PICKLE_KEY";
-        let pickle = olm.pickle(olm_rs::PicklingMode::Encrypted { key: key.as_bytes().to_vec() });
+        let key = b"DEFAULT_PICKLE_KEY";
+        let pickle = olm.pickle(olm_rs::PicklingMode::Encrypted { key: key.to_vec() });
 
         let unpickled = InboundGroupSession::from_libolm_pickle(&pickle, key)?;
 

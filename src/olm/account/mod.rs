@@ -326,7 +326,7 @@ impl Account {
     #[cfg(feature = "libolm-compat")]
     pub fn from_libolm_pickle(
         pickle: &str,
-        pickle_key: &str,
+        pickle_key: &[u8],
     ) -> Result<Self, crate::LibolmPickleError> {
         use self::fallback_keys::FallbackKey;
         use crate::utilities::{unpickle_libolm, Decode};
@@ -774,8 +774,8 @@ mod test {
         olm.generate_one_time_keys(10);
         olm.generate_fallback_key();
 
-        let key = "DEFAULT_PICKLE_KEY";
-        let pickle = olm.pickle(olm_rs::PicklingMode::Encrypted { key: key.as_bytes().to_vec() });
+        let key = b"DEFAULT_PICKLE_KEY";
+        let pickle = olm.pickle(olm_rs::PicklingMode::Encrypted { key: key.to_vec() });
 
         let unpickled = Account::from_libolm_pickle(&pickle, key)?;
 
@@ -813,8 +813,8 @@ mod test {
         olm.generate_one_time_keys(10);
         olm.generate_fallback_key();
 
-        let key = "DEFAULT_PICKLE_KEY";
-        let pickle = olm.pickle(olm_rs::PicklingMode::Encrypted { key: key.as_bytes().to_vec() });
+        let key = b"DEFAULT_PICKLE_KEY";
+        let pickle = olm.pickle(olm_rs::PicklingMode::Encrypted { key: key.to_vec() });
 
         let account_with_expanded_key = Account::from_libolm_pickle(&pickle, key)?;
 

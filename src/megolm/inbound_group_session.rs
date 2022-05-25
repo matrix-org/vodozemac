@@ -210,7 +210,7 @@ impl InboundGroupSession {
     #[cfg(feature = "libolm-compat")]
     pub fn from_libolm_pickle(
         pickle: &str,
-        pickle_key: &str,
+        pickle_key: &[u8],
     ) -> Result<Self, crate::LibolmPickleError> {
         use crate::utilities::{unpickle_libolm, Decode};
 
