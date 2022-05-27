@@ -27,6 +27,38 @@ pub use inbound_group_session::{
 pub use message::MegolmMessage;
 pub use session_keys::{ExportedSessionKey, SessionKey, SessionKeyDecodeError};
 
+#[cfg(feature = "libolm-compat")]
+mod libolm {
+    use std::io::Read;
+
+    use zeroize::Zeroize;
+
+    use super::ratchet::Ratchet;
+    use crate::utilities::{Decode, DecodeSecret};
+
+    #[derive(Zeroize)]
+    #[zeroize(drop)]
+    pub(crate) struct LibolmRatchetPickle {
+        ratchet: Box<[u8; 128]>,
+        index: u32,
+    }
+
+    impl From<&LibolmRatchetPickle> for Ratchet {
+        fn from(pickle: &LibolmRatchetPickle) -> Self {
+            Ratchet::from_bytes(pickle.ratchet.clone(), pickle.index)
+        }
+    }
+
+    impl Decode for LibolmRatchetPickle {
+        fn decode(reader: &mut impl Read) -> Result<Self, crate::utilities::LibolmDecodeError> {
+            Ok(LibolmRatchetPickle {
+                ratchet: <[u8; 128]>::decode_secret(reader)?,
+                index: u32::decode(reader)?,
+            })
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use anyhow::Result;
