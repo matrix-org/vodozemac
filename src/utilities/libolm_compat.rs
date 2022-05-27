@@ -192,3 +192,22 @@ impl<T: Decode> Decode for Vec<T> {
         Ok(buffer)
     }
 }
+
+#[derive(Zeroize)]
+#[zeroize(drop)]
+pub(crate) struct LibolmEd25519Keypair {
+    pub public_key: [u8; 32],
+    pub private_key: Box<[u8; 64]>,
+}
+
+impl Decode for LibolmEd25519Keypair {
+    fn decode(reader: &mut impl Read) -> Result<Self, LibolmDecodeError>
+    where
+        Self: Sized,
+    {
+        let public_key = <[u8; 32]>::decode(reader)?;
+        let private_key = <[u8; 64]>::decode_secret(reader)?;
+
+        Ok(Self { public_key, private_key })
+    }
+}

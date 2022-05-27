@@ -391,12 +391,11 @@ impl Account {
             }
         }
 
-        #[derive(Debug, Zeroize)]
+        #[derive(Zeroize)]
         #[zeroize(drop)]
         struct Pickle {
             version: u32,
-            public_ed25519_key: [u8; 32],
-            private_ed25519_key: Box<[u8; 64]>,
+            ed25519_keypair: crate::utilities::LibolmEd25519Keypair,
             public_curve25519_key: [u8; 32],
             private_curve25519_key: Box<[u8; 32]>,
             one_time_keys: Vec<OneTimeKey>,
@@ -409,9 +408,7 @@ impl Account {
             ) -> Result<Self, crate::utilities::LibolmDecodeError> {
                 let version = u32::decode(reader)?;
 
-                let public_ed25519_key = <[u8; 32]>::decode(reader)?;
-                let private_ed25519_key = <[u8; 64]>::decode_secret(reader)?;
-
+                let ed25519_keypair = crate::utilities::LibolmEd25519Keypair::decode(reader)?;
                 let public_curve25519_key = <[u8; 32]>::decode(reader)?;
                 let private_curve25519_key = <[u8; 32]>::decode_secret(reader)?;
                 let one_time_keys = Vec::decode(reader)?;
@@ -419,8 +416,7 @@ impl Account {
 
                 Ok(Self {
                     version,
-                    public_ed25519_key,
-                    private_ed25519_key,
+                    ed25519_keypair,
                     public_curve25519_key,
                     private_curve25519_key,
                     one_time_keys,
@@ -468,7 +464,9 @@ impl Account {
                 };
 
                 Ok(Self {
-                    signing_key: Ed25519Keypair::from_expanded_key(&pickle.private_ed25519_key)?,
+                    signing_key: Ed25519Keypair::from_expanded_key(
+                        &pickle.ed25519_keypair.private_key,
+                    )?,
                     diffie_hellman_key: Curve25519Keypair::from_secret_key(
                         &pickle.private_curve25519_key,
                     ),
