@@ -120,6 +120,58 @@ impl GroupSession {
     pub fn from_pickle(pickle: GroupSessionPickle) -> Self {
         pickle.into()
     }
+
+    #[cfg(feature = "libolm-compat")]
+    pub fn from_libolm_pickle(
+        pickle: &str,
+        pickle_key: &[u8],
+    ) -> Result<Self, crate::LibolmPickleError> {
+        use std::io::Read;
+
+        use zeroize::Zeroize;
+
+        use crate::{
+            megolm::libolm::LibolmRatchetPickle,
+            utilities::{unpickle_libolm, Decode, LibolmEd25519Keypair},
+        };
+
+        #[derive(Zeroize)]
+        #[zeroize(drop)]
+        struct Pickle {
+            version: u32,
+            ratchet: LibolmRatchetPickle,
+            ed25519_keypair: LibolmEd25519Keypair,
+        }
+
+        impl Decode for Pickle {
+            fn decode(reader: &mut impl Read) -> Result<Self, crate::utilities::LibolmDecodeError> {
+                Ok(Pickle {
+                    version: u32::decode(reader)?,
+                    ratchet: LibolmRatchetPickle::decode(reader)?,
+                    ed25519_keypair: LibolmEd25519Keypair::decode(reader)?,
+                })
+            }
+        }
+
+        impl TryFrom<Pickle> for GroupSession {
+            type Error = crate::LibolmPickleError;
+
+            fn try_from(pickle: Pickle) -> Result<Self, Self::Error> {
+                // Removing the borrow doesn't work and clippy complains about
+                // this on nightly.
+                #[allow(clippy::needless_borrow)]
+                let ratchet = (&pickle.ratchet).into();
+                let signing_key =
+                    Ed25519Keypair::from_expanded_key(&pickle.ed25519_keypair.private_key)?;
+
+                Ok(Self { ratchet, signing_key })
+            }
+        }
+
+        const PICKLE_VERSION: u32 = 1;
+
+        unpickle_libolm::<Pickle, _>(pickle, pickle_key, PICKLE_VERSION)
+    }
 }
 
 /// A format suitable for serialization which implements [`serde::Serialize`]
