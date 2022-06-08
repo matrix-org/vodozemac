@@ -192,7 +192,7 @@ impl TryFrom<&[u8]> for PreKeyMessage {
     type Error = DecodeError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        let version = *value.get(0).ok_or(DecodeError::MissingVersion)?;
+        let version = *value.first().ok_or(DecodeError::MissingVersion)?;
 
         if version != Self::VERSION {
             Err(DecodeError::InvalidVersion(Self::VERSION, version))
