@@ -29,7 +29,7 @@ use super::{
 use crate::{
     cipher::Cipher,
     types::{Ed25519PublicKey, SignatureError},
-    utilities::{base64_encode, pickle, unpickle, DecodeSecret},
+    utilities::{base64_encode, pickle, unpickle},
     PickleError,
 };
 
@@ -210,38 +210,17 @@ impl InboundGroupSession {
     #[cfg(feature = "libolm-compat")]
     pub fn from_libolm_pickle(
         pickle: &str,
-        pickle_key: &str,
+        pickle_key: &[u8],
     ) -> Result<Self, crate::LibolmPickleError> {
+        use super::libolm::LibolmRatchetPickle;
         use crate::utilities::{unpickle_libolm, Decode};
-
-        #[derive(Zeroize)]
-        #[zeroize(drop)]
-        struct RatchetPickle {
-            ratchet: Box<[u8; 128]>,
-            index: u32,
-        }
-
-        impl From<&RatchetPickle> for Ratchet {
-            fn from(pickle: &RatchetPickle) -> Self {
-                Ratchet::from_bytes(pickle.ratchet.clone(), pickle.index)
-            }
-        }
-
-        impl Decode for RatchetPickle {
-            fn decode(reader: &mut impl Read) -> Result<Self, crate::utilities::LibolmDecodeError> {
-                Ok(RatchetPickle {
-                    ratchet: <[u8; 128]>::decode_secret(reader)?,
-                    index: u32::decode(reader)?,
-                })
-            }
-        }
 
         #[derive(Zeroize)]
         #[zeroize(drop)]
         struct Pickle {
             version: u32,
-            initial_ratchet: RatchetPickle,
-            latest_ratchet: RatchetPickle,
+            initial_ratchet: LibolmRatchetPickle,
+            latest_ratchet: LibolmRatchetPickle,
             signing_key: [u8; 32],
             signing_key_verified: bool,
         }
@@ -250,8 +229,8 @@ impl InboundGroupSession {
             fn decode(reader: &mut impl Read) -> Result<Self, crate::utilities::LibolmDecodeError> {
                 Ok(Pickle {
                     version: u32::decode(reader)?,
-                    initial_ratchet: RatchetPickle::decode(reader)?,
-                    latest_ratchet: RatchetPickle::decode(reader)?,
+                    initial_ratchet: LibolmRatchetPickle::decode(reader)?,
+                    latest_ratchet: LibolmRatchetPickle::decode(reader)?,
                     signing_key: <[u8; 32]>::decode(reader)?,
                     signing_key_verified: bool::decode(reader)?,
                 })

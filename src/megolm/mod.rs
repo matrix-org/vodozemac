@@ -27,6 +27,38 @@ pub use inbound_group_session::{
 pub use message::MegolmMessage;
 pub use session_keys::{ExportedSessionKey, SessionKey, SessionKeyDecodeError};
 
+#[cfg(feature = "libolm-compat")]
+mod libolm {
+    use std::io::Read;
+
+    use zeroize::Zeroize;
+
+    use super::ratchet::Ratchet;
+    use crate::utilities::{Decode, DecodeSecret};
+
+    #[derive(Zeroize)]
+    #[zeroize(drop)]
+    pub(crate) struct LibolmRatchetPickle {
+        ratchet: Box<[u8; 128]>,
+        index: u32,
+    }
+
+    impl From<&LibolmRatchetPickle> for Ratchet {
+        fn from(pickle: &LibolmRatchetPickle) -> Self {
+            Ratchet::from_bytes(pickle.ratchet.clone(), pickle.index)
+        }
+    }
+
+    impl Decode for LibolmRatchetPickle {
+        fn decode(reader: &mut impl Read) -> Result<Self, crate::utilities::LibolmDecodeError> {
+            Ok(LibolmRatchetPickle {
+                ratchet: <[u8; 128]>::decode_secret(reader)?,
+                index: u32::decode(reader)?,
+            })
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use anyhow::Result;
@@ -213,19 +245,45 @@ mod test {
 
     #[test]
     #[cfg(feature = "libolm-compat")]
-    fn libolm_unpickling() -> Result<()> {
+    fn libolm_inbound_unpickling() -> Result<()> {
         let session = GroupSession::new();
         let session_key = session.session_key();
 
         let olm = OlmInboundGroupSession::new(&session_key.to_base64())?;
 
-        let key = "DEFAULT_PICKLE_KEY";
-        let pickle = olm.pickle(olm_rs::PicklingMode::Encrypted { key: key.as_bytes().to_vec() });
+        let key = b"DEFAULT_PICKLE_KEY";
+        let pickle = olm.pickle(olm_rs::PicklingMode::Encrypted { key: key.to_vec() });
 
         let unpickled = InboundGroupSession::from_libolm_pickle(&pickle, key)?;
 
         assert_eq!(olm.session_id(), unpickled.session_id());
         assert_eq!(olm.first_known_index(), unpickled.first_known_index());
+
+        Ok(())
+    }
+
+    #[test]
+    #[cfg(feature = "libolm-compat")]
+    fn libolm_unpickling() -> Result<()> {
+        let olm = OlmOutboundGroupSession::new();
+        let session_key = SessionKey::from_base64(&olm.session_key())?;
+        let mut inbound_session = InboundGroupSession::new(&session_key);
+
+        let key = b"DEFAULT_PICKLE_KEY";
+        let pickle = olm.pickle(olm_rs::PicklingMode::Encrypted { key: key.to_vec() });
+
+        let mut unpickled = GroupSession::from_libolm_pickle(&pickle, key)?;
+
+        assert_eq!(olm.session_id(), unpickled.session_id());
+        assert_eq!(olm.session_message_index(), unpickled.message_index());
+
+        let plaintext = "It's a secret to everybody";
+        let message = unpickled.encrypt(plaintext);
+
+        let decrypted = inbound_session.decrypt(&message)?;
+
+        assert_eq!(decrypted.plaintext, plaintext);
+        assert_eq!(decrypted.message_index, 0);
 
         Ok(())
     }

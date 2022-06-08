@@ -296,7 +296,7 @@ impl Session {
     #[cfg(feature = "libolm-compat")]
     pub fn from_libolm_pickle(
         pickle: &str,
-        pickle_key: &str,
+        pickle_key: &[u8],
     ) -> Result<Self, crate::LibolmPickleError> {
         use chain_key::ChainKey;
         use message_key::RemoteMessageKey;
@@ -627,8 +627,8 @@ mod test {
         let message = session.encrypt("Hello");
         olm.decrypt(message.into())?;
 
-        let key = "DEFAULT_PICKLE_KEY";
-        let pickle = olm.pickle(olm_rs::PicklingMode::Encrypted { key: key.as_bytes().to_vec() });
+        let key = b"DEFAULT_PICKLE_KEY";
+        let pickle = olm.pickle(olm_rs::PicklingMode::Encrypted { key: key.to_vec() });
 
         let mut unpickled = Session::from_libolm_pickle(&pickle, key)?;
 
