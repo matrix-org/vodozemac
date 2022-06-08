@@ -233,7 +233,7 @@ impl TryFrom<&[u8]> for MegolmMessage {
     type Error = DecodeError;
 
     fn try_from(message: &[u8]) -> Result<Self, Self::Error> {
-        let version = *message.get(0).ok_or(DecodeError::MissingVersion)?;
+        let version = *message.first().ok_or(DecodeError::MissingVersion)?;
 
         if version != VERSION {
             Err(DecodeError::InvalidVersion(VERSION, version))
