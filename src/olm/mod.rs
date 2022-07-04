@@ -75,14 +75,14 @@
 //!
 //!         assert_eq!(alice_session.session_id(), bob_session.session_id());
 //!
-//!         assert_eq!(message, what_bob_received);
+//!         assert_eq!(message.as_bytes(), what_bob_received);
 //!
 //!         let bob_reply = "Yes. Take this, it's dangerous out there!";
 //!         let bob_encrypted_reply = bob_session.encrypt(bob_reply).into();
 //!
 //!         let what_alice_received = alice_session
 //!             .decrypt(&bob_encrypted_reply)?;
-//!         assert_eq!(&what_alice_received, bob_reply);
+//!         assert_eq!(what_alice_received, bob_reply.as_bytes());
 //!     }
 //!
 //!     Ok(())

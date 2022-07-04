@@ -79,7 +79,7 @@ pub struct InboundCreationResult {
     /// The [`Session`] that was created from a pre-key message.
     pub session: Session,
     /// The plaintext of the pre-key message.
-    pub plaintext: String,
+    pub plaintext: Vec<u8>,
 }
 
 /// An Olm account manages all cryptographic keys used on a device.
@@ -235,7 +235,6 @@ impl Account {
 
             // Decrypt the message to check if the Session is actually valid.
             let plaintext = session.decrypt_decoded(&pre_key_message.message)?;
-            let plaintext = String::from_utf8_lossy(&plaintext).to_string();
 
             // We only drop the one-time key now, this is why we can't use a
             // one-time key type that takes `self`. If we didn't do this,
@@ -589,12 +588,12 @@ mod test {
             let reply = libolm_session.encrypt(reply_plain).into();
             let plaintext = alice_session.decrypt(&reply)?;
 
-            assert_eq!(&plaintext, reply_plain);
+            assert_eq!(plaintext, reply_plain.as_bytes());
 
             let another_reply = "Last one";
             let reply = libolm_session.encrypt(another_reply).into();
             let plaintext = alice_session.decrypt(&reply)?;
-            assert_eq!(&plaintext, another_reply);
+            assert_eq!(plaintext, another_reply.as_bytes());
 
             let last_text = "Nope, I'll have the last word";
             let olm_message = alice_session.encrypt(last_text).into();
@@ -638,30 +637,30 @@ mod test {
             assert_eq!(alice_session.session_id(), bob_session.session_id());
             assert_eq!(m.session_keys(), bob_session.session_keys());
 
-            assert_eq!(message, plaintext);
+            assert_eq!(message.as_bytes(), plaintext);
 
             let second_text = "Here's another secret to everybody";
             let olm_message = alice_session.encrypt(second_text);
 
             let plaintext = bob_session.decrypt(&olm_message)?;
-            assert_eq!(second_text, plaintext);
+            assert_eq!(second_text.as_bytes(), plaintext);
 
             let reply_plain = "Yes, take this, it's dangerous out there";
             let reply = bob_session.encrypt(reply_plain);
             let plaintext = alice_session.decrypt(&reply)?;
 
-            assert_eq!(&plaintext, reply_plain);
+            assert_eq!(plaintext, reply_plain.as_bytes());
 
             let another_reply = "Last one";
             let reply = bob_session.encrypt(another_reply);
             let plaintext = alice_session.decrypt(&reply)?;
-            assert_eq!(&plaintext, another_reply);
+            assert_eq!(plaintext, another_reply.as_bytes());
 
             let last_text = "Nope, I'll have the last word";
             let olm_message = alice_session.encrypt(last_text);
 
             let plaintext = bob_session.decrypt(&olm_message)?;
-            assert_eq!(last_text, plaintext);
+            assert_eq!(last_text.as_bytes(), plaintext);
         }
 
         Ok(())
@@ -696,7 +695,7 @@ mod test {
         assert_eq!(alice_session.session_id(), session.session_id());
         assert!(bob.one_time_keys.private_keys.is_empty());
 
-        assert_eq!(text, plaintext);
+        assert_eq!(text.as_bytes(), plaintext);
 
         Ok(())
     }
@@ -730,7 +729,7 @@ mod test {
             assert_eq!(alice_session.session_id(), session.session_id());
             assert!(bob.fallback_keys.fallback_key.is_some());
 
-            assert_eq!(text, plaintext);
+            assert_eq!(text.as_bytes(), plaintext);
         } else {
             bail!("Got invalid message type from olm_rs");
         };

@@ -209,8 +209,8 @@ impl Session {
     /// depending on whether the session is fully established. A session is
     /// fully established once you receive (and decrypt) at least one
     /// message from the other side.
-    pub fn encrypt(&mut self, plaintext: &str) -> OlmMessage {
-        let message = self.sending_ratchet.encrypt(plaintext);
+    pub fn encrypt(&mut self, plaintext: impl AsRef<[u8]>) -> OlmMessage {
+        let message = self.sending_ratchet.encrypt(plaintext.as_ref());
 
         if self.has_received_message() {
             OlmMessage::Normal(message)
@@ -244,13 +244,13 @@ impl Session {
     /// result in a [`DecryptionError`].
     ///
     /// [`DecryptionError`]: self::DecryptionError
-    pub fn decrypt(&mut self, message: &OlmMessage) -> Result<String, DecryptionError> {
+    pub fn decrypt(&mut self, message: &OlmMessage) -> Result<Vec<u8>, DecryptionError> {
         let decrypted = match message {
             OlmMessage::Normal(m) => self.decrypt_decoded(m)?,
             OlmMessage::PreKey(m) => self.decrypt_decoded(&m.message)?,
         };
 
-        Ok(String::from_utf8_lossy(&decrypted).to_string())
+        Ok(decrypted)
     }
 
     pub(super) fn decrypt_decoded(
@@ -580,9 +580,9 @@ mod test {
         let message_2 = bob_session.encrypt("Message 2").into();
         let message_3 = bob_session.encrypt("Message 3").into();
 
-        assert_eq!("Message 3", alice_session.decrypt(&message_3)?);
-        assert_eq!("Message 2", alice_session.decrypt(&message_2)?);
-        assert_eq!("Message 1", alice_session.decrypt(&message_1)?);
+        assert_eq!("Message 3".as_bytes(), alice_session.decrypt(&message_3)?);
+        assert_eq!("Message 2".as_bytes(), alice_session.decrypt(&message_2)?);
+        assert_eq!("Message 1".as_bytes(), alice_session.decrypt(&message_1)?);
 
         Ok(())
     }
@@ -595,7 +595,7 @@ mod test {
         let message_2 = bob_session.encrypt("Message 2").into();
         let message_3 = bob_session.encrypt("Message 3").into();
 
-        assert_eq!("Message 1", alice_session.decrypt(&message_1)?);
+        assert_eq!("Message 1".as_bytes(), alice_session.decrypt(&message_1)?);
 
         assert_eq!(alice_session.receiving_chains.len(), 1);
 
@@ -603,9 +603,9 @@ mod test {
         assert_eq!("Message 4", bob_session.decrypt(message_4)?);
 
         let message_5 = bob_session.encrypt("Message 5").into();
-        assert_eq!("Message 5", alice_session.decrypt(&message_5)?);
-        assert_eq!("Message 3", alice_session.decrypt(&message_3)?);
-        assert_eq!("Message 2", alice_session.decrypt(&message_2)?);
+        assert_eq!("Message 5".as_bytes(), alice_session.decrypt(&message_5)?);
+        assert_eq!("Message 3".as_bytes(), alice_session.decrypt(&message_3)?);
+        assert_eq!("Message 2".as_bytes(), alice_session.decrypt(&message_2)?);
 
         assert_eq!(alice_session.receiving_chains.len(), 2);
 
@@ -634,11 +634,11 @@ mod test {
 
         assert_eq!(olm.session_id(), unpickled.session_id());
 
-        assert_eq!(unpickled.decrypt(&old_message)?, plaintext);
+        assert_eq!(unpickled.decrypt(&old_message)?, plaintext.as_bytes());
 
         let message = unpickled.encrypt(plaintext);
 
-        assert_eq!(session.decrypt(&message)?, plaintext);
+        assert_eq!(session.decrypt(&message)?, plaintext.as_bytes());
 
         Ok(())
     }
