@@ -192,14 +192,14 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//!         assert_eq!(alice_session.session_id(), bob_session.session_id());</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//!         assert_eq!(message, what_bob_received);</span>
+<span class="doccomment">//!         assert_eq!(message.as_bytes(), what_bob_received);</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//!         let bob_reply = &quot;Yes. Take this, it&#39;s dangerous out there!&quot;;</span>
 <span class="doccomment">//!         let bob_encrypted_reply = bob_session.encrypt(bob_reply).into();</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//!         let what_alice_received = alice_session</span>
 <span class="doccomment">//!             .decrypt(&amp;bob_encrypted_reply)?;</span>
-<span class="doccomment">//!         assert_eq!(&amp;what_alice_received, bob_reply);</span>
+<span class="doccomment">//!         assert_eq!(what_alice_received, bob_reply.as_bytes());</span>
 <span class="doccomment">//!     }</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//!     Ok(())</span>

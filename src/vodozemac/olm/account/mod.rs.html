@@ -868,7 +868,6 @@
 <span id="862">862</span>
 <span id="863">863</span>
 <span id="864">864</span>
-<span id="865">865</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright 2021 Damir Jelić, Denis Kasak</span>
 <span class="comment">//</span>
 <span class="comment">// Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);</span>
@@ -950,7 +949,7 @@
     <span class="doccomment">/// The [`Session`] that was created from a pre-key message.</span>
     <span class="kw">pub</span> <span class="ident">session</span>: <span class="ident">Session</span>,
     <span class="doccomment">/// The plaintext of the pre-key message.</span>
-    <span class="kw">pub</span> <span class="ident">plaintext</span>: <span class="ident">String</span>,
+    <span class="kw">pub</span> <span class="ident">plaintext</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
 }
 
 <span class="doccomment">/// An Olm account manages all cryptographic keys used on a device.</span>
@@ -1106,7 +1105,6 @@
 
             <span class="comment">// Decrypt the message to check if the Session is actually valid.</span>
             <span class="kw">let</span> <span class="ident">plaintext</span> <span class="op">=</span> <span class="ident">session</span>.<span class="ident">decrypt_decoded</span>(<span class="kw-2">&amp;</span><span class="ident">pre_key_message</span>.<span class="ident">message</span>)<span class="question-mark">?</span>;
-            <span class="kw">let</span> <span class="ident">plaintext</span> <span class="op">=</span> <span class="ident">String::from_utf8_lossy</span>(<span class="kw-2">&amp;</span><span class="ident">plaintext</span>).<span class="ident">to_string</span>();
 
             <span class="comment">// We only drop the one-time key now, this is why we can&#39;t use a</span>
             <span class="comment">// one-time key type that takes `self`. If we didn&#39;t do this,</span>
@@ -1460,12 +1458,12 @@
             <span class="kw">let</span> <span class="ident">reply</span> <span class="op">=</span> <span class="ident">libolm_session</span>.<span class="ident">encrypt</span>(<span class="ident">reply_plain</span>).<span class="ident">into</span>();
             <span class="kw">let</span> <span class="ident">plaintext</span> <span class="op">=</span> <span class="ident">alice_session</span>.<span class="ident">decrypt</span>(<span class="kw-2">&amp;</span><span class="ident">reply</span>)<span class="question-mark">?</span>;
 
-            <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span><span class="ident">plaintext</span>, <span class="ident">reply_plain</span>);
+            <span class="macro">assert_eq!</span>(<span class="ident">plaintext</span>, <span class="ident">reply_plain</span>.<span class="ident">as_bytes</span>());
 
             <span class="kw">let</span> <span class="ident">another_reply</span> <span class="op">=</span> <span class="string">&quot;Last one&quot;</span>;
             <span class="kw">let</span> <span class="ident">reply</span> <span class="op">=</span> <span class="ident">libolm_session</span>.<span class="ident">encrypt</span>(<span class="ident">another_reply</span>).<span class="ident">into</span>();
             <span class="kw">let</span> <span class="ident">plaintext</span> <span class="op">=</span> <span class="ident">alice_session</span>.<span class="ident">decrypt</span>(<span class="kw-2">&amp;</span><span class="ident">reply</span>)<span class="question-mark">?</span>;
-            <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span><span class="ident">plaintext</span>, <span class="ident">another_reply</span>);
+            <span class="macro">assert_eq!</span>(<span class="ident">plaintext</span>, <span class="ident">another_reply</span>.<span class="ident">as_bytes</span>());
 
             <span class="kw">let</span> <span class="ident">last_text</span> <span class="op">=</span> <span class="string">&quot;Nope, I&#39;ll have the last word&quot;</span>;
             <span class="kw">let</span> <span class="ident">olm_message</span> <span class="op">=</span> <span class="ident">alice_session</span>.<span class="ident">encrypt</span>(<span class="ident">last_text</span>).<span class="ident">into</span>();
@@ -1509,30 +1507,30 @@
             <span class="macro">assert_eq!</span>(<span class="ident">alice_session</span>.<span class="ident">session_id</span>(), <span class="ident">bob_session</span>.<span class="ident">session_id</span>());
             <span class="macro">assert_eq!</span>(<span class="ident">m</span>.<span class="ident">session_keys</span>(), <span class="ident">bob_session</span>.<span class="ident">session_keys</span>());
 
-            <span class="macro">assert_eq!</span>(<span class="ident">message</span>, <span class="ident">plaintext</span>);
+            <span class="macro">assert_eq!</span>(<span class="ident">message</span>.<span class="ident">as_bytes</span>(), <span class="ident">plaintext</span>);
 
             <span class="kw">let</span> <span class="ident">second_text</span> <span class="op">=</span> <span class="string">&quot;Here&#39;s another secret to everybody&quot;</span>;
             <span class="kw">let</span> <span class="ident">olm_message</span> <span class="op">=</span> <span class="ident">alice_session</span>.<span class="ident">encrypt</span>(<span class="ident">second_text</span>);
 
             <span class="kw">let</span> <span class="ident">plaintext</span> <span class="op">=</span> <span class="ident">bob_session</span>.<span class="ident">decrypt</span>(<span class="kw-2">&amp;</span><span class="ident">olm_message</span>)<span class="question-mark">?</span>;
-            <span class="macro">assert_eq!</span>(<span class="ident">second_text</span>, <span class="ident">plaintext</span>);
+            <span class="macro">assert_eq!</span>(<span class="ident">second_text</span>.<span class="ident">as_bytes</span>(), <span class="ident">plaintext</span>);
 
             <span class="kw">let</span> <span class="ident">reply_plain</span> <span class="op">=</span> <span class="string">&quot;Yes, take this, it&#39;s dangerous out there&quot;</span>;
             <span class="kw">let</span> <span class="ident">reply</span> <span class="op">=</span> <span class="ident">bob_session</span>.<span class="ident">encrypt</span>(<span class="ident">reply_plain</span>);
             <span class="kw">let</span> <span class="ident">plaintext</span> <span class="op">=</span> <span class="ident">alice_session</span>.<span class="ident">decrypt</span>(<span class="kw-2">&amp;</span><span class="ident">reply</span>)<span class="question-mark">?</span>;
 
-            <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span><span class="ident">plaintext</span>, <span class="ident">reply_plain</span>);
+            <span class="macro">assert_eq!</span>(<span class="ident">plaintext</span>, <span class="ident">reply_plain</span>.<span class="ident">as_bytes</span>());
 
             <span class="kw">let</span> <span class="ident">another_reply</span> <span class="op">=</span> <span class="string">&quot;Last one&quot;</span>;
             <span class="kw">let</span> <span class="ident">reply</span> <span class="op">=</span> <span class="ident">bob_session</span>.<span class="ident">encrypt</span>(<span class="ident">another_reply</span>);
             <span class="kw">let</span> <span class="ident">plaintext</span> <span class="op">=</span> <span class="ident">alice_session</span>.<span class="ident">decrypt</span>(<span class="kw-2">&amp;</span><span class="ident">reply</span>)<span class="question-mark">?</span>;
-            <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span><span class="ident">plaintext</span>, <span class="ident">another_reply</span>);
+            <span class="macro">assert_eq!</span>(<span class="ident">plaintext</span>, <span class="ident">another_reply</span>.<span class="ident">as_bytes</span>());
 
             <span class="kw">let</span> <span class="ident">last_text</span> <span class="op">=</span> <span class="string">&quot;Nope, I&#39;ll have the last word&quot;</span>;
             <span class="kw">let</span> <span class="ident">olm_message</span> <span class="op">=</span> <span class="ident">alice_session</span>.<span class="ident">encrypt</span>(<span class="ident">last_text</span>);
 
             <span class="kw">let</span> <span class="ident">plaintext</span> <span class="op">=</span> <span class="ident">bob_session</span>.<span class="ident">decrypt</span>(<span class="kw-2">&amp;</span><span class="ident">olm_message</span>)<span class="question-mark">?</span>;
-            <span class="macro">assert_eq!</span>(<span class="ident">last_text</span>, <span class="ident">plaintext</span>);
+            <span class="macro">assert_eq!</span>(<span class="ident">last_text</span>.<span class="ident">as_bytes</span>(), <span class="ident">plaintext</span>);
         }
 
         <span class="prelude-val">Ok</span>(())
@@ -1567,7 +1565,7 @@
         <span class="macro">assert_eq!</span>(<span class="ident">alice_session</span>.<span class="ident">session_id</span>(), <span class="ident">session</span>.<span class="ident">session_id</span>());
         <span class="macro">assert!</span>(<span class="ident">bob</span>.<span class="ident">one_time_keys</span>.<span class="ident">private_keys</span>.<span class="ident">is_empty</span>());
 
-        <span class="macro">assert_eq!</span>(<span class="ident">text</span>, <span class="ident">plaintext</span>);
+        <span class="macro">assert_eq!</span>(<span class="ident">text</span>.<span class="ident">as_bytes</span>(), <span class="ident">plaintext</span>);
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -1601,7 +1599,7 @@
             <span class="macro">assert_eq!</span>(<span class="ident">alice_session</span>.<span class="ident">session_id</span>(), <span class="ident">session</span>.<span class="ident">session_id</span>());
             <span class="macro">assert!</span>(<span class="ident">bob</span>.<span class="ident">fallback_keys</span>.<span class="ident">fallback_key</span>.<span class="ident">is_some</span>());
 
-            <span class="macro">assert_eq!</span>(<span class="ident">text</span>, <span class="ident">plaintext</span>);
+            <span class="macro">assert_eq!</span>(<span class="ident">text</span>.<span class="ident">as_bytes</span>(), <span class="ident">plaintext</span>);
         } <span class="kw">else</span> {
             <span class="macro">bail!</span>(<span class="string">&quot;Got invalid message type from olm_rs&quot;</span>);
         };

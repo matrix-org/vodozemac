@@ -213,8 +213,8 @@
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">encrypt</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">plaintext</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">Message</span> {
-        <span class="self">self</span>.<span class="ident">next_message_key</span>().<span class="ident">encrypt</span>(<span class="ident">plaintext</span>.<span class="ident">as_bytes</span>())
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">encrypt</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">plaintext</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) -&gt; <span class="ident">Message</span> {
+        <span class="self">self</span>.<span class="ident">next_message_key</span>().<span class="ident">encrypt</span>(<span class="ident">plaintext</span>)
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">active</span>(<span class="ident">shared_secret</span>: <span class="ident">Shared3DHSecret</span>) -&gt; <span class="self">Self</span> {

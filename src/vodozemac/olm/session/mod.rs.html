@@ -881,8 +881,8 @@
     <span class="doccomment">/// depending on whether the session is fully established. A session is</span>
     <span class="doccomment">/// fully established once you receive (and decrypt) at least one</span>
     <span class="doccomment">/// message from the other side.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">encrypt</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">plaintext</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) -&gt; <span class="ident">OlmMessage</span> {
-        <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">sending_ratchet</span>.<span class="ident">encrypt</span>(<span class="ident">plaintext</span>);
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">encrypt</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">plaintext</span>: <span class="kw">impl</span> <span class="ident">AsRef</span><span class="op">&lt;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span>) -&gt; <span class="ident">OlmMessage</span> {
+        <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">sending_ratchet</span>.<span class="ident">encrypt</span>(<span class="ident">plaintext</span>.<span class="ident">as_ref</span>());
 
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">has_received_message</span>() {
             <span class="ident">OlmMessage::Normal</span>(<span class="ident">message</span>)
@@ -916,13 +916,13 @@
     <span class="doccomment">/// result in a [`DecryptionError`].</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// [`DecryptionError`]: self::DecryptionError</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">decrypt</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="kw-2">&amp;</span><span class="ident">OlmMessage</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">DecryptionError</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">decrypt</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="kw-2">&amp;</span><span class="ident">OlmMessage</span>) -&gt; <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>, <span class="ident">DecryptionError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">decrypted</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">message</span> {
             <span class="ident">OlmMessage::Normal</span>(<span class="ident">m</span>) =&gt; <span class="self">self</span>.<span class="ident">decrypt_decoded</span>(<span class="ident">m</span>)<span class="question-mark">?</span>,
             <span class="ident">OlmMessage::PreKey</span>(<span class="ident">m</span>) =&gt; <span class="self">self</span>.<span class="ident">decrypt_decoded</span>(<span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">message</span>)<span class="question-mark">?</span>,
         };
 
-        <span class="prelude-val">Ok</span>(<span class="ident">String::from_utf8_lossy</span>(<span class="kw-2">&amp;</span><span class="ident">decrypted</span>).<span class="ident">to_string</span>())
+        <span class="prelude-val">Ok</span>(<span class="ident">decrypted</span>)
     }
 
     <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn</span> <span class="ident">decrypt_decoded</span>(
@@ -1252,9 +1252,9 @@
         <span class="kw">let</span> <span class="ident">message_2</span> <span class="op">=</span> <span class="ident">bob_session</span>.<span class="ident">encrypt</span>(<span class="string">&quot;Message 2&quot;</span>).<span class="ident">into</span>();
         <span class="kw">let</span> <span class="ident">message_3</span> <span class="op">=</span> <span class="ident">bob_session</span>.<span class="ident">encrypt</span>(<span class="string">&quot;Message 3&quot;</span>).<span class="ident">into</span>();
 
-        <span class="macro">assert_eq!</span>(<span class="string">&quot;Message 3&quot;</span>, <span class="ident">alice_session</span>.<span class="ident">decrypt</span>(<span class="kw-2">&amp;</span><span class="ident">message_3</span>)<span class="question-mark">?</span>);
-        <span class="macro">assert_eq!</span>(<span class="string">&quot;Message 2&quot;</span>, <span class="ident">alice_session</span>.<span class="ident">decrypt</span>(<span class="kw-2">&amp;</span><span class="ident">message_2</span>)<span class="question-mark">?</span>);
-        <span class="macro">assert_eq!</span>(<span class="string">&quot;Message 1&quot;</span>, <span class="ident">alice_session</span>.<span class="ident">decrypt</span>(<span class="kw-2">&amp;</span><span class="ident">message_1</span>)<span class="question-mark">?</span>);
+        <span class="macro">assert_eq!</span>(<span class="string">&quot;Message 3&quot;</span>.<span class="ident">as_bytes</span>(), <span class="ident">alice_session</span>.<span class="ident">decrypt</span>(<span class="kw-2">&amp;</span><span class="ident">message_3</span>)<span class="question-mark">?</span>);
+        <span class="macro">assert_eq!</span>(<span class="string">&quot;Message 2&quot;</span>.<span class="ident">as_bytes</span>(), <span class="ident">alice_session</span>.<span class="ident">decrypt</span>(<span class="kw-2">&amp;</span><span class="ident">message_2</span>)<span class="question-mark">?</span>);
+        <span class="macro">assert_eq!</span>(<span class="string">&quot;Message 1&quot;</span>.<span class="ident">as_bytes</span>(), <span class="ident">alice_session</span>.<span class="ident">decrypt</span>(<span class="kw-2">&amp;</span><span class="ident">message_1</span>)<span class="question-mark">?</span>);
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -1267,7 +1267,7 @@
         <span class="kw">let</span> <span class="ident">message_2</span> <span class="op">=</span> <span class="ident">bob_session</span>.<span class="ident">encrypt</span>(<span class="string">&quot;Message 2&quot;</span>).<span class="ident">into</span>();
         <span class="kw">let</span> <span class="ident">message_3</span> <span class="op">=</span> <span class="ident">bob_session</span>.<span class="ident">encrypt</span>(<span class="string">&quot;Message 3&quot;</span>).<span class="ident">into</span>();
 
-        <span class="macro">assert_eq!</span>(<span class="string">&quot;Message 1&quot;</span>, <span class="ident">alice_session</span>.<span class="ident">decrypt</span>(<span class="kw-2">&amp;</span><span class="ident">message_1</span>)<span class="question-mark">?</span>);
+        <span class="macro">assert_eq!</span>(<span class="string">&quot;Message 1&quot;</span>.<span class="ident">as_bytes</span>(), <span class="ident">alice_session</span>.<span class="ident">decrypt</span>(<span class="kw-2">&amp;</span><span class="ident">message_1</span>)<span class="question-mark">?</span>);
 
         <span class="macro">assert_eq!</span>(<span class="ident">alice_session</span>.<span class="ident">receiving_chains</span>.<span class="ident">len</span>(), <span class="number">1</span>);
 
@@ -1275,9 +1275,9 @@
         <span class="macro">assert_eq!</span>(<span class="string">&quot;Message 4&quot;</span>, <span class="ident">bob_session</span>.<span class="ident">decrypt</span>(<span class="ident">message_4</span>)<span class="question-mark">?</span>);
 
         <span class="kw">let</span> <span class="ident">message_5</span> <span class="op">=</span> <span class="ident">bob_session</span>.<span class="ident">encrypt</span>(<span class="string">&quot;Message 5&quot;</span>).<span class="ident">into</span>();
-        <span class="macro">assert_eq!</span>(<span class="string">&quot;Message 5&quot;</span>, <span class="ident">alice_session</span>.<span class="ident">decrypt</span>(<span class="kw-2">&amp;</span><span class="ident">message_5</span>)<span class="question-mark">?</span>);
-        <span class="macro">assert_eq!</span>(<span class="string">&quot;Message 3&quot;</span>, <span class="ident">alice_session</span>.<span class="ident">decrypt</span>(<span class="kw-2">&amp;</span><span class="ident">message_3</span>)<span class="question-mark">?</span>);
-        <span class="macro">assert_eq!</span>(<span class="string">&quot;Message 2&quot;</span>, <span class="ident">alice_session</span>.<span class="ident">decrypt</span>(<span class="kw-2">&amp;</span><span class="ident">message_2</span>)<span class="question-mark">?</span>);
+        <span class="macro">assert_eq!</span>(<span class="string">&quot;Message 5&quot;</span>.<span class="ident">as_bytes</span>(), <span class="ident">alice_session</span>.<span class="ident">decrypt</span>(<span class="kw-2">&amp;</span><span class="ident">message_5</span>)<span class="question-mark">?</span>);
+        <span class="macro">assert_eq!</span>(<span class="string">&quot;Message 3&quot;</span>.<span class="ident">as_bytes</span>(), <span class="ident">alice_session</span>.<span class="ident">decrypt</span>(<span class="kw-2">&amp;</span><span class="ident">message_3</span>)<span class="question-mark">?</span>);
+        <span class="macro">assert_eq!</span>(<span class="string">&quot;Message 2&quot;</span>.<span class="ident">as_bytes</span>(), <span class="ident">alice_session</span>.<span class="ident">decrypt</span>(<span class="kw-2">&amp;</span><span class="ident">message_2</span>)<span class="question-mark">?</span>);
 
         <span class="macro">assert_eq!</span>(<span class="ident">alice_session</span>.<span class="ident">receiving_chains</span>.<span class="ident">len</span>(), <span class="number">2</span>);
 
@@ -1306,11 +1306,11 @@
 
         <span class="macro">assert_eq!</span>(<span class="ident">olm</span>.<span class="ident">session_id</span>(), <span class="ident">unpickled</span>.<span class="ident">session_id</span>());
 
-        <span class="macro">assert_eq!</span>(<span class="ident">unpickled</span>.<span class="ident">decrypt</span>(<span class="kw-2">&amp;</span><span class="ident">old_message</span>)<span class="question-mark">?</span>, <span class="ident">plaintext</span>);
+        <span class="macro">assert_eq!</span>(<span class="ident">unpickled</span>.<span class="ident">decrypt</span>(<span class="kw-2">&amp;</span><span class="ident">old_message</span>)<span class="question-mark">?</span>, <span class="ident">plaintext</span>.<span class="ident">as_bytes</span>());
 
         <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="ident">unpickled</span>.<span class="ident">encrypt</span>(<span class="ident">plaintext</span>);
 
-        <span class="macro">assert_eq!</span>(<span class="ident">session</span>.<span class="ident">decrypt</span>(<span class="kw-2">&amp;</span><span class="ident">message</span>)<span class="question-mark">?</span>, <span class="ident">plaintext</span>);
+        <span class="macro">assert_eq!</span>(<span class="ident">session</span>.<span class="ident">decrypt</span>(<span class="kw-2">&amp;</span><span class="ident">message</span>)<span class="question-mark">?</span>, <span class="ident">plaintext</span>.<span class="ident">as_bytes</span>());
 
         <span class="prelude-val">Ok</span>(())
     }
