@@ -130,7 +130,7 @@ impl Ratchet {
         let mut ratchet =
             Self { inner: RatchetBytes(Box::new([0u8; Self::RATCHET_LENGTH])), counter: 0 };
 
-        rng.fill_bytes(&mut *ratchet.inner.0);
+        rng.fill_bytes(ratchet.inner.0.as_mut());
 
         ratchet
     }

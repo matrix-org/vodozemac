@@ -202,7 +202,7 @@ pub(crate) struct Curve25519KeypairPickle(Curve25519SecretKey);
 impl From<Curve25519KeypairPickle> for Curve25519Keypair {
     fn from(pickle: Curve25519KeypairPickle) -> Self {
         let secret_key = pickle.0;
-        let public_key: Curve25519PublicKey = (&secret_key).into();
+        let public_key = Curve25519PublicKey::from(&secret_key);
 
         Self { secret_key, public_key }
     }
