@@ -67,7 +67,7 @@ pub struct InboundGroupSession {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DecryptedMessage {
-    pub plaintext: String,
+    pub plaintext: Vec<u8>,
     pub message_index: u32,
 }
 
@@ -169,8 +169,7 @@ impl InboundGroupSession {
             let cipher = Cipher::new_megolm(ratchet.as_bytes());
 
             cipher.verify_mac(&message.to_mac_bytes(), &message.mac)?;
-            let plaintext =
-                String::from_utf8_lossy(&cipher.decrypt(&message.ciphertext)?).to_string();
+            let plaintext = cipher.decrypt(&message.ciphertext)?;
 
             Ok(DecryptedMessage { plaintext, message_index: message.message_index })
         } else {

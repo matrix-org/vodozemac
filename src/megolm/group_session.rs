@@ -76,7 +76,7 @@ impl GroupSession {
     ///
     /// The resulting ciphertext is MAC-ed, then signed with the group session's
     /// Ed25519 key pair and finally base64-encoded.
-    pub fn encrypt(&mut self, plaintext: &str) -> MegolmMessage {
+    pub fn encrypt(&mut self, plaintext: impl AsRef<[u8]>) -> MegolmMessage {
         let cipher = Cipher::new_megolm(self.ratchet.as_bytes());
 
         let message = MegolmMessage::encrypt_private(

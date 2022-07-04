@@ -125,7 +125,7 @@ mod test {
 
         let decrypted = session.decrypt(&message)?;
 
-        assert_eq!(decrypted.plaintext, plaintext);
+        assert_eq!(decrypted.plaintext, plaintext.as_bytes());
         assert_eq!(decrypted.message_index, 0);
 
         let plaintext = "Another secret";
@@ -133,14 +133,14 @@ mod test {
 
         let decrypted = session.decrypt(&message)?;
 
-        assert_eq!(decrypted.plaintext, plaintext);
+        assert_eq!(decrypted.plaintext, plaintext.as_bytes());
         assert_eq!(decrypted.message_index, 1);
 
         let third_plaintext = "And another secret";
         let third_message = olm_session.encrypt(third_plaintext).as_str().try_into()?;
         let decrypted = session.decrypt(&third_message)?;
 
-        assert_eq!(decrypted.plaintext, third_plaintext);
+        assert_eq!(decrypted.plaintext, third_plaintext.as_bytes());
         assert_eq!(decrypted.message_index, 2);
 
         let plaintext = "Last secret";
@@ -152,12 +152,12 @@ mod test {
         let message = olm_session.encrypt(plaintext).as_str().try_into()?;
         let decrypted = session.decrypt(&message)?;
 
-        assert_eq!(decrypted.plaintext, plaintext);
+        assert_eq!(decrypted.plaintext, plaintext.as_bytes());
         assert_eq!(decrypted.message_index, 2002);
 
         let decrypted = session.decrypt(&third_message)?;
 
-        assert_eq!(decrypted.plaintext, third_plaintext);
+        assert_eq!(decrypted.plaintext, third_plaintext.as_bytes());
         assert_eq!(decrypted.message_index, 2);
 
         Ok(())
@@ -170,9 +170,9 @@ mod test {
 
         assert_eq!(session.session_id(), inbound.session_id());
 
-        let first_plaintext = "It's a secret to everybody";
+        let first_plaintext = "It's a secret to everybody".as_bytes();
         let first_message = session.encrypt(first_plaintext);
-        let second_plaintext = "It's dangerous to go alone. Take this!";
+        let second_plaintext = "It's dangerous to go alone. Take this!".as_bytes();
         let second_message = session.encrypt(second_plaintext);
 
         let decrypted = inbound.decrypt(&first_message)?;
@@ -277,7 +277,7 @@ mod test {
         assert_eq!(olm.session_id(), unpickled.session_id());
         assert_eq!(olm.session_message_index(), unpickled.message_index());
 
-        let plaintext = "It's a secret to everybody";
+        let plaintext = "It's a secret to everybody".as_bytes();
         let message = unpickled.encrypt(plaintext);
 
         let decrypted = inbound_session.decrypt(&message)?;
