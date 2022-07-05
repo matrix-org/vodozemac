@@ -22,7 +22,7 @@ use thiserror::Error;
 use zeroize::Zeroize;
 
 use super::{
-    message::MegolmMessage,
+    message::{MegolmMac, MegolmMessage},
     ratchet::Ratchet,
     session_keys::{ExportedSessionKey, SessionKey},
     GroupSession,
@@ -241,7 +241,15 @@ impl InboundGroupSession {
         if let Some(ratchet) = self.find_ratchet(message.message_index) {
             let cipher = Cipher::new_megolm(ratchet.as_bytes());
 
-            cipher.verify_mac(&message.to_mac_bytes(), &message.mac)?;
+            match &message.mac {
+                MegolmMac::Truncated(m) => {
+                    cipher.verify_truncated_mac(&message.to_mac_bytes(), m)?;
+                }
+                MegolmMac::Full(m) => {
+                    cipher.verify_mac(&message.to_mac_bytes(), m)?;
+                }
+            }
+
             let plaintext = cipher.decrypt(&message.ciphertext)?;
 
             Ok(DecryptedMessage { plaintext, message_index: message.message_index })
@@ -468,8 +476,6 @@ mod test {
         group_session.encrypt("test2");
 
         let session = InboundGroupSession::from(&group_session);
-
-        println!("{}", session.first_known_index());
 
         // The inbound session will only be able to decrypt messages from
         // indices starting at 2 (as we advanced the ratchet twice before

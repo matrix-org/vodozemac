@@ -81,20 +81,20 @@ mod test {
         let olm_session = OlmInboundGroupSession::new(&session_key.to_base64())?;
 
         let plaintext = "It's a secret to everybody";
-        let message = session.encrypt(plaintext).to_base64();
+        let message = session.encrypt_truncated_mac(plaintext).to_base64();
 
         let (decrypted, _) = olm_session.decrypt(message)?;
 
         assert_eq!(decrypted, plaintext);
 
         let plaintext = "Another secret";
-        let message = session.encrypt(plaintext).to_base64();
+        let message = session.encrypt_truncated_mac(plaintext).to_base64();
 
         let (decrypted, _) = olm_session.decrypt(message)?;
         assert_eq!(decrypted, plaintext);
 
         let plaintext = "And another secret";
-        let message = session.encrypt(plaintext).to_base64();
+        let message = session.encrypt_truncated_mac(plaintext).to_base64();
         let (decrypted, _) = olm_session.decrypt(message)?;
 
         assert_eq!(decrypted, plaintext);
@@ -105,7 +105,7 @@ mod test {
             session.encrypt(plaintext);
         }
 
-        let message = session.encrypt(plaintext).to_base64();
+        let message = session.encrypt_truncated_mac(plaintext).to_base64();
         let (decrypted, _) = olm_session.decrypt(message)?;
 
         assert_eq!(decrypted, plaintext);
@@ -174,7 +174,7 @@ mod test {
         let first_plaintext = "It's a secret to everybody".as_bytes();
         let first_message = session.encrypt(first_plaintext);
         let second_plaintext = "It's dangerous to go alone. Take this!".as_bytes();
-        let second_message = session.encrypt(second_plaintext);
+        let second_message = session.encrypt_truncated_mac(second_plaintext);
 
         let decrypted = inbound.decrypt(&first_message)?;
 

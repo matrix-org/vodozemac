@@ -91,7 +91,7 @@ impl RemoteMessageKey {
     pub fn decrypt(&self, message: &Message) -> Result<Vec<u8>, DecryptionError> {
         let cipher = Cipher::new(&self.key);
 
-        cipher.verify_mac(&message.to_mac_bytes(), &message.mac)?;
+        cipher.verify_truncated_mac(&message.to_mac_bytes(), &message.mac)?;
         Ok(cipher.decrypt(&message.ciphertext)?)
     }
 }

@@ -76,10 +76,39 @@ impl GroupSession {
     ///
     /// The resulting ciphertext is MAC-ed, then signed with the group session's
     /// Ed25519 key pair and finally base64-encoded.
+    ///
+    /// **Note**: This version of the `encrypt()` method does not truncate the
+    /// MAC, the full 32 bytes are used. If space requirements are more tight,
+    /// the [`encrypt_truncated_mac()`] method can be used to truncate the MAC
+    /// to 8 bytes.
     pub fn encrypt(&mut self, plaintext: impl AsRef<[u8]>) -> MegolmMessage {
         let cipher = Cipher::new_megolm(self.ratchet.as_bytes());
 
         let message = MegolmMessage::encrypt_private(
+            self.message_index(),
+            &cipher,
+            &self.signing_key,
+            plaintext.as_ref(),
+        );
+
+        self.ratchet.advance();
+
+        message
+    }
+
+    /// Encrypt the `plaintext` with the group session.
+    ///
+    /// The resulting ciphertext is MAC-ed, then signed with the group session's
+    /// Ed25519 key pair and finally base64-encoded.
+    ///
+    /// **Note**: This version of the `encrypt()` method truncates the MAC to 8
+    /// bytes, while this is generally considered to be safe we recommend the
+    /// usage of the [`encrypt()`] method which doesn't truncate the MAC tag at
+    /// all and the full 32 bytes of the MAC will be encoded in the message.
+    pub fn encrypt_truncated_mac(&mut self, plaintext: impl AsRef<[u8]>) -> MegolmMessage {
+        let cipher = Cipher::new_megolm(self.ratchet.as_bytes());
+
+        let message = MegolmMessage::encrypt_truncated_mac(
             self.message_index(),
             &cipher,
             &self.signing_key,
