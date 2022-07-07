@@ -31,7 +31,7 @@ type Aes256CbcEnc = cbc::Encryptor<Aes256>;
 type Aes256CbcDec = cbc::Decryptor<Aes256>;
 type HmacSha256 = Hmac<Sha256>;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Mac(pub(crate) [u8; Self::LENGTH]);
 
 impl Mac {
@@ -47,6 +47,33 @@ impl Mac {
 
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_ref()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum MessageMac {
+    Truncated([u8; Mac::TRUNCATED_LEN]),
+    Full(Mac),
+}
+
+impl MessageMac {
+    pub fn as_bytes(&self) -> &[u8] {
+        match self {
+            MessageMac::Truncated(m) => m.as_ref(),
+            MessageMac::Full(m) => m.as_bytes(),
+        }
+    }
+}
+
+impl From<Mac> for MessageMac {
+    fn from(m: Mac) -> Self {
+        Self::Full(m)
+    }
+}
+
+impl From<[u8; Mac::TRUNCATED_LEN]> for MessageMac {
+    fn from(m: [u8; Mac::TRUNCATED_LEN]) -> Self {
+        Self::Truncated(m)
     }
 }
 

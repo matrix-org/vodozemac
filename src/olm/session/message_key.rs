@@ -47,6 +47,20 @@ impl MessageKey {
         Self { key, ratchet_key, index }
     }
 
+    pub fn encrypt_truncated_mac(self, plaintext: &[u8]) -> Message {
+        let cipher = Cipher::new(&self.key);
+
+        let ciphertext = cipher.encrypt(plaintext);
+
+        let mut message =
+            Message::new_truncated_mac(*self.ratchet_key.as_ref(), self.index, ciphertext);
+
+        let mac = cipher.mac(&message.to_mac_bytes());
+        message.set_mac(mac);
+
+        message
+    }
+
     pub fn encrypt(self, plaintext: &[u8]) -> Message {
         let cipher = Cipher::new(&self.key);
 
@@ -55,7 +69,7 @@ impl MessageKey {
         let mut message = Message::new(*self.ratchet_key.as_ref(), self.index, ciphertext);
 
         let mac = cipher.mac(&message.to_mac_bytes());
-        message.mac = mac.truncate();
+        message.set_mac(mac);
 
         message
     }
@@ -91,7 +105,15 @@ impl RemoteMessageKey {
     pub fn decrypt(&self, message: &Message) -> Result<Vec<u8>, DecryptionError> {
         let cipher = Cipher::new(&self.key);
 
-        cipher.verify_truncated_mac(&message.to_mac_bytes(), &message.mac)?;
+        match &message.mac {
+            crate::cipher::MessageMac::Truncated(m) => {
+                cipher.verify_truncated_mac(&message.to_mac_bytes(), m)?;
+            }
+            crate::cipher::MessageMac::Full(m) => {
+                cipher.verify_mac(&message.to_mac_bytes(), m)?;
+            }
+        }
+
         Ok(cipher.decrypt(&message.ciphertext)?)
     }
 }

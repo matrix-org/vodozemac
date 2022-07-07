@@ -211,7 +211,15 @@ impl Session {
     /// message from the other side.
     pub fn encrypt(&mut self, plaintext: impl AsRef<[u8]>) -> OlmMessage {
         let message = self.sending_ratchet.encrypt(plaintext.as_ref());
+        self.wrap_message(message)
+    }
 
+    pub fn encrypt_truncated_mac(&mut self, plaintext: impl AsRef<[u8]>) -> OlmMessage {
+        let message = self.sending_ratchet.encrypt_truncated_mac(plaintext.as_ref());
+        self.wrap_message(message)
+    }
+
+    fn wrap_message(&self, message: Message) -> OlmMessage {
         if self.has_received_message() {
             OlmMessage::Normal(message)
         } else {
@@ -599,7 +607,7 @@ mod test {
 
         assert_eq!(alice_session.receiving_chains.len(), 1);
 
-        let message_4 = alice_session.encrypt("Message 4").into();
+        let message_4 = alice_session.encrypt_truncated_mac("Message 4").into();
         assert_eq!("Message 4", bob_session.decrypt(message_4)?);
 
         let message_5 = bob_session.encrypt("Message 5").into();
@@ -624,7 +632,7 @@ mod test {
             session.encrypt("Hello");
         }
 
-        let message = session.encrypt("Hello");
+        let message = session.encrypt_truncated_mac("Hello");
         olm.decrypt(message.into())?;
 
         let key = b"DEFAULT_PICKLE_KEY";
