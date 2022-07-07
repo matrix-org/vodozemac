@@ -576,7 +576,7 @@ mod test {
         let mut alice_session = alice.create_outbound_session(curve25519_key, one_time_key);
 
         let message = "It's a secret to everybody";
-        let olm_message: LibolmOlmMessage = alice_session.encrypt(message).into();
+        let olm_message: LibolmOlmMessage = alice_session.encrypt_truncated_mac(message).into();
 
         if let LibolmOlmMessage::PreKey(m) = olm_message.clone() {
             let libolm_session =
@@ -587,7 +587,7 @@ mod test {
             assert_eq!(message, plaintext);
 
             let second_text = "Here's another secret to everybody";
-            let olm_message = alice_session.encrypt(second_text).into();
+            let olm_message = alice_session.encrypt_truncated_mac(second_text).into();
 
             let plaintext = libolm_session.decrypt(olm_message)?;
             assert_eq!(second_text, plaintext);
@@ -604,7 +604,7 @@ mod test {
             assert_eq!(plaintext, another_reply.as_bytes());
 
             let last_text = "Nope, I'll have the last word";
-            let olm_message = alice_session.encrypt(last_text).into();
+            let olm_message = alice_session.encrypt_truncated_mac(last_text).into();
 
             let plaintext = libolm_session.decrypt(olm_message)?;
             assert_eq!(last_text, plaintext);
@@ -654,7 +654,7 @@ mod test {
             assert_eq!(second_text.as_bytes(), plaintext);
 
             let reply_plain = "Yes, take this, it's dangerous out there";
-            let reply = bob_session.encrypt(reply_plain);
+            let reply = bob_session.encrypt_truncated_mac(reply_plain);
             let plaintext = alice_session.decrypt(&reply)?;
 
             assert_eq!(plaintext, reply_plain.as_bytes());

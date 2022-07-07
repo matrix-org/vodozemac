@@ -22,13 +22,13 @@ use thiserror::Error;
 use zeroize::Zeroize;
 
 use super::{
-    message::{MegolmMac, MegolmMessage},
+    message::MegolmMessage,
     ratchet::Ratchet,
     session_keys::{ExportedSessionKey, SessionKey},
     GroupSession,
 };
 use crate::{
-    cipher::Cipher,
+    cipher::{Cipher, MessageMac},
     types::{Ed25519PublicKey, SignatureError},
     utilities::{base64_encode, pickle, unpickle},
     PickleError,
@@ -242,10 +242,10 @@ impl InboundGroupSession {
             let cipher = Cipher::new_megolm(ratchet.as_bytes());
 
             match &message.mac {
-                MegolmMac::Truncated(m) => {
+                MessageMac::Truncated(m) => {
                     cipher.verify_truncated_mac(&message.to_mac_bytes(), m)?;
                 }
-                MegolmMac::Full(m) => {
+                MessageMac::Full(m) => {
                     cipher.verify_mac(&message.to_mac_bytes(), m)?;
                 }
             }

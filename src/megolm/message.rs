@@ -17,9 +17,9 @@ use prost::Message;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    cipher::{Cipher, Mac},
+    cipher::{Cipher, Mac, MessageMac},
     types::{Ed25519Keypair, Ed25519Signature},
-    utilities::{base64_decode, base64_encode, VarInt},
+    utilities::{base64_decode, base64_encode, extract_mac, VarInt},
     DecodeError,
 };
 #[cfg(feature = "low-level-api")]
@@ -38,35 +38,8 @@ const VERSION: u8 = 4;
 pub struct MegolmMessage {
     pub(super) ciphertext: Vec<u8>,
     pub(super) message_index: u32,
-    pub(super) mac: MegolmMac,
+    pub(super) mac: MessageMac,
     pub(super) signature: Ed25519Signature,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub(crate) enum MegolmMac {
-    Truncated([u8; Mac::TRUNCATED_LEN]),
-    Full(Mac),
-}
-
-impl MegolmMac {
-    pub fn as_bytes(&self) -> &[u8] {
-        match self {
-            MegolmMac::Truncated(m) => m.as_ref(),
-            MegolmMac::Full(m) => m.as_bytes(),
-        }
-    }
-}
-
-impl From<Mac> for MegolmMac {
-    fn from(m: Mac) -> Self {
-        Self::Full(m)
-    }
-}
-
-impl From<[u8; Mac::TRUNCATED_LEN]> for MegolmMac {
-    fn from(m: [u8; Mac::TRUNCATED_LEN]) -> Self {
-        Self::Truncated(m)
-    }
 }
 
 impl MegolmMessage {
@@ -168,8 +141,8 @@ impl MegolmMessage {
         };
 
         let version = match self.mac {
-            MegolmMac::Truncated(_) => MAC_TRUNCATED_VERSION,
-            MegolmMac::Full(_) => VERSION,
+            MessageMac::Truncated(_) => MAC_TRUNCATED_VERSION,
+            MessageMac::Full(_) => VERSION,
         };
 
         message.encode_manual(version)
@@ -177,8 +150,8 @@ impl MegolmMessage {
 
     fn set_mac(&mut self, mac: Mac) {
         match self.mac {
-            MegolmMac::Truncated(_) => self.mac = mac.truncate().into(),
-            MegolmMac::Full(_) => self.mac = mac.into(),
+            MessageMac::Truncated(_) => self.mac = mac.truncate().into(),
+            MessageMac::Full(_) => self.mac = mac.into(),
         }
     }
 
@@ -317,26 +290,10 @@ impl TryFrom<&[u8]> for MegolmMessage {
 
             let signature_location = message.len() - Ed25519Signature::LENGTH;
             let signature_slice = &message[signature_location..];
-
-            let mac = if version == MAC_TRUNCATED_VERSION {
-                let mac_start = message.len() - Self::MESSAGE_TRUNCATED_SUFFIX_LENGTH;
-                let mac_end = mac_start + Mac::TRUNCATED_LEN;
-                let mac_slice = &message[mac_start..mac_end];
-
-                let mut mac = [0u8; Mac::TRUNCATED_LEN];
-                mac.copy_from_slice(mac_slice);
-                mac.into()
-            } else {
-                let mac_start = message.len() - Self::MESSAGE_SUFFIX_LENGTH;
-                let mac_end = mac_start + Mac::LENGTH;
-                let mac_slice = &message[mac_start..mac_end];
-
-                let mut mac = [0u8; Mac::LENGTH];
-                mac.copy_from_slice(mac_slice);
-                Mac(mac).into()
-            };
-
             let signature = Ed25519Signature::from_slice(signature_slice)?;
+
+            let mac_slice = &message[message.len() - suffix_length..];
+            let mac = extract_mac(mac_slice, version == MAC_TRUNCATED_VERSION);
 
             Ok(MegolmMessage {
                 ciphertext: inner.ciphertext,
