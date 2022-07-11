@@ -65,14 +65,14 @@ impl Default for MessageKeyStore {
 
 enum FoundMessageKey<'a> {
     Existing(&'a RemoteMessageKey),
-    New((RemoteChainKey, MessageKeyStore, RemoteMessageKey)),
+    New(Box<(RemoteChainKey, MessageKeyStore, RemoteMessageKey)>),
 }
 
 impl FoundMessageKey<'_> {
     fn decrypt(&self, message: &Message) -> Result<Vec<u8>, DecryptionError> {
         match self {
             FoundMessageKey::Existing(m) => m.decrypt(message),
-            FoundMessageKey::New((_, _, m)) => m.decrypt(message),
+            FoundMessageKey::New(m) => m.2.decrypt(message),
         }
     }
 }
@@ -101,7 +101,7 @@ impl ReceiverChain {
         } else if self.hkdf_ratchet.chain_index() > chain_index {
             self.skipped_message_keys
                 .get_message_key(chain_index)
-                .map(|k| FoundMessageKey::Existing(k))
+                .map(FoundMessageKey::Existing)
                 .ok_or(DecryptionError::MissingMessageKey(chain_index))
         } else {
             let mut ratchet = self.hkdf_ratchet.clone();
@@ -120,7 +120,7 @@ impl ReceiverChain {
             // Create now our desired message key
             let message_key = ratchet.create_message_key();
 
-            Ok(FoundMessageKey::New((ratchet, skipped_keys, message_key)))
+            Ok(FoundMessageKey::New(Box::new((ratchet, skipped_keys, message_key))))
         }
     }
 
@@ -135,7 +135,9 @@ impl ReceiverChain {
                 let chain_index = m.chain_index();
                 self.skipped_message_keys.remove_message_key(chain_index)
             }
-            FoundMessageKey::New((ratchet, skipped_keys, _)) => {
+            FoundMessageKey::New(m) => {
+                let (ratchet, skipped_keys, _) = *m;
+
                 self.hkdf_ratchet = ratchet;
                 self.skipped_message_keys.merge(skipped_keys);
             }

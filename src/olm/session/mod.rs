@@ -115,14 +115,14 @@ impl Default for ChainStore {
 /// completely new sender/receiver chain (we ratchet forwards).
 enum FoundRatchet<'a> {
     Existing(&'a mut ReceiverChain),
-    New((DoubleRatchet, ReceiverChain)),
+    New(Box<(DoubleRatchet, ReceiverChain)>),
 }
 
 impl FoundRatchet<'_> {
     fn decrypt(&mut self, message: &Message) -> Result<Vec<u8>, DecryptionError> {
         match self {
             FoundRatchet::Existing(r) => r.decrypt(message),
-            FoundRatchet::New((_, r)) => r.decrypt(message),
+            FoundRatchet::New(r) => r.1.decrypt(message),
         }
     }
 }
@@ -285,7 +285,7 @@ impl Session {
         } else {
             let (sending_ratchet, remote_ratchet) = self.sending_ratchet.advance(ratchet_key);
 
-            FoundRatchet::New((sending_ratchet, remote_ratchet))
+            FoundRatchet::New(Box::new((sending_ratchet, remote_ratchet)))
         }
     }
 
@@ -298,7 +298,9 @@ impl Session {
 
         let plaintext = ratchet.decrypt(message)?;
 
-        if let FoundRatchet::New((sending_ratchet, remote_ratchet)) = ratchet {
+        if let FoundRatchet::New(r) = ratchet {
+            let (sending_ratchet, remote_ratchet) = *r;
+
             self.sending_ratchet = sending_ratchet;
             self.receiving_chains.push(remote_ratchet);
         }
