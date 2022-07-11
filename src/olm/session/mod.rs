@@ -109,6 +109,24 @@ impl Default for ChainStore {
     }
 }
 
+/// Result type when we try to find a receiver chain to decrypt a message.
+///
+/// We either find an existing receiver chain and borrow it, or we create a
+/// completely new sender/receiver chain (we ratchet forwards).
+enum FoundRatchet<'a> {
+    Existing(&'a mut ReceiverChain),
+    New((DoubleRatchet, ReceiverChain)),
+}
+
+impl FoundRatchet<'_> {
+    fn decrypt(&mut self, message: &Message) -> Result<Vec<u8>, DecryptionError> {
+        match self {
+            FoundRatchet::Existing(r) => r.decrypt(message),
+            FoundRatchet::New((_, r)) => r.decrypt(message),
+        }
+    }
+}
+
 /// An Olm session represents one end of an encrypted communication channel
 /// between two participants.
 ///
@@ -261,24 +279,31 @@ impl Session {
         Ok(decrypted)
     }
 
+    fn find_ratchet(&mut self, ratchet_key: RemoteRatchetKey) -> FoundRatchet<'_> {
+        if let Some(ratchet) = self.receiving_chains.find_ratchet(&ratchet_key) {
+            FoundRatchet::Existing(ratchet)
+        } else {
+            let (sending_ratchet, remote_ratchet) = self.sending_ratchet.advance(ratchet_key);
+
+            FoundRatchet::New((sending_ratchet, remote_ratchet))
+        }
+    }
+
     pub(super) fn decrypt_decoded(
         &mut self,
         message: &Message,
     ) -> Result<Vec<u8>, DecryptionError> {
         let ratchet_key = RemoteRatchetKey::from(message.ratchet_key);
+        let mut ratchet = self.find_ratchet(ratchet_key);
 
-        if let Some(ratchet) = self.receiving_chains.find_ratchet(&ratchet_key) {
-            Ok(ratchet.decrypt(message)?)
-        } else {
-            let (sending_ratchet, mut remote_ratchet) = self.sending_ratchet.advance(ratchet_key);
+        let plaintext = ratchet.decrypt(message)?;
 
-            let plaintext = remote_ratchet.decrypt(message)?;
-
+        if let FoundRatchet::New((sending_ratchet, remote_ratchet)) = ratchet {
             self.sending_ratchet = sending_ratchet;
             self.receiving_chains.push(remote_ratchet);
-
-            Ok(plaintext)
         }
+
+        Ok(plaintext)
     }
 
     /// Convert the session into a struct which implements [`serde::Serialize`]
