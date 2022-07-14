@@ -32,6 +32,7 @@ const VERSION: u8 = 4;
 /// [`Session`]: crate::olm::Session
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Message {
+    pub(crate) version: u8,
     pub(crate) ratchet_key: Curve25519PublicKey,
     pub(crate) chain_index: u64,
     pub(crate) ciphertext: Vec<u8>,
@@ -55,8 +56,14 @@ impl Message {
         &self.ciphertext
     }
 
+    /// The version of the Olm message.
+    pub fn version(&self) -> u8 {
+        self.version
+    }
+
+    /// Has the MAC been truncated in this Olm message.
     pub fn mac_truncated(&self) -> bool {
-        self.mac.as_bytes().len() == Mac::TRUNCATED_LEN
+        self.version == MAC_TRUNCATED_VERSION
     }
 
     /// Try to decode the given byte slice as a Olm [`Message`].
@@ -114,7 +121,13 @@ impl Message {
         chain_index: u64,
         ciphertext: Vec<u8>,
     ) -> Self {
-        Self { ratchet_key, chain_index, ciphertext, mac: Mac([0u8; Mac::LENGTH]).into() }
+        Self {
+            version: VERSION,
+            ratchet_key,
+            chain_index,
+            ciphertext,
+            mac: Mac([0u8; Mac::LENGTH]).into(),
+        }
     }
 
     pub(crate) fn new_truncated_mac(
@@ -122,21 +135,22 @@ impl Message {
         chain_index: u64,
         ciphertext: Vec<u8>,
     ) -> Self {
-        Self { ratchet_key, chain_index, ciphertext, mac: [0u8; Mac::TRUNCATED_LEN].into() }
+        Self {
+            version: MAC_TRUNCATED_VERSION,
+            ratchet_key,
+            chain_index,
+            ciphertext,
+            mac: [0u8; Mac::TRUNCATED_LEN].into(),
+        }
     }
 
     fn encode(&self) -> Vec<u8> {
-        let version = match self.mac {
-            MessageMac::Truncated(_) => MAC_TRUNCATED_VERSION,
-            MessageMac::Full(_) => VERSION,
-        };
-
         ProtoBufMessage {
             ratchet_key: self.ratchet_key.to_bytes().to_vec(),
             chain_index: self.chain_index,
             ciphertext: self.ciphertext.clone(),
         }
-        .encode_manual(version)
+        .encode_manual(self.version)
     }
 
     pub(crate) fn to_mac_bytes(&self) -> Vec<u8> {
@@ -218,7 +232,7 @@ impl TryFrom<&[u8]> for Message {
                 let ciphertext = inner.ciphertext;
                 let ratchet_key = Curve25519PublicKey::from_slice(&inner.ratchet_key)?;
 
-                let message = Message { ratchet_key, chain_index, ciphertext, mac };
+                let message = Message { version, ratchet_key, chain_index, ciphertext, mac };
 
                 Ok(message)
             }
@@ -275,7 +289,7 @@ mod test {
         let ratchet_key = Curve25519PublicKey::from(*b"ratchetkeyhereprettyplease123456");
         let ciphertext = b"ciphertext";
 
-        let mut encoded = Message::new(ratchet_key, 1, ciphertext.to_vec());
+        let mut encoded = Message::new_truncated_mac(ratchet_key, 1, ciphertext.to_vec());
         encoded.mac = (*b"MACHEREE").into();
 
         assert_eq!(encoded.to_mac_bytes(), message.as_ref());
