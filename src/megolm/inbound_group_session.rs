@@ -27,7 +27,7 @@ use super::{
     GroupSession,
 };
 use crate::{
-    cipher::Cipher,
+    cipher::{Cipher, MessageMac},
     types::{Ed25519PublicKey, SignatureError},
     utilities::{base64_encode, pickle, unpickle},
     PickleError,
@@ -168,7 +168,15 @@ impl InboundGroupSession {
         if let Some(ratchet) = self.find_ratchet(message.message_index) {
             let cipher = Cipher::new_megolm(ratchet.as_bytes());
 
-            cipher.verify_mac(&message.to_mac_bytes(), &message.mac)?;
+            match &message.mac {
+                MessageMac::Truncated(m) => {
+                    cipher.verify_truncated_mac(&message.to_mac_bytes(), m)?;
+                }
+                MessageMac::Full(m) => {
+                    cipher.verify_mac(&message.to_mac_bytes(), m)?;
+                }
+            }
+
             let plaintext = cipher.decrypt(&message.ciphertext)?;
 
             Ok(DecryptedMessage { plaintext, message_index: message.message_index })
@@ -317,7 +325,7 @@ mod test {
 
     #[test]
     fn advance_inbound_session() {
-        let mut session = InboundGroupSession::from(&GroupSession::new());
+        let mut session = InboundGroupSession::from(&GroupSession::new(Default::default()));
 
         assert_eq!(session.first_known_index(), 0);
         assert_eq!(session.latest_ratchet.index(), 0);
@@ -338,15 +346,13 @@ mod test {
     #[cfg(feature = "low-level-api")]
     #[test]
     fn get_cipher_at() {
-        let mut group_session = GroupSession::new();
+        let mut group_session = GroupSession::new(Default::default());
 
         // Advance the ratchet a few times by calling `encrypt`.
         group_session.encrypt("test1");
         group_session.encrypt("test2");
 
         let session = InboundGroupSession::from(&group_session);
-
-        println!("{}", session.first_known_index());
 
         // The inbound session will only be able to decrypt messages from
         // indices starting at 2 (as we advanced the ratchet twice before

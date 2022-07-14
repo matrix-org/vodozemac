@@ -36,6 +36,7 @@ use zeroize::Zeroize;
 use super::{
     session_keys::SessionKeys,
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
+    SessionConfig,
 };
 #[cfg(feature = "low-level-api")]
 use crate::hazmat::olm::MessageKey;
@@ -53,6 +54,10 @@ pub enum DecryptionError {
     /// The message authentication code of the message was invalid.
     #[error("Failed decrypting Olm message, invalid MAC: {0}")]
     InvalidMAC(#[from] MacError),
+    /// The length of the message authentication code of the message did not
+    /// match our expected length.
+    #[error("Failed decrypting Olm message, invalid MAC length: expected {0}, got {1}")]
+    InvalidMACLength(usize, usize),
     /// The ciphertext of the message isn't padded correctly.
     #[error("Failed decrypting Olm message, invalid padding")]
     InvalidPadding(#[from] UnpadError),
@@ -142,6 +147,7 @@ pub struct Session {
     session_keys: SessionKeys,
     sending_ratchet: DoubleRatchet,
     receiving_chains: ChainStore,
+    config: SessionConfig,
 }
 
 impl std::fmt::Debug for Session {
@@ -151,13 +157,23 @@ impl std::fmt::Debug for Session {
 }
 
 impl Session {
-    pub(super) fn new(shared_secret: Shared3DHSecret, session_keys: SessionKeys) -> Self {
+    pub(super) fn new(
+        config: SessionConfig,
+        shared_secret: Shared3DHSecret,
+        session_keys: SessionKeys,
+    ) -> Self {
         let local_ratchet = DoubleRatchet::active(shared_secret);
 
-        Self { session_keys, sending_ratchet: local_ratchet, receiving_chains: Default::default() }
+        Self {
+            session_keys,
+            sending_ratchet: local_ratchet,
+            receiving_chains: Default::default(),
+            config,
+        }
     }
 
     pub(super) fn new_remote(
+        config: SessionConfig,
         shared_secret: RemoteShared3DHSecret,
         remote_ratchet_key: Curve25519PublicKey,
         session_keys: SessionKeys,
@@ -174,7 +190,12 @@ impl Session {
         let mut ratchet_store = ChainStore::new();
         ratchet_store.push(remote_ratchet);
 
-        Self { session_keys, sending_ratchet: local_ratchet, receiving_chains: ratchet_store }
+        Self {
+            session_keys,
+            sending_ratchet: local_ratchet,
+            receiving_chains: ratchet_store,
+            config,
+        }
     }
 
     /// Returns the globally unique session ID, in base64-encoded form.
@@ -210,7 +231,11 @@ impl Session {
     /// fully established once you receive (and decrypt) at least one
     /// message from the other side.
     pub fn encrypt(&mut self, plaintext: impl AsRef<[u8]>) -> OlmMessage {
-        let message = self.sending_ratchet.encrypt(plaintext.as_ref());
+        let message = if self.config.mac_truncation_enabled {
+            self.sending_ratchet.encrypt_truncated_mac(plaintext.as_ref())
+        } else {
+            self.sending_ratchet.encrypt(plaintext.as_ref())
+        };
 
         if self.has_received_message() {
             OlmMessage::Normal(message)
@@ -260,11 +285,11 @@ impl Session {
         let ratchet_key = RemoteRatchetKey::from(message.ratchet_key);
 
         if let Some(ratchet) = self.receiving_chains.find_ratchet(&ratchet_key) {
-            Ok(ratchet.decrypt(message)?)
+            ratchet.decrypt(message, &self.config)
         } else {
             let (sending_ratchet, mut remote_ratchet) = self.sending_ratchet.advance(ratchet_key);
 
-            let plaintext = remote_ratchet.decrypt(message)?;
+            let plaintext = remote_ratchet.decrypt(message, &self.config)?;
 
             self.sending_ratchet = sending_ratchet;
             self.receiving_chains.push(remote_ratchet);
@@ -280,6 +305,7 @@ impl Session {
             session_keys: self.session_keys,
             sending_ratchet: self.sending_ratchet.clone(),
             receiving_chains: self.receiving_chains.clone(),
+            config: self.config,
         }
     }
 
@@ -464,6 +490,7 @@ impl Session {
                         session_keys: pickle.session_keys,
                         sending_ratchet,
                         receiving_chains,
+                        config: SessionConfig::version_1(),
                     })
                 } else if let Some(chain) = receiving_chains.get(0) {
                     let sending_ratchet = DoubleRatchet::inactive(
@@ -475,6 +502,7 @@ impl Session {
                         session_keys: pickle.session_keys,
                         sending_ratchet,
                         receiving_chains,
+                        config: SessionConfig::version_1(),
                     })
                 } else {
                     Err(crate::LibolmPickleError::InvalidSession)
@@ -494,6 +522,7 @@ pub struct SessionPickle {
     session_keys: SessionKeys,
     sending_ratchet: DoubleRatchet,
     receiving_chains: ChainStore,
+    config: SessionConfig,
 }
 
 impl SessionPickle {
@@ -519,6 +548,7 @@ impl From<SessionPickle> for Session {
             session_keys: pickle.session_keys,
             sending_ratchet: pickle.sending_ratchet,
             receiving_chains: pickle.receiving_chains,
+            config: pickle.config,
         }
     }
 }
@@ -533,7 +563,7 @@ mod test {
 
     use super::Session;
     use crate::{
-        olm::{Account, SessionPickle},
+        olm::{Account, SessionConfig, SessionPickle},
         Curve25519PublicKey,
     };
 
@@ -555,7 +585,8 @@ mod test {
         let identity_keys = bob.parsed_identity_keys();
         let curve25519_key = Curve25519PublicKey::from_base64(identity_keys.curve25519())?;
         let one_time_key = Curve25519PublicKey::from_base64(&one_time_key)?;
-        let mut alice_session = alice.create_outbound_session(curve25519_key, one_time_key);
+        let mut alice_session =
+            alice.create_outbound_session(SessionConfig::version_1(), curve25519_key, one_time_key);
 
         let message = "It's a secret to everybody";
 

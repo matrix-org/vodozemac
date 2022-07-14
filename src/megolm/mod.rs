@@ -18,6 +18,7 @@ mod group_session;
 mod inbound_group_session;
 mod message;
 mod ratchet;
+mod session_config;
 mod session_keys;
 
 pub use group_session::{GroupSession, GroupSessionPickle};
@@ -25,6 +26,7 @@ pub use inbound_group_session::{
     DecryptedMessage, DecryptionError, InboundGroupSession, InboundGroupSessionPickle,
 };
 pub use message::MegolmMessage;
+pub use session_config::SessionConfig;
 pub use session_keys::{ExportedSessionKey, SessionKey, SessionKeyDecodeError};
 
 #[cfg(feature = "libolm-compat")]
@@ -68,13 +70,13 @@ mod test {
     };
 
     use super::{GroupSession, InboundGroupSession};
-    use crate::megolm::{GroupSessionPickle, InboundGroupSessionPickle, SessionKey};
+    use crate::megolm::{GroupSessionPickle, InboundGroupSessionPickle, SessionConfig, SessionKey};
 
     const PICKLE_KEY: [u8; 32] = [0u8; 32];
 
     #[test]
     fn encrypting() -> Result<()> {
-        let mut session = GroupSession::new();
+        let mut session = GroupSession::new(SessionConfig::version_1());
         let session_key = session.session_key();
 
         let olm_session = OlmInboundGroupSession::new(&session_key.to_base64())?;
@@ -165,7 +167,7 @@ mod test {
 
     #[test]
     fn exporting() -> Result<()> {
-        let mut session = GroupSession::new();
+        let mut session = GroupSession::new(Default::default());
         let mut inbound = InboundGroupSession::new(&session.session_key());
 
         assert_eq!(session.session_id(), inbound.session_id());
@@ -202,7 +204,7 @@ mod test {
 
     #[test]
     fn group_session_pickling_roundtrip_is_identity() -> Result<()> {
-        let session = GroupSession::new();
+        let session = GroupSession::new(Default::default());
 
         let pickle = session.pickle().encrypt(&PICKLE_KEY);
 
@@ -223,7 +225,7 @@ mod test {
 
     #[test]
     fn inbound_group_session_pickling_roundtrip_is_identity() -> Result<()> {
-        let session = GroupSession::new();
+        let session = GroupSession::new(Default::default());
         let session = InboundGroupSession::from(&session);
 
         let pickle = session.pickle().encrypt(&PICKLE_KEY);
@@ -246,7 +248,7 @@ mod test {
     #[test]
     #[cfg(feature = "libolm-compat")]
     fn libolm_inbound_unpickling() -> Result<()> {
-        let session = GroupSession::new();
+        let session = GroupSession::new(SessionConfig::version_1());
         let session_key = session.session_key();
 
         let olm = OlmInboundGroupSession::new(&session_key.to_base64())?;
