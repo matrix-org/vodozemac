@@ -325,7 +325,7 @@ mod test {
 
     #[test]
     fn advance_inbound_session() {
-        let mut session = InboundGroupSession::from(&GroupSession::new());
+        let mut session = InboundGroupSession::from(&GroupSession::new(Default::default()));
 
         assert_eq!(session.first_known_index(), 0);
         assert_eq!(session.latest_ratchet.index(), 0);
@@ -346,7 +346,7 @@ mod test {
     #[cfg(feature = "low-level-api")]
     #[test]
     fn get_cipher_at() {
-        let mut group_session = GroupSession::new();
+        let mut group_session = GroupSession::new(Default::default());
 
         // Advance the ratchet a few times by calling `encrypt`.
         group_session.encrypt("test1");

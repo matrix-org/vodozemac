@@ -336,7 +336,7 @@ mod test {
 
     #[test]
     fn session_key_serialization() -> Result<(), anyhow::Error> {
-        let session = GroupSession::new();
+        let session = GroupSession::new(Default::default());
 
         let key = session.session_key();
 
@@ -353,7 +353,7 @@ mod test {
 
     #[test]
     fn exported_session_key_serialization() -> Result<(), anyhow::Error> {
-        let session = GroupSession::new();
+        let session = GroupSession::new(Default::default());
         let mut session = InboundGroupSession::from(&session);
 
         let key = session.export_at(0).expect(
