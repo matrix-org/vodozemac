@@ -16,7 +16,10 @@ use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
 
 use super::{ratchet::RatchetPublicKey, DecryptionError};
-use crate::{cipher::Cipher, olm::messages::Message};
+use crate::{
+    cipher::{Cipher, Mac},
+    olm::messages::Message,
+};
 
 pub struct MessageKey {
     key: Box<[u8; 32]>,
@@ -102,18 +105,25 @@ impl RemoteMessageKey {
         self.index
     }
 
+    pub fn decrypt_truncated_mac(&self, message: &Message) -> Result<Vec<u8>, DecryptionError> {
+        let cipher = Cipher::new(&self.key);
+
+        if let crate::cipher::MessageMac::Truncated(m) = &message.mac {
+            cipher.verify_truncated_mac(&message.to_mac_bytes(), m)?;
+            Ok(cipher.decrypt(&message.ciphertext)?)
+        } else {
+            Err(DecryptionError::InvalidMACLength(Mac::TRUNCATED_LEN, Mac::LENGTH))
+        }
+    }
+
     pub fn decrypt(&self, message: &Message) -> Result<Vec<u8>, DecryptionError> {
         let cipher = Cipher::new(&self.key);
 
-        match &message.mac {
-            crate::cipher::MessageMac::Truncated(m) => {
-                cipher.verify_truncated_mac(&message.to_mac_bytes(), m)?;
-            }
-            crate::cipher::MessageMac::Full(m) => {
-                cipher.verify_mac(&message.to_mac_bytes(), m)?;
-            }
+        if let crate::cipher::MessageMac::Full(m) = &message.mac {
+            cipher.verify_mac(&message.to_mac_bytes(), m)?;
+            Ok(cipher.decrypt(&message.ciphertext)?)
+        } else {
+            Err(DecryptionError::InvalidMACLength(Mac::LENGTH, Mac::TRUNCATED_LEN))
         }
-
-        Ok(cipher.decrypt(&message.ciphertext)?)
     }
 }

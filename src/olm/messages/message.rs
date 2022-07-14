@@ -55,6 +55,10 @@ impl Message {
         &self.ciphertext
     }
 
+    pub fn mac_truncated(&self) -> bool {
+        self.mac.as_bytes().len() == Mac::TRUNCATED_LEN
+    }
+
     /// Try to decode the given byte slice as a Olm [`Message`].
     ///
     /// The expected format of the byte array is described in the
