@@ -18,6 +18,7 @@ mod group_session;
 mod inbound_group_session;
 mod message;
 mod ratchet;
+mod session_config;
 mod session_keys;
 
 pub use group_session::{GroupSession, GroupSessionPickle};
@@ -26,6 +27,7 @@ pub use inbound_group_session::{
     SessionOrdering,
 };
 pub use message::MegolmMessage;
+pub use session_config::SessionConfig;
 pub use session_keys::{ExportedSessionKey, SessionKey, SessionKeyDecodeError};
 
 #[cfg(feature = "libolm-compat")]
@@ -69,32 +71,32 @@ mod test {
     };
 
     use super::{GroupSession, InboundGroupSession};
-    use crate::megolm::{GroupSessionPickle, InboundGroupSessionPickle, SessionKey};
+    use crate::megolm::{GroupSessionPickle, InboundGroupSessionPickle, SessionConfig, SessionKey};
 
     const PICKLE_KEY: [u8; 32] = [0u8; 32];
 
     #[test]
     fn encrypting() -> Result<()> {
-        let mut session = GroupSession::new();
+        let mut session = GroupSession::new(SessionConfig::version_1());
         let session_key = session.session_key();
 
         let olm_session = OlmInboundGroupSession::new(&session_key.to_base64())?;
 
         let plaintext = "It's a secret to everybody";
-        let message = session.encrypt_truncated_mac(plaintext).to_base64();
+        let message = session.encrypt(plaintext).to_base64();
 
         let (decrypted, _) = olm_session.decrypt(message)?;
 
         assert_eq!(decrypted, plaintext);
 
         let plaintext = "Another secret";
-        let message = session.encrypt_truncated_mac(plaintext).to_base64();
+        let message = session.encrypt(plaintext).to_base64();
 
         let (decrypted, _) = olm_session.decrypt(message)?;
         assert_eq!(decrypted, plaintext);
 
         let plaintext = "And another secret";
-        let message = session.encrypt_truncated_mac(plaintext).to_base64();
+        let message = session.encrypt(plaintext).to_base64();
         let (decrypted, _) = olm_session.decrypt(message)?;
 
         assert_eq!(decrypted, plaintext);
@@ -105,7 +107,7 @@ mod test {
             session.encrypt(plaintext);
         }
 
-        let message = session.encrypt_truncated_mac(plaintext).to_base64();
+        let message = session.encrypt(plaintext).to_base64();
         let (decrypted, _) = olm_session.decrypt(message)?;
 
         assert_eq!(decrypted, plaintext);
@@ -166,7 +168,7 @@ mod test {
 
     #[test]
     fn exporting() -> Result<()> {
-        let mut session = GroupSession::new();
+        let mut session = GroupSession::new(Default::default());
         let mut inbound = InboundGroupSession::new(&session.session_key());
 
         assert_eq!(session.session_id(), inbound.session_id());
@@ -174,7 +176,7 @@ mod test {
         let first_plaintext = "It's a secret to everybody".as_bytes();
         let first_message = session.encrypt(first_plaintext);
         let second_plaintext = "It's dangerous to go alone. Take this!".as_bytes();
-        let second_message = session.encrypt_truncated_mac(second_plaintext);
+        let second_message = session.encrypt(second_plaintext);
 
         let decrypted = inbound.decrypt(&first_message)?;
 
@@ -203,7 +205,7 @@ mod test {
 
     #[test]
     fn group_session_pickling_roundtrip_is_identity() -> Result<()> {
-        let session = GroupSession::new();
+        let session = GroupSession::new(Default::default());
 
         let pickle = session.pickle().encrypt(&PICKLE_KEY);
 
@@ -224,7 +226,7 @@ mod test {
 
     #[test]
     fn inbound_group_session_pickling_roundtrip_is_identity() -> Result<()> {
-        let session = GroupSession::new();
+        let session = GroupSession::new(Default::default());
         let session = InboundGroupSession::from(&session);
 
         let pickle = session.pickle().encrypt(&PICKLE_KEY);
@@ -247,7 +249,7 @@ mod test {
     #[test]
     #[cfg(feature = "libolm-compat")]
     fn libolm_inbound_unpickling() -> Result<()> {
-        let session = GroupSession::new();
+        let session = GroupSession::new(SessionConfig::version_1());
         let session_key = session.session_key();
 
         let olm = OlmInboundGroupSession::new(&session_key.to_base64())?;

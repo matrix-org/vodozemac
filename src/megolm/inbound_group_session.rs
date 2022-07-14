@@ -398,7 +398,7 @@ mod test {
 
     #[test]
     fn advance_inbound_session() {
-        let mut session = InboundGroupSession::from(&GroupSession::new());
+        let mut session = InboundGroupSession::from(&GroupSession::new(Default::default()));
 
         assert_eq!(session.first_known_index(), 0);
         assert_eq!(session.latest_ratchet.index(), 0);
@@ -416,7 +416,7 @@ mod test {
 
     #[test]
     fn connecting() {
-        let outbound = GroupSession::new();
+        let outbound = GroupSession::new(Default::default());
         let mut session = InboundGroupSession::from(&outbound);
         let mut clone = InboundGroupSession::from(&outbound);
 
@@ -428,7 +428,7 @@ mod test {
         assert!(session.connected(&mut clone));
         assert!(clone.connected(&mut session));
 
-        let mut other = InboundGroupSession::from(&GroupSession::new());
+        let mut other = InboundGroupSession::from(&GroupSession::new(Default::default()));
 
         assert!(!session.connected(&mut other));
         assert!(!clone.connected(&mut other));
@@ -441,7 +441,7 @@ mod test {
 
     #[test]
     fn comparison() {
-        let outbound = GroupSession::new();
+        let outbound = GroupSession::new(Default::default());
         let mut session = InboundGroupSession::from(&outbound);
         let mut clone = InboundGroupSession::from(&outbound);
 
@@ -453,7 +453,7 @@ mod test {
         assert_eq!(session.compare(&mut clone), SessionOrdering::Better);
         assert_eq!(clone.compare(&mut session), SessionOrdering::Worse);
 
-        let mut other = InboundGroupSession::from(&GroupSession::new());
+        let mut other = InboundGroupSession::from(&GroupSession::new(Default::default()));
 
         assert_eq!(session.compare(&mut other), SessionOrdering::Unconnected);
         assert_eq!(clone.compare(&mut other), SessionOrdering::Unconnected);
@@ -469,7 +469,7 @@ mod test {
     #[cfg(feature = "low-level-api")]
     #[test]
     fn get_cipher_at() {
-        let mut group_session = GroupSession::new();
+        let mut group_session = GroupSession::new(Default::default());
 
         // Advance the ratchet a few times by calling `encrypt`.
         group_session.encrypt("test1");
