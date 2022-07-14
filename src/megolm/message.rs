@@ -36,6 +36,7 @@ const VERSION: u8 = 4;
 /// [`InboundGroupSession`]: crate::megolm::InboundGroupSession
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MegolmMessage {
+    pub(super) version: u8,
     pub(super) ciphertext: Vec<u8>,
     pub(super) message_index: u32,
     pub(super) mac: MessageMac,
@@ -140,12 +141,7 @@ impl MegolmMessage {
             ciphertext: self.ciphertext.clone(),
         };
 
-        let version = match self.mac {
-            MessageMac::Truncated(_) => MAC_TRUNCATED_VERSION,
-            MessageMac::Full(_) => VERSION,
-        };
-
-        message.encode_manual(version)
+        message.encode_manual(self.version)
     }
 
     fn set_mac(&mut self, mac: Mac) {
@@ -163,7 +159,7 @@ impl MegolmMessage {
         signing_key: &Ed25519Keypair,
         plaintext: &[u8],
     ) -> Self {
-        MegolmMessage::encrypt_private(message_index, cipher, signing_key, plaintext)
+        MegolmMessage::encrypt_truncated_mac(message_index, cipher, signing_key, plaintext)
     }
 
     /// Implementation of [`MegolmMessage::encrypt`] that is used by rest of the
@@ -177,6 +173,7 @@ impl MegolmMessage {
         let ciphertext = cipher.encrypt(plaintext);
 
         let message = Self {
+            version: VERSION,
             ciphertext,
             message_index,
             mac: Mac([0u8; Mac::LENGTH]).into(),
@@ -196,6 +193,7 @@ impl MegolmMessage {
         let ciphertext = cipher.encrypt(plaintext);
 
         let message = Self {
+            version: MAC_TRUNCATED_VERSION,
             ciphertext,
             message_index,
             mac: [0u8; Mac::TRUNCATED_LEN].into(),
@@ -296,6 +294,7 @@ impl TryFrom<&[u8]> for MegolmMessage {
             let mac = extract_mac(mac_slice, version == MAC_TRUNCATED_VERSION);
 
             Ok(MegolmMessage {
+                version,
                 ciphertext: inner.ciphertext,
                 message_index: inner.message_index,
                 mac,
