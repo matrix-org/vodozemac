@@ -19,7 +19,7 @@ use super::{
     chain_key::RemoteChainKey, message_key::RemoteMessageKey, ratchet::RemoteRatchetKey,
     DecryptionError,
 };
-use crate::olm::messages::Message;
+use crate::olm::{messages::Message, SessionConfig};
 
 const MAX_MESSAGE_GAP: u64 = 2000;
 const MAX_MESSAGE_KEYS: usize = 40;
@@ -69,10 +69,20 @@ enum FoundMessageKey<'a> {
 }
 
 impl FoundMessageKey<'_> {
-    fn decrypt(&self, message: &Message) -> Result<Vec<u8>, DecryptionError> {
-        match self {
-            FoundMessageKey::Existing(m) => m.decrypt(message),
-            FoundMessageKey::New(m) => m.2.decrypt(message),
+    fn decrypt(
+        &self,
+        message: &Message,
+        config: &SessionConfig,
+    ) -> Result<Vec<u8>, DecryptionError> {
+        let message_key = match self {
+            FoundMessageKey::Existing(m) => m,
+            FoundMessageKey::New(m) => &m.2,
+        };
+
+        if config.mac_truncation_enabled {
+            message_key.decrypt_truncated_mac(message)
+        } else {
+            message_key.decrypt(message)
         }
     }
 }
@@ -124,11 +134,15 @@ impl ReceiverChain {
         }
     }
 
-    pub fn decrypt(&mut self, message: &Message) -> Result<Vec<u8>, DecryptionError> {
+    pub fn decrypt(
+        &mut self,
+        message: &Message,
+        config: &SessionConfig,
+    ) -> Result<Vec<u8>, DecryptionError> {
         let chain_index = message.chain_index;
         let message_key = self.find_message_key(chain_index)?;
 
-        let plaintext = message_key.decrypt(message)?;
+        let plaintext = message_key.decrypt(message, config)?;
 
         match message_key {
             FoundMessageKey::Existing(m) => {

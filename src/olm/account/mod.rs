@@ -44,6 +44,28 @@ use crate::{
 
 const PUBLIC_MAX_ONE_TIME_KEYS: usize = 50;
 
+#[allow(dead_code)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SessionConfig {
+    pub(super) mac_truncation_enabled: bool,
+}
+
+impl SessionConfig {
+    pub fn version_1() -> Self {
+        SessionConfig { mac_truncation_enabled: true }
+    }
+
+    pub fn version_2() -> Self {
+        SessionConfig { mac_truncation_enabled: false }
+    }
+}
+
+impl Default for SessionConfig {
+    fn default() -> Self {
+        Self::version_2()
+    }
+}
+
 /// Error describing failure modes when creating a Olm Session from an incoming
 /// Olm message.
 #[derive(Error, Debug)]
@@ -151,6 +173,7 @@ impl Account {
     /// Create a `Session` with the given identity key and one-time key.
     pub fn create_outbound_session(
         &self,
+        session_config: SessionConfig,
         identity_key: Curve25519PublicKey,
         one_time_key: Curve25519PublicKey,
     ) -> Session {
@@ -172,7 +195,7 @@ impl Account {
             one_time_key,
         };
 
-        Session::new(shared_secret, session_keys)
+        Session::new(session_config, shared_secret, session_keys)
     }
 
     fn find_one_time_key(&self, public_key: &Curve25519PublicKey) -> Option<&Curve25519SecretKey> {
@@ -233,9 +256,16 @@ impl Account {
                 one_time_key: pre_key_message.one_time_key(),
             };
 
+            let config = if pre_key_message.message.mac_truncated() {
+                SessionConfig::version_1()
+            } else {
+                SessionConfig::version_2()
+            };
+
             // Create a Session, AKA a double ratchet, this one will have an
             // inactive sending chain until we decide to encrypt a message.
             let mut session = Session::new_remote(
+                config,
                 shared_secret,
                 pre_key_message.message.ratchet_key,
                 session_keys,
@@ -539,7 +569,7 @@ mod test {
     use anyhow::{bail, Context, Result};
     use olm_rs::{account::OlmAccount, session::OlmMessage as LibolmOlmMessage};
 
-    use super::{Account, InboundCreationResult, SessionCreationError};
+    use super::{Account, InboundCreationResult, SessionConfig, SessionCreationError};
     use crate::{
         cipher::Mac,
         olm::{
@@ -573,10 +603,11 @@ mod test {
         let identity_keys = bob.parsed_identity_keys();
         let curve25519_key = PublicKey::from_base64(identity_keys.curve25519())?;
         let one_time_key = PublicKey::from_base64(&one_time_key)?;
-        let mut alice_session = alice.create_outbound_session(curve25519_key, one_time_key);
+        let mut alice_session =
+            alice.create_outbound_session(SessionConfig::version_1(), curve25519_key, one_time_key);
 
         let message = "It's a secret to everybody";
-        let olm_message: LibolmOlmMessage = alice_session.encrypt_truncated_mac(message).into();
+        let olm_message: LibolmOlmMessage = alice_session.encrypt(message).into();
 
         if let LibolmOlmMessage::PreKey(m) = olm_message.clone() {
             let libolm_session =
@@ -587,7 +618,7 @@ mod test {
             assert_eq!(message, plaintext);
 
             let second_text = "Here's another secret to everybody";
-            let olm_message = alice_session.encrypt_truncated_mac(second_text).into();
+            let olm_message = alice_session.encrypt(second_text).into();
 
             let plaintext = libolm_session.decrypt(olm_message)?;
             assert_eq!(second_text, plaintext);
@@ -604,7 +635,7 @@ mod test {
             assert_eq!(plaintext, another_reply.as_bytes());
 
             let last_text = "Nope, I'll have the last word";
-            let olm_message = alice_session.encrypt_truncated_mac(last_text).into();
+            let olm_message = alice_session.encrypt(last_text).into();
 
             let plaintext = libolm_session.decrypt(olm_message)?;
             assert_eq!(last_text, plaintext);
@@ -624,6 +655,7 @@ mod test {
         bob.generate_one_time_keys(1);
 
         let mut alice_session = alice.create_outbound_session(
+            SessionConfig::version_2(),
             bob.curve25519_key(),
             *bob.one_time_keys()
                 .iter()
@@ -654,7 +686,7 @@ mod test {
             assert_eq!(second_text.as_bytes(), plaintext);
 
             let reply_plain = "Yes, take this, it's dangerous out there";
-            let reply = bob_session.encrypt_truncated_mac(reply_plain);
+            let reply = bob_session.encrypt(reply_plain);
             let plaintext = alice_session.decrypt(&reply)?;
 
             assert_eq!(plaintext, reply_plain.as_bytes());
@@ -837,6 +869,7 @@ mod test {
         alice.generate_one_time_keys(1);
 
         let mut session = malory.create_outbound_session(
+            SessionConfig::default(),
             alice.curve25519_key(),
             *alice.one_time_keys().values().next().expect("Should have one-time key"),
         );
