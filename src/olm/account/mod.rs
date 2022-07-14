@@ -32,6 +32,7 @@ use super::{
     session::{DecryptionError, Session},
     session_keys::SessionKeys,
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
+    SessionConfig,
 };
 use crate::{
     types::{
@@ -43,28 +44,6 @@ use crate::{
 };
 
 const PUBLIC_MAX_ONE_TIME_KEYS: usize = 50;
-
-#[allow(dead_code)]
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct SessionConfig {
-    pub(super) mac_truncation_enabled: bool,
-}
-
-impl SessionConfig {
-    pub fn version_1() -> Self {
-        SessionConfig { mac_truncation_enabled: true }
-    }
-
-    pub fn version_2() -> Self {
-        SessionConfig { mac_truncation_enabled: false }
-    }
-}
-
-impl Default for SessionConfig {
-    fn default() -> Self {
-        Self::version_2()
-    }
-}
 
 /// Error describing failure modes when creating a Olm Session from an incoming
 /// Olm message.
