@@ -34,6 +34,7 @@ use thiserror::Error;
 use zeroize::Zeroize;
 
 use super::{
+    session_config::Version,
     session_keys::SessionKeys,
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
     SessionConfig,
@@ -231,10 +232,9 @@ impl Session {
     /// fully established once you receive (and decrypt) at least one
     /// message from the other side.
     pub fn encrypt(&mut self, plaintext: impl AsRef<[u8]>) -> OlmMessage {
-        let message = if self.config.mac_truncation_enabled {
-            self.sending_ratchet.encrypt_truncated_mac(plaintext.as_ref())
-        } else {
-            self.sending_ratchet.encrypt(plaintext.as_ref())
+        let message = match self.config.version {
+            Version::V1 => self.sending_ratchet.encrypt_truncated_mac(plaintext.as_ref()),
+            Version::V2 => self.sending_ratchet.encrypt(plaintext.as_ref()),
         };
 
         if self.has_received_message() {
@@ -249,6 +249,10 @@ impl Session {
     /// Get the keys associated with this session.
     pub fn session_keys(&self) -> SessionKeys {
         self.session_keys
+    }
+
+    pub fn session_config(&self) -> SessionConfig {
+        self.config
     }
 
     /// Get the [`MessageKey`] to encrypt the next message.

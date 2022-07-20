@@ -14,7 +14,10 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::{message::MegolmMessage, ratchet::Ratchet, session_keys::SessionKey, SessionConfig};
+use super::{
+    message::MegolmMessage, ratchet::Ratchet, session_config::Version, session_keys::SessionKey,
+    SessionConfig,
+};
 use crate::{
     cipher::Cipher,
     types::Ed25519Keypair,
@@ -80,20 +83,19 @@ impl GroupSession {
     pub fn encrypt(&mut self, plaintext: impl AsRef<[u8]>) -> MegolmMessage {
         let cipher = Cipher::new_megolm(self.ratchet.as_bytes());
 
-        let message = if self.config.mac_truncation_enabled {
-            MegolmMessage::encrypt_truncated_mac(
+        let message = match self.config.version {
+            Version::V1 => MegolmMessage::encrypt_truncated_mac(
                 self.message_index(),
                 &cipher,
                 &self.signing_key,
                 plaintext.as_ref(),
-            )
-        } else {
-            MegolmMessage::encrypt_private(
+            ),
+            Version::V2 => MegolmMessage::encrypt_private(
                 self.message_index(),
                 &cipher,
                 &self.signing_key,
                 plaintext.as_ref(),
-            )
+            ),
         };
 
         self.ratchet.advance();

@@ -16,16 +16,26 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SessionConfig {
-    pub(super) mac_truncation_enabled: bool,
+    pub(super) version: Version,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub(super) enum Version {
+    V1 = 1,
+    V2 = 2,
 }
 
 impl SessionConfig {
+    pub fn version(&self) -> u8 {
+        self.version as u8
+    }
+
     pub fn version_1() -> Self {
-        SessionConfig { mac_truncation_enabled: true }
+        SessionConfig { version: Version::V1 }
     }
 
     pub fn version_2() -> Self {
-        SessionConfig { mac_truncation_enabled: false }
+        SessionConfig { version: Version::V2 }
     }
 }
 

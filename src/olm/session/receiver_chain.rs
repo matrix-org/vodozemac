@@ -19,7 +19,7 @@ use super::{
     chain_key::RemoteChainKey, message_key::RemoteMessageKey, ratchet::RemoteRatchetKey,
     DecryptionError,
 };
-use crate::olm::{messages::Message, SessionConfig};
+use crate::olm::{messages::Message, session_config::Version, SessionConfig};
 
 const MAX_MESSAGE_GAP: u64 = 2000;
 const MAX_MESSAGE_KEYS: usize = 40;
@@ -79,10 +79,9 @@ impl FoundMessageKey<'_> {
             FoundMessageKey::New(m) => &m.2,
         };
 
-        if config.mac_truncation_enabled {
-            message_key.decrypt_truncated_mac(message)
-        } else {
-            message_key.decrypt(message)
+        match config.version {
+            Version::V1 => message_key.decrypt_truncated_mac(message),
+            Version::V2 => message_key.decrypt(message),
         }
     }
 }
