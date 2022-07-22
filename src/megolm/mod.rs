@@ -275,7 +275,8 @@ mod test {
     fn libolm_unpickling() -> Result<()> {
         let olm = OlmOutboundGroupSession::new();
         let session_key = SessionKey::from_base64(&olm.session_key())?;
-        let mut inbound_session = InboundGroupSession::new(&session_key, SessionConfig::version_1());
+        let mut inbound_session =
+            InboundGroupSession::new(&session_key, SessionConfig::version_1());
 
         let key = b"DEFAULT_PICKLE_KEY";
         let pickle = olm.pickle(olm_rs::PicklingMode::Encrypted { key: key.to_vec() });

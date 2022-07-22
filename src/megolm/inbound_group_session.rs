@@ -22,13 +22,15 @@ use thiserror::Error;
 use zeroize::Zeroize;
 
 use super::{
+    default_config,
     message::MegolmMessage,
     ratchet::Ratchet,
+    session_config::Version,
     session_keys::{ExportedSessionKey, SessionKey},
-    GroupSession, SessionConfig, default_config,
+    GroupSession, SessionConfig,
 };
 use crate::{
-    cipher::{Cipher, MessageMac},
+    cipher::{Cipher, Mac, MessageMac},
     types::{Ed25519PublicKey, SignatureError},
     utilities::{base64_encode, pickle, unpickle},
     PickleError,
@@ -56,12 +58,20 @@ pub enum DecryptionError {
     /// The signature on the message was invalid.
     #[error("The signature on the message was invalid: {0}")]
     Signature(#[from] SignatureError),
+
     /// The message authentication code of the message was invalid.
     #[error("Failed decrypting Megolm message, invalid MAC: {0}")]
     InvalidMAC(#[from] MacError),
+
+    /// The length of the message authentication code of the message did not
+    /// match our expected length.
+    #[error("Failed decrypting Olm message, invalid MAC length: expected {0}, got {1}")]
+    InvalidMACLength(usize, usize),
+
     /// The ciphertext of the message isn't padded correctly.
     #[error("Failed decrypting Megolm message, invalid padding")]
     InvalidPadding(#[from] UnpadError),
+
     /// The session is missing the correct message key to decrypt the message,
     /// The Session has been ratcheted forwards and the message key isn't
     /// available anymore.
@@ -235,6 +245,25 @@ impl InboundGroupSession {
         }
     }
 
+    fn verify_mac(&self, cipher: &Cipher, message: &MegolmMessage) -> Result<(), DecryptionError> {
+        match self.config.version {
+            Version::V1 => {
+                if let MessageMac::Truncated(m) = &message.mac {
+                    Ok(cipher.verify_truncated_mac(&message.to_mac_bytes(), m)?)
+                } else {
+                    Err(DecryptionError::InvalidMACLength(Mac::TRUNCATED_LEN, Mac::LENGTH))
+                }
+            }
+            Version::V2 => {
+                if let MessageMac::Full(m) = &message.mac {
+                    Ok(cipher.verify_mac(&message.to_mac_bytes(), m)?)
+                } else {
+                    Err(DecryptionError::InvalidMACLength(Mac::LENGTH, Mac::TRUNCATED_LEN))
+                }
+            }
+        }
+    }
+
     pub fn decrypt(
         &mut self,
         message: &MegolmMessage,
@@ -244,14 +273,7 @@ impl InboundGroupSession {
         if let Some(ratchet) = self.find_ratchet(message.message_index) {
             let cipher = Cipher::new_megolm(ratchet.as_bytes());
 
-            match &message.mac {
-                MessageMac::Truncated(m) => {
-                    cipher.verify_truncated_mac(&message.to_mac_bytes(), m)?;
-                }
-                MessageMac::Full(m) => {
-                    cipher.verify_mac(&message.to_mac_bytes(), m)?;
-                }
-            }
+            self.verify_mac(&cipher, message)?;
 
             let plaintext = cipher.decrypt(&message.ciphertext)?;
 

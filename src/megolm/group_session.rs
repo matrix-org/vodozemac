@@ -15,8 +15,8 @@
 use serde::{Deserialize, Serialize};
 
 use super::{
-    message::MegolmMessage, ratchet::Ratchet, session_config::Version, session_keys::SessionKey,
-    SessionConfig, default_config,
+    default_config, message::MegolmMessage, ratchet::Ratchet, session_config::Version,
+    session_keys::SessionKey, SessionConfig,
 };
 use crate::{
     cipher::Cipher,
