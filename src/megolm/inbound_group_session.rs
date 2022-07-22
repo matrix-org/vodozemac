@@ -25,7 +25,7 @@ use super::{
     message::MegolmMessage,
     ratchet::Ratchet,
     session_keys::{ExportedSessionKey, SessionKey},
-    GroupSession,
+    GroupSession, SessionConfig, default_config,
 };
 use crate::{
     cipher::{Cipher, MessageMac},
@@ -80,6 +80,7 @@ pub struct InboundGroupSession {
     signing_key: Ed25519PublicKey,
     #[allow(dead_code)]
     signing_key_verified: bool,
+    config: SessionConfig,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -89,7 +90,7 @@ pub struct DecryptedMessage {
 }
 
 impl InboundGroupSession {
-    pub fn new(key: &SessionKey) -> Self {
+    pub fn new(key: &SessionKey, session_config: SessionConfig) -> Self {
         let initial_ratchet =
             Ratchet::from_bytes(key.session_key.ratchet.clone(), key.session_key.ratchet_index);
         let latest_ratchet = initial_ratchet.clone();
@@ -99,10 +100,11 @@ impl InboundGroupSession {
             latest_ratchet,
             signing_key: key.session_key.signing_key,
             signing_key_verified: true,
+            config: session_config,
         }
     }
 
-    pub fn import(session_key: &ExportedSessionKey) -> Self {
+    pub fn import(session_key: &ExportedSessionKey, session_config: SessionConfig) -> Self {
         let initial_ratchet =
             Ratchet::from_bytes(session_key.ratchet.clone(), session_key.ratchet_index);
         let latest_ratchet = initial_ratchet.clone();
@@ -112,6 +114,7 @@ impl InboundGroupSession {
             latest_ratchet,
             signing_key: session_key.signing_key,
             signing_key_verified: false,
+            config: session_config,
         }
     }
 
@@ -278,6 +281,7 @@ impl InboundGroupSession {
             initial_ratchet: self.initial_ratchet.clone(),
             signing_key: self.signing_key,
             signing_key_verified: self.signing_key_verified,
+            config: self.config,
         }
     }
 
@@ -330,7 +334,13 @@ impl InboundGroupSession {
                 let signing_key = Ed25519PublicKey::from_slice(&pickle.signing_key)?;
                 let signing_key_verified = pickle.signing_key_verified;
 
-                Ok(Self { initial_ratchet, latest_ratchet, signing_key, signing_key_verified })
+                Ok(Self {
+                    initial_ratchet,
+                    latest_ratchet,
+                    signing_key,
+                    signing_key_verified,
+                    config: SessionConfig::version_1(),
+                })
             }
         }
 
@@ -349,6 +359,8 @@ pub struct InboundGroupSessionPickle {
     signing_key: Ed25519PublicKey,
     #[allow(dead_code)]
     signing_key_verified: bool,
+    #[serde(default = "default_config")]
+    config: SessionConfig,
 }
 
 impl InboundGroupSessionPickle {
@@ -381,13 +393,14 @@ impl From<InboundGroupSessionPickle> for InboundGroupSession {
             latest_ratchet: pickle.initial_ratchet,
             signing_key: pickle.signing_key,
             signing_key_verified: pickle.signing_key_verified,
+            config: pickle.config,
         }
     }
 }
 
 impl From<&GroupSession> for InboundGroupSession {
     fn from(session: &GroupSession) -> Self {
-        Self::new(&session.session_key())
+        Self::new(&session.session_key(), session.session_config())
     }
 }
 

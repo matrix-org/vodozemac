@@ -76,6 +76,10 @@ impl GroupSession {
         self.ratchet.index()
     }
 
+    pub fn session_config(&self) -> SessionConfig {
+        self.config
+    }
+
     /// Encrypt the `plaintext` with the group session.
     ///
     /// The resulting ciphertext is MAC-ed, then signed with the group session's
