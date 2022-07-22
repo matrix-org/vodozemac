@@ -526,7 +526,12 @@ pub struct SessionPickle {
     session_keys: SessionKeys,
     sending_ratchet: DoubleRatchet,
     receiving_chains: ChainStore,
+    #[serde(default = "default_config")]
     config: SessionConfig,
+}
+
+fn default_config() -> SessionConfig {
+    SessionConfig::version_1()
 }
 
 impl SessionPickle {

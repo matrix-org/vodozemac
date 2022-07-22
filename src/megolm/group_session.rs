@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     message::MegolmMessage, ratchet::Ratchet, session_config::Version, session_keys::SessionKey,
-    SessionConfig,
+    SessionConfig, default_config,
 };
 use crate::{
     cipher::Cipher,
@@ -200,6 +200,7 @@ impl GroupSession {
 pub struct GroupSessionPickle {
     ratchet: Ratchet,
     signing_key: Ed25519Keypair,
+    #[serde(default = "default_config")]
     config: SessionConfig,
 }
 
