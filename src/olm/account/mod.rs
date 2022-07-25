@@ -188,11 +188,19 @@ impl Account {
     /// need it. Notably, you do *not* need to call it manually when using up
     /// a key via [`Account::create_inbound_session`] since the key is
     /// automatically removed in that case.
+    #[cfg(feature = "low-level-api")]
     pub fn remove_one_time_key(
         &mut self,
-        public_key: &Curve25519PublicKey,
+        public_key: Curve25519PublicKey,
     ) -> Option<Curve25519SecretKey> {
-        self.one_time_keys.remove_secret_key(public_key)
+        self.remove_one_time_key_helper(public_key)
+    }
+
+    fn remove_one_time_key_helper(
+        &mut self,
+        public_key: Curve25519PublicKey,
+    ) -> Option<Curve25519SecretKey> {
+        self.one_time_keys.remove_secret_key(&public_key)
     }
 
     /// Create a [`Session`] from the given pre-key message and identity key
@@ -243,7 +251,7 @@ impl Account {
             // try to use such an one-time key won't be able to commnuicate with
             // us. This is strictly worse than the one-time key exhaustion
             // scenario.
-            self.remove_one_time_key(&pre_key_message.one_time_key());
+            self.remove_one_time_key_helper(pre_key_message.one_time_key());
 
             Ok(InboundCreationResult { session, plaintext })
         }
