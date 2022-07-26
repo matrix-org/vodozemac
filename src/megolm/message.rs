@@ -33,7 +33,7 @@ const VERSION: u8 = 3;
 /// [`InboundGroupSession`] necessary to decryp the message.
 ///
 /// [`InboundGroupSession`]: crate::megolm::InboundGroupSession
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MegolmMessage {
     pub(super) ciphertext: Vec<u8>,
     pub(super) message_index: u32,
