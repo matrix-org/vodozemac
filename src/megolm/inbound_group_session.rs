@@ -17,6 +17,7 @@ use std::io::Read;
 use aes::cipher::block_padding::UnpadError;
 use hmac::digest::MacError;
 use serde::{Deserialize, Serialize};
+use subtle::ConstantTimeEq;
 use thiserror::Error;
 use zeroize::Zeroize;
 
@@ -100,6 +101,40 @@ impl InboundGroupSession {
 
     pub fn session_id(&self) -> String {
         base64_encode(self.signing_key.as_bytes())
+    }
+
+    /// Check if two `InboundGroupSession`s are the same.
+    ///
+    /// An `InboundGroupSession` could be received multiple times with varying
+    /// degreess of trust and first known message indices.
+    ///
+    /// This method allows to check if both `InboundGroupSession`s at the same
+    /// message index provide the same message keys, i.e. if they have been
+    /// indeed created from the same [`GroupSession`].
+    ///
+    /// If the `InboundGroupSession`s are connected, the session with the lower
+    /// message index can safely replace the one with the higher message index.
+    pub fn connected(&mut self, other: &mut InboundGroupSession) -> bool {
+        // This method tries to get a `Ratchet` from each session at the same
+        // message index.
+        //
+        // We first try to ratchet our own ratchets towards the initial ratchet
+        // of the other session. If that fails we try to ratchet the other
+        // session's ratchets towards our initial ratchet.
+        //
+        // After that we compare the raw ratchet bytes in constant time.
+
+        if self.signing_key != other.signing_key {
+            // Short circuit if the signing keys differ. This is comparing
+            // public key material.
+            false
+        } else if let Some(ratchet) = self.find_ratchet(other.first_known_index()) {
+            ratchet.ct_eq(&other.initial_ratchet).into()
+        } else if let Some(ratchet) = other.find_ratchet(self.first_known_index()) {
+            self.initial_ratchet.ct_eq(ratchet).into()
+        } else {
+            unreachable!("Either index A >= index B, or vice versa. There is no third option.")
+        }
     }
 
     pub fn first_known_index(&self) -> u32 {
@@ -331,6 +366,31 @@ mod test {
         assert!(session.advance_to(20));
         assert_eq!(session.first_known_index(), 20);
         assert_eq!(session.latest_ratchet.index(), 20);
+    }
+
+    #[test]
+    fn connecting() {
+        let outbound = GroupSession::new();
+        let mut session = InboundGroupSession::from(&outbound);
+        let mut clone = InboundGroupSession::from(&outbound);
+
+        assert!(session.connected(&mut clone));
+        assert!(clone.connected(&mut session));
+
+        clone.advance_to(10);
+
+        assert!(session.connected(&mut clone));
+        assert!(clone.connected(&mut session));
+
+        let mut other = InboundGroupSession::from(&GroupSession::new());
+
+        assert!(!session.connected(&mut other));
+        assert!(!clone.connected(&mut other));
+
+        other.signing_key = session.signing_key;
+
+        assert!(!session.connected(&mut other));
+        assert!(!clone.connected(&mut other));
     }
 
     /// Test that [`InboundGroupSession::get_cipher_at`] correctly handles the

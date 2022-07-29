@@ -17,6 +17,7 @@ use hmac::{Hmac, Mac as _};
 use rand::{thread_rng, RngCore};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{digest::CtOutput, Sha256};
+use subtle::{Choice, ConstantTimeEq};
 use thiserror::Error;
 use zeroize::Zeroize;
 
@@ -28,6 +29,17 @@ const ADVANCEMENT_SEEDS: [&[u8; 1]; Ratchet::RATCHET_PART_COUNT] =
 pub(super) struct Ratchet {
     inner: RatchetBytes,
     counter: u32,
+}
+
+impl ConstantTimeEq for Ratchet {
+    fn ct_eq(&self, other: &Self) -> Choice {
+        // Short circuit on the counter, not on the contents of the ratchet.
+        if self.counter != other.counter {
+            Choice::from(0)
+        } else {
+            self.as_bytes().ct_eq(other.as_bytes())
+        }
+    }
 }
 
 #[derive(Zeroize, Clone)]
