@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::Read;
+use std::{cmp::Ordering, io::Read};
 
 use aes::cipher::block_padding::UnpadError;
 use hmac::digest::MacError;
@@ -33,6 +33,22 @@ use crate::{
     utilities::{base64_encode, pickle, unpickle},
     PickleError,
 };
+
+/// The result of a comparison between two [`InboundGroupSession`] types.
+///
+/// Tells us if one session can be considered to be better than another one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SessionOrdering {
+    /// The sessions are the same.
+    Equal,
+    /// The first session has a better initial message index than the second
+    /// one.
+    Better,
+    /// The first session has a worse initial message index than the second one.
+    Worse,
+    /// The sessions are not the same, they can't be compared.
+    Unconnected,
+}
 
 /// Error type for Megolm-based decryption failuers.
 #[derive(Debug, Error)]
@@ -134,6 +150,24 @@ impl InboundGroupSession {
             self.initial_ratchet.ct_eq(ratchet).into()
         } else {
             unreachable!("Either index A >= index B, or vice versa. There is no third option.")
+        }
+    }
+
+    /// Compare the `InboundGroupSession` with the given other
+    /// `InboundGroupSession`
+    ///
+    /// Returns a `SessionOrdering` describing how the two sessions relate to
+    /// each other.
+    pub fn compare(&mut self, other: &mut InboundGroupSession) -> SessionOrdering {
+        if self.connected(other) {
+            match self.first_known_index().cmp(&other.first_known_index()) {
+                Ordering::Less => SessionOrdering::Better,
+                Ordering::Equal => SessionOrdering::Equal,
+                Ordering::Greater => SessionOrdering::Worse,
+            }
+        } else {
+            // If we're not connected to other, other can't be better.
+            SessionOrdering::Unconnected
         }
     }
 
@@ -348,7 +382,7 @@ impl From<&GroupSession> for InboundGroupSession {
 #[cfg(test)]
 mod test {
     use super::InboundGroupSession;
-    use crate::megolm::GroupSession;
+    use crate::megolm::{GroupSession, SessionOrdering};
 
     #[test]
     fn advance_inbound_session() {
@@ -391,6 +425,31 @@ mod test {
 
         assert!(!session.connected(&mut other));
         assert!(!clone.connected(&mut other));
+    }
+
+    #[test]
+    fn comparison() {
+        let outbound = GroupSession::new();
+        let mut session = InboundGroupSession::from(&outbound);
+        let mut clone = InboundGroupSession::from(&outbound);
+
+        assert_eq!(session.compare(&mut clone), SessionOrdering::Equal);
+        assert_eq!(clone.compare(&mut session), SessionOrdering::Equal);
+
+        clone.advance_to(10);
+
+        assert_eq!(session.compare(&mut clone), SessionOrdering::Better);
+        assert_eq!(clone.compare(&mut session), SessionOrdering::Worse);
+
+        let mut other = InboundGroupSession::from(&GroupSession::new());
+
+        assert_eq!(session.compare(&mut other), SessionOrdering::Unconnected);
+        assert_eq!(clone.compare(&mut other), SessionOrdering::Unconnected);
+
+        other.signing_key = session.signing_key;
+
+        assert_eq!(session.compare(&mut other), SessionOrdering::Unconnected);
+        assert_eq!(clone.compare(&mut other), SessionOrdering::Unconnected);
     }
 
     /// Test that [`InboundGroupSession::get_cipher_at`] correctly handles the
