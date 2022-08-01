@@ -23,6 +23,7 @@ mod session_keys;
 pub use group_session::{GroupSession, GroupSessionPickle};
 pub use inbound_group_session::{
     DecryptedMessage, DecryptionError, InboundGroupSession, InboundGroupSessionPickle,
+    SessionOrdering,
 };
 pub use message::MegolmMessage;
 pub use session_keys::{ExportedSessionKey, SessionKey, SessionKeyDecodeError};
