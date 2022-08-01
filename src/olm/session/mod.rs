@@ -62,7 +62,7 @@ pub enum DecryptionError {
     #[error("The message key with the given key can't be created, message index: {0}")]
     MissingMessageKey(u64),
     /// Too many messages have been skipped to attempt decrypting this message.
-    #[error("The message gap was too big, got {0}, max allowed {}")]
+    #[error("The message gap was too big, got {0}, max allowed {1}")]
     TooBigMessageGap(u64, u64),
 }
 
