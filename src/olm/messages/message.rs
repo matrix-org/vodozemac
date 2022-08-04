@@ -224,7 +224,7 @@ impl TryFrom<&[u8]> for Message {
             let mac_slice = &value[value.len() - mac_length..];
 
             if mac_slice.len() != mac_length {
-                Err(DecodeError::InvalidMacLength(Mac::TRUNCATED_LEN, mac_slice.len()))
+                Err(DecodeError::InvalidMacLength(mac_length, mac_slice.len()))
             } else {
                 let mac = extract_mac(mac_slice, version == MAC_TRUNCATED_VERSION);
 
