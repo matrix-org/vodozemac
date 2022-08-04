@@ -157,9 +157,9 @@ impl InboundGroupSession {
         //
         // After that we compare the raw ratchet bytes in constant time.
 
-        if self.signing_key != other.signing_key {
-            // Short circuit if the signing keys differ. This is comparing
-            // public key material.
+        if self.config != other.config || self.signing_key != other.signing_key {
+            // Short circuit if session configs differ or the signing keys
+            // differ. This is comparing public key material.
             false
         } else if let Some(ratchet) = self.find_ratchet(other.first_known_index()) {
             ratchet.ct_eq(&other.initial_ratchet).into()
@@ -429,7 +429,7 @@ impl From<&GroupSession> for InboundGroupSession {
 #[cfg(test)]
 mod test {
     use super::InboundGroupSession;
-    use crate::megolm::{GroupSession, SessionOrdering};
+    use crate::megolm::{GroupSession, SessionConfig, SessionOrdering};
 
     #[test]
     fn advance_inbound_session() {
@@ -472,6 +472,13 @@ mod test {
 
         assert!(!session.connected(&mut other));
         assert!(!clone.connected(&mut other));
+
+        let session_key = session.export_at_first_known_index();
+        let mut different_config =
+            InboundGroupSession::import(&session_key, SessionConfig::version_1());
+
+        assert!(!session.connected(&mut different_config));
+        assert!(!different_config.connected(&mut session));
     }
 
     #[test]
