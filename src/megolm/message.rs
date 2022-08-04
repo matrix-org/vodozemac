@@ -164,7 +164,7 @@ impl MegolmMessage {
 
     /// Implementation of [`MegolmMessage::encrypt`] that is used by rest of the
     /// crate.
-    pub(super) fn encrypt_private(
+    pub(super) fn encrypt_full_mac(
         message_index: u32,
         cipher: &Cipher,
         signing_key: &Ed25519Keypair,

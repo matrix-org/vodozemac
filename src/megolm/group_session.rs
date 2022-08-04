@@ -94,7 +94,7 @@ impl GroupSession {
                 &self.signing_key,
                 plaintext.as_ref(),
             ),
-            Version::V2 => MegolmMessage::encrypt_private(
+            Version::V2 => MegolmMessage::encrypt_full_mac(
                 self.message_index(),
                 &cipher,
                 &self.signing_key,
