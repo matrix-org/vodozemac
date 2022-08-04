@@ -122,17 +122,21 @@ impl InboundGroupSession {
     /// Check if two `InboundGroupSession`s are the same.
     ///
     /// An `InboundGroupSession` could be received multiple times with varying
-    /// degreess of trust and first known message indices.
+    /// degrees of trust and first known message indices.
     ///
-    /// This method allows to check if both `InboundGroupSession`s at the same
-    /// message index provide the same message keys, i.e. if they have been
-    /// indeed created from the same [`GroupSession`].
+    /// This method checks if the underlying ratchets of the two
+    /// `InboundGroupSession`s are actually the same ratchet, potentially at
+    /// a different ratcheting index. That is, if the sessions are *connected*,
+    /// then ratcheting one of the ratchets to the index of the other should
+    /// yield the same ratchet value, byte-for-byte. This will only be the case
+    /// if the `InboundGroupSession`s were created from the same
+    /// [`GroupSession`].
     ///
-    /// If the `InboundGroupSession`s are connected, the session with the lower
-    /// message index can safely replace the one with the higher message index.
+    /// If the sessions are connected, the session with the lower message index
+    /// can safely replace the one with the higher message index.
     pub fn connected(&mut self, other: &mut InboundGroupSession) -> bool {
-        // This method tries to get a `Ratchet` from each session at the same
-        // message index.
+        // This method attempts to bring the two `Ratchet` values, one from each
+        // session, to the same message index.
         //
         // We first try to ratchet our own ratchets towards the initial ratchet
         // of the other session. If that fails we try to ratchet the other
@@ -154,7 +158,7 @@ impl InboundGroupSession {
     }
 
     /// Compare the `InboundGroupSession` with the given other
-    /// `InboundGroupSession`
+    /// `InboundGroupSession`.
     ///
     /// Returns a `SessionOrdering` describing how the two sessions relate to
     /// each other.
