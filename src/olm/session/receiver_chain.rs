@@ -19,7 +19,7 @@ use super::{
     chain_key::RemoteChainKey, message_key::RemoteMessageKey, ratchet::RemoteRatchetKey,
     DecryptionError,
 };
-use crate::olm::messages::Message;
+use crate::olm::{messages::Message, session_config::Version, SessionConfig};
 
 const MAX_MESSAGE_GAP: u64 = 2000;
 const MAX_MESSAGE_KEYS: usize = 40;
@@ -63,6 +63,29 @@ impl Default for MessageKeyStore {
     }
 }
 
+enum FoundMessageKey<'a> {
+    Existing(&'a RemoteMessageKey),
+    New(Box<(RemoteChainKey, MessageKeyStore, RemoteMessageKey)>),
+}
+
+impl FoundMessageKey<'_> {
+    fn decrypt(
+        &self,
+        message: &Message,
+        config: &SessionConfig,
+    ) -> Result<Vec<u8>, DecryptionError> {
+        let message_key = match self {
+            FoundMessageKey::Existing(m) => m,
+            FoundMessageKey::New(m) => &m.2,
+        };
+
+        match config.version {
+            Version::V1 => message_key.decrypt_truncated_mac(message),
+            Version::V2 => message_key.decrypt(message),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub(super) struct ReceiverChain {
     ratchet_key: RemoteRatchetKey,
@@ -79,30 +102,23 @@ impl ReceiverChain {
         }
     }
 
-    pub fn decrypt(&mut self, message: &Message) -> Result<Vec<u8>, DecryptionError> {
-        let message_gap = message.chain_index.saturating_sub(self.hkdf_ratchet.chain_index());
+    fn find_message_key(&self, chain_index: u64) -> Result<FoundMessageKey<'_>, DecryptionError> {
+        let message_gap = chain_index.saturating_sub(self.hkdf_ratchet.chain_index());
 
         if message_gap > MAX_MESSAGE_GAP {
             Err(DecryptionError::TooBigMessageGap(message_gap, MAX_MESSAGE_GAP))
-        } else if self.hkdf_ratchet.chain_index() > message.chain_index {
-            if let Some(message_key) =
-                self.skipped_message_keys.get_message_key(message.chain_index)
-            {
-                let plaintext = message_key.decrypt(message)?;
-
-                self.skipped_message_keys.remove_message_key(message.chain_index);
-
-                Ok(plaintext)
-            } else {
-                Err(DecryptionError::MissingMessageKey(message.chain_index))
-            }
+        } else if self.hkdf_ratchet.chain_index() > chain_index {
+            self.skipped_message_keys
+                .get_message_key(chain_index)
+                .map(FoundMessageKey::Existing)
+                .ok_or(DecryptionError::MissingMessageKey(chain_index))
         } else {
             let mut ratchet = self.hkdf_ratchet.clone();
             let mut skipped_keys = MessageKeyStore::new();
 
             // Advance the ratchet up until our desired point.
-            while ratchet.chain_index() < message.chain_index {
-                if message.chain_index - ratchet.chain_index() > MAX_MESSAGE_KEYS as u64 {
+            while ratchet.chain_index() < chain_index {
+                if chain_index - ratchet.chain_index() > MAX_MESSAGE_KEYS as u64 {
                     ratchet.advance();
                 } else {
                     let key = ratchet.create_message_key();
@@ -112,13 +128,35 @@ impl ReceiverChain {
 
             // Create now our desired message key
             let message_key = ratchet.create_message_key();
-            let plaintext = message_key.decrypt(message)?;
 
-            self.hkdf_ratchet = ratchet;
-            self.skipped_message_keys.merge(skipped_keys);
-
-            Ok(plaintext)
+            Ok(FoundMessageKey::New(Box::new((ratchet, skipped_keys, message_key))))
         }
+    }
+
+    pub fn decrypt(
+        &mut self,
+        message: &Message,
+        config: &SessionConfig,
+    ) -> Result<Vec<u8>, DecryptionError> {
+        let chain_index = message.chain_index;
+        let message_key = self.find_message_key(chain_index)?;
+
+        let plaintext = message_key.decrypt(message, config)?;
+
+        match message_key {
+            FoundMessageKey::Existing(m) => {
+                let chain_index = m.chain_index();
+                self.skipped_message_keys.remove_message_key(chain_index)
+            }
+            FoundMessageKey::New(m) => {
+                let (ratchet, skipped_keys, _) = *m;
+
+                self.hkdf_ratchet = ratchet;
+                self.skipped_message_keys.merge(skipped_keys);
+            }
+        }
+
+        Ok(plaintext)
     }
 
     #[cfg(feature = "libolm-compat")]

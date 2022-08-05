@@ -18,14 +18,21 @@ mod group_session;
 mod inbound_group_session;
 pub(crate) mod message;
 mod ratchet;
+mod session_config;
 mod session_keys;
 
 pub use group_session::{GroupSession, GroupSessionPickle};
 pub use inbound_group_session::{
     DecryptedMessage, DecryptionError, InboundGroupSession, InboundGroupSessionPickle,
+    SessionOrdering,
 };
 pub use message::MegolmMessage;
+pub use session_config::SessionConfig;
 pub use session_keys::{ExportedSessionKey, SessionKey, SessionKeyDecodeError};
+
+fn default_config() -> SessionConfig {
+    SessionConfig::version_1()
+}
 
 #[cfg(feature = "libolm-compat")]
 mod libolm {
@@ -68,13 +75,13 @@ mod test {
     };
 
     use super::{GroupSession, InboundGroupSession};
-    use crate::megolm::{GroupSessionPickle, InboundGroupSessionPickle, SessionKey};
+    use crate::megolm::{GroupSessionPickle, InboundGroupSessionPickle, SessionConfig, SessionKey};
 
     const PICKLE_KEY: [u8; 32] = [0u8; 32];
 
     #[test]
     fn encrypting() -> Result<()> {
-        let mut session = GroupSession::new();
+        let mut session = GroupSession::new(SessionConfig::version_1());
         let session_key = session.session_key();
 
         let olm_session = OlmInboundGroupSession::new(&session_key.to_base64())?;
@@ -118,14 +125,14 @@ mod test {
 
         let session_key = SessionKey::from_base64(&olm_session.session_key())?;
 
-        let mut session = InboundGroupSession::new(&session_key);
+        let mut session = InboundGroupSession::new(&session_key, SessionConfig::version_1());
 
         let plaintext = "Hello";
         let message = olm_session.encrypt(plaintext).as_str().try_into()?;
 
         let decrypted = session.decrypt(&message)?;
 
-        assert_eq!(decrypted.plaintext, plaintext);
+        assert_eq!(decrypted.plaintext, plaintext.as_bytes());
         assert_eq!(decrypted.message_index, 0);
 
         let plaintext = "Another secret";
@@ -133,14 +140,14 @@ mod test {
 
         let decrypted = session.decrypt(&message)?;
 
-        assert_eq!(decrypted.plaintext, plaintext);
+        assert_eq!(decrypted.plaintext, plaintext.as_bytes());
         assert_eq!(decrypted.message_index, 1);
 
         let third_plaintext = "And another secret";
         let third_message = olm_session.encrypt(third_plaintext).as_str().try_into()?;
         let decrypted = session.decrypt(&third_message)?;
 
-        assert_eq!(decrypted.plaintext, third_plaintext);
+        assert_eq!(decrypted.plaintext, third_plaintext.as_bytes());
         assert_eq!(decrypted.message_index, 2);
 
         let plaintext = "Last secret";
@@ -152,12 +159,12 @@ mod test {
         let message = olm_session.encrypt(plaintext).as_str().try_into()?;
         let decrypted = session.decrypt(&message)?;
 
-        assert_eq!(decrypted.plaintext, plaintext);
+        assert_eq!(decrypted.plaintext, plaintext.as_bytes());
         assert_eq!(decrypted.message_index, 2002);
 
         let decrypted = session.decrypt(&third_message)?;
 
-        assert_eq!(decrypted.plaintext, third_plaintext);
+        assert_eq!(decrypted.plaintext, third_plaintext.as_bytes());
         assert_eq!(decrypted.message_index, 2);
 
         Ok(())
@@ -165,14 +172,15 @@ mod test {
 
     #[test]
     fn exporting() -> Result<()> {
-        let mut session = GroupSession::new();
-        let mut inbound = InboundGroupSession::new(&session.session_key());
+        let mut session = GroupSession::new(Default::default());
+        let mut inbound =
+            InboundGroupSession::new(&session.session_key(), session.session_config());
 
         assert_eq!(session.session_id(), inbound.session_id());
 
-        let first_plaintext = "It's a secret to everybody";
+        let first_plaintext = "It's a secret to everybody".as_bytes();
         let first_message = session.encrypt(first_plaintext);
-        let second_plaintext = "It's dangerous to go alone. Take this!";
+        let second_plaintext = "It's dangerous to go alone. Take this!".as_bytes();
         let second_message = session.encrypt(second_plaintext);
 
         let decrypted = inbound.decrypt(&first_message)?;
@@ -181,7 +189,7 @@ mod test {
         assert_eq!(decrypted.message_index, 0);
 
         let export = inbound.export_at(1).expect("Can export at the initial index.");
-        let mut imported = InboundGroupSession::import(&export);
+        let mut imported = InboundGroupSession::import(&export, session.session_config());
 
         assert_eq!(session.session_id(), imported.session_id());
 
@@ -202,7 +210,7 @@ mod test {
 
     #[test]
     fn group_session_pickling_roundtrip_is_identity() -> Result<()> {
-        let session = GroupSession::new();
+        let session = GroupSession::new(Default::default());
 
         let pickle = session.pickle().encrypt(&PICKLE_KEY);
 
@@ -223,7 +231,7 @@ mod test {
 
     #[test]
     fn inbound_group_session_pickling_roundtrip_is_identity() -> Result<()> {
-        let session = GroupSession::new();
+        let session = GroupSession::new(Default::default());
         let session = InboundGroupSession::from(&session);
 
         let pickle = session.pickle().encrypt(&PICKLE_KEY);
@@ -246,7 +254,7 @@ mod test {
     #[test]
     #[cfg(feature = "libolm-compat")]
     fn libolm_inbound_unpickling() -> Result<()> {
-        let session = GroupSession::new();
+        let session = GroupSession::new(SessionConfig::version_1());
         let session_key = session.session_key();
 
         let olm = OlmInboundGroupSession::new(&session_key.to_base64())?;
@@ -267,7 +275,8 @@ mod test {
     fn libolm_unpickling() -> Result<()> {
         let olm = OlmOutboundGroupSession::new();
         let session_key = SessionKey::from_base64(&olm.session_key())?;
-        let mut inbound_session = InboundGroupSession::new(&session_key);
+        let mut inbound_session =
+            InboundGroupSession::new(&session_key, SessionConfig::version_1());
 
         let key = b"DEFAULT_PICKLE_KEY";
         let pickle = olm.pickle(olm_rs::PicklingMode::Encrypted { key: key.to_vec() });
@@ -277,7 +286,7 @@ mod test {
         assert_eq!(olm.session_id(), unpickled.session_id());
         assert_eq!(olm.session_message_index(), unpickled.message_index());
 
-        let plaintext = "It's a secret to everybody";
+        let plaintext = "It's a secret to everybody".as_bytes();
         let message = unpickled.encrypt(plaintext);
 
         let decrypted = inbound_session.decrypt(&message)?;

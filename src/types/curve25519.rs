@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::fmt::Display;
+
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use x25519_dalek::{EphemeralSecret, PublicKey, ReusableSecret, SharedSecret, StaticSecret};
@@ -165,6 +167,12 @@ impl Curve25519PublicKey {
     }
 }
 
+impl Display for Curve25519PublicKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_base64())
+    }
+}
+
 impl std::fmt::Debug for Curve25519PublicKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Curve25519PublicKey({})", self.to_base64())
@@ -202,7 +210,7 @@ pub(crate) struct Curve25519KeypairPickle(Curve25519SecretKey);
 impl From<Curve25519KeypairPickle> for Curve25519Keypair {
     fn from(pickle: Curve25519KeypairPickle) -> Self {
         let secret_key = pickle.0;
-        let public_key: Curve25519PublicKey = (&secret_key).into();
+        let public_key = Curve25519PublicKey::from(&secret_key);
 
         Self { secret_key, public_key }
     }

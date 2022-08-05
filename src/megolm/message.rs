@@ -17,15 +17,16 @@ use prost::Message;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    cipher::{Cipher, Mac},
+    cipher::{Cipher, Mac, MessageMac},
     types::{Ed25519Keypair, Ed25519Signature},
-    utilities::{base64_decode, base64_encode, VarInt},
+    utilities::{base64_decode, base64_encode, extract_mac, VarInt},
     DecodeError,
 };
 #[cfg(feature = "low-level-api")]
 use crate::{Ed25519PublicKey, SignatureError};
 
-const VERSION: u8 = 3;
+const MAC_TRUNCATED_VERSION: u8 = 3;
+const VERSION: u8 = 4;
 
 /// An encrypted Megolm message.
 ///
@@ -33,16 +34,18 @@ const VERSION: u8 = 3;
 /// [`InboundGroupSession`] necessary to decryp the message.
 ///
 /// [`InboundGroupSession`]: crate::megolm::InboundGroupSession
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MegolmMessage {
+    pub(super) version: u8,
     pub(super) ciphertext: Vec<u8>,
     pub(super) message_index: u32,
-    pub(super) mac: [u8; Mac::TRUNCATED_LEN],
+    pub(super) mac: MessageMac,
     pub(super) signature: Ed25519Signature,
 }
 
 impl MegolmMessage {
-    const MESSAGE_SUFFIX_LENGTH: usize = Mac::TRUNCATED_LEN + Ed25519Signature::LENGTH;
+    const MESSAGE_TRUNCATED_SUFFIX_LENGTH: usize = Mac::TRUNCATED_LEN + Ed25519Signature::LENGTH;
+    const MESSAGE_SUFFIX_LENGTH: usize = Mac::LENGTH + Ed25519Signature::LENGTH;
 
     /// The actual ciphertext of the message.
     pub fn ciphertext(&self) -> &[u8] {
@@ -55,8 +58,8 @@ impl MegolmMessage {
     }
 
     /// Get the megolm message's mac.
-    pub fn mac(&self) -> [u8; Mac::TRUNCATED_LEN] {
-        self.mac
+    pub fn mac(&self) -> &[u8] {
+        self.mac.as_bytes()
     }
 
     /// Get a reference to the megolm message's signature.
@@ -95,7 +98,7 @@ impl MegolmMessage {
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut message = self.encode_message();
 
-        message.extend(&self.mac);
+        message.extend(self.mac.as_bytes());
         message.extend(self.signature.to_bytes());
 
         message
@@ -138,7 +141,14 @@ impl MegolmMessage {
             ciphertext: self.ciphertext.clone(),
         };
 
-        message.encode_manual()
+        message.encode_manual(self.version)
+    }
+
+    fn set_mac(&mut self, mac: Mac) {
+        match self.mac {
+            MessageMac::Truncated(_) => self.mac = mac.truncate().into(),
+            MessageMac::Full(_) => self.mac = mac.into(),
+        }
     }
 
     /// Create a new [`MegolmMessage`] with the given plaintext and keys.
@@ -148,38 +158,64 @@ impl MegolmMessage {
         cipher: &Cipher,
         signing_key: &Ed25519Keypair,
         plaintext: &[u8],
-    ) -> MegolmMessage {
-        MegolmMessage::encrypt_private(message_index, cipher, signing_key, plaintext)
+    ) -> Self {
+        MegolmMessage::encrypt_truncated_mac(message_index, cipher, signing_key, plaintext)
     }
 
     /// Implementation of [`MegolmMessage::encrypt`] that is used by rest of the
     /// crate.
-    pub(super) fn encrypt_private(
+    pub(super) fn encrypt_full_mac(
         message_index: u32,
         cipher: &Cipher,
         signing_key: &Ed25519Keypair,
         plaintext: &[u8],
-    ) -> MegolmMessage {
+    ) -> Self {
         let ciphertext = cipher.encrypt(plaintext);
-        let mut message = MegolmMessage::new(ciphertext, message_index);
 
+        let message = Self {
+            version: VERSION,
+            ciphertext,
+            message_index,
+            mac: Mac([0u8; Mac::LENGTH]).into(),
+            signature: Ed25519Signature::from_slice(&[0; Ed25519Signature::LENGTH])
+                .expect("Can't create an empty signature"),
+        };
+
+        Self::encrypt_helper(cipher, signing_key, message)
+    }
+
+    pub(super) fn encrypt_truncated_mac(
+        message_index: u32,
+        cipher: &Cipher,
+        signing_key: &Ed25519Keypair,
+        plaintext: &[u8],
+    ) -> Self {
+        let ciphertext = cipher.encrypt(plaintext);
+
+        let message = Self {
+            version: MAC_TRUNCATED_VERSION,
+            ciphertext,
+            message_index,
+            mac: [0u8; Mac::TRUNCATED_LEN].into(),
+            signature: Ed25519Signature::from_slice(&[0; Ed25519Signature::LENGTH])
+                .expect("Can't create an empty signature"),
+        };
+
+        Self::encrypt_helper(cipher, signing_key, message)
+    }
+
+    fn encrypt_helper(
+        cipher: &Cipher,
+        signing_key: &Ed25519Keypair,
+        mut message: MegolmMessage,
+    ) -> Self {
         let mac = cipher.mac(&message.to_mac_bytes());
-        message.mac = mac.truncate();
+        message.set_mac(mac);
 
         let signature = signing_key.sign(&message.to_signature_bytes());
         message.signature = signature;
 
         message
-    }
-
-    pub(super) fn new(ciphertext: Vec<u8>, message_index: u32) -> Self {
-        Self {
-            ciphertext,
-            message_index,
-            mac: [0u8; Mac::TRUNCATED_LEN],
-            signature: Ed25519Signature::from_slice(&[0; Ed25519Signature::LENGTH])
-                .expect("Can't create an empty signature"),
-        }
     }
 
     pub(super) fn to_mac_bytes(&self) -> Vec<u8> {
@@ -188,7 +224,7 @@ impl MegolmMessage {
 
     pub(super) fn to_signature_bytes(&self) -> Vec<u8> {
         let mut message = self.encode_message();
-        message.extend(self.mac);
+        message.extend(self.mac.as_bytes());
 
         message
     }
@@ -235,26 +271,30 @@ impl TryFrom<&[u8]> for MegolmMessage {
     fn try_from(message: &[u8]) -> Result<Self, Self::Error> {
         let version = *message.first().ok_or(DecodeError::MissingVersion)?;
 
-        if version != VERSION {
-            Err(DecodeError::InvalidVersion(VERSION, version))
-        } else if message.len() < Self::MESSAGE_SUFFIX_LENGTH + 2 {
+        let suffix_length = match version {
+            VERSION => Self::MESSAGE_SUFFIX_LENGTH,
+            MAC_TRUNCATED_VERSION => Self::MESSAGE_TRUNCATED_SUFFIX_LENGTH,
+            _ => return Err(DecodeError::InvalidVersion(VERSION, version)),
+        };
+
+        if message.len() < suffix_length + 2 {
             Err(DecodeError::MessageTooShort(message.len()))
         } else {
             let inner = ProtobufMegolmMessage::decode(
-                &message[1..message.len() - Self::MESSAGE_SUFFIX_LENGTH],
+                message
+                    .get(1..message.len() - suffix_length)
+                    .ok_or(DecodeError::MessageTooShort(message.len()))?,
             )?;
 
-            let mac_location = message.len() - Self::MESSAGE_SUFFIX_LENGTH;
             let signature_location = message.len() - Ed25519Signature::LENGTH;
-
-            let mac_slice = &message[mac_location..mac_location + Mac::TRUNCATED_LEN];
             let signature_slice = &message[signature_location..];
-
-            let mut mac = [0u8; Mac::TRUNCATED_LEN];
-            mac.copy_from_slice(mac_slice);
             let signature = Ed25519Signature::from_slice(signature_slice)?;
 
+            let mac_slice = &message[message.len() - suffix_length..];
+            let mac = extract_mac(mac_slice, version == MAC_TRUNCATED_VERSION);
+
             Ok(MegolmMessage {
+                version,
                 ciphertext: inner.ciphertext,
                 message_index: inner.message_index,
                 mac,
@@ -276,14 +316,14 @@ impl ProtobufMegolmMessage {
     const INDEX_TAG: &'static [u8; 1] = b"\x08";
     const CIPHER_TAG: &'static [u8; 1] = b"\x12";
 
-    fn encode_manual(&self) -> Vec<u8> {
+    fn encode_manual(&self, version: u8) -> Vec<u8> {
         // Prost optimizes away the message index if it's 0, libolm can't decode
         // this, so encode our messages the pedestrian way instead.
         let index = self.message_index.to_var_int();
         let ciphertext_len = self.ciphertext.len().to_var_int();
 
         [
-            [VERSION].as_ref(),
+            [version].as_ref(),
             Self::INDEX_TAG.as_ref(),
             &index,
             Self::CIPHER_TAG.as_ref(),

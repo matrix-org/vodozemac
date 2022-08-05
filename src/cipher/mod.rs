@@ -31,9 +31,11 @@ type Aes256CbcEnc = cbc::Encryptor<Aes256>;
 type Aes256CbcDec = cbc::Decryptor<Aes256>;
 type HmacSha256 = Hmac<Sha256>;
 
-pub struct Mac([u8; 32]);
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Mac(pub(crate) [u8; Self::LENGTH]);
 
 impl Mac {
+    pub const LENGTH: usize = 32;
     pub const TRUNCATED_LEN: usize = 8;
 
     pub fn truncate(&self) -> [u8; Self::TRUNCATED_LEN] {
@@ -41,6 +43,37 @@ impl Mac {
         truncated.copy_from_slice(&self.0[0..Self::TRUNCATED_LEN]);
 
         truncated
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum MessageMac {
+    Truncated([u8; Mac::TRUNCATED_LEN]),
+    Full(Mac),
+}
+
+impl MessageMac {
+    pub fn as_bytes(&self) -> &[u8] {
+        match self {
+            MessageMac::Truncated(m) => m.as_ref(),
+            MessageMac::Full(m) => m.as_bytes(),
+        }
+    }
+}
+
+impl From<Mac> for MessageMac {
+    fn from(m: Mac) -> Self {
+        Self::Full(m)
+    }
+}
+
+impl From<[u8; Mac::TRUNCATED_LEN]> for MessageMac {
+    fn from(m: [u8; Mac::TRUNCATED_LEN]) -> Self {
+        Self::Truncated(m)
     }
 }
 
@@ -114,7 +147,7 @@ impl Cipher {
             Err(DecryptionError::MacMissing)
         } else {
             let (ciphertext, mac) = ciphertext.split_at(ciphertext.len() - Mac::TRUNCATED_LEN);
-            self.verify_mac(ciphertext, mac)?;
+            self.verify_truncated_mac(ciphertext, mac)?;
 
             Ok(self.decrypt(ciphertext)?)
         }
@@ -130,7 +163,15 @@ impl Cipher {
     }
 
     #[cfg(not(fuzzing))]
-    pub fn verify_mac(&self, message: &[u8], tag: &[u8]) -> Result<(), MacError> {
+    pub fn verify_mac(&self, message: &[u8], tag: &Mac) -> Result<(), MacError> {
+        let mut hmac = self.get_hmac();
+
+        hmac.update(message);
+        hmac.verify_slice(tag.as_bytes())
+    }
+
+    #[cfg(not(fuzzing))]
+    pub fn verify_truncated_mac(&self, message: &[u8], tag: &[u8]) -> Result<(), MacError> {
         let mut hmac = self.get_hmac();
 
         hmac.update(message);
@@ -142,7 +183,12 @@ impl Cipher {
     /// Useful if we're fuzzing vodozemac, since MAC verification discards a lot
     /// of inputs right away.
     #[cfg(fuzzing)]
-    pub fn verify_mac(&self, _: &[u8], _: &[u8]) -> Result<(), MacError> {
+    pub fn verify_mac(&self, _: &[u8], _: &Mac) -> Result<(), MacError> {
+        Ok(())
+    }
+
+    #[cfg(fuzzing)]
+    pub fn verify_truncated_mac(&self, _: &[u8], _: &[u8]) -> Result<(), MacError> {
         Ok(())
     }
 }

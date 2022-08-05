@@ -50,7 +50,7 @@
 //!
 //! ```rust
 //! use anyhow::Result;
-//! use vodozemac::olm::{Account, OlmMessage, InboundCreationResult};
+//! use vodozemac::olm::{Account, InboundCreationResult, OlmMessage, SessionConfig};
 //!
 //! fn main() -> Result<()> {
 //!     let alice = Account::new();
@@ -60,7 +60,7 @@
 //!     let bob_otk = *bob.one_time_keys().values().next().unwrap();
 //!
 //!     let mut alice_session = alice
-//!         .create_outbound_session(bob.curve25519_key(), bob_otk);
+//!         .create_outbound_session(SessionConfig::version_2(), bob.curve25519_key(), bob_otk);
 //!
 //!     bob.mark_keys_as_published();
 //!
@@ -75,14 +75,14 @@
 //!
 //!         assert_eq!(alice_session.session_id(), bob_session.session_id());
 //!
-//!         assert_eq!(message, what_bob_received);
+//!         assert_eq!(message.as_bytes(), what_bob_received);
 //!
 //!         let bob_reply = "Yes. Take this, it's dangerous out there!";
 //!         let bob_encrypted_reply = bob_session.encrypt(bob_reply).into();
 //!
 //!         let what_alice_received = alice_session
 //!             .decrypt(&bob_encrypted_reply)?;
-//!         assert_eq!(&what_alice_received, bob_reply);
+//!         assert_eq!(what_alice_received, bob_reply.as_bytes());
 //!     }
 //!
 //!     Ok(())
@@ -100,6 +100,7 @@
 mod account;
 mod messages;
 pub(crate) mod session;
+mod session_config;
 mod session_keys;
 mod shared_secret;
 
@@ -108,4 +109,5 @@ pub use account::{
 };
 pub use messages::{Message, MessageType, OlmMessage, PreKeyMessage};
 pub use session::{ratchet::RatchetPublicKey, DecryptionError, Session, SessionPickle};
+pub use session_config::SessionConfig;
 pub use session_keys::SessionKeys;

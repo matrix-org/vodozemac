@@ -44,8 +44,12 @@ impl DoubleRatchet {
         }
     }
 
-    pub fn encrypt(&mut self, plaintext: &str) -> Message {
-        self.next_message_key().encrypt(plaintext.as_bytes())
+    pub fn encrypt(&mut self, plaintext: &[u8]) -> Message {
+        self.next_message_key().encrypt(plaintext)
+    }
+
+    pub fn encrypt_truncated_mac(&mut self, plaintext: &[u8]) -> Message {
+        self.next_message_key().encrypt_truncated_mac(plaintext)
     }
 
     pub fn active(shared_secret: Shared3DHSecret) -> Self {

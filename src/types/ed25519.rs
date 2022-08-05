@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::fmt::Display;
+
 #[cfg(not(fuzzing))]
 use ed25519_dalek::Verifier;
 use ed25519_dalek::{
@@ -255,6 +257,12 @@ impl Ed25519PublicKey {
         _signature: &Ed25519Signature,
     ) -> Result<(), SignatureError> {
         Ok(())
+    }
+}
+
+impl Display for Ed25519PublicKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_base64())
     }
 }
 
