@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::fmt::Display;
+
 use ed25519_dalek::{
     ExpandedSecretKey, Keypair, PublicKey, SecretKey, Signature, Verifier, PUBLIC_KEY_LENGTH,
     SIGNATURE_LENGTH,
@@ -243,6 +245,12 @@ impl Ed25519PublicKey {
         } else {
             Ok(self.0.verify(message, &signature.0)?)
         }
+    }
+}
+
+impl Display for Ed25519PublicKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_base64())
     }
 }
 

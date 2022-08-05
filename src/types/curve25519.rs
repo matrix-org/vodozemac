@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::fmt::Display;
+
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use x25519_dalek::{EphemeralSecret, PublicKey, ReusableSecret, SharedSecret, StaticSecret};
@@ -162,6 +164,12 @@ impl Curve25519PublicKey {
     /// Serialize a Curve25519 public key to an unpadded base64 representation.
     pub fn to_base64(&self) -> String {
         base64_encode(self.inner.as_bytes())
+    }
+}
+
+impl Display for Curve25519PublicKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_base64())
     }
 }
 
