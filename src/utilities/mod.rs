@@ -62,6 +62,24 @@ pub(crate) fn pickle<T: serde::Serialize>(thing: &T, pickle_key: &[u8; 32]) -> S
     base64_encode(ciphertext)
 }
 
+pub(crate) fn extract_mac(slice: &[u8], truncated: bool) -> crate::cipher::MessageMac {
+    use crate::cipher::Mac;
+
+    if truncated {
+        let mac_slice = &slice[0..Mac::TRUNCATED_LEN];
+
+        let mut mac = [0u8; Mac::TRUNCATED_LEN];
+        mac.copy_from_slice(mac_slice);
+        mac.into()
+    } else {
+        let mac_slice = &slice[0..Mac::LENGTH];
+
+        let mut mac = [0u8; Mac::LENGTH];
+        mac.copy_from_slice(mac_slice);
+        Mac(mac).into()
+    }
+}
+
 // The integer encoding logic here has been taken from the integer-encoding[1]
 // crate and is under the MIT license.
 //

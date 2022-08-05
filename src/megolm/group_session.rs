@@ -14,7 +14,10 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::{message::MegolmMessage, ratchet::Ratchet, session_keys::SessionKey};
+use super::{
+    default_config, message::MegolmMessage, ratchet::Ratchet, session_config::Version,
+    session_keys::SessionKey, SessionConfig,
+};
 use crate::{
     cipher::Cipher,
     types::Ed25519Keypair,
@@ -39,20 +42,21 @@ use crate::{
 pub struct GroupSession {
     ratchet: Ratchet,
     signing_key: Ed25519Keypair,
+    config: SessionConfig,
 }
 
 impl Default for GroupSession {
     fn default() -> Self {
-        Self::new()
+        Self::new(Default::default())
     }
 }
 
 impl GroupSession {
     /// Construct a new group session, with a random ratchet state and signing
     /// key pair.
-    pub fn new() -> Self {
+    pub fn new(config: SessionConfig) -> Self {
         let signing_key = Ed25519Keypair::new();
-        Self { signing_key, ratchet: Ratchet::new() }
+        Self { signing_key, ratchet: Ratchet::new(), config }
     }
 
     /// Returns the globally unique session ID, in base64-encoded form.
@@ -72,6 +76,10 @@ impl GroupSession {
         self.ratchet.index()
     }
 
+    pub fn session_config(&self) -> SessionConfig {
+        self.config
+    }
+
     /// Encrypt the `plaintext` with the group session.
     ///
     /// The resulting ciphertext is MAC-ed, then signed with the group session's
@@ -79,12 +87,20 @@ impl GroupSession {
     pub fn encrypt(&mut self, plaintext: impl AsRef<[u8]>) -> MegolmMessage {
         let cipher = Cipher::new_megolm(self.ratchet.as_bytes());
 
-        let message = MegolmMessage::encrypt_private(
-            self.message_index(),
-            &cipher,
-            &self.signing_key,
-            plaintext.as_ref(),
-        );
+        let message = match self.config.version {
+            Version::V1 => MegolmMessage::encrypt_truncated_mac(
+                self.message_index(),
+                &cipher,
+                &self.signing_key,
+                plaintext.as_ref(),
+            ),
+            Version::V2 => MegolmMessage::encrypt_full_mac(
+                self.message_index(),
+                &cipher,
+                &self.signing_key,
+                plaintext.as_ref(),
+            ),
+        };
 
         self.ratchet.advance();
 
@@ -112,7 +128,11 @@ impl GroupSession {
     /// Convert the group session into a struct which implements
     /// [`serde::Serialize`] and [`serde::Deserialize`].
     pub fn pickle(&self) -> GroupSessionPickle {
-        GroupSessionPickle { ratchet: self.ratchet.clone(), signing_key: self.signing_key.clone() }
+        GroupSessionPickle {
+            ratchet: self.ratchet.clone(),
+            signing_key: self.signing_key.clone(),
+            config: self.config,
+        }
     }
 
     /// Restore a [`GroupSession`] from a previously saved
@@ -164,7 +184,7 @@ impl GroupSession {
                 let signing_key =
                     Ed25519Keypair::from_expanded_key(&pickle.ed25519_keypair.private_key)?;
 
-                Ok(Self { ratchet, signing_key })
+                Ok(Self { ratchet, signing_key, config: SessionConfig::version_1() })
             }
         }
 
@@ -180,6 +200,8 @@ impl GroupSession {
 pub struct GroupSessionPickle {
     ratchet: Ratchet,
     signing_key: Ed25519Keypair,
+    #[serde(default = "default_config")]
+    config: SessionConfig,
 }
 
 impl GroupSessionPickle {
@@ -201,6 +223,6 @@ impl GroupSessionPickle {
 
 impl From<GroupSessionPickle> for GroupSession {
     fn from(pickle: GroupSessionPickle) -> Self {
-        Self { ratchet: pickle.ratchet, signing_key: pickle.signing_key }
+        Self { ratchet: pickle.ratchet, signing_key: pickle.signing_key, config: pickle.config }
     }
 }

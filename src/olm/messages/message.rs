@@ -16,12 +16,13 @@ use prost::Message as ProstMessage;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    cipher::Mac,
-    utilities::{base64_decode, base64_encode, VarInt},
+    cipher::{Mac, MessageMac},
+    utilities::{base64_decode, base64_encode, extract_mac, VarInt},
     Curve25519PublicKey, DecodeError,
 };
 
-const VERSION: u8 = 3;
+const MAC_TRUNCATED_VERSION: u8 = 3;
+const VERSION: u8 = 4;
 
 /// An encrypted Olm message.
 ///
@@ -31,10 +32,11 @@ const VERSION: u8 = 3;
 /// [`Session`]: crate::olm::Session
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Message {
+    pub(crate) version: u8,
     pub(crate) ratchet_key: Curve25519PublicKey,
     pub(crate) chain_index: u64,
     pub(crate) ciphertext: Vec<u8>,
-    pub(crate) mac: [u8; Mac::TRUNCATED_LEN],
+    pub(crate) mac: MessageMac,
 }
 
 impl Message {
@@ -52,6 +54,16 @@ impl Message {
     /// The actual ciphertext of the message.
     pub fn ciphertext(&self) -> &[u8] {
         &self.ciphertext
+    }
+
+    /// The version of the Olm message.
+    pub fn version(&self) -> u8 {
+        self.version
+    }
+
+    /// Has the MAC been truncated in this Olm message.
+    pub fn mac_truncated(&self) -> bool {
+        self.version == MAC_TRUNCATED_VERSION
     }
 
     /// Try to decode the given byte slice as a Olm [`Message`].
@@ -83,7 +95,7 @@ impl Message {
     /// Cipher-Text|  0x22 | String |The cipher-text of the message
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut message = self.encode();
-        message.extend(self.mac);
+        message.extend(self.mac.as_bytes());
 
         message
     }
@@ -109,7 +121,27 @@ impl Message {
         chain_index: u64,
         ciphertext: Vec<u8>,
     ) -> Self {
-        Self { ratchet_key, chain_index, ciphertext, mac: [0u8; Mac::TRUNCATED_LEN] }
+        Self {
+            version: VERSION,
+            ratchet_key,
+            chain_index,
+            ciphertext,
+            mac: Mac([0u8; Mac::LENGTH]).into(),
+        }
+    }
+
+    pub(crate) fn new_truncated_mac(
+        ratchet_key: Curve25519PublicKey,
+        chain_index: u64,
+        ciphertext: Vec<u8>,
+    ) -> Self {
+        Self {
+            version: MAC_TRUNCATED_VERSION,
+            ratchet_key,
+            chain_index,
+            ciphertext,
+            mac: [0u8; Mac::TRUNCATED_LEN].into(),
+        }
     }
 
     fn encode(&self) -> Vec<u8> {
@@ -118,11 +150,18 @@ impl Message {
             chain_index: self.chain_index,
             ciphertext: self.ciphertext.clone(),
         }
-        .encode_manual()
+        .encode_manual(self.version)
     }
 
     pub(crate) fn to_mac_bytes(&self) -> Vec<u8> {
         self.encode()
+    }
+
+    pub(crate) fn set_mac(&mut self, mac: Mac) {
+        match self.mac {
+            MessageMac::Truncated(_) => self.mac = mac.truncate().into(),
+            MessageMac::Full(_) => self.mac = mac.into(),
+        }
     }
 }
 
@@ -167,26 +206,33 @@ impl TryFrom<&[u8]> for Message {
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         let version = *value.first().ok_or(DecodeError::MissingVersion)?;
 
-        if version != VERSION {
-            Err(DecodeError::InvalidVersion(VERSION, version))
-        } else if value.len() < Mac::TRUNCATED_LEN + 2 {
+        let mac_length = match version {
+            VERSION => Mac::LENGTH,
+            MAC_TRUNCATED_VERSION => Mac::TRUNCATED_LEN,
+            _ => return Err(DecodeError::InvalidVersion(VERSION, version)),
+        };
+
+        if value.len() < mac_length + 2 {
             Err(DecodeError::MessageTooShort(value.len()))
         } else {
-            let inner = ProtoBufMessage::decode(&value[1..value.len() - Mac::TRUNCATED_LEN])?;
+            let inner = ProtoBufMessage::decode(
+                value
+                    .get(1..value.len() - mac_length)
+                    .ok_or(DecodeError::MessageTooShort(value.len()))?,
+            )?;
 
-            let mac_slice = &value[value.len() - Mac::TRUNCATED_LEN..];
+            let mac_slice = &value[value.len() - mac_length..];
 
-            if mac_slice.len() != Mac::TRUNCATED_LEN {
-                Err(DecodeError::InvalidMacLength(Mac::TRUNCATED_LEN, mac_slice.len()))
+            if mac_slice.len() != mac_length {
+                Err(DecodeError::InvalidMacLength(mac_length, mac_slice.len()))
             } else {
-                let mut mac = [0u8; Mac::TRUNCATED_LEN];
-                mac.copy_from_slice(mac_slice);
+                let mac = extract_mac(mac_slice, version == MAC_TRUNCATED_VERSION);
 
                 let chain_index = inner.chain_index;
                 let ciphertext = inner.ciphertext;
                 let ratchet_key = Curve25519PublicKey::from_slice(&inner.ratchet_key)?;
 
-                let message = Message { ratchet_key, chain_index, ciphertext, mac };
+                let message = Message { version, ratchet_key, chain_index, ciphertext, mac };
 
                 Ok(message)
             }
@@ -209,13 +255,13 @@ impl ProtoBufMessage {
     const INDEX_TAG: &'static [u8; 1] = b"\x10";
     const CIPHER_TAG: &'static [u8; 1] = b"\x22";
 
-    fn encode_manual(&self) -> Vec<u8> {
+    fn encode_manual(&self, version: u8) -> Vec<u8> {
         let index = self.chain_index.to_var_int();
         let ratchet_len = self.ratchet_key.len().to_var_int();
         let ciphertext_len = self.ciphertext.len().to_var_int();
 
         [
-            [VERSION].as_ref(),
+            [version].as_ref(),
             Self::RATCHET_TAG.as_ref(),
             &ratchet_len,
             &self.ratchet_key,
@@ -243,8 +289,8 @@ mod test {
         let ratchet_key = Curve25519PublicKey::from(*b"ratchetkeyhereprettyplease123456");
         let ciphertext = b"ciphertext";
 
-        let mut encoded = Message::new(ratchet_key, 1, ciphertext.to_vec());
-        encoded.mac = *b"MACHEREE";
+        let mut encoded = Message::new_truncated_mac(ratchet_key, 1, ciphertext.to_vec());
+        encoded.mac = (*b"MACHEREE").into();
 
         assert_eq!(encoded.to_mac_bytes(), message.as_ref());
         assert_eq!(encoded.to_bytes(), message_mac.as_ref());

@@ -22,13 +22,15 @@ use thiserror::Error;
 use zeroize::Zeroize;
 
 use super::{
+    default_config,
     message::MegolmMessage,
     ratchet::Ratchet,
+    session_config::Version,
     session_keys::{ExportedSessionKey, SessionKey},
-    GroupSession,
+    GroupSession, SessionConfig,
 };
 use crate::{
-    cipher::Cipher,
+    cipher::{Cipher, Mac, MessageMac},
     types::{Ed25519PublicKey, SignatureError},
     utilities::{base64_encode, pickle, unpickle},
     PickleError,
@@ -56,12 +58,20 @@ pub enum DecryptionError {
     /// The signature on the message was invalid.
     #[error("The signature on the message was invalid: {0}")]
     Signature(#[from] SignatureError),
+
     /// The message authentication code of the message was invalid.
     #[error("Failed decrypting Megolm message, invalid MAC: {0}")]
     InvalidMAC(#[from] MacError),
+
+    /// The length of the message authentication code of the message did not
+    /// match our expected length.
+    #[error("Failed decrypting Olm message, invalid MAC length: expected {0}, got {1}")]
+    InvalidMACLength(usize, usize),
+
     /// The ciphertext of the message isn't padded correctly.
     #[error("Failed decrypting Megolm message, invalid padding")]
     InvalidPadding(#[from] UnpadError),
+
     /// The session is missing the correct message key to decrypt the message,
     /// The Session has been ratcheted forwards and the message key isn't
     /// available anymore.
@@ -80,6 +90,7 @@ pub struct InboundGroupSession {
     signing_key: Ed25519PublicKey,
     #[allow(dead_code)]
     signing_key_verified: bool,
+    config: SessionConfig,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -89,7 +100,7 @@ pub struct DecryptedMessage {
 }
 
 impl InboundGroupSession {
-    pub fn new(key: &SessionKey) -> Self {
+    pub fn new(key: &SessionKey, session_config: SessionConfig) -> Self {
         let initial_ratchet =
             Ratchet::from_bytes(key.session_key.ratchet.clone(), key.session_key.ratchet_index);
         let latest_ratchet = initial_ratchet.clone();
@@ -99,10 +110,11 @@ impl InboundGroupSession {
             latest_ratchet,
             signing_key: key.session_key.signing_key,
             signing_key_verified: true,
+            config: session_config,
         }
     }
 
-    pub fn import(session_key: &ExportedSessionKey) -> Self {
+    pub fn import(session_key: &ExportedSessionKey, session_config: SessionConfig) -> Self {
         let initial_ratchet =
             Ratchet::from_bytes(session_key.ratchet.clone(), session_key.ratchet_index);
         let latest_ratchet = initial_ratchet.clone();
@@ -112,6 +124,7 @@ impl InboundGroupSession {
             latest_ratchet,
             signing_key: session_key.signing_key,
             signing_key_verified: false,
+            config: session_config,
         }
     }
 
@@ -144,9 +157,9 @@ impl InboundGroupSession {
         //
         // After that we compare the raw ratchet bytes in constant time.
 
-        if self.signing_key != other.signing_key {
-            // Short circuit if the signing keys differ. This is comparing
-            // public key material.
+        if self.config != other.config || self.signing_key != other.signing_key {
+            // Short circuit if session configs differ or the signing keys
+            // differ. This is comparing public key material.
             false
         } else if let Some(ratchet) = self.find_ratchet(other.first_known_index()) {
             ratchet.ct_eq(&other.initial_ratchet).into()
@@ -232,6 +245,25 @@ impl InboundGroupSession {
         }
     }
 
+    fn verify_mac(&self, cipher: &Cipher, message: &MegolmMessage) -> Result<(), DecryptionError> {
+        match self.config.version {
+            Version::V1 => {
+                if let MessageMac::Truncated(m) = &message.mac {
+                    Ok(cipher.verify_truncated_mac(&message.to_mac_bytes(), m)?)
+                } else {
+                    Err(DecryptionError::InvalidMACLength(Mac::TRUNCATED_LEN, Mac::LENGTH))
+                }
+            }
+            Version::V2 => {
+                if let MessageMac::Full(m) = &message.mac {
+                    Ok(cipher.verify_mac(&message.to_mac_bytes(), m)?)
+                } else {
+                    Err(DecryptionError::InvalidMACLength(Mac::LENGTH, Mac::TRUNCATED_LEN))
+                }
+            }
+        }
+    }
+
     pub fn decrypt(
         &mut self,
         message: &MegolmMessage,
@@ -241,7 +273,8 @@ impl InboundGroupSession {
         if let Some(ratchet) = self.find_ratchet(message.message_index) {
             let cipher = Cipher::new_megolm(ratchet.as_bytes());
 
-            cipher.verify_mac(&message.to_mac_bytes(), &message.mac)?;
+            self.verify_mac(&cipher, message)?;
+
             let plaintext = cipher.decrypt(&message.ciphertext)?;
 
             Ok(DecryptedMessage { plaintext, message_index: message.message_index })
@@ -270,6 +303,7 @@ impl InboundGroupSession {
             initial_ratchet: self.initial_ratchet.clone(),
             signing_key: self.signing_key,
             signing_key_verified: self.signing_key_verified,
+            config: self.config,
         }
     }
 
@@ -322,7 +356,13 @@ impl InboundGroupSession {
                 let signing_key = Ed25519PublicKey::from_slice(&pickle.signing_key)?;
                 let signing_key_verified = pickle.signing_key_verified;
 
-                Ok(Self { initial_ratchet, latest_ratchet, signing_key, signing_key_verified })
+                Ok(Self {
+                    initial_ratchet,
+                    latest_ratchet,
+                    signing_key,
+                    signing_key_verified,
+                    config: SessionConfig::version_1(),
+                })
             }
         }
 
@@ -341,6 +381,8 @@ pub struct InboundGroupSessionPickle {
     signing_key: Ed25519PublicKey,
     #[allow(dead_code)]
     signing_key_verified: bool,
+    #[serde(default = "default_config")]
+    config: SessionConfig,
 }
 
 impl InboundGroupSessionPickle {
@@ -373,24 +415,25 @@ impl From<InboundGroupSessionPickle> for InboundGroupSession {
             latest_ratchet: pickle.initial_ratchet,
             signing_key: pickle.signing_key,
             signing_key_verified: pickle.signing_key_verified,
+            config: pickle.config,
         }
     }
 }
 
 impl From<&GroupSession> for InboundGroupSession {
     fn from(session: &GroupSession) -> Self {
-        Self::new(&session.session_key())
+        Self::new(&session.session_key(), session.session_config())
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::InboundGroupSession;
-    use crate::megolm::{GroupSession, SessionOrdering};
+    use crate::megolm::{GroupSession, SessionConfig, SessionOrdering};
 
     #[test]
     fn advance_inbound_session() {
-        let mut session = InboundGroupSession::from(&GroupSession::new());
+        let mut session = InboundGroupSession::from(&GroupSession::new(Default::default()));
 
         assert_eq!(session.first_known_index(), 0);
         assert_eq!(session.latest_ratchet.index(), 0);
@@ -408,7 +451,7 @@ mod test {
 
     #[test]
     fn connecting() {
-        let outbound = GroupSession::new();
+        let outbound = GroupSession::new(Default::default());
         let mut session = InboundGroupSession::from(&outbound);
         let mut clone = InboundGroupSession::from(&outbound);
 
@@ -420,7 +463,7 @@ mod test {
         assert!(session.connected(&mut clone));
         assert!(clone.connected(&mut session));
 
-        let mut other = InboundGroupSession::from(&GroupSession::new());
+        let mut other = InboundGroupSession::from(&GroupSession::new(Default::default()));
 
         assert!(!session.connected(&mut other));
         assert!(!clone.connected(&mut other));
@@ -429,11 +472,18 @@ mod test {
 
         assert!(!session.connected(&mut other));
         assert!(!clone.connected(&mut other));
+
+        let session_key = session.export_at_first_known_index();
+        let mut different_config =
+            InboundGroupSession::import(&session_key, SessionConfig::version_1());
+
+        assert!(!session.connected(&mut different_config));
+        assert!(!different_config.connected(&mut session));
     }
 
     #[test]
     fn comparison() {
-        let outbound = GroupSession::new();
+        let outbound = GroupSession::new(Default::default());
         let mut session = InboundGroupSession::from(&outbound);
         let mut clone = InboundGroupSession::from(&outbound);
 
@@ -445,7 +495,7 @@ mod test {
         assert_eq!(session.compare(&mut clone), SessionOrdering::Better);
         assert_eq!(clone.compare(&mut session), SessionOrdering::Worse);
 
-        let mut other = InboundGroupSession::from(&GroupSession::new());
+        let mut other = InboundGroupSession::from(&GroupSession::new(Default::default()));
 
         assert_eq!(session.compare(&mut other), SessionOrdering::Unconnected);
         assert_eq!(clone.compare(&mut other), SessionOrdering::Unconnected);
@@ -461,15 +511,13 @@ mod test {
     #[cfg(feature = "low-level-api")]
     #[test]
     fn get_cipher_at() {
-        let mut group_session = GroupSession::new();
+        let mut group_session = GroupSession::new(Default::default());
 
         // Advance the ratchet a few times by calling `encrypt`.
         group_session.encrypt("test1");
         group_session.encrypt("test2");
 
         let session = InboundGroupSession::from(&group_session);
-
-        println!("{}", session.first_known_index());
 
         // The inbound session will only be able to decrypt messages from
         // indices starting at 2 (as we advanced the ratchet twice before

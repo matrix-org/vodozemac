@@ -32,6 +32,7 @@ use super::{
     session::{DecryptionError, Session},
     session_keys::SessionKeys,
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
+    SessionConfig,
 };
 use crate::{
     types::{
@@ -151,6 +152,7 @@ impl Account {
     /// Create a `Session` with the given identity key and one-time key.
     pub fn create_outbound_session(
         &self,
+        session_config: SessionConfig,
         identity_key: Curve25519PublicKey,
         one_time_key: Curve25519PublicKey,
     ) -> Session {
@@ -172,7 +174,7 @@ impl Account {
             one_time_key,
         };
 
-        Session::new(shared_secret, session_keys)
+        Session::new(session_config, shared_secret, session_keys)
     }
 
     fn find_one_time_key(&self, public_key: &Curve25519PublicKey) -> Option<&Curve25519SecretKey> {
@@ -233,9 +235,16 @@ impl Account {
                 one_time_key: pre_key_message.one_time_key(),
             };
 
+            let config = if pre_key_message.message.mac_truncated() {
+                SessionConfig::version_1()
+            } else {
+                SessionConfig::version_2()
+            };
+
             // Create a Session, AKA a double ratchet, this one will have an
             // inactive sending chain until we decide to encrypt a message.
             let mut session = Session::new_remote(
+                config,
                 shared_secret,
                 pre_key_message.message.ratchet_key,
                 session_keys,
@@ -539,7 +548,7 @@ mod test {
     use anyhow::{bail, Context, Result};
     use olm_rs::{account::OlmAccount, session::OlmMessage as LibolmOlmMessage};
 
-    use super::{Account, InboundCreationResult, SessionCreationError};
+    use super::{Account, InboundCreationResult, SessionConfig, SessionCreationError};
     use crate::{
         cipher::Mac,
         olm::{
@@ -573,7 +582,8 @@ mod test {
         let identity_keys = bob.parsed_identity_keys();
         let curve25519_key = PublicKey::from_base64(identity_keys.curve25519())?;
         let one_time_key = PublicKey::from_base64(&one_time_key)?;
-        let mut alice_session = alice.create_outbound_session(curve25519_key, one_time_key);
+        let mut alice_session =
+            alice.create_outbound_session(SessionConfig::version_1(), curve25519_key, one_time_key);
 
         let message = "It's a secret to everybody";
         let olm_message: LibolmOlmMessage = alice_session.encrypt(message).into();
@@ -624,6 +634,7 @@ mod test {
         bob.generate_one_time_keys(1);
 
         let mut alice_session = alice.create_outbound_session(
+            SessionConfig::version_2(),
             bob.curve25519_key(),
             *bob.one_time_keys()
                 .iter()
@@ -837,6 +848,7 @@ mod test {
         alice.generate_one_time_keys(1);
 
         let mut session = malory.create_outbound_session(
+            SessionConfig::default(),
             alice.curve25519_key(),
             *alice.one_time_keys().values().next().expect("Should have one-time key"),
         );
