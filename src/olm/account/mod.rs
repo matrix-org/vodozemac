@@ -540,14 +540,14 @@ mod libolm {
             // otherwise we'll have to use the max found key id and increment
             // it.
             one_time_keys.key_id =
-                if pickle.one_time_keys.is_empty() { 0 } else { max_key_id.overflowing_add(1).0 };
+                if pickle.one_time_keys.is_empty() { 0 } else { max_key_id.wrapping_add(1) };
 
             let fallback_keys = FallbackKeys {
                 key_id: pickle
                     .fallback_keys
                     .fallback_key
                     .as_ref()
-                    .map(|k| k.key_id.overflowing_add(1).0)
+                    .map(|k| k.key_id.wrapping_add(1))
                     .unwrap_or(0) as u64,
                 fallback_key: pickle.fallback_keys.fallback_key.as_ref().map(|k| k.into()),
                 previous_fallback_key: pickle
