@@ -34,6 +34,9 @@ pub enum LibolmDecodeError {
          architecture"
     )]
     OutsideUsizeRange(u64),
+    /// An array in the pickle has too many elements.
+    #[error("An array has too many elements: {0}")]
+    ArrayTooBig(usize),
 }
 
 /// Decrypt and decode the given pickle with the given pickle key.
@@ -182,14 +185,18 @@ impl<T: Decode> Decode for Vec<T> {
     fn decode(reader: &mut impl Read) -> Result<Self, LibolmDecodeError> {
         let length = usize::decode(reader)?;
 
-        let mut buffer = Vec::with_capacity(length);
+        if length > u16::MAX.into() {
+            Err(LibolmDecodeError::ArrayTooBig(length))
+        } else {
+            let mut buffer = Vec::with_capacity(length);
 
-        for _ in 0..length {
-            let element = T::decode(reader)?;
-            buffer.push(element);
+            for _ in 0..length {
+                let element = T::decode(reader)?;
+                buffer.push(element);
+            }
+
+            Ok(buffer)
         }
-
-        Ok(buffer)
     }
 }
 
