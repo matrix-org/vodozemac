@@ -1,0 +1,19 @@
+[package]
+name = "vodozemac-afl"
+version = "0.1.0"
+publish = false
+edition = "2021"
+
+[dependencies]
+afl = "*"
+clap = { version = "3.1", features = ["derive"], optional = true }
+
+[features]
+cli = ["clap"]
+
+[dependencies.vodozemac]
+path = "../.."
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]

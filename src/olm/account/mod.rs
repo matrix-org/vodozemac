@@ -349,6 +349,19 @@ impl Account {
         const PICKLE_VERSION: u32 = 4;
         unpickle_libolm::<Pickle, _>(pickle, pickle_key, PICKLE_VERSION)
     }
+
+    #[cfg(all(fuzzing, feature = "libolm-compat"))]
+    pub fn from_decrypted_libolm_pickle(pickle: &[u8]) -> Result<Self, crate::LibolmPickleError> {
+        use std::io::Cursor;
+
+        use self::libolm::Pickle;
+        use crate::utilities::Decode;
+
+        let mut cursor = Cursor::new(&pickle);
+        let pickle = Pickle::decode(&mut cursor)?;
+
+        pickle.try_into()
+    }
 }
 
 impl Default for Account {
