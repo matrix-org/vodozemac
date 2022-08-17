@@ -286,6 +286,18 @@ impl SessionKey {
     }
 }
 
+impl Zeroize for SessionKey {
+    fn zeroize(&mut self) {
+        self.session_key.zeroize();
+    }
+}
+
+impl Drop for SessionKey {
+    fn drop(&mut self) {
+        self.zeroize()
+    }
+}
+
 impl TryFrom<&[u8]> for SessionKey {
     type Error = SessionKeyDecodeError;
 
