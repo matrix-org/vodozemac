@@ -55,43 +55,6 @@ pub struct ExportedSessionKey {
     pub(crate) signing_key: Ed25519PublicKey,
 }
 
-/// The session key, can be used to create a [`InboundGroupSession`].
-///
-/// Uses the session-sharing format described in the [Olm spec].
-///
-/// +---+----+--------+--------+--------+--------+------+-----------+
-/// | V | i  | R(i,0) | R(i,1) | R(i,2) | R(i,3) | Kpub | Signature |
-/// +---+----+--------+--------+--------+--------+------+-----------+
-/// 0   1    5        37       69      101      133    165         229   bytes
-///
-/// The version byte, V, is "\x02".
-/// This is followed by the ratchet index, iii, which is encoded as a
-/// big-endian 32-bit integer; the 128 bytes of the ratchet; and the public
-/// part of the Ed25519 keypair.
-///
-/// The data is then signed using the Ed25519 key, and the 64-byte signature is
-/// appended.
-///
-/// [`InboundGroupSession`]: #crate.megolm.InboundGroupSession
-/// [Olm spec]: https://gitlab.matrix.org/matrix-org/olm/blob/master/docs/megolm.md#session-sharing-format
-pub struct SessionKey {
-    pub(super) session_key: ExportedSessionKey,
-    pub(super) signature: Ed25519Signature,
-}
-
-impl Zeroize for ExportedSessionKey {
-    fn zeroize(&mut self) {
-        self.ratchet_index.zeroize();
-        self.ratchet.zeroize();
-    }
-}
-
-impl Drop for ExportedSessionKey {
-    fn drop(&mut self) {
-        self.zeroize()
-    }
-}
-
 impl ExportedSessionKey {
     const VERSION: u8 = 1;
 
@@ -173,6 +136,87 @@ impl ExportedSessionKey {
     }
 }
 
+impl Zeroize for ExportedSessionKey {
+    fn zeroize(&mut self) {
+        self.ratchet_index.zeroize();
+        self.ratchet.zeroize();
+    }
+}
+
+impl Drop for ExportedSessionKey {
+    fn drop(&mut self) {
+        self.zeroize()
+    }
+}
+
+impl TryFrom<&[u8]> for ExportedSessionKey {
+    type Error = SessionKeyDecodeError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        Self::from_bytes(value)
+    }
+}
+
+impl TryFrom<&str> for ExportedSessionKey {
+    type Error = SessionKeyDecodeError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::from_base64(value)
+    }
+}
+
+impl Serialize for ExportedSessionKey {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut encoded = self.to_base64();
+        let ret = encoded.serialize(serializer);
+
+        encoded.zeroize();
+
+        ret
+    }
+}
+
+impl<'de> Deserialize<'de> for ExportedSessionKey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let mut session_key = String::deserialize(deserializer)?;
+        let ret = Self::from_base64(&session_key).map_err(serde::de::Error::custom);
+
+        session_key.zeroize();
+
+        ret
+    }
+}
+
+/// The session key, can be used to create a [`InboundGroupSession`].
+///
+/// Uses the session-sharing format described in the [Olm spec].
+///
+/// +---+----+--------+--------+--------+--------+------+-----------+
+/// | V | i  | R(i,0) | R(i,1) | R(i,2) | R(i,3) | Kpub | Signature |
+/// +---+----+--------+--------+--------+--------+------+-----------+
+/// 0   1    5        37       69      101      133    165         229   bytes
+///
+/// The version byte, V, is "\x02".
+/// This is followed by the ratchet index, iii, which is encoded as a
+/// big-endian 32-bit integer; the 128 bytes of the ratchet; and the public
+/// part of the Ed25519 keypair.
+///
+/// The data is then signed using the Ed25519 key, and the 64-byte signature is
+/// appended.
+///
+/// [`InboundGroupSession`]: #crate.megolm.InboundGroupSession
+/// [Olm spec]: https://gitlab.matrix.org/matrix-org/olm/blob/master/docs/megolm.md#session-sharing-format
+pub struct SessionKey {
+    pub(super) session_key: ExportedSessionKey,
+    pub(super) signature: Ed25519Signature,
+}
+
 impl SessionKey {
     const VERSION: u8 = 2;
 
@@ -242,6 +286,22 @@ impl SessionKey {
     }
 }
 
+impl TryFrom<&[u8]> for SessionKey {
+    type Error = SessionKeyDecodeError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        Self::from_bytes(value)
+    }
+}
+
+impl TryFrom<&str> for SessionKey {
+    type Error = SessionKeyDecodeError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::from_base64(value)
+    }
+}
+
 impl Serialize for SessionKey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -267,66 +327,6 @@ impl<'de> Deserialize<'de> for SessionKey {
         session_key.zeroize();
 
         ret
-    }
-}
-
-impl Serialize for ExportedSessionKey {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let mut encoded = self.to_base64();
-        let ret = encoded.serialize(serializer);
-
-        encoded.zeroize();
-
-        ret
-    }
-}
-
-impl<'de> Deserialize<'de> for ExportedSessionKey {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let mut session_key = String::deserialize(deserializer)?;
-        let ret = Self::from_base64(&session_key).map_err(serde::de::Error::custom);
-
-        session_key.zeroize();
-
-        ret
-    }
-}
-
-impl TryFrom<&[u8]> for SessionKey {
-    type Error = SessionKeyDecodeError;
-
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        Self::from_bytes(value)
-    }
-}
-
-impl TryFrom<&str> for SessionKey {
-    type Error = SessionKeyDecodeError;
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        Self::from_base64(value)
-    }
-}
-
-impl TryFrom<&[u8]> for ExportedSessionKey {
-    type Error = SessionKeyDecodeError;
-
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        Self::from_bytes(value)
-    }
-}
-
-impl TryFrom<&str> for ExportedSessionKey {
-    type Error = SessionKeyDecodeError;
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        Self::from_base64(value)
     }
 }
 
