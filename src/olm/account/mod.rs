@@ -53,8 +53,7 @@ pub enum SessionCreationError {
     /// either because we never had such a one-time key, or because it has
     /// already been used up.
     #[error(
-        "The pre-key message contained an unknown one-time key, one-time \
-        key: {0}"
+        "The pre-key message contained an unknown one-time key: {0}"
     )]
     MissingOneTimeKey(Curve25519PublicKey),
     /// The pre-key message contains a curve25519 identity key that doesn't
