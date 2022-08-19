@@ -222,8 +222,8 @@ impl Account {
                 pre_key_message.identity_key(),
             ))
         } else {
-            // Find the matching private key that the message claims to have
-            // used to create the Session that encrypted it.
+            // Find the matching private part of the OTK that the message claims
+            // was used to create the session that encrypted it.
             let one_time_key =
                 self.find_one_time_key(&pre_key_message.one_time_key()).ok_or_else(|| {
                     SessionCreationError::MissingOneTimeKey(pre_key_message.one_time_key())
