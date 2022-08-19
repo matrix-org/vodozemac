@@ -52,9 +52,7 @@ pub enum SessionCreationError {
     /// The pre-key message contained an unknown one-time key. This happens
     /// either because we never had such a one-time key, or because it has
     /// already been used up.
-    #[error(
-        "The pre-key message contained an unknown one-time key: {0}"
-    )]
+    #[error("The pre-key message contained an unknown one-time key: {0}")]
     MissingOneTimeKey(Curve25519PublicKey),
     /// The pre-key message contains a curve25519 identity key that doesn't
     /// match to the identity key that was given.
@@ -224,15 +222,15 @@ impl Account {
         } else {
             // Find the matching private part of the OTK that the message claims
             // was used to create the session that encrypted it.
-            let one_time_key =
-                self.find_one_time_key(&pre_key_message.one_time_key()).ok_or_else(|| {
-                    SessionCreationError::MissingOneTimeKey(pre_key_message.one_time_key())
-                })?;
+            let public_otk = pre_key_message.one_time_key();
+            let private_otk = self
+                .find_one_time_key(&public_otk)
+                .ok_or(SessionCreationError::MissingOneTimeKey(public_otk))?;
 
             // Construct a 3DH shared secret from the various curve25519 keys.
             let shared_secret = RemoteShared3DHSecret::new(
                 self.diffie_hellman_key.secret_key(),
-                one_time_key,
+                private_otk,
                 &pre_key_message.identity_key(),
                 &pre_key_message.base_key(),
             );
