@@ -21,7 +21,6 @@ use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use x25519_dalek::ReusableSecret;
-use zeroize::Zeroize;
 
 use self::{
     fallback_keys::FallbackKeys,
@@ -39,7 +38,7 @@ use crate::{
         Curve25519Keypair, Curve25519KeypairPickle, Curve25519PublicKey, Curve25519SecretKey,
         Ed25519Keypair, Ed25519KeypairPickle, Ed25519PublicKey, KeyId,
     },
-    utilities::{pickle, unpickle, DecodeSecret},
+    utilities::{pickle, unpickle},
     Ed25519Signature, PickleError,
 };
 
@@ -344,153 +343,8 @@ impl Account {
         pickle: &str,
         pickle_key: &[u8],
     ) -> Result<Self, crate::LibolmPickleError> {
-        use self::fallback_keys::FallbackKey;
-        use crate::utilities::{unpickle_libolm, Decode};
-
-        #[derive(Debug, Zeroize)]
-        #[zeroize(drop)]
-        struct OneTimeKey {
-            key_id: u32,
-            published: bool,
-            public_key: [u8; 32],
-            private_key: Box<[u8; 32]>,
-        }
-
-        impl Decode for OneTimeKey {
-            fn decode(
-                reader: &mut impl std::io::Read,
-            ) -> Result<Self, crate::utilities::LibolmDecodeError> {
-                let key_id = u32::decode(reader)?;
-                let published = bool::decode(reader)?;
-                let public_key = <[u8; 32]>::decode(reader)?;
-                let private_key = <[u8; 32]>::decode_secret(reader)?;
-
-                Ok(Self { key_id, published, public_key, private_key })
-            }
-        }
-
-        impl From<&OneTimeKey> for FallbackKey {
-            fn from(key: &OneTimeKey) -> Self {
-                FallbackKey {
-                    key_id: KeyId(key.key_id.into()),
-                    key: Curve25519SecretKey::from_slice(&key.private_key),
-                    published: key.published,
-                }
-            }
-        }
-
-        #[derive(Debug, Zeroize)]
-        #[zeroize(drop)]
-        struct FallbackKeysArray {
-            fallback_key: Option<OneTimeKey>,
-            previous_fallback_key: Option<OneTimeKey>,
-        }
-
-        impl Decode for FallbackKeysArray {
-            fn decode(
-                reader: &mut impl std::io::Read,
-            ) -> Result<Self, crate::utilities::LibolmDecodeError> {
-                let count = u8::decode(reader)?;
-
-                let (fallback_key, previous_fallback_key) = if count >= 1 {
-                    let fallback_key = OneTimeKey::decode(reader)?;
-
-                    let previous_fallback_key =
-                        if count >= 2 { Some(OneTimeKey::decode(reader)?) } else { None };
-
-                    (Some(fallback_key), previous_fallback_key)
-                } else {
-                    (None, None)
-                };
-
-                Ok(Self { fallback_key, previous_fallback_key })
-            }
-        }
-
-        #[derive(Zeroize)]
-        #[zeroize(drop)]
-        struct Pickle {
-            version: u32,
-            ed25519_keypair: crate::utilities::LibolmEd25519Keypair,
-            public_curve25519_key: [u8; 32],
-            private_curve25519_key: Box<[u8; 32]>,
-            one_time_keys: Vec<OneTimeKey>,
-            fallback_keys: FallbackKeysArray,
-        }
-
-        impl Decode for Pickle {
-            fn decode(
-                reader: &mut impl std::io::Read,
-            ) -> Result<Self, crate::utilities::LibolmDecodeError> {
-                let version = u32::decode(reader)?;
-
-                let ed25519_keypair = crate::utilities::LibolmEd25519Keypair::decode(reader)?;
-                let public_curve25519_key = <[u8; 32]>::decode(reader)?;
-                let private_curve25519_key = <[u8; 32]>::decode_secret(reader)?;
-                let one_time_keys = Vec::decode(reader)?;
-                let fallback_keys = FallbackKeysArray::decode(reader)?;
-
-                Ok(Self {
-                    version,
-                    ed25519_keypair,
-                    public_curve25519_key,
-                    private_curve25519_key,
-                    one_time_keys,
-                    fallback_keys,
-                })
-            }
-        }
-
-        impl TryFrom<Pickle> for Account {
-            type Error = crate::LibolmPickleError;
-
-            fn try_from(pickle: Pickle) -> Result<Self, Self::Error> {
-                let mut one_time_keys = OneTimeKeys::new();
-                let mut max_key_id = 0;
-
-                for key in &pickle.one_time_keys {
-                    let secret_key = Curve25519SecretKey::from_slice(&key.private_key);
-                    let key_id = KeyId(key.key_id.into());
-                    one_time_keys.insert_secret_key(key_id, secret_key, key.published);
-
-                    if key_id.0 > max_key_id {
-                        max_key_id = key_id.0;
-                    }
-                }
-
-                // If there are no one-time keys in the pickle our key id will be 0,
-                // otherwise we'll have to use the max found key id and increment
-                // it.
-                one_time_keys.key_id =
-                    if pickle.one_time_keys.is_empty() { 0 } else { max_key_id + 1 };
-
-                let fallback_keys = FallbackKeys {
-                    key_id: pickle
-                        .fallback_keys
-                        .fallback_key
-                        .as_ref()
-                        .map(|k| k.key_id + 1)
-                        .unwrap_or(0) as u64,
-                    fallback_key: pickle.fallback_keys.fallback_key.as_ref().map(|k| k.into()),
-                    previous_fallback_key: pickle
-                        .fallback_keys
-                        .previous_fallback_key
-                        .as_ref()
-                        .map(|k| k.into()),
-                };
-
-                Ok(Self {
-                    signing_key: Ed25519Keypair::from_expanded_key(
-                        &pickle.ed25519_keypair.private_key,
-                    )?,
-                    diffie_hellman_key: Curve25519Keypair::from_secret_key(
-                        &pickle.private_curve25519_key,
-                    ),
-                    one_time_keys,
-                    fallback_keys,
-                })
-            }
-        }
+        use self::libolm::Pickle;
+        use crate::utilities::unpickle_libolm;
 
         const PICKLE_VERSION: u32 = 4;
         unpickle_libolm::<Pickle, _>(pickle, pickle_key, PICKLE_VERSION)
@@ -539,6 +393,167 @@ impl From<AccountPickle> for Account {
             diffie_hellman_key: pickle.diffie_hellman_key.into(),
             one_time_keys: pickle.one_time_keys.into(),
             fallback_keys: pickle.fallback_keys,
+        }
+    }
+}
+
+#[cfg(feature = "libolm-compat")]
+mod libolm {
+    use zeroize::Zeroize;
+
+    use super::{
+        fallback_keys::{FallbackKey, FallbackKeys},
+        one_time_keys::OneTimeKeys,
+        Account,
+    };
+    use crate::{
+        types::{Curve25519Keypair, Curve25519SecretKey},
+        utilities::{Decode, DecodeSecret},
+        Ed25519Keypair, KeyId,
+    };
+
+    #[derive(Debug, Zeroize)]
+    #[zeroize(drop)]
+    struct OneTimeKey {
+        key_id: u32,
+        published: bool,
+        public_key: [u8; 32],
+        private_key: Box<[u8; 32]>,
+    }
+
+    impl Decode for OneTimeKey {
+        fn decode(
+            reader: &mut impl std::io::Read,
+        ) -> Result<Self, crate::utilities::LibolmDecodeError> {
+            let key_id = u32::decode(reader)?;
+            let published = bool::decode(reader)?;
+            let public_key = <[u8; 32]>::decode(reader)?;
+            let private_key = <[u8; 32]>::decode_secret(reader)?;
+
+            Ok(Self { key_id, published, public_key, private_key })
+        }
+    }
+
+    impl From<&OneTimeKey> for FallbackKey {
+        fn from(key: &OneTimeKey) -> Self {
+            FallbackKey {
+                key_id: KeyId(key.key_id.into()),
+                key: Curve25519SecretKey::from_slice(&key.private_key),
+                published: key.published,
+            }
+        }
+    }
+
+    #[derive(Debug, Zeroize)]
+    #[zeroize(drop)]
+    struct FallbackKeysArray {
+        fallback_key: Option<OneTimeKey>,
+        previous_fallback_key: Option<OneTimeKey>,
+    }
+
+    impl Decode for FallbackKeysArray {
+        fn decode(
+            reader: &mut impl std::io::Read,
+        ) -> Result<Self, crate::utilities::LibolmDecodeError> {
+            let count = u8::decode(reader)?;
+
+            let (fallback_key, previous_fallback_key) = if count >= 1 {
+                let fallback_key = OneTimeKey::decode(reader)?;
+
+                let previous_fallback_key =
+                    if count >= 2 { Some(OneTimeKey::decode(reader)?) } else { None };
+
+                (Some(fallback_key), previous_fallback_key)
+            } else {
+                (None, None)
+            };
+
+            Ok(Self { fallback_key, previous_fallback_key })
+        }
+    }
+
+    #[derive(Zeroize)]
+    #[zeroize(drop)]
+    pub(super) struct Pickle {
+        version: u32,
+        ed25519_keypair: crate::utilities::LibolmEd25519Keypair,
+        public_curve25519_key: [u8; 32],
+        private_curve25519_key: Box<[u8; 32]>,
+        one_time_keys: Vec<OneTimeKey>,
+        fallback_keys: FallbackKeysArray,
+    }
+
+    impl Decode for Pickle {
+        fn decode(
+            reader: &mut impl std::io::Read,
+        ) -> Result<Self, crate::utilities::LibolmDecodeError> {
+            let version = u32::decode(reader)?;
+
+            let ed25519_keypair = crate::utilities::LibolmEd25519Keypair::decode(reader)?;
+            let public_curve25519_key = <[u8; 32]>::decode(reader)?;
+            let private_curve25519_key = <[u8; 32]>::decode_secret(reader)?;
+            let one_time_keys = Vec::decode(reader)?;
+            let fallback_keys = FallbackKeysArray::decode(reader)?;
+
+            Ok(Self {
+                version,
+                ed25519_keypair,
+                public_curve25519_key,
+                private_curve25519_key,
+                one_time_keys,
+                fallback_keys,
+            })
+        }
+    }
+
+    impl TryFrom<Pickle> for Account {
+        type Error = crate::LibolmPickleError;
+
+        fn try_from(pickle: Pickle) -> Result<Self, Self::Error> {
+            let mut one_time_keys = OneTimeKeys::new();
+            let mut max_key_id = 0;
+
+            for key in &pickle.one_time_keys {
+                let secret_key = Curve25519SecretKey::from_slice(&key.private_key);
+                let key_id = KeyId(key.key_id.into());
+                one_time_keys.insert_secret_key(key_id, secret_key, key.published);
+
+                if key_id.0 > max_key_id {
+                    max_key_id = key_id.0;
+                }
+            }
+
+            // If there are no one-time keys in the pickle our key id will be 0,
+            // otherwise we'll have to use the max found key id and increment
+            // it.
+            one_time_keys.key_id =
+                if pickle.one_time_keys.is_empty() { 0 } else { max_key_id.wrapping_add(1) };
+
+            let fallback_keys = FallbackKeys {
+                key_id: pickle
+                    .fallback_keys
+                    .fallback_key
+                    .as_ref()
+                    .map(|k| k.key_id.wrapping_add(1))
+                    .unwrap_or(0) as u64,
+                fallback_key: pickle.fallback_keys.fallback_key.as_ref().map(|k| k.into()),
+                previous_fallback_key: pickle
+                    .fallback_keys
+                    .previous_fallback_key
+                    .as_ref()
+                    .map(|k| k.into()),
+            };
+
+            Ok(Self {
+                signing_key: Ed25519Keypair::from_expanded_key(
+                    &pickle.ed25519_keypair.private_key,
+                )?,
+                diffie_hellman_key: Curve25519Keypair::from_secret_key(
+                    &pickle.private_curve25519_key,
+                ),
+                one_time_keys,
+                fallback_keys,
+            })
         }
     }
 }
