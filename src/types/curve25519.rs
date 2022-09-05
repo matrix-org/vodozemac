@@ -29,9 +29,9 @@ pub struct Curve25519SecretKey(Box<StaticSecret>);
 impl Curve25519SecretKey {
     /// Generate a new, random, Curve25519SecretKey.
     pub fn new() -> Self {
-        let mut rng = thread_rng();
+        let rng = thread_rng();
 
-        Self(Box::new(StaticSecret::new(&mut rng)))
+        Self(Box::new(StaticSecret::new(rng)))
     }
 
     /// Create a `Curve25519SecretKey` from the given slice of bytes.
