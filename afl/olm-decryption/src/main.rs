@@ -1,5 +1,5 @@
 use afl::fuzz;
-use vodozemac::olm::{Account, PreKeyMessage};
+use vodozemac::olm::{Account, PreKeyMessage, SessionConfig};
 
 fn main() {
     let alice = Account::new();
@@ -8,6 +8,7 @@ fn main() {
     bob.generate_one_time_keys(1);
 
     let mut session = alice.create_outbound_session(
+        SessionConfig::version_2(),
         bob.curve25519_key(),
         *bob.one_time_keys().values().next().unwrap(),
     );
