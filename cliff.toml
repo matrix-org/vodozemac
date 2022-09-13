@@ -52,11 +52,11 @@ commit_parsers = [
     { body = ".*[sS]ecurity", group = "Security"},
 ]
 # filter out the commits that are not matched by commit parsers
-filter_commits = false
+filter_commits = true
 # glob pattern for matching git tags
-tag_pattern = "v[0-9]*"
+tag_pattern = "[0-9]*"
 # regex for skipping tags
-skip_tags = "v0.1.0-beta.1"
+skip_tags = "0.1.0-beta.1"
 # regex for ignoring tags
 ignore_tags = ""
 # sort the tags chronologically
