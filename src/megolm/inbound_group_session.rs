@@ -88,7 +88,6 @@ pub struct InboundGroupSession {
     initial_ratchet: Ratchet,
     latest_ratchet: Ratchet,
     signing_key: Ed25519PublicKey,
-    #[allow(dead_code)]
     signing_key_verified: bool,
     config: SessionConfig,
 }
