@@ -560,13 +560,17 @@ mod test {
         let session_key = session.session_key();
 
         let mut first_session = InboundGroupSession::new(&session_key, Default::default());
+
+        // This one is less trusted because it's imported from an `ExportedSessionKey`.
         let mut second_session =
             InboundGroupSession::import(&first_session.export_at(10).unwrap(), Default::default());
+        assert!(!second_session.signing_key_verified);
 
         assert_eq!(first_session.compare(&mut second_session), SessionOrdering::Better);
 
         let mut merged = second_session.merge(&mut first_session).unwrap();
 
+        assert!(merged.signing_key_verified);
         assert_eq!(merged.compare(&mut second_session), SessionOrdering::Better);
         assert_eq!(merged.compare(&mut first_session), SessionOrdering::Equal);
     }
