@@ -190,16 +190,22 @@ impl InboundGroupSession {
     /// Merge the session with the given other session, picking the best parts
     /// from each of them.
     ///
-    /// This method is useful if you receive an `SessionKey` from multiple
-    /// sources with different authentticity properties. For example if you
-    /// receive a `SessionKey` from a fully trusted source with a certain
-    /// ratchet state and an `ExportedSessionKey` from a less trusted source.
+    /// This method is useful when you receive multiple sessions with
+    /// the same session ID but potentially different ratchet indices and
+    /// authenticity properties.
     ///
-    /// You can merge the two sessions into a better one, taking the best
-    /// ratchet state.
+    /// For example, imagine you receive a `SessionKey` S1 with ratchet index
+    /// A from a fully-trusted source and an `ExportedSessionKey` S2 with
+    /// ratchet state B from a less trusted source. If A > B, then S1 is better
+    /// because it's fully trusted, but worse because it's ratcheted further
+    /// than S2.
     ///
-    /// Returns `Some` if the sessions could be merged, i.e. they are considered
-    /// to be connected, `None` otherwise.
+    /// This method allows you to merge S1 and S2 safely into a fully-trusted S3
+    /// with ratchet state B, provided S1 and S2 connect with each other
+    /// (meaning they are the same session, just at different ratchet indices).
+    ///
+    /// Returns `Some(session)` if the sessions could be merged, i.e. they are
+    /// considered to be connected and `None` otherwise.
     ///
     /// # Example
     ///
