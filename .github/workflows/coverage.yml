@@ -3,6 +3,8 @@ name: Code coverage
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -11,19 +13,23 @@ jobs:
   code_coverage:
     name: Code Coverage
     runs-on: "ubuntu-latest"
+    if: github.event_name == 'push' || !github.event.pull_request.draft
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
 
-    - name: Install stable toolchain
+    - name: Install Rust
       uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
         profile: minimal
         override: true
 
-    - uses: Swatinem/rust-cache@v1
+    - name: Load cache
+      uses: Swatinem/rust-cache@v1
 
     - name: Install tarpaulin
       uses: actions-rs/cargo@v1
@@ -35,7 +41,7 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: tarpaulin
-        args: --ignore-config --exclude-files "vendor/olm-rs" --out Xml
+        args: --out Xml
 
     - name: Upload to codecov.io
       uses: codecov/codecov-action@v1
