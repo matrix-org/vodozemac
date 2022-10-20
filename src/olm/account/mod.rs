@@ -528,7 +528,7 @@ mod libolm {
                 one_time_keys.insert_secret_key(key_id, secret_key, key.published);
             }
 
-            one_time_keys.key_id = pickle.next_key_id.into();
+            one_time_keys.next_key_id = pickle.next_key_id.into();
 
             let fallback_keys = FallbackKeys {
                 key_id: pickle
@@ -821,7 +821,7 @@ mod test {
 
         // We generated 10 one-time keys on the libolm side, we expect the next key id
         // to be 11.
-        assert_eq!(unpickled.one_time_keys.key_id, 11);
+        assert_eq!(unpickled.one_time_keys.next_key_id, 11);
 
         olm_one_time_keys.sort();
         one_time_keys.sort();
