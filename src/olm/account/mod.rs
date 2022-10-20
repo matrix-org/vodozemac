@@ -488,6 +488,7 @@ mod libolm {
         private_curve25519_key: Box<[u8; 32]>,
         one_time_keys: Vec<OneTimeKey>,
         fallback_keys: FallbackKeysArray,
+        next_key_id: u32,
     }
 
     impl Decode for Pickle {
@@ -501,6 +502,7 @@ mod libolm {
             let private_curve25519_key = <[u8; 32]>::decode_secret(reader)?;
             let one_time_keys = Vec::decode(reader)?;
             let fallback_keys = FallbackKeysArray::decode(reader)?;
+            let next_key_id = u32::decode(reader)?;
 
             Ok(Self {
                 version,
@@ -509,6 +511,7 @@ mod libolm {
                 private_curve25519_key,
                 one_time_keys,
                 fallback_keys,
+                next_key_id,
             })
         }
     }
@@ -518,23 +521,14 @@ mod libolm {
 
         fn try_from(pickle: Pickle) -> Result<Self, Self::Error> {
             let mut one_time_keys = OneTimeKeys::new();
-            let mut max_key_id = 0;
 
             for key in &pickle.one_time_keys {
                 let secret_key = Curve25519SecretKey::from_slice(&key.private_key);
                 let key_id = KeyId(key.key_id.into());
                 one_time_keys.insert_secret_key(key_id, secret_key, key.published);
-
-                if key_id.0 > max_key_id {
-                    max_key_id = key_id.0;
-                }
             }
 
-            // If there are no one-time keys in the pickle our key id will be 0,
-            // otherwise we'll have to use the max found key id and increment
-            // it.
-            one_time_keys.key_id =
-                if pickle.one_time_keys.is_empty() { 0 } else { max_key_id.wrapping_add(1) };
+            one_time_keys.key_id = pickle.next_key_id.into();
 
             let fallback_keys = FallbackKeys {
                 key_id: pickle
@@ -824,6 +818,10 @@ mod test {
             olm.parsed_one_time_keys().curve25519().values().map(|k| k.to_owned()).collect();
         let mut one_time_keys: Vec<_> =
             unpickled.one_time_keys().values().map(|k| k.to_base64()).collect();
+
+        // We generated 10 one-time keys on the libolm side, we expect the next key id
+        // to be 11.
+        assert_eq!(unpickled.one_time_keys.key_id, 11);
 
         olm_one_time_keys.sort();
         one_time_keys.sort();
