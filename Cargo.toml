@@ -58,4 +58,4 @@ olm-rs = "2.2.0"
 proptest = "1.0.0"
 
 [patch.crates-io]
-olm-rs = { git = "https://gitlab.gnome.org/poljar/olm-rs/" }
+olm-rs = { git = "https://github.com/poljar/olm-rs" }
