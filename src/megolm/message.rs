@@ -71,7 +71,7 @@ impl MegolmMessage {
     ///
     /// The expected format of the byte array is described in the
     /// [`MegolmMessage::to_bytes()`] method.
-    pub fn from_bytes(message: Vec<u8>) -> Result<Self, DecodeError> {
+    pub fn from_bytes(message: &[u8]) -> Result<Self, DecodeError> {
         Self::try_from(message)
     }
 
