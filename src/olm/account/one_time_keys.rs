@@ -26,7 +26,7 @@ use crate::{
 #[serde(from = "OneTimeKeysPickle")]
 #[serde(into = "OneTimeKeysPickle")]
 pub(super) struct OneTimeKeys {
-    pub key_id: u64,
+    pub next_key_id: u64,
     pub unpublished_public_keys: BTreeMap<KeyId, Curve25519PublicKey>,
     pub private_keys: BTreeMap<KeyId, Curve25519SecretKey>,
     pub key_ids_by_key: HashMap<Curve25519PublicKey, KeyId>,
@@ -37,7 +37,7 @@ impl OneTimeKeys {
 
     pub fn new() -> Self {
         Self {
-            key_id: 0,
+            next_key_id: 0,
             unpublished_public_keys: Default::default(),
             private_keys: Default::default(),
             key_ids_by_key: Default::default(),
@@ -91,19 +91,20 @@ impl OneTimeKeys {
 
     pub fn generate(&mut self, count: usize) {
         for _ in 0..count {
-            let key_id = KeyId(self.key_id);
+            let key_id = KeyId(self.next_key_id);
             let key = Curve25519SecretKey::new();
 
             self.insert_secret_key(key_id, key, false);
 
-            self.key_id = self.key_id.wrapping_add(1);
+            self.next_key_id = self.next_key_id.wrapping_add(1);
         }
     }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(super) struct OneTimeKeysPickle {
-    key_id: u64,
+    #[serde(alias = "key_id")]
+    next_key_id: u64,
     public_keys: BTreeMap<KeyId, Curve25519PublicKey>,
     private_keys: BTreeMap<KeyId, Curve25519SecretKey>,
 }
@@ -117,7 +118,7 @@ impl From<OneTimeKeysPickle> for OneTimeKeys {
         }
 
         Self {
-            key_id: pickle.key_id,
+            next_key_id: pickle.next_key_id,
             unpublished_public_keys: pickle.public_keys.iter().map(|(&k, &v)| (k, v)).collect(),
             private_keys: pickle.private_keys,
             key_ids_by_key,
@@ -128,7 +129,7 @@ impl From<OneTimeKeysPickle> for OneTimeKeys {
 impl From<OneTimeKeys> for OneTimeKeysPickle {
     fn from(keys: OneTimeKeys) -> Self {
         OneTimeKeysPickle {
-            key_id: keys.key_id,
+            next_key_id: keys.next_key_id,
             public_keys: keys.unpublished_public_keys.iter().map(|(&k, &v)| (k, v)).collect(),
             private_keys: keys.private_keys,
         }
