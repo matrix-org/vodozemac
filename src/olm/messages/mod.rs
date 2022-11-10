@@ -180,6 +180,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+    use crate::run_corpus;
 
     const PRE_KEY_MESSAGE: &str = "AwoghAEuxPZ+w7M3pgUae4tDNiggUpOsQ/zci457VAti\
                                    AEYSIO3xOKRDBWKicIfxjSmYCYZ9DD4RMLjvvclbMlE5\
@@ -260,5 +261,12 @@ mod tests {
             .expect_err("Unknown message types can't be parsed");
 
         Ok(())
+    }
+
+    #[test]
+    fn fuzz_corpus_decoding() {
+        run_corpus("olm-message-decoding", |data| {
+            let _ = PreKeyMessage::from_bytes(data);
+        });
     }
 }

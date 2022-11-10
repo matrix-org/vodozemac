@@ -357,7 +357,7 @@ impl Account {
         unpickle_libolm::<Pickle, _>(pickle, pickle_key, PICKLE_VERSION)
     }
 
-    #[cfg(all(fuzzing, feature = "libolm-compat"))]
+    #[cfg(all(any(fuzzing, test), feature = "libolm-compat"))]
     pub fn from_decrypted_libolm_pickle(pickle: &[u8]) -> Result<Self, crate::LibolmPickleError> {
         use std::io::Cursor;
 
@@ -584,7 +584,7 @@ mod test {
             messages::{OlmMessage, PreKeyMessage},
             AccountPickle,
         },
-        Curve25519PublicKey as PublicKey,
+        run_corpus, Curve25519PublicKey as PublicKey,
     };
 
     const PICKLE_KEY: [u8; 32] = [0u8; 32];
@@ -913,5 +913,13 @@ mod test {
         } else {
             bail!("Invalid message type");
         }
+    }
+
+    #[test]
+    #[cfg(feature = "libolm-compat")]
+    fn fuzz_corpus_unpickling() {
+        run_corpus("olm-account-unpickling", |data| {
+            let _ = Account::from_decrypted_libolm_pickle(data);
+        });
     }
 }
