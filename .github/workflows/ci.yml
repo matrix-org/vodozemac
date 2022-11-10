@@ -15,7 +15,7 @@ jobs:
 
     steps:
     - name: Checkout the repo
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: Install rust
       uses: actions-rs/toolchain@v1
@@ -37,7 +37,7 @@ jobs:
 
     steps:
     - name: Checkout Actions Repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: Check the spelling of the files in our repo
       uses: crate-ci/typos@master
@@ -49,7 +49,7 @@ jobs:
 
     steps:
     - name: Checkout the repo
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: Install rust
       uses: actions-rs/toolchain@v1
@@ -59,7 +59,7 @@ jobs:
         profile: minimal
         override: true
 
-    - uses: Swatinem/rust-cache@v1
+    - uses: Swatinem/rust-cache@v2
 
     - name: Clippy
       uses: actions-rs/cargo@v1
@@ -83,7 +83,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v1
+        uses: actions/checkout@v3
 
       - name: Install rust
         uses: actions-rs/toolchain@v1
@@ -92,7 +92,7 @@ jobs:
           profile: minimal
           override: true
 
-      - uses: Swatinem/rust-cache@v1
+      - uses: Swatinem/rust-cache@v2
 
       - name: Test
         uses: actions-rs/cargo@v1
