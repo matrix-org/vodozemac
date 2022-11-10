@@ -274,7 +274,7 @@ impl std::fmt::Debug for Ed25519PublicKey {
 
 /// An Ed25519 digital signature, can be used to verify the authenticity of a
 /// message.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Ed25519Signature(pub(crate) Signature);
 
 impl Ed25519Signature {
@@ -300,6 +300,18 @@ impl Ed25519Signature {
     /// Convert the `Ed25519Signature` to a byte array.
     pub fn to_bytes(&self) -> [u8; Self::LENGTH] {
         self.0.to_bytes()
+    }
+}
+
+impl Display for Ed25519Signature {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_base64())
+    }
+}
+
+impl std::fmt::Debug for Ed25519Signature {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Ed25519Signature({})", self.to_base64())
     }
 }
 

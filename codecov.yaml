@@ -1,0 +1,10 @@
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        # Be more forgiving about fluctuations in coverage.
+        threshold: 1%
+    patch: off
+ignore:
+  - "contrib"

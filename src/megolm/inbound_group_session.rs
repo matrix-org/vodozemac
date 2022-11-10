@@ -88,7 +88,6 @@ pub struct InboundGroupSession {
     initial_ratchet: Ratchet,
     latest_ratchet: Ratchet,
     signing_key: Ed25519PublicKey,
-    #[allow(dead_code)]
     signing_key_verified: bool,
     config: SessionConfig,
 }
@@ -186,6 +185,60 @@ impl InboundGroupSession {
             // If we're not connected to other, other can't be better.
             SessionOrdering::Unconnected
         }
+    }
+
+    /// Merge the session with the given other session, picking the best parts
+    /// from each of them.
+    ///
+    /// This method is useful when you receive multiple sessions with
+    /// the same session ID but potentially different ratchet indices and
+    /// authenticity properties.
+    ///
+    /// For example, imagine you receive a `SessionKey` S1 with ratchet index
+    /// A from a fully-trusted source and an `ExportedSessionKey` S2 with
+    /// ratchet state B from a less trusted source. If A > B, then S1 is better
+    /// because it's fully trusted, but worse because it's ratcheted further
+    /// than S2.
+    ///
+    /// This method allows you to merge S1 and S2 safely into a fully-trusted S3
+    /// with ratchet state B, provided S1 and S2 connect with each other
+    /// (meaning they are the same session, just at different ratchet indices).
+    ///
+    /// Returns `Some(session)` if the sessions could be merged, i.e. they are
+    /// considered to be connected and `None` otherwise.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use vodozemac::megolm::{GroupSession, InboundGroupSession, SessionOrdering};
+    ///
+    /// let session = GroupSession::new(Default::default());
+    /// let session_key = session.session_key();
+    ///
+    /// let mut first_session = InboundGroupSession::new(&session_key, Default::default());
+    /// let mut second_session = InboundGroupSession::import(&first_session.export_at(10).unwrap(), Default::default());
+    ///
+    /// assert_eq!(first_session.compare(&mut second_session), SessionOrdering::Better);
+    ///
+    /// let mut merged = second_session.merge(&mut first_session).unwrap();
+    ///
+    /// assert_eq!(merged.compare(&mut second_session), SessionOrdering::Better);
+    /// assert_eq!(merged.compare(&mut first_session), SessionOrdering::Equal);
+    /// ```
+    pub fn merge(&mut self, other: &mut InboundGroupSession) -> Option<InboundGroupSession> {
+        let best_ratchet = match self.compare(other) {
+            SessionOrdering::Equal | SessionOrdering::Better => Some(self.initial_ratchet.clone()),
+            SessionOrdering::Worse => Some(other.initial_ratchet.clone()),
+            SessionOrdering::Unconnected => None,
+        }?;
+
+        Some(InboundGroupSession {
+            initial_ratchet: best_ratchet.clone(),
+            latest_ratchet: best_ratchet,
+            signing_key: self.signing_key,
+            signing_key_verified: self.signing_key_verified || other.signing_key_verified,
+            config: self.config,
+        })
     }
 
     pub fn first_known_index(&self) -> u32 {
@@ -504,6 +557,27 @@ mod test {
 
         assert_eq!(session.compare(&mut other), SessionOrdering::Unconnected);
         assert_eq!(clone.compare(&mut other), SessionOrdering::Unconnected);
+    }
+
+    #[test]
+    fn upgrade() {
+        let session = GroupSession::new(Default::default());
+        let session_key = session.session_key();
+
+        let mut first_session = InboundGroupSession::new(&session_key, Default::default());
+
+        // This one is less trusted because it's imported from an `ExportedSessionKey`.
+        let mut second_session =
+            InboundGroupSession::import(&first_session.export_at(10).unwrap(), Default::default());
+        assert!(!second_session.signing_key_verified);
+
+        assert_eq!(first_session.compare(&mut second_session), SessionOrdering::Better);
+
+        let mut merged = second_session.merge(&mut first_session).unwrap();
+
+        assert!(merged.signing_key_verified);
+        assert_eq!(merged.compare(&mut second_session), SessionOrdering::Better);
+        assert_eq!(merged.compare(&mut first_session), SessionOrdering::Equal);
     }
 
     /// Test that [`InboundGroupSession::get_cipher_at`] correctly handles the
