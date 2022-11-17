@@ -12,32 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::{Cursor, Read};
+use std::io::Cursor;
 
-use thiserror::Error;
+use matrix_pickle::Decode;
 use zeroize::Zeroize;
 
 use super::base64_decode;
 use crate::{cipher::Cipher, LibolmPickleError};
-
-/// Error type describing failure modes for libolm pickle decoding.
-#[derive(Debug, Error)]
-pub enum LibolmDecodeError {
-    /// There was an error while reading from the source of the libolm, usually
-    /// not enough data was provided.
-    #[error(transparent)]
-    IO(#[from] std::io::Error),
-    /// The encoded usize doesn't fit into the usize of the architecture that is
-    /// decoding.
-    #[error(
-        "The decoded value {0} does not fit into the usize type of this \
-         architecture"
-    )]
-    OutsideUsizeRange(u64),
-    /// An array in the pickle has too many elements.
-    #[error("An array has too many elements: {0}")]
-    ArrayTooBig(usize),
-}
 
 /// Decrypt and decode the given pickle with the given pickle key.
 ///
@@ -84,137 +65,10 @@ pub(crate) fn unpickle_libolm<P: Decode, T: TryFrom<P, Error = LibolmPickleError
     }
 }
 
-/// A trait for decoding non-secret values out of a libolm-compatible pickle.
-///
-/// This is almost exactly the same as what the [bincode] crate provides with
-/// the following config:
-/// ```rust,compile_fail
-/// let config = bincode::config::standard()
-///     .with_big_endian()
-///     .with_fixed_int_encoding()
-///     .skip_fixed_array_length();
-/// ```
-///
-/// The two major differences are:
-/// * bincode uses u64 to encode slice lengths
-/// * libolm uses u32 to encode slice lengths expect for fallback keys, where an
-///   u8 is used
-///
-/// The following Decode implementations decode primitive types in a libolm
-/// compatible way.
-///
-/// For decoding values which are meant to be secret, see `DecodeSecret`.
-///
-/// [bincode]: https://github.com/bincode-org/bincode/
-pub(crate) trait Decode {
-    /// Try to read and decode a non-secret value from the given reader which is
-    /// reading from a libolm-compatible pickle.
-    fn decode(reader: &mut impl Read) -> Result<Self, LibolmDecodeError>
-    where
-        Self: Sized;
-}
-
-/// Like `Decode`, but for decoding secret values.
-///
-/// Unlike `Decode`, this trait allocates the buffer for the target value on the
-/// heap and returns it in a `Box`. This reduces the number of inadvertent
-/// copies made when the value is moved, allowing the value to be properly
-/// zeroized.
-pub(crate) trait DecodeSecret {
-    /// Try to read and decode a secret value from the given reader which is
-    /// reading from a libolm-compatible pickle.
-    fn decode_secret(reader: &mut impl Read) -> Result<Box<Self>, LibolmDecodeError>
-    where
-        Self: Sized;
-}
-
-impl Decode for u8 {
-    fn decode(reader: &mut impl Read) -> Result<Self, LibolmDecodeError> {
-        let mut buffer = [0u8; 1];
-
-        reader.read_exact(&mut buffer)?;
-
-        Ok(buffer[0])
-    }
-}
-
-impl Decode for bool {
-    fn decode(reader: &mut impl Read) -> Result<Self, LibolmDecodeError> {
-        let value = u8::decode(reader)?;
-
-        Ok(value != 0)
-    }
-}
-
-impl Decode for u32 {
-    fn decode(reader: &mut impl Read) -> Result<Self, LibolmDecodeError> {
-        let mut buffer = [0u8; 4];
-        reader.read_exact(&mut buffer)?;
-
-        Ok(u32::from_be_bytes(buffer))
-    }
-}
-
-impl Decode for usize {
-    fn decode(reader: &mut impl Read) -> Result<Self, LibolmDecodeError> {
-        let size = u32::decode(reader)?;
-
-        size.try_into().map_err(|_| LibolmDecodeError::OutsideUsizeRange(size as u64))
-    }
-}
-
-impl<const N: usize> Decode for [u8; N] {
-    fn decode(reader: &mut impl Read) -> Result<Self, LibolmDecodeError> {
-        let mut buffer = [0u8; N];
-        reader.read_exact(&mut buffer)?;
-
-        Ok(buffer)
-    }
-}
-
-impl<const N: usize> DecodeSecret for [u8; N] {
-    fn decode_secret(reader: &mut impl Read) -> Result<Box<Self>, LibolmDecodeError> {
-        let mut buffer = Box::new([0u8; N]);
-        reader.read_exact(buffer.as_mut_slice())?;
-
-        Ok(buffer)
-    }
-}
-
-impl<T: Decode> Decode for Vec<T> {
-    fn decode(reader: &mut impl Read) -> Result<Self, LibolmDecodeError> {
-        let length = usize::decode(reader)?;
-
-        if length > u16::MAX.into() {
-            Err(LibolmDecodeError::ArrayTooBig(length))
-        } else {
-            let mut buffer = Vec::with_capacity(length);
-
-            for _ in 0..length {
-                let element = T::decode(reader)?;
-                buffer.push(element);
-            }
-
-            Ok(buffer)
-        }
-    }
-}
-
-#[derive(Zeroize)]
+#[derive(Zeroize, Decode)]
 #[zeroize(drop)]
 pub(crate) struct LibolmEd25519Keypair {
     pub public_key: [u8; 32],
+    #[secret]
     pub private_key: Box<[u8; 64]>,
-}
-
-impl Decode for LibolmEd25519Keypair {
-    fn decode(reader: &mut impl Read) -> Result<Self, LibolmDecodeError>
-    where
-        Self: Sized,
-    {
-        let public_key = <[u8; 32]>::decode(reader)?;
-        let private_key = <[u8; 64]>::decode_secret(reader)?;
-
-        Ok(Self { public_key, private_key })
-    }
 }

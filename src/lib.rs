@@ -265,7 +265,7 @@ pub enum LibolmPickleError {
     InvalidSession,
     /// The payload of the pickle could not be decoded.
     #[error(transparent)]
-    Decode(#[from] crate::utilities::LibolmDecodeError),
+    Decode(#[from] matrix_pickle::DecodeError),
 }
 
 /// Error type describing the different ways message decoding can fail.

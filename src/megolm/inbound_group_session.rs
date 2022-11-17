@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::{cmp::Ordering, io::Read};
+use std::cmp::Ordering;
 
 use aes::cipher::block_padding::UnpadError;
 use hmac::digest::MacError;
@@ -371,10 +371,12 @@ impl InboundGroupSession {
         pickle: &str,
         pickle_key: &[u8],
     ) -> Result<Self, crate::LibolmPickleError> {
-        use super::libolm::LibolmRatchetPickle;
-        use crate::utilities::{unpickle_libolm, Decode};
+        use matrix_pickle::Decode;
 
-        #[derive(Zeroize)]
+        use super::libolm::LibolmRatchetPickle;
+        use crate::utilities::unpickle_libolm;
+
+        #[derive(Zeroize, Decode)]
         #[zeroize(drop)]
         struct Pickle {
             version: u32,
@@ -382,18 +384,6 @@ impl InboundGroupSession {
             latest_ratchet: LibolmRatchetPickle,
             signing_key: [u8; 32],
             signing_key_verified: bool,
-        }
-
-        impl Decode for Pickle {
-            fn decode(reader: &mut impl Read) -> Result<Self, crate::utilities::LibolmDecodeError> {
-                Ok(Pickle {
-                    version: u32::decode(reader)?,
-                    initial_ratchet: LibolmRatchetPickle::decode(reader)?,
-                    latest_ratchet: LibolmRatchetPickle::decode(reader)?,
-                    signing_key: <[u8; 32]>::decode(reader)?,
-                    signing_key_verified: bool::decode(reader)?,
-                })
-            }
         }
 
         impl TryFrom<Pickle> for InboundGroupSession {

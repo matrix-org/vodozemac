@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use matrix_pickle::Decode;
 use serde::{Deserialize, Serialize};
 use x25519_dalek::SharedSecret;
 
@@ -28,20 +29,9 @@ pub(super) struct RatchetKey(Curve25519SecretKey);
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct RatchetPublicKey(Curve25519PublicKey);
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, Decode)]
 #[serde(transparent)]
 pub struct RemoteRatchetKey(Curve25519PublicKey);
-
-#[cfg(feature = "libolm-compat")]
-impl crate::utilities::Decode for RemoteRatchetKey {
-    fn decode(
-        reader: &mut impl std::io::Read,
-    ) -> Result<Self, crate::utilities::LibolmDecodeError> {
-        let key = Curve25519PublicKey::decode(reader)?;
-
-        Ok(RemoteRatchetKey(key))
-    }
-}
 
 impl RatchetKey {
     pub fn new() -> Self {
