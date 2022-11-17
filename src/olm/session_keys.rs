@@ -13,12 +13,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use matrix_pickle::Decode;
 use serde::{Deserialize, Serialize};
 
 use crate::Curve25519PublicKey;
 
 /// The set of keys that were used to establish the Olm Session,
-#[derive(Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Deserialize, Serialize, PartialEq, Eq, Decode)]
 pub struct SessionKeys {
     pub identity_key: Curve25519PublicKey,
     pub base_key: Curve25519PublicKey,
@@ -32,18 +33,5 @@ impl std::fmt::Debug for SessionKeys {
             .field("base_key", &self.base_key.to_base64())
             .field("one_time_key", &self.one_time_key.to_base64())
             .finish()
-    }
-}
-
-#[cfg(feature = "libolm-compat")]
-impl crate::utilities::Decode for SessionKeys {
-    fn decode(
-        reader: &mut impl std::io::Read,
-    ) -> Result<Self, crate::utilities::LibolmDecodeError> {
-        Ok(Self {
-            identity_key: Curve25519PublicKey::decode(reader)?,
-            base_key: Curve25519PublicKey::decode(reader)?,
-            one_time_key: Curve25519PublicKey::decode(reader)?,
-        })
     }
 }

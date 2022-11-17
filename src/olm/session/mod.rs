@@ -43,7 +43,7 @@ use super::{
 use crate::hazmat::olm::MessageKey;
 use crate::{
     olm::messages::{Message, OlmMessage, PreKeyMessage},
-    utilities::{base64_encode, pickle, unpickle, DecodeSecret},
+    utilities::{base64_encode, pickle, unpickle},
     Curve25519PublicKey, PickleError,
 };
 
@@ -329,55 +329,30 @@ impl Session {
         pickle_key: &[u8],
     ) -> Result<Self, crate::LibolmPickleError> {
         use chain_key::ChainKey;
+        use matrix_pickle::Decode;
         use message_key::RemoteMessageKey;
         use ratchet::{Ratchet, RatchetKey};
         use root_key::RootKey;
 
-        use crate::{
-            types::Curve25519SecretKey,
-            utilities::{unpickle_libolm, Decode},
-        };
+        use crate::{types::Curve25519SecretKey, utilities::unpickle_libolm};
 
-        #[derive(Debug, Zeroize)]
+        #[derive(Debug, Decode, Zeroize)]
         #[zeroize(drop)]
         struct SenderChain {
             public_ratchet_key: [u8; 32],
+            #[secret]
             secret_ratchet_key: Box<[u8; 32]>,
             chain_key: Box<[u8; 32]>,
             chain_key_index: u32,
         }
 
-        impl Decode for SenderChain {
-            fn decode(
-                reader: &mut impl std::io::Read,
-            ) -> Result<Self, crate::utilities::LibolmDecodeError> {
-                Ok(Self {
-                    public_ratchet_key: <[u8; 32]>::decode(reader)?,
-                    secret_ratchet_key: <[u8; 32]>::decode_secret(reader)?,
-                    chain_key: <[u8; 32]>::decode_secret(reader)?,
-                    chain_key_index: u32::decode(reader)?,
-                })
-            }
-        }
-
-        #[derive(Debug, Zeroize)]
+        #[derive(Debug, Decode, Zeroize)]
         #[zeroize(drop)]
         struct ReceivingChain {
             public_ratchet_key: [u8; 32],
+            #[secret]
             chain_key: Box<[u8; 32]>,
             chain_key_index: u32,
-        }
-
-        impl Decode for ReceivingChain {
-            fn decode(
-                reader: &mut impl std::io::Read,
-            ) -> Result<Self, crate::utilities::LibolmDecodeError> {
-                Ok(Self {
-                    public_ratchet_key: <[u8; 32]>::decode(reader)?,
-                    chain_key: <[u8; 32]>::decode_secret(reader)?,
-                    chain_key_index: u32::decode(reader)?,
-                })
-            }
         }
 
         impl From<&ReceivingChain> for ReceiverChain {
@@ -392,24 +367,13 @@ impl Session {
             }
         }
 
-        #[derive(Debug, Zeroize)]
+        #[derive(Debug, Decode, Zeroize)]
         #[zeroize(drop)]
         struct MessageKey {
             ratchet_key: [u8; 32],
+            #[secret]
             message_key: Box<[u8; 32]>,
             index: u32,
-        }
-
-        impl Decode for MessageKey {
-            fn decode(
-                reader: &mut impl std::io::Read,
-            ) -> Result<Self, crate::utilities::LibolmDecodeError> {
-                Ok(Self {
-                    ratchet_key: <[u8; 32]>::decode(reader)?,
-                    message_key: <[u8; 32]>::decode_secret(reader)?,
-                    index: u32::decode(reader)?,
-                })
-            }
         }
 
         impl From<&MessageKey> for RemoteMessageKey {
@@ -418,32 +382,18 @@ impl Session {
             }
         }
 
+        #[derive(Decode)]
         struct Pickle {
             #[allow(dead_code)]
             version: u32,
             #[allow(dead_code)]
             received_message: bool,
             session_keys: SessionKeys,
+            #[secret]
             root_key: Box<[u8; 32]>,
             sender_chains: Vec<SenderChain>,
             receiver_chains: Vec<ReceivingChain>,
             message_keys: Vec<MessageKey>,
-        }
-
-        impl Decode for Pickle {
-            fn decode(
-                reader: &mut impl std::io::Read,
-            ) -> Result<Self, crate::utilities::LibolmDecodeError> {
-                Ok(Self {
-                    version: u32::decode(reader)?,
-                    received_message: bool::decode(reader)?,
-                    session_keys: SessionKeys::decode(reader)?,
-                    root_key: <[u8; 32]>::decode_secret(reader)?,
-                    sender_chains: Vec::decode(reader)?,
-                    receiver_chains: Vec::decode(reader)?,
-                    message_keys: Vec::decode(reader)?,
-                })
-            }
         }
 
         impl Drop for Pickle {
