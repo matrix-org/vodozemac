@@ -373,6 +373,45 @@ impl Account {
         unpickle_libolm::<Pickle, _>(pickle, pickle_key, PICKLE_VERSION)
     }
 
+    /// Pickle an [`Account`] into a libolm pickle format.
+    ///
+    /// This pickle can be restored using the `[Account::from_libolm_pickle]`
+    /// method, or can be used in the [`libolm`] C library.
+    ///
+    /// The pickle will be encryptd using the pickle key.
+    ///
+    /// *Note*: This method might be lossy, the vodozemac [`Account`] has the
+    /// ability to hold more one-time keys compared to the [`libolm`]
+    /// variant.
+    ///
+    /// ⚠️  *Security warning*: The pickle key will get expanded into a AES key
+    /// and IV in a deterministic manner, this might lead to IV reuse if the
+    /// same pickle key is used multiple times.
+    ///
+    /// [`libolm`]: https://gitlab.matrix.org/matrix-org/olm/
+    ///
+    /// # Examples
+    /// ```
+    /// use vodozemac::olm::Account;
+    /// use olm_rs::{account::OlmAccount, PicklingMode};
+    /// let account = Account::new();
+    ///
+    /// let export = account
+    ///     .to_libolm_pickle(&[0u8; 32])
+    ///     .expect("We should be able to pickle a freshly created Account");
+    ///
+    /// let unpickled = OlmAccount::unpickle(
+    ///     export,
+    ///     PicklingMode::Encrypted { key: [0u8; 32].to_vec() },
+    /// ).expect("We should be able to unpickle our exported Account");
+    /// ```
+    #[cfg(feature = "libolm-compat")]
+    pub fn to_libolm_pickle(&self, pickle_key: &[u8]) -> Result<String, crate::LibolmPickleError> {
+        use self::libolm::Pickle;
+        use crate::utilities::pickle_libolm;
+        pickle_libolm::<Pickle>(self.into(), pickle_key)
+    }
+
     #[cfg(all(any(fuzzing, test), feature = "libolm-compat"))]
     pub fn from_decrypted_libolm_pickle(pickle: &[u8]) -> Result<Self, crate::LibolmPickleError> {
         use std::io::Cursor;
@@ -436,7 +475,7 @@ impl From<AccountPickle> for Account {
 
 #[cfg(feature = "libolm-compat")]
 mod libolm {
-    use matrix_pickle::{Decode, DecodeError};
+    use matrix_pickle::{Decode, DecodeError, Encode, EncodeError};
     use zeroize::Zeroize;
 
     use super::{
@@ -447,10 +486,10 @@ mod libolm {
     use crate::{
         types::{Curve25519Keypair, Curve25519SecretKey},
         utilities::LibolmEd25519Keypair,
-        Ed25519Keypair, KeyId,
+        Curve25519PublicKey, Ed25519Keypair, KeyId,
     };
 
-    #[derive(Debug, Zeroize, Decode)]
+    #[derive(Debug, Zeroize, Encode, Decode)]
     #[zeroize(drop)]
     struct OneTimeKey {
         key_id: u32,
@@ -495,7 +534,30 @@ mod libolm {
         }
     }
 
-    #[derive(Zeroize, Decode)]
+    impl Encode for FallbackKeysArray {
+        fn encode(&self, writer: &mut impl std::io::Write) -> Result<usize, EncodeError> {
+            let ret = match (&self.fallback_key, &self.previous_fallback_key) {
+                (None, None) => 0u8.encode(writer)?,
+                (Some(key), None) | (None, Some(key)) => {
+                    let mut ret = 1u8.encode(writer)?;
+                    ret += key.encode(writer)?;
+
+                    ret
+                }
+                (Some(key), Some(previous_key)) => {
+                    let mut ret = 2u8.encode(writer)?;
+                    ret += key.encode(writer)?;
+                    ret += previous_key.encode(writer)?;
+
+                    ret
+                }
+            };
+
+            Ok(ret)
+        }
+    }
+
+    #[derive(Zeroize, Encode, Decode)]
     #[zeroize(drop)]
     pub(super) struct Pickle {
         version: u32,
@@ -505,6 +567,65 @@ mod libolm {
         one_time_keys: Vec<OneTimeKey>,
         fallback_keys: FallbackKeysArray,
         next_key_id: u32,
+    }
+
+    impl TryFrom<&FallbackKey> for OneTimeKey {
+        type Error = ();
+
+        fn try_from(key: &FallbackKey) -> Result<Self, ()> {
+            Ok(OneTimeKey {
+                key_id: key.key_id.0.try_into().map_err(|_| ())?,
+                published: key.published(),
+                public_key: key.public_key().to_bytes(),
+                private_key: key.secret_key().to_bytes().into(),
+            })
+        }
+    }
+
+    impl From<&Account> for Pickle {
+        fn from(account: &Account) -> Self {
+            let one_time_keys: Vec<_> = account
+                .one_time_keys
+                .secret_keys()
+                .iter()
+                .filter_map(|(key_id, secret_key)| {
+                    Some(OneTimeKey {
+                        key_id: key_id.0.try_into().ok()?,
+                        published: account.one_time_keys.is_secret_key_published(key_id),
+                        public_key: Curve25519PublicKey::from(secret_key).to_bytes(),
+                        private_key: secret_key.to_bytes().into(),
+                    })
+                })
+                .collect();
+
+            let fallback_keys = FallbackKeysArray {
+                fallback_key: account
+                    .fallback_keys
+                    .fallback_key
+                    .as_ref()
+                    .and_then(|f| f.try_into().ok()),
+                previous_fallback_key: account
+                    .fallback_keys
+                    .previous_fallback_key
+                    .as_ref()
+                    .and_then(|f| f.try_into().ok()),
+            };
+
+            let next_key_id = account.one_time_keys.next_key_id.try_into().unwrap_or_default();
+
+            Self {
+                version: 4,
+                ed25519_keypair: LibolmEd25519Keypair {
+                    private_key: account.signing_key.expanded_secret_key(),
+                    public_key: account.signing_key.public_key().as_bytes().to_owned(),
+                },
+                public_curve25519_key: account.diffie_hellman_key.public_key().to_bytes(),
+                private_curve25519_key: account.diffie_hellman_key.secret_key().to_bytes().into(),
+                one_time_keys,
+                fallback_keys,
+                next_key_id,
+            }
+        }
     }
 
     impl TryFrom<Pickle> for Account {
@@ -562,7 +683,7 @@ mod test {
             messages::{OlmMessage, PreKeyMessage},
             AccountPickle,
         },
-        run_corpus, Curve25519PublicKey as PublicKey,
+        run_corpus, Curve25519PublicKey as PublicKey, Ed25519Signature,
     };
 
     const PICKLE_KEY: [u8; 32] = [0u8; 32];
@@ -900,5 +1021,58 @@ mod test {
         run_corpus("olm-account-unpickling", |data| {
             let _ = Account::from_decrypted_libolm_pickle(data);
         });
+    }
+
+    #[test]
+    fn libolm_pickle_cycle() -> Result<()> {
+        let message = "It's a secret to everybody";
+
+        let olm = OlmAccount::new();
+        olm.generate_one_time_keys(10);
+        olm.generate_fallback_key();
+
+        let olm_signature = olm.sign(message);
+
+        let key = b"DEFAULT_PICKLE_KEY";
+        let pickle = olm.pickle(olm_rs::PicklingMode::Encrypted { key: key.to_vec() });
+
+        let account = Account::from_libolm_pickle(&pickle, key).unwrap();
+        let vodozemac_pickle = account.to_libolm_pickle(key).unwrap();
+        let _ = Account::from_libolm_pickle(&vodozemac_pickle, key).unwrap();
+
+        let vodozemac_signature = account.sign(message);
+        let olm_signature = Ed25519Signature::from_base64(&olm_signature)
+            .expect("We should be able to parse a signature produced by libolm");
+        account
+            .identity_keys()
+            .ed25519
+            .verify(message.as_bytes(), &olm_signature)
+            .expect("We should be able to verify the libolm signature with our vodozemac Account");
+
+        let unpickled = OlmAccount::unpickle(
+            vodozemac_pickle,
+            olm_rs::PicklingMode::Encrypted { key: key.to_vec() },
+        )
+        .unwrap();
+
+        let utility = olm_rs::utility::OlmUtility::new();
+        utility
+            .ed25519_verify(
+                unpickled.parsed_identity_keys().ed25519(),
+                message,
+                vodozemac_signature.to_base64(),
+            )
+            .expect("We should be able to verify the signature vodozemac created");
+        utility
+            .ed25519_verify(
+                unpickled.parsed_identity_keys().ed25519(),
+                message,
+                olm_signature.to_base64(),
+            )
+            .expect("We should be able to verify the original signature from libolm");
+
+        assert_eq!(olm.parsed_identity_keys(), unpickled.parsed_identity_keys());
+
+        Ok(())
     }
 }

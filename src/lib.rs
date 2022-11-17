@@ -266,6 +266,9 @@ pub enum LibolmPickleError {
     /// The payload of the pickle could not be decoded.
     #[error(transparent)]
     Decode(#[from] matrix_pickle::DecodeError),
+    /// The object could not be encoded as a pickle.
+    #[error(transparent)]
+    Encode(#[from] matrix_pickle::EncodeError),
 }
 
 /// Error type describing the different ways message decoding can fail.
