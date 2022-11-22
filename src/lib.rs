@@ -299,3 +299,6 @@ pub enum DecodeError {
     #[error("The message wasn't valid base64: {0}")]
     Base64(#[from] Base64DecodeError),
 }
+
+/// The version of vodozemac that is being used.
+pub static VERSION: &str = env!("CARGO_PKG_VERSION");
