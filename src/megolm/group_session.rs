@@ -153,16 +153,34 @@ impl GroupSession {
         pickle: &str,
         pickle_key: &[u8],
     ) -> Result<Self, crate::LibolmPickleError> {
-        use crate::{megolm::group_session::libolm_compat::Pickle, utilities::unpickle_libolm};
+        use crate::{
+            megolm::group_session::libolm_compat::{PICKLE_VERSION, Pickle},
+            utilities::unpickle_libolm,
+        };
 
-        const PICKLE_VERSION: u32 = 1;
         unpickle_libolm::<Pickle, _>(pickle, pickle_key, PICKLE_VERSION)
+    }
+
+    /// Pickle an [`GroupSession`] into a libolm pickle format.
+    ///
+    /// This pickle can be restored using the
+    /// [`InboundGroupSession::from_libolm_pickle`] method, or can be used in
+    /// the [`libolm`] C library.
+    ///
+    /// The pickle will be encryptd using the pickle key.
+    ///
+    /// [`libolm`]: https://gitlab.matrix.org/matrix-org/olm/
+    #[cfg(feature = "libolm-compat")]
+    pub fn to_libolm_pickle(&self, pickle_key: &[u8]) -> Result<String, crate::LibolmPickleError> {
+        use crate::{megolm::group_session::libolm_compat::Pickle, utilities::pickle_libolm};
+
+        pickle_libolm::<Pickle>(self.into(), pickle_key)
     }
 }
 
 #[cfg(feature = "libolm-compat")]
 mod libolm_compat {
-    use matrix_pickle::Decode;
+    use matrix_pickle::{Decode, Encode};
     use zeroize::{Zeroize, ZeroizeOnDrop};
 
     use super::GroupSession;
@@ -172,11 +190,26 @@ mod libolm_compat {
         utilities::LibolmEd25519Keypair,
     };
 
-    #[derive(Zeroize, ZeroizeOnDrop, Decode)]
+    pub const PICKLE_VERSION: u32 = 1;
+
+    #[derive(Zeroize, ZeroizeOnDrop, Decode, Encode)]
     pub(super) struct Pickle {
         version: u32,
         ratchet: LibolmRatchetPickle,
         ed25519_keypair: LibolmEd25519Keypair,
+    }
+
+    impl From<&GroupSession> for Pickle {
+        fn from(g: &GroupSession) -> Self {
+            Self {
+                version: PICKLE_VERSION,
+                ratchet: (&g.ratchet).into(),
+                ed25519_keypair: LibolmEd25519Keypair {
+                    public_key: g.signing_key.public_key().as_bytes().to_owned(),
+                    private_key: g.signing_key.expanded_secret_key(),
+                },
+            }
+        }
     }
 
     impl TryFrom<Pickle> for GroupSession {
