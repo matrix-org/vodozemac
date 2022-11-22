@@ -15,7 +15,7 @@
 use std::fmt::Display;
 
 use base64::decoded_len_estimate;
-use matrix_pickle::{Decode, DecodeError};
+use matrix_pickle::{Decode, DecodeError, Encode};
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use x25519_dalek::{EphemeralSecret, PublicKey, ReusableSecret, SharedSecret, StaticSecret};
@@ -115,6 +115,15 @@ impl Decode for Curve25519PublicKey {
         let key = <[u8; 32]>::decode(reader)?;
 
         Ok(Curve25519PublicKey::from(key))
+    }
+}
+
+impl Encode for Curve25519PublicKey {
+    fn encode(
+        &self,
+        writer: &mut impl std::io::Write,
+    ) -> Result<usize, matrix_pickle::EncodeError> {
+        self.inner.as_bytes().encode(writer)
     }
 }
 

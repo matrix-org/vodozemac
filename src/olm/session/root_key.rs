@@ -70,6 +70,13 @@ impl RemoteRootKey {
         Self { key: bytes }
     }
 
+    /// Get the [`RemoteRootKey`] as a boxed slice of bytes.
+    #[cfg(feature = "libolm-compat")]
+    #[allow(clippy::borrowed_box)]
+    pub fn as_bytes(&self) -> &Box<[u8; 32]> {
+        &self.key
+    }
+
     pub(super) fn advance(
         &self,
         remote_ratchet_key: &RemoteRatchetKey,
@@ -93,6 +100,13 @@ impl RemoteRootKey {
 impl RootKey {
     pub(super) const fn new(bytes: Box<[u8; 32]>) -> Self {
         Self { key: bytes }
+    }
+
+    /// Get the [`RootKey`] as a boxed slice of bytes.
+    #[cfg(feature = "libolm-compat")]
+    #[allow(clippy::borrowed_box)]
+    pub fn as_bytes(&self) -> &Box<[u8; 32]> {
+        &self.key
     }
 
     pub(super) fn advance(
