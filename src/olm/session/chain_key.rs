@@ -78,6 +78,12 @@ impl RemoteChainKey {
         Self { key: bytes, index: index.into() }
     }
 
+    #[cfg(feature = "libolm-compat")]
+    #[allow(clippy::borrowed_box)]
+    pub(super) fn as_bytes(&self) -> &Box<[u8; 32]> {
+        &self.key
+    }
+
     pub(super) fn advance(&mut self) {
         let output = advance(&self.key).into_bytes();
         #[allow(deprecated)]
@@ -105,6 +111,13 @@ impl ChainKey {
         Self { key: bytes, index: index.into() }
     }
 
+    /// Get the chain key as a boxed slice of bytes.
+    #[cfg(feature = "libolm-compat")]
+    #[allow(clippy::borrowed_box)]
+    pub(super) fn as_bytes(&self) -> &Box<[u8; 32]> {
+        &self.key
+    }
+
     pub(super) fn advance(&mut self) {
         let output = advance(&self.key).into_bytes();
         #[allow(deprecated)]
@@ -112,6 +125,10 @@ impl ChainKey {
         self.index += 1;
     }
 
+    /// Get the chain index of this [`ChainKey`]
+    ///
+    /// The chain index indicates how many times the key has been advanced using
+    /// [`ChainKey::advance`].
     pub(super) const fn index(&self) -> u64 {
         self.index
     }
