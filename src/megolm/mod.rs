@@ -16,7 +16,7 @@
 
 mod group_session;
 mod inbound_group_session;
-mod message;
+pub(crate) mod message;
 mod ratchet;
 mod session_config;
 mod session_keys;
@@ -64,8 +64,11 @@ mod test {
         outbound_group_session::OlmOutboundGroupSession,
     };
 
-    use super::{GroupSession, InboundGroupSession};
-    use crate::megolm::{GroupSessionPickle, InboundGroupSessionPickle, SessionConfig, SessionKey};
+    use super::{ExportedSessionKey, GroupSession, InboundGroupSession, MegolmMessage};
+    use crate::{
+        megolm::{GroupSessionPickle, InboundGroupSessionPickle, SessionConfig, SessionKey},
+        run_corpus,
+    };
 
     const PICKLE_KEY: [u8; 32] = [0u8; 32];
 
@@ -285,5 +288,30 @@ mod test {
         assert_eq!(decrypted.message_index, 0);
 
         Ok(())
+    }
+
+    #[test]
+    fn fuzz_corpus_decoding() {
+        run_corpus("megolm-decoding", |data| {
+            let _ = MegolmMessage::from_bytes(data);
+        });
+    }
+
+    #[test]
+    fn fuzz_corpus_session_creation() {
+        run_corpus("megolm-session-creation", |data| {
+            if let Ok(session_key) = SessionKey::from_bytes(data) {
+                let _ = InboundGroupSession::new(&session_key, Default::default());
+            }
+        });
+    }
+
+    #[test]
+    fn fuzz_corpus_session_import() {
+        run_corpus("megolm-session-import", |data| {
+            if let Ok(session_key) = ExportedSessionKey::from_bytes(data) {
+                let _ = InboundGroupSession::import(&session_key, Default::default());
+            }
+        });
     }
 }

@@ -1,0 +1,7 @@
+[default-config]
+debug = false
+verbose = false
+exclude-files = [
+    "afl/*",
+    "contrib/*",
+]

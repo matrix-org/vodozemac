@@ -14,8 +14,10 @@
 
 use std::fmt::Display;
 
+#[cfg(not(fuzzing))]
+use ed25519_dalek::Verifier;
 use ed25519_dalek::{
-    ExpandedSecretKey, Keypair, PublicKey, SecretKey, Signature, Verifier, PUBLIC_KEY_LENGTH,
+    ExpandedSecretKey, Keypair, PublicKey, SecretKey, Signature, PUBLIC_KEY_LENGTH,
     SIGNATURE_LENGTH,
 };
 use rand::thread_rng;
@@ -235,6 +237,7 @@ impl Ed25519PublicKey {
     /// [RFC8032]: https://datatracker.ietf.org/doc/html/rfc8032#section-5.1.7
     /// [README]: https://github.com/dalek-cryptography/ed25519-dalek#a-note-on-signature-malleability
     /// [this]: https://hdevalence.ca/blog/2020-10-04-its-25519am
+    #[cfg(not(fuzzing))]
     pub fn verify(
         &self,
         message: &[u8],
@@ -245,6 +248,15 @@ impl Ed25519PublicKey {
         } else {
             Ok(self.0.verify(message, &signature.0)?)
         }
+    }
+
+    #[cfg(fuzzing)]
+    pub fn verify(
+        &self,
+        _message: &[u8],
+        _signature: &Ed25519Signature,
+    ) -> Result<(), SignatureError> {
+        Ok(())
     }
 }
 

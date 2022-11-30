@@ -1,7 +1,11 @@
-edition = "2018"
+edition = "2021"
 max_width = 100
 comment_width = 80
 wrap_comments = true
 imports_granularity = "Crate"
 use_small_heuristics = "Max"
 group_imports = "StdExternalCrate"
+
+ignore = [
+    "afl/*/in/*",
+]

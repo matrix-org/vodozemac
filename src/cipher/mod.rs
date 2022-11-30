@@ -162,6 +162,7 @@ impl Cipher {
         ciphertext
     }
 
+    #[cfg(not(fuzzing))]
     pub fn verify_mac(&self, message: &[u8], tag: &Mac) -> Result<(), MacError> {
         let mut hmac = self.get_hmac();
 
@@ -169,10 +170,25 @@ impl Cipher {
         hmac.verify_slice(tag.as_bytes())
     }
 
+    #[cfg(not(fuzzing))]
     pub fn verify_truncated_mac(&self, message: &[u8], tag: &[u8]) -> Result<(), MacError> {
         let mut hmac = self.get_hmac();
 
         hmac.update(message);
         hmac.verify_truncated_left(tag)
+    }
+
+    /// A verify_mac method that always succeeds.
+    ///
+    /// Useful if we're fuzzing vodozemac, since MAC verification discards a lot
+    /// of inputs right away.
+    #[cfg(fuzzing)]
+    pub fn verify_mac(&self, _: &[u8], _: &Mac) -> Result<(), MacError> {
+        Ok(())
+    }
+
+    #[cfg(fuzzing)]
+    pub fn verify_truncated_mac(&self, _: &[u8], _: &[u8]) -> Result<(), MacError> {
+        Ok(())
     }
 }

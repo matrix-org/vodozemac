@@ -302,3 +302,31 @@ pub enum DecodeError {
 
 /// The version of vodozemac that is being used.
 pub static VERSION: &str = env!("CARGO_PKG_VERSION");
+
+#[cfg(test)]
+fn corpus_data_path(fuzz_target: &str) -> std::path::PathBuf {
+    let manifest_dir =
+        std::env::var("CARGO_MANIFEST_DIR").expect("Cargo always sets the manifest dir");
+
+    let mut afl_dir = std::path::PathBuf::from(manifest_dir);
+    afl_dir.push("afl");
+    afl_dir.push(fuzz_target);
+    afl_dir.push("in");
+
+    afl_dir
+}
+
+#[cfg(test)]
+fn run_corpus<F>(fuzz_target: &str, method: F)
+where
+    F: FnOnce(&[u8]) + Copy,
+{
+    let dir = corpus_data_path(fuzz_target);
+    let corpus = std::fs::read_dir(dir).expect("Couldn't read the corpus directory");
+
+    for input in corpus {
+        let input = input.expect("Couldn't read the input file");
+        let data = std::fs::read(input.path()).expect("Couldn't read the input file");
+        method(&data)
+    }
+}

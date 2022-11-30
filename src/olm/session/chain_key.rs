@@ -42,7 +42,7 @@ fn expand_chain_key(key: &[u8; 32]) -> Box<[u8; 32]> {
 
 fn advance(key: &[u8; 32]) -> CtOutput<Hmac<Sha256>> {
     let mut mac = Hmac::<Sha256>::new_from_slice(key)
-        .expect("Coulnd't create a valid Hmac object to advance the ratchet");
+        .expect("Couldn't create a valid Hmac object to advance the ratchet");
     mac.update(ADVANCEMENT_SEED);
 
     mac.finalize()
