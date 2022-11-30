@@ -21,20 +21,22 @@ $ cargo install afl
 # Fuzzing
 
 To start fuzzing using one of the provided harnesses enter the subdirectory of
-the harness:
+the harness.
+
+For example,
 
 ```bash
 $ cd afl/olm-message-decoding
 ```
 
-Build the harness using the cargo afl command:
+Build the harness using the `cargo afl` command:
 
 ```bash
 $ cargo afl build
 ```
 
-Start fuzzing using the cargo afl command:
+Start fuzzing using the `cargo afl` command, for example:
 
 ```bash
-$ cargo afl fuzz -i in -o out target/debug/vodozemac-afl
+$ cargo afl fuzz -i in -o out target/debug/olm-message-decoding
 ```
