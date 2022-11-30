@@ -15,7 +15,7 @@ use clap::Parser;
 /// Parse an Olm account from a file and print its identity keys on success.
 #[derive(Parser)]
 struct Cli {
-    /// The path to the file to read
+    /// The path to the Olm account file
     #[clap(parse(from_os_str))]
     path: std::path::PathBuf,
 }
