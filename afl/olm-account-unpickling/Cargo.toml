@@ -1,5 +1,5 @@
 [package]
-name = "vodozemac-afl"
+name = "olm-account-unpickling"
 version = "0.1.0"
 publish = false
 edition = "2021"
