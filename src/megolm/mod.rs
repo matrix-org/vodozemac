@@ -36,16 +36,15 @@ fn default_config() -> SessionConfig {
 
 #[cfg(feature = "libolm-compat")]
 mod libolm {
-    use std::io::Read;
-
+    use matrix_pickle::Decode;
     use zeroize::Zeroize;
 
     use super::ratchet::Ratchet;
-    use crate::utilities::{Decode, DecodeSecret};
 
-    #[derive(Zeroize)]
+    #[derive(Zeroize, Decode)]
     #[zeroize(drop)]
     pub(crate) struct LibolmRatchetPickle {
+        #[secret]
         ratchet: Box<[u8; 128]>,
         index: u32,
     }
@@ -53,15 +52,6 @@ mod libolm {
     impl From<&LibolmRatchetPickle> for Ratchet {
         fn from(pickle: &LibolmRatchetPickle) -> Self {
             Ratchet::from_bytes(pickle.ratchet.clone(), pickle.index)
-        }
-    }
-
-    impl Decode for LibolmRatchetPickle {
-        fn decode(reader: &mut impl Read) -> Result<Self, crate::utilities::LibolmDecodeError> {
-            Ok(LibolmRatchetPickle {
-                ratchet: <[u8; 128]>::decode_secret(reader)?,
-                index: u32::decode(reader)?,
-            })
         }
     }
 }

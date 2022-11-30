@@ -146,31 +146,20 @@ impl GroupSession {
         pickle: &str,
         pickle_key: &[u8],
     ) -> Result<Self, crate::LibolmPickleError> {
-        use std::io::Read;
-
+        use matrix_pickle::Decode;
         use zeroize::Zeroize;
 
         use crate::{
             megolm::libolm::LibolmRatchetPickle,
-            utilities::{unpickle_libolm, Decode, LibolmEd25519Keypair},
+            utilities::{unpickle_libolm, LibolmEd25519Keypair},
         };
 
-        #[derive(Zeroize)]
+        #[derive(Zeroize, Decode)]
         #[zeroize(drop)]
         struct Pickle {
             version: u32,
             ratchet: LibolmRatchetPickle,
             ed25519_keypair: LibolmEd25519Keypair,
-        }
-
-        impl Decode for Pickle {
-            fn decode(reader: &mut impl Read) -> Result<Self, crate::utilities::LibolmDecodeError> {
-                Ok(Pickle {
-                    version: u32::decode(reader)?,
-                    ratchet: LibolmRatchetPickle::decode(reader)?,
-                    ed25519_keypair: LibolmEd25519Keypair::decode(reader)?,
-                })
-            }
         }
 
         impl TryFrom<Pickle> for GroupSession {

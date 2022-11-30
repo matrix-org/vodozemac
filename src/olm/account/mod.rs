@@ -361,8 +361,9 @@ impl Account {
     pub fn from_decrypted_libolm_pickle(pickle: &[u8]) -> Result<Self, crate::LibolmPickleError> {
         use std::io::Cursor;
 
+        use matrix_pickle::Decode;
+
         use self::libolm::Pickle;
-        use crate::utilities::Decode;
 
         let mut cursor = Cursor::new(&pickle);
         let pickle = Pickle::decode(&mut cursor)?;
@@ -419,6 +420,7 @@ impl From<AccountPickle> for Account {
 
 #[cfg(feature = "libolm-compat")]
 mod libolm {
+    use matrix_pickle::{Decode, DecodeError};
     use zeroize::Zeroize;
 
     use super::{
@@ -428,30 +430,17 @@ mod libolm {
     };
     use crate::{
         types::{Curve25519Keypair, Curve25519SecretKey},
-        utilities::{Decode, DecodeSecret},
+        utilities::LibolmEd25519Keypair,
         Ed25519Keypair, KeyId,
     };
 
-    #[derive(Debug, Zeroize)]
+    #[derive(Debug, Zeroize, Decode)]
     #[zeroize(drop)]
     struct OneTimeKey {
         key_id: u32,
         published: bool,
         public_key: [u8; 32],
         private_key: Box<[u8; 32]>,
-    }
-
-    impl Decode for OneTimeKey {
-        fn decode(
-            reader: &mut impl std::io::Read,
-        ) -> Result<Self, crate::utilities::LibolmDecodeError> {
-            let key_id = u32::decode(reader)?;
-            let published = bool::decode(reader)?;
-            let public_key = <[u8; 32]>::decode(reader)?;
-            let private_key = <[u8; 32]>::decode_secret(reader)?;
-
-            Ok(Self { key_id, published, public_key, private_key })
-        }
     }
 
     impl From<&OneTimeKey> for FallbackKey {
@@ -472,9 +461,7 @@ mod libolm {
     }
 
     impl Decode for FallbackKeysArray {
-        fn decode(
-            reader: &mut impl std::io::Read,
-        ) -> Result<Self, crate::utilities::LibolmDecodeError> {
+        fn decode(reader: &mut impl std::io::Read) -> Result<Self, DecodeError> {
             let count = u8::decode(reader)?;
 
             let (fallback_key, previous_fallback_key) = if count >= 1 {
@@ -492,41 +479,16 @@ mod libolm {
         }
     }
 
-    #[derive(Zeroize)]
+    #[derive(Zeroize, Decode)]
     #[zeroize(drop)]
     pub(super) struct Pickle {
         version: u32,
-        ed25519_keypair: crate::utilities::LibolmEd25519Keypair,
+        ed25519_keypair: LibolmEd25519Keypair,
         public_curve25519_key: [u8; 32],
         private_curve25519_key: Box<[u8; 32]>,
         one_time_keys: Vec<OneTimeKey>,
         fallback_keys: FallbackKeysArray,
         next_key_id: u32,
-    }
-
-    impl Decode for Pickle {
-        fn decode(
-            reader: &mut impl std::io::Read,
-        ) -> Result<Self, crate::utilities::LibolmDecodeError> {
-            let version = u32::decode(reader)?;
-
-            let ed25519_keypair = crate::utilities::LibolmEd25519Keypair::decode(reader)?;
-            let public_curve25519_key = <[u8; 32]>::decode(reader)?;
-            let private_curve25519_key = <[u8; 32]>::decode_secret(reader)?;
-            let one_time_keys = Vec::decode(reader)?;
-            let fallback_keys = FallbackKeysArray::decode(reader)?;
-            let next_key_id = u32::decode(reader)?;
-
-            Ok(Self {
-                version,
-                ed25519_keypair,
-                public_curve25519_key,
-                private_curve25519_key,
-                one_time_keys,
-                fallback_keys,
-                next_key_id,
-            })
-        }
     }
 
     impl TryFrom<Pickle> for Account {

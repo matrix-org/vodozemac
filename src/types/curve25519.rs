@@ -14,6 +14,7 @@
 
 use std::fmt::Display;
 
+use matrix_pickle::{Decode, DecodeError};
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use x25519_dalek::{EphemeralSecret, PublicKey, ReusableSecret, SharedSecret, StaticSecret};
@@ -51,7 +52,6 @@ impl Curve25519SecretKey {
     ///
     /// **Note**: This creates a copy of the key which won't be zeroized, the
     /// caller of the method needs to make sure to zeroize the returned array.
-    #[cfg(test)]
     pub fn to_bytes(&self) -> [u8; 32] {
         self.0.to_bytes()
     }
@@ -103,11 +103,8 @@ pub struct Curve25519PublicKey {
     pub(crate) inner: PublicKey,
 }
 
-#[cfg(feature = "libolm-compat")]
-impl crate::utilities::Decode for Curve25519PublicKey {
-    fn decode(
-        reader: &mut impl std::io::Read,
-    ) -> Result<Self, crate::utilities::LibolmDecodeError> {
+impl Decode for Curve25519PublicKey {
+    fn decode(reader: &mut impl std::io::Read) -> Result<Self, DecodeError> {
         let key = <[u8; 32]>::decode(reader)?;
 
         Ok(Curve25519PublicKey::from(key))

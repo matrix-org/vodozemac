@@ -10,7 +10,7 @@ version = "0.3.0"
 edition = "2021"
 keywords = ["matrix", "chat", "messaging", "olm"]
 license = "Apache-2.0"
-rust-version = "1.56"
+rust-version = "1.65"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -40,6 +40,7 @@ ed25519-dalek = { version = "1.0.1", default-features = false, features = [
 ] }
 hkdf = "0.12.3"
 hmac = "0.12.1"
+matrix-pickle = { version = "0.1.0" }
 pkcs7 = "0.3.0"
 prost = "0.11.0"
 rand = "0.7.3"

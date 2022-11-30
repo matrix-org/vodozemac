@@ -265,7 +265,7 @@ pub enum LibolmPickleError {
     InvalidSession,
     /// The payload of the pickle could not be decoded.
     #[error(transparent)]
-    Decode(#[from] crate::utilities::LibolmDecodeError),
+    Decode(#[from] matrix_pickle::DecodeError),
 }
 
 /// Error type describing the different ways message decoding can fail.
@@ -299,6 +299,9 @@ pub enum DecodeError {
     #[error("The message wasn't valid base64: {0}")]
     Base64(#[from] Base64DecodeError),
 }
+
+/// The version of vodozemac that is being used.
+pub static VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg(test)]
 fn corpus_data_path(fuzz_target: &str) -> std::path::PathBuf {
