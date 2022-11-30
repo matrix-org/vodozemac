@@ -12,7 +12,7 @@ fn main() {
 use clap::Parser;
 
 #[cfg(feature = "cli")]
-/// Search for a pattern in a file and display the lines that contain it.
+/// Parse an Olm account from a file and print its identity keys on success.
 #[derive(Parser)]
 struct Cli {
     /// The path to the file to read
