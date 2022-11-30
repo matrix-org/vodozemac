@@ -323,7 +323,7 @@ where
 
     for input in corpus {
         let input = input.expect("Couldn't read the input file");
-        let data = std::fs::read(input.path()).expect("Coulnd't read the input file");
+        let data = std::fs::read(input.path()).expect("Couldn't read the input file");
         method(&data)
     }
 }

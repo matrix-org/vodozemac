@@ -163,7 +163,7 @@ mod test {
         assert_eq!(store.key_ids_by_key.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
 
         let oldest_key_id =
-            store.private_keys.keys().next().copied().expect("Coulnd't get the first key id");
+            store.private_keys.keys().next().copied().expect("Couldn't get the first key ID");
 
         assert_eq!(oldest_key_id, KeyId(10));
     }
