@@ -172,7 +172,8 @@ impl Display for Curve25519PublicKey {
 
 impl std::fmt::Debug for Curve25519PublicKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Curve25519PublicKey({})", self.to_base64())
+        let s = format!("curve25519:{self}");
+        <str as std::fmt::Debug>::fmt(&s, f)
     }
 }
 
