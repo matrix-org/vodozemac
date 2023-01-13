@@ -268,7 +268,8 @@ impl Display for Ed25519PublicKey {
 
 impl std::fmt::Debug for Ed25519PublicKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Ed25519PublicKey({})", self.to_base64())
+        let s = format!("ed25519:{self}");
+        <str as std::fmt::Debug>::fmt(&s, f)
     }
 }
 
@@ -311,7 +312,8 @@ impl Display for Ed25519Signature {
 
 impl std::fmt::Debug for Ed25519Signature {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Ed25519Signature({})", self.to_base64())
+        let s = format!("ed25519:{self}");
+        <str as std::fmt::Debug>::fmt(&s, f)
     }
 }
 
