@@ -72,6 +72,13 @@ impl PreKeyMessage {
         self.session_keys
     }
 
+    /// Returns the globally unique session ID, in base64-encoded form.
+    ///
+    /// This is a shorthand helper of the [`SessionKeys::session_id()`] method.
+    pub fn session_id(&self) -> String {
+        self.session_keys.session_id()
+    }
+
     /// The actual message that contains the ciphertext.
     pub fn message(&self) -> &Message {
         &self.message

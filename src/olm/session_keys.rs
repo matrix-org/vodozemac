@@ -15,8 +15,9 @@
 
 use matrix_pickle::Decode;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
-use crate::Curve25519PublicKey;
+use crate::{utilities::base64_encode, Curve25519PublicKey};
 
 /// The set of keys that were used to establish the Olm Session,
 #[derive(Clone, Copy, Deserialize, Serialize, PartialEq, Eq, Decode)]
@@ -24,6 +25,29 @@ pub struct SessionKeys {
     pub identity_key: Curve25519PublicKey,
     pub base_key: Curve25519PublicKey,
     pub one_time_key: Curve25519PublicKey,
+}
+
+impl SessionKeys {
+    /// Returns the globally unique session ID which these [`SessionKeys`] will
+    /// produce.
+    ///
+    /// A session ID is the SHA256 of the concatenation of three `SessionKeys`,
+    /// the account's identity key, the ephemeral base key and the one-time
+    /// key which is used to establish the session.
+    ///
+    /// Due to the construction, every session ID is (probabilistically)
+    /// globally unique.
+    pub fn session_id(&self) -> String {
+        let sha = Sha256::new();
+
+        let digest = sha
+            .chain_update(self.identity_key.as_bytes())
+            .chain_update(self.base_key.as_bytes())
+            .chain_update(self.one_time_key.as_bytes())
+            .finalize();
+
+        base64_encode(digest)
+    }
 }
 
 impl std::fmt::Debug for SessionKeys {

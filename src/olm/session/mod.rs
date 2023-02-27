@@ -29,7 +29,6 @@ use ratchet::RemoteRatchetKey;
 use receiver_chain::ReceiverChain;
 use root_key::RemoteRootKey;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use thiserror::Error;
 use zeroize::Zeroize;
 
@@ -43,7 +42,7 @@ use super::{
 use crate::hazmat::olm::MessageKey;
 use crate::{
     olm::messages::{Message, OlmMessage, PreKeyMessage},
-    utilities::{base64_encode, pickle, unpickle},
+    utilities::{pickle, unpickle},
     Curve25519PublicKey, PickleError,
 };
 
@@ -201,20 +200,9 @@ impl Session {
 
     /// Returns the globally unique session ID, in base64-encoded form.
     ///
-    /// A session ID is the SHA256 of the concatenation of the account's
-    /// identity key, an ephemeral base key and the one-time key which was
-    /// used to establish the session. Due to the construction, every
-    /// session ID is (probabilistically) globally unique.
+    /// This is a shorthand helper of the [`SessionKeys::session_id()`] method.
     pub fn session_id(&self) -> String {
-        let sha = Sha256::new();
-
-        let digest = sha
-            .chain_update(self.session_keys.identity_key.as_bytes())
-            .chain_update(self.session_keys.base_key.as_bytes())
-            .chain_update(self.session_keys.one_time_key.as_bytes())
-            .finalize();
-
-        base64_encode(digest)
+        self.session_keys.session_id()
     }
 
     /// Have we ever received and decrypted a message from the other side?
