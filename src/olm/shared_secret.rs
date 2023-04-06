@@ -129,7 +129,7 @@ mod test {
         let rng = thread_rng();
 
         let alice_identity = StaticSecret::new();
-        let alice_one_time = ReusableSecret::new(rng);
+        let alice_one_time = ReusableSecret::random_from_rng(rng);
 
         let bob_identity = StaticSecret::new();
         let bob_one_time = StaticSecret::new();

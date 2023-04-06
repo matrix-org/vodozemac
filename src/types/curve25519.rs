@@ -32,7 +32,7 @@ impl Curve25519SecretKey {
     pub fn new() -> Self {
         let rng = thread_rng();
 
-        Self(Box::new(StaticSecret::new(rng)))
+        Self(Box::new(StaticSecret::random_from_rng(rng)))
     }
 
     /// Create a `Curve25519SecretKey` from the given slice of bytes.
