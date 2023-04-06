@@ -161,7 +161,7 @@ impl Account {
     ) -> Session {
         let rng = thread_rng();
 
-        let base_key = ReusableSecret::new(rng);
+        let base_key = ReusableSecret::random_from_rng(rng);
         let public_base_key = Curve25519PublicKey::from(&base_key);
 
         let shared_secret = Shared3DHSecret::new(

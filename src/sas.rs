@@ -223,7 +223,7 @@ impl Sas {
     pub fn new() -> Self {
         let rng = thread_rng();
 
-        let secret_key = EphemeralSecret::new(rng);
+        let secret_key = EphemeralSecret::random_from_rng(rng);
         let public_key = Curve25519PublicKey::from(&secret_key);
 
         Self { secret_key, public_key }
