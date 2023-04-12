@@ -842,6 +842,8 @@ mod test {
 
         let account_with_expanded_key = Account::from_libolm_pickle(&pickle, key)?;
 
+        // The clone is needed since we're later on using the account.
+        #[allow(clippy::redundant_clone)]
         let signing_key_clone = account_with_expanded_key.signing_key.clone();
         signing_key_clone.sign("You met with a terrible fate, haven’t you?".as_bytes());
         account_with_expanded_key.sign("You met with a terrible fate, haven’t you?");
