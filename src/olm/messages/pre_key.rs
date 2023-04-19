@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::fmt::Debug;
+
 use prost::Message as ProstMessage;
 use serde::{Deserialize, Serialize};
 
@@ -28,7 +30,7 @@ use crate::{
 /// Olm [`Message`].
 ///
 /// [`Session`]: crate::olm::Session
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct PreKeyMessage {
     pub(crate) session_keys: SessionKeys,
     pub(crate) message: Message,
@@ -215,6 +217,15 @@ impl TryFrom<&[u8]> for PreKeyMessage {
 
             Ok(Self { session_keys, message })
         }
+    }
+}
+
+impl Debug for PreKeyMessage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PreKeyMessage")
+            .field("session_keys", &self.session_keys)
+            .field("message", &self.message)
+            .finish()
     }
 }
 

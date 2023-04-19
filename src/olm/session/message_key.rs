@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::fmt::Debug;
+
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
 
@@ -37,6 +39,12 @@ impl Drop for MessageKey {
 pub(super) struct RemoteMessageKey {
     pub key: Box<[u8; 32]>,
     pub index: u64,
+}
+
+impl Debug for RemoteMessageKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RemoteMessageKey").field("index", &self.index).finish()
+    }
 }
 
 impl Drop for RemoteMessageKey {

@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::fmt::Debug;
+
 use prost::Message;
 use serde::{Deserialize, Serialize};
 
@@ -34,7 +36,7 @@ const VERSION: u8 = 4;
 /// [`InboundGroupSession`] necessary to decryp the message.
 ///
 /// [`InboundGroupSession`]: crate::megolm::InboundGroupSession
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct MegolmMessage {
     pub(super) version: u8,
     pub(super) ciphertext: Vec<u8>,
@@ -301,6 +303,15 @@ impl TryFrom<&[u8]> for MegolmMessage {
                 signature,
             })
         }
+    }
+}
+
+impl Debug for MegolmMessage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MegolmMessage")
+            .field("version", &self.version)
+            .field("message_index", &self.message_index)
+            .finish()
     }
 }
 

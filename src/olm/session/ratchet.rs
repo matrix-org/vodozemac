@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::fmt::Debug;
+
 use matrix_pickle::Decode;
 use serde::{Deserialize, Serialize};
 use x25519_dalek::SharedSecret;
@@ -29,9 +31,15 @@ pub(super) struct RatchetKey(Curve25519SecretKey);
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct RatchetPublicKey(Curve25519PublicKey);
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, Decode)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, Decode)]
 #[serde(transparent)]
 pub struct RemoteRatchetKey(Curve25519PublicKey);
+
+impl Debug for RemoteRatchetKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
 impl RatchetKey {
     pub fn new() -> Self {
@@ -40,6 +48,12 @@ impl RatchetKey {
 
     pub fn diffie_hellman(&self, other: &RemoteRatchetKey) -> SharedSecret {
         self.0.diffie_hellman(&other.0)
+    }
+}
+
+impl Default for RatchetKey {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

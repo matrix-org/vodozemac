@@ -108,6 +108,10 @@ impl ChainKey {
         self.index += 1;
     }
 
+    pub fn index(&self) -> u64 {
+        self.index
+    }
+
     pub fn create_message_key(&mut self, ratchet_key: RatchetPublicKey) -> MessageKey {
         let key = expand_chain_key(&self.key);
         let message_key = MessageKey::new(key, ratchet_key, self.index);

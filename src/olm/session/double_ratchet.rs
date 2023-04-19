@@ -30,6 +30,13 @@ pub(super) struct DoubleRatchet {
 }
 
 impl DoubleRatchet {
+    pub fn chain_index(&self) -> Option<u64> {
+        match &self.inner {
+            DoubleRatchetState::Inactive(_) => None,
+            DoubleRatchetState::Active(r) => Some(r.symmetric_key_ratchet.index()),
+        }
+    }
+
     pub fn next_message_key(&mut self) -> MessageKey {
         match &mut self.inner {
             DoubleRatchetState::Inactive(ratchet) => {

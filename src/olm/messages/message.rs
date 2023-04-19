@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::fmt::Debug;
+
 use prost::Message as ProstMessage;
 use serde::{Deserialize, Serialize};
 
@@ -30,7 +32,7 @@ const VERSION: u8 = 4;
 /// [`Session`] necessary to decrypt the message.
 ///
 /// [`Session`]: crate::olm::Session
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Message {
     pub(crate) version: u8,
     pub(crate) ratchet_key: Curve25519PublicKey,
@@ -237,6 +239,16 @@ impl TryFrom<&[u8]> for Message {
                 Ok(message)
             }
         }
+    }
+}
+
+impl Debug for Message {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Message")
+            .field("version", &self.version)
+            .field("ratchet_key", &self.ratchet_key)
+            .field("chain_index", &self.chain_index)
+            .finish()
     }
 }
 
