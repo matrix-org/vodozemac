@@ -274,7 +274,6 @@ impl Account {
     }
 
     /// Generates the supplied number of one time keys.
-    ///
     /// Returns the public parts of the one-time keys that were created and
     /// discarded.
     ///
