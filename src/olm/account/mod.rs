@@ -22,6 +22,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use x25519_dalek::ReusableSecret;
 
+pub use self::one_time_keys::OneTimeKeyGenerationResult;
 use self::{
     fallback_keys::FallbackKeys,
     one_time_keys::{OneTimeKeys, OneTimeKeysPickle},
@@ -273,8 +274,19 @@ impl Account {
     }
 
     /// Generates the supplied number of one time keys.
-    pub fn generate_one_time_keys(&mut self, count: usize) {
-        self.one_time_keys.generate(count);
+    /// Returns the public parts of the one-time keys that were created and
+    /// discarded.
+    ///
+    /// Our one-time key store inside the [`Account`] has a limited amount of
+    /// places for one-time keys, If we try to generate new ones while the store
+    /// is completely populated, the oldest one-time keys will get discarded
+    /// to make place for new ones.
+    pub fn generate_one_time_keys(&mut self, count: usize) -> OneTimeKeyGenerationResult {
+        self.one_time_keys.generate(count)
+    }
+
+    pub fn stored_one_time_key_count(&self) -> usize {
+        self.one_time_keys.private_keys.len()
     }
 
     /// Get the currently unpublished one-time keys.
@@ -829,6 +841,8 @@ mod test {
 
         let account_with_expanded_key = Account::from_libolm_pickle(&pickle, key)?;
 
+        // The clone is needed since we're later on using the account.
+        #[allow(clippy::redundant_clone)]
         let signing_key_clone = account_with_expanded_key.signing_key.clone();
         signing_key_clone.sign("You met with a terrible fate, haven’t you?".as_bytes());
         account_with_expanded_key.sign("You met with a terrible fate, haven’t you?");
@@ -866,8 +880,7 @@ mod test {
                 e => bail!("Expected a decryption error, got {:?}", e),
             }
             assert!(
-                !alice.one_time_keys.private_keys.is_empty()
-                    && !alice.one_time_keys.private_keys.is_empty(),
+                !alice.one_time_keys.private_keys.is_empty(),
                 "The one-time key was removed when it shouldn't"
             );
 

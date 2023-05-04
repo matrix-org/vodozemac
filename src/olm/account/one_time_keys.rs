@@ -32,6 +32,15 @@ pub(super) struct OneTimeKeys {
     pub key_ids_by_key: HashMap<Curve25519PublicKey, KeyId>,
 }
 
+/// The result type for the one-time key generation operation.
+pub struct OneTimeKeyGenerationResult {
+    /// The public part of the one-time keys that were newly generated.
+    pub created: Vec<Curve25519PublicKey>,
+    /// The public part of the one-time keys that had to be removed to make
+    /// space for the new ones.
+    pub removed: Vec<Curve25519PublicKey>,
+}
+
 impl OneTimeKeys {
     const MAX_ONE_TIME_KEYS: usize = 100 * PUBLIC_MAX_ONE_TIME_KEYS;
 
@@ -67,17 +76,29 @@ impl OneTimeKeys {
         key_id: KeyId,
         key: Curve25519SecretKey,
         published: bool,
-    ) {
-        if self.private_keys.len() >= Self::MAX_ONE_TIME_KEYS {
+    ) -> (Curve25519PublicKey, Option<Curve25519PublicKey>) {
+        // If we hit the max number of one-time keys we'd like to keep, first remove one
+        // before we create a new one.
+        let removed = if self.private_keys.len() >= Self::MAX_ONE_TIME_KEYS {
             if let Some(key_id) = self.private_keys.keys().next().copied() {
-                if let Some(private_key) = self.private_keys.remove(&key_id) {
+                let public_key = if let Some(private_key) = self.private_keys.remove(&key_id) {
                     let public_key = Curve25519PublicKey::from(&private_key);
                     self.key_ids_by_key.remove(&public_key);
-                }
+
+                    Some(public_key)
+                } else {
+                    None
+                };
 
                 self.unpublished_public_keys.remove(&key_id);
+
+                public_key
+            } else {
+                None
             }
-        }
+        } else {
+            None
+        };
 
         let public_key = Curve25519PublicKey::from(&key);
 
@@ -87,17 +108,32 @@ impl OneTimeKeys {
         if !published {
             self.unpublished_public_keys.insert(key_id, public_key);
         }
+
+        (public_key, removed)
     }
 
-    pub fn generate(&mut self, count: usize) {
-        for _ in 0..count {
-            let key_id = KeyId(self.next_key_id);
-            let key = Curve25519SecretKey::new();
+    fn generate_one_time_key(&mut self) -> (Curve25519PublicKey, Option<Curve25519PublicKey>) {
+        let key_id = KeyId(self.next_key_id);
+        let key = Curve25519SecretKey::new();
+        self.insert_secret_key(key_id, key, false)
+    }
 
-            self.insert_secret_key(key_id, key, false);
+    pub fn generate(&mut self, count: usize) -> OneTimeKeyGenerationResult {
+        let mut removed_keys = Vec::new();
+        let mut created_keys = Vec::new();
+
+        for _ in 0..count {
+            let (created, removed) = self.generate_one_time_key();
+
+            created_keys.push(created);
+            if let Some(removed) = removed {
+                removed_keys.push(removed);
+            }
 
             self.next_key_id = self.next_key_id.wrapping_add(1);
         }
+
+        OneTimeKeyGenerationResult { created: created_keys, removed: removed_keys }
     }
 }
 
@@ -156,6 +192,10 @@ mod test {
         assert!(store.unpublished_public_keys.is_empty());
         assert_eq!(store.private_keys.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
         assert_eq!(store.key_ids_by_key.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
+
+        let oldest_key_id =
+            store.private_keys.keys().next().copied().expect("Couldn't get the first key ID");
+        assert_eq!(oldest_key_id, KeyId(0));
 
         store.generate(10);
         assert_eq!(store.unpublished_public_keys.len(), 10);
