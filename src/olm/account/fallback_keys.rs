@@ -72,12 +72,16 @@ impl FallbackKeys {
         }
     }
 
-    pub fn generate_fallback_key(&mut self) {
+    pub fn generate_fallback_key(&mut self) -> Option<Curve25519PublicKey> {
         let key_id = KeyId(self.key_id);
         self.key_id += 1;
 
+        let ret = self.previous_fallback_key.take().map(|f| f.public_key());
+
         self.previous_fallback_key = self.fallback_key.take();
-        self.fallback_key = Some(FallbackKey::new(key_id))
+        self.fallback_key = Some(FallbackKey::new(key_id));
+
+        ret
     }
 
     pub fn get_secret_key(&self, public_key: &Curve25519PublicKey) -> Option<&Curve25519SecretKey> {
