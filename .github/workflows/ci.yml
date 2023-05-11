@@ -18,18 +18,13 @@ jobs:
       uses: actions/checkout@v3
 
     - name: Install rust
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@master
       with:
         toolchain: nightly
         components: rustfmt
-        profile: minimal
-        override: true
 
     - name: Cargo fmt
-      uses: actions-rs/cargo@v1
-      with:
-        command: fmt
-        args: --all -- --check
+      run: cargo fmt --all -- --check
 
   typos:
     name: Spell Check with Typos
@@ -52,20 +47,15 @@ jobs:
       uses: actions/checkout@v3
 
     - name: Install rust
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@master
       with:
         toolchain: nightly
         components: clippy
-        profile: minimal
-        override: true
 
     - uses: Swatinem/rust-cache@v2
 
     - name: Clippy
-      uses: actions-rs/cargo@v1
-      with:
-        command: clippy
-        args: --all-targets -- -D warnings
+      run: cargo clippy --all-targets -- -D warnings
 
   test:
     name: ${{ matrix.target.name }}
@@ -86,16 +76,11 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Install rust
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ format('{0}-{1}', matrix.channel, matrix.target.toolchain) }}
-          profile: minimal
-          override: true
 
       - uses: Swatinem/rust-cache@v2
 
       - name: Test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all-features
+        run: cargo test --all-features
