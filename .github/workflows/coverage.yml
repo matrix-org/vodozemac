@@ -22,26 +22,18 @@ jobs:
         ref: ${{ github.event.pull_request.head.sha }}
 
     - name: Install Rust
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@master
       with:
         toolchain: stable
-        profile: minimal
-        override: true
 
     - name: Load cache
       uses: Swatinem/rust-cache@v2
 
     - name: Install tarpaulin
-      uses: actions-rs/cargo@v1
-      with:
-        command: install
-        args: cargo-tarpaulin
+      run: cargo install cargo-tarpaulin
 
     - name: Run tarpaulin
-      uses: actions-rs/cargo@v1
-      with:
-        command: tarpaulin
-        args: --out Xml
+      run: cargo tarpaulin --out Xml
 
     - name: Upload to codecov.io
       uses: codecov/codecov-action@v1
