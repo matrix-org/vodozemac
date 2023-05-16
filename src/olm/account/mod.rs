@@ -306,8 +306,9 @@ impl Account {
     /// The fallback key will be used by other users to establish a `Session` if
     /// all the one-time keys on the server have been used up.
     ///
-    /// Returns the public Curve25519 key of a previous fallback key that has
-    /// now been removed from the [`Account`].
+    /// Returns the public Curve25519 key of the *previous* fallback key, that
+    /// is, the one that will get removed from the [`Account`] when this method
+    /// is called. This return value is mostly useful for logging purposes.
     pub fn generate_fallback_key(&mut self) -> Option<Curve25519PublicKey> {
         self.fallback_keys.generate_fallback_key()
     }
