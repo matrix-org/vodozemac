@@ -302,11 +302,6 @@ pub enum DecodeError {
 
 /// The version of vodozemac that is being used.
 pub static VERSION: &str = env!("CARGO_PKG_VERSION");
-/// The git commit hash of the vodozemac source tree at build time.
-pub static GIT_SHA: &str = env!("VERGEN_GIT_SHA");
-/// The output of the git describe command of the vodozemac source tree at build
-/// time.
-pub static GIT_DESCRIPTION: &str = env!("VERGEN_GIT_DESCRIBE");
 
 #[cfg(test)]
 fn corpus_data_path(fuzz_target: &str) -> std::path::PathBuf {
