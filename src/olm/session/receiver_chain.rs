@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::fmt::Debug;
+
 use arrayvec::ArrayVec;
 use serde::{Deserialize, Serialize};
 
@@ -91,6 +93,17 @@ pub(super) struct ReceiverChain {
     ratchet_key: RemoteRatchetKey,
     hkdf_ratchet: RemoteChainKey,
     skipped_message_keys: MessageKeyStore,
+}
+
+impl Debug for ReceiverChain {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Self { ratchet_key: _, hkdf_ratchet, skipped_message_keys } = self;
+
+        f.debug_struct("ReceiverChain")
+            .field("chain_index", &hkdf_ratchet.chain_index())
+            .field("skipped_message_keys", &skipped_message_keys.inner)
+            .finish_non_exhaustive()
+    }
 }
 
 impl ReceiverChain {

@@ -20,6 +20,8 @@ pub mod ratchet;
 mod receiver_chain;
 mod root_key;
 
+use std::fmt::Debug;
+
 use aes::cipher::block_padding::UnpadError;
 use arrayvec::ArrayVec;
 use chain_key::RemoteChainKey;
@@ -150,9 +152,16 @@ pub struct Session {
     config: SessionConfig,
 }
 
-impl std::fmt::Debug for Session {
+impl Debug for Session {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Session").field("session_id", &self.session_id()).finish_non_exhaustive()
+        let Self { session_keys: _, sending_ratchet, receiving_chains, config } = self;
+
+        f.debug_struct("Session")
+            .field("session_id", &self.session_id())
+            .field("sending_chain_index", &sending_ratchet.chain_index())
+            .field("receiving_chains", &receiving_chains.inner)
+            .field("config", config)
+            .finish_non_exhaustive()
     }
 }
 
