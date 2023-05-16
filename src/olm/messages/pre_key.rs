@@ -30,7 +30,7 @@ use crate::{
 /// Olm [`Message`].
 ///
 /// [`Session`]: crate::olm::Session
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PreKeyMessage {
     pub(crate) session_keys: SessionKeys,
     pub(crate) message: Message,
@@ -217,15 +217,6 @@ impl TryFrom<&[u8]> for PreKeyMessage {
 
             Ok(Self { session_keys, message })
         }
-    }
-}
-
-impl Debug for PreKeyMessage {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PreKeyMessage")
-            .field("session_keys", &self.session_keys)
-            .field("message", &self.message)
-            .finish()
     }
 }
 

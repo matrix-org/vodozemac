@@ -154,11 +154,13 @@ pub struct Session {
 
 impl Debug for Session {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Self { session_keys: _, sending_ratchet, receiving_chains, config } = self;
+
         f.debug_struct("Session")
             .field("session_id", &self.session_id())
-            .field("sending_chain_index", &self.sending_ratchet.chain_index())
-            .field("receiving_chains", &self.receiving_chains.inner)
-            .field("config", &self.config)
+            .field("sending_chain_index", &sending_ratchet.chain_index())
+            .field("receiving_chains", &receiving_chains.inner)
+            .field("config", config)
             .finish_non_exhaustive()
     }
 }

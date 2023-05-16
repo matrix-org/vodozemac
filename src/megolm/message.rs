@@ -308,10 +308,12 @@ impl TryFrom<&[u8]> for MegolmMessage {
 
 impl Debug for MegolmMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Self { version, ciphertext: _, message_index, mac: _, signature: _ } = self;
+
         f.debug_struct("MegolmMessage")
-            .field("version", &self.version)
-            .field("message_index", &self.message_index)
-            .finish()
+            .field("version", version)
+            .field("message_index", message_index)
+            .finish_non_exhaustive()
     }
 }
 

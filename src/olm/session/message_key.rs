@@ -43,7 +43,9 @@ pub(super) struct RemoteMessageKey {
 
 impl Debug for RemoteMessageKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("RemoteMessageKey").field("index", &self.index).finish()
+        let Self { key: _, index } = self;
+
+        f.debug_struct("RemoteMessageKey").field("index", index).finish()
     }
 }
 

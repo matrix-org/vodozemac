@@ -97,10 +97,12 @@ pub(super) struct ReceiverChain {
 
 impl Debug for ReceiverChain {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Self { ratchet_key: _, hkdf_ratchet, skipped_message_keys } = self;
+
         f.debug_struct("ReceiverChain")
-            .field("chain_index", &self.hkdf_ratchet.chain_index())
-            .field("skipped_message_keys", &self.skipped_message_keys.inner)
-            .finish()
+            .field("chain_index", &hkdf_ratchet.chain_index())
+            .field("skipped_message_keys", &skipped_message_keys.inner)
+            .finish_non_exhaustive()
     }
 }
 
