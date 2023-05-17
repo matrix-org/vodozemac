@@ -44,7 +44,7 @@ impl Curve25519SecretKey {
     /// Perform a Diffie-Hellman key exchange between the given
     /// `Curve25519PublicKey` and this `Curve25519SecretKey` and return a shared
     /// secret.
-    pub(crate) fn diffie_hellman(&self, their_public_key: &Curve25519PublicKey) -> SharedSecret {
+    pub fn diffie_hellman(&self, their_public_key: &Curve25519PublicKey) -> SharedSecret {
         self.0.diffie_hellman(&their_public_key.inner)
     }
 

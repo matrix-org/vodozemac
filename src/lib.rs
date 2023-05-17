@@ -220,8 +220,8 @@ pub mod sas;
 pub use base64::DecodeError as Base64DecodeError;
 pub use prost::DecodeError as ProtoBufDecodeError;
 pub use types::{
-    Curve25519PublicKey, Ed25519Keypair, Ed25519PublicKey, Ed25519SecretKey, Ed25519Signature,
-    KeyError, KeyId, SignatureError,
+    Curve25519PublicKey, Curve25519SecretKey, Ed25519Keypair, Ed25519PublicKey, Ed25519SecretKey,
+    Ed25519Signature, KeyError, KeyId, SharedSecret, SignatureError,
 };
 
 /// Error type describing the various ways Vodozemac pickles can fail to be
