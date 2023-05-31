@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2023-05-31
+
+### Bug Fixes
+
+- Use the next key id from the libolm pickle instead of guessing
+
+### Features
+
+- Add a prettier display/debug implementation for Ed25519Signature
+- Introduce an upgrade method to the InboundGroupSession struct
+- Expose the version of vodozemac
+- Make Debug representation of the public key types prettier
+- Add a method to calculate the Session ID from a pre-key message
+- [**breaking**] Return the created and discarded one-time keys when generating new ones ([#100](https://github.com/matrix-org/vodozemac/pull/100))
+- [**breaking**] Return the fallback key which was removed when generating a new one
+- Expose the build-time git commit hash and description as static vars
+- Expose the Curve25519SecretKey type
+
+### Refactor
+
+- Rename the key_id field to next_key_id for clarity
+- Use the matrix-pickle crate for libolm unpickling support
+
+### Testing
+
+- Ensure signing_key_verified is handled when upgrading.
+
 ## [0.3.0] - 2022-09-13
 
 ### Bug Fixes
