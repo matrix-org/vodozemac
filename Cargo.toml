@@ -28,7 +28,7 @@ low-level-api = []
 [dependencies]
 aes = "0.8.2"
 arrayvec = { version = "0.7.2", features = ["serde"] }
-base64 = "0.13.0"
+base64 = "0.21.2"
 cbc = { version = "0.1.2", features = ["std"] }
 curve25519-dalek = { version = "=4.0.0-rc.2", default-features = false }
 ed25519-dalek = { git = "https://github.com/dalek-cryptography/ed25519-dalek/", rev = "4afbf09e1cb15bedc6f79c25cec388b5cd436f0d", default-features = false, features = ["rand_core", "std", "serde", "hazmat"] }

@@ -17,17 +17,28 @@
 mod libolm_compat;
 
 pub use base64::DecodeError;
+use base64::{
+    alphabet,
+    engine::{general_purpose, GeneralPurpose},
+    Engine,
+};
 #[cfg(feature = "libolm-compat")]
 pub(crate) use libolm_compat::{unpickle_libolm, LibolmEd25519Keypair};
 
+const STANDARD_NO_PAD: GeneralPurpose = GeneralPurpose::new(
+    &alphabet::STANDARD,
+    general_purpose::NO_PAD
+        .with_decode_padding_mode(base64::engine::DecodePaddingMode::Indifferent),
+);
+
 /// Decode the input as base64 with no padding.
 pub fn base64_decode(input: impl AsRef<[u8]>) -> Result<Vec<u8>, DecodeError> {
-    base64::decode_config(input, base64::STANDARD_NO_PAD)
+    STANDARD_NO_PAD.decode(input)
 }
 
 /// Encode the input as base64 with no padding.
 pub fn base64_encode(input: impl AsRef<[u8]>) -> String {
-    base64::encode_config(input, base64::STANDARD_NO_PAD)
+    STANDARD_NO_PAD.encode(input)
 }
 
 pub(crate) fn unpickle<T: for<'b> serde::Deserialize<'b>>(
