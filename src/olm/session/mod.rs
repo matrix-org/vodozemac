@@ -50,7 +50,7 @@ use crate::{
 
 const MAX_RECEIVING_CHAINS: usize = 5;
 
-/// Error type for Olm-based decryption failuers.
+/// Error type for Olm-based decryption failures.
 #[derive(Error, Debug)]
 pub enum DecryptionError {
     /// The message authentication code of the message was invalid.
