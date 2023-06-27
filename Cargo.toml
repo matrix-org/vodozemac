@@ -30,8 +30,8 @@ aes = "0.8.2"
 arrayvec = { version = "0.7.2", features = ["serde"] }
 base64 = "0.21.2"
 cbc = { version = "0.1.2", features = ["std"] }
-curve25519-dalek = { version = "=4.0.0-rc.2", default-features = false }
-ed25519-dalek = { git = "https://github.com/dalek-cryptography/ed25519-dalek/", rev = "4afbf09e1cb15bedc6f79c25cec388b5cd436f0d", default-features = false, features = ["rand_core", "std", "serde", "hazmat"] }
+curve25519-dalek = { version = "=4.0.0-rc.3", default-features = false }
+ed25519-dalek = { git = "https://github.com/poljar/ed25519-dalek/", rev = "01ea4fcf8c9f23e4baf41ceb441bddd2e7b9c560", default-features = false, features = ["rand_core", "std", "serde", "hazmat"] }
 getrandom = "0.2.10"
 hkdf = "0.12.3"
 hmac = "0.12.1"
@@ -45,7 +45,7 @@ serde_json = "1.0.96"
 sha2 = "0.10.6"
 subtle = "2.5.0"
 thiserror = "1.0.40"
-x25519-dalek = { version = "=2.0.0-rc.2", features = ["serde", "reusable_secrets", "static_secrets"] }
+x25519-dalek = { version = "=2.0.0-rc.3", features = ["serde", "reusable_secrets", "static_secrets"] }
 zeroize = "1.6.0"
 
 [dev-dependencies]

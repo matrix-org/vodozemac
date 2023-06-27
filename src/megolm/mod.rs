@@ -282,7 +282,9 @@ mod test {
         let plaintext = "It's a secret to everybody".as_bytes();
         let message = unpickled.encrypt(plaintext);
 
-        let decrypted = inbound_session.decrypt(&message)?;
+        let decrypted = inbound_session
+            .decrypt(&message)
+            .expect("We should be able to decrypt a message with a migrated Megolm session");
 
         assert_eq!(decrypted.plaintext, plaintext);
         assert_eq!(decrypted.message_index, 0);
