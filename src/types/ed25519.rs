@@ -63,9 +63,7 @@ impl ExpandedSecretKey {
     }
 
     fn sign(&self, message: &[u8]) -> Signature {
-        let secret_key = self.clone();
-
-        ed25519_dalek::hazmat::raw_sign::<Sha512>(&secret_key.inner, message, &self.public_key().0)
+        ed25519_dalek::hazmat::raw_sign::<Sha512>(&self.inner, message, &self.public_key().0)
     }
 
     fn public_key(&self) -> Ed25519PublicKey {
@@ -77,11 +75,8 @@ impl ExpandedSecretKey {
 impl Clone for ExpandedSecretKey {
     fn clone(&self) -> Self {
         Self {
-            inner: ed25519_dalek::hazmat::ExpandedSecretKey {
-                scalar: self.inner.scalar,
-                hash_prefix: self.inner.hash_prefix,
-            }
-            .into(),
+            inner: ed25519_dalek::hazmat::ExpandedSecretKey::from_bytes(&self.inner.to_bytes())
+                .into(),
         }
     }
 }
