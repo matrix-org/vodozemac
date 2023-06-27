@@ -52,7 +52,7 @@ pub enum SessionOrdering {
     Unconnected,
 }
 
-/// Error type for Megolm-based decryption failuers.
+/// Error type for Megolm-based decryption failures.
 #[derive(Debug, Error)]
 pub enum DecryptionError {
     /// The signature on the message was invalid.

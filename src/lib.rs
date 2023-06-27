@@ -234,7 +234,7 @@ pub enum PickleError {
     /// The encrypted pickle could not have been decrypted.
     #[error("The pickle couldn't be decrypted: {0}")]
     Decryption(#[from] crate::cipher::DecryptionError),
-    /// The serialized Vodozemac object couldn't be deserialzied.
+    /// The serialized Vodozemac object couldn't be deserialized.
     #[error("The pickle couldn't be deserialized: {0}")]
     Serialization(#[from] serde_json::Error),
 }
