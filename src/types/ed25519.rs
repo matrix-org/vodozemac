@@ -50,16 +50,23 @@ pub struct Ed25519Keypair {
 }
 
 struct ExpandedSecretKey {
+    source: Box<[u8; 64]>,
     inner: Box<ed25519_dalek::hazmat::ExpandedSecretKey>,
 }
 
 impl ExpandedSecretKey {
     fn from_bytes(bytes: &[u8; 64]) -> Result<Self, ed25519_dalek::SignatureError> {
-        Ok(Self { inner: ed25519_dalek::hazmat::ExpandedSecretKey::from_bytes(bytes).into() })
+        let mut source = Box::new([0u8; 64]);
+        source.copy_from_slice(bytes);
+
+        Ok(Self {
+            source,
+            inner: ed25519_dalek::hazmat::ExpandedSecretKey::from_bytes(bytes).into(),
+        })
     }
 
-    fn to_bytes(&self) -> [u8; 64] {
-        self.inner.to_bytes()
+    fn as_bytes(&self) -> &[u8; 64] {
+        &self.source
     }
 
     fn sign(&self, message: &[u8]) -> Signature {
@@ -74,9 +81,10 @@ impl ExpandedSecretKey {
 
 impl Clone for ExpandedSecretKey {
     fn clone(&self) -> Self {
+        let source = self.source.clone();
         Self {
-            inner: ed25519_dalek::hazmat::ExpandedSecretKey::from_bytes(&self.inner.to_bytes())
-                .into(),
+            source,
+            inner: ed25519_dalek::hazmat::ExpandedSecretKey::from_bytes(&self.source).into(),
         }
     }
 }
@@ -86,7 +94,7 @@ impl Serialize for ExpandedSecretKey {
     where
         S: Serializer,
     {
-        let bytes = &self.to_bytes()[..];
+        let bytes = self.as_bytes();
         SerdeBytes::new(bytes).serialize(serializer)
     }
 }
