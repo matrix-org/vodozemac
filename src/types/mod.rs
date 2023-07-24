@@ -46,10 +46,11 @@ impl KeyId {
 pub enum KeyError {
     #[error("Failed decoding a public key from base64: {}", .0)]
     Base64Error(#[from] base64::DecodeError),
-    #[error("Failed decoding curve25519 key from base64: \
-             Invalid number of bytes for curve25519, expected {}, got {}.",
-            Curve25519PublicKey::LENGTH, .0)]
-    InvalidKeyLength(usize),
+    #[error(
+        "Failed decoding {key_type} key from base64: \
+        Invalid number of bytes for {key_type}, expected {expected_length}, got {length}."
+    )]
+    InvalidKeyLength { key_type: &'static str, expected_length: usize, length: usize },
     #[error(transparent)]
     Signature(#[from] SignatureError),
     /// At least one of the keys did not have contributory behaviour and the
