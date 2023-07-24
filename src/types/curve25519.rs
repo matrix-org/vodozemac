@@ -14,6 +14,7 @@
 
 use std::fmt::Display;
 
+use base64::decoded_len_estimate;
 use matrix_pickle::{Decode, DecodeError};
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
@@ -115,6 +116,9 @@ impl Curve25519PublicKey {
     /// The number of bytes a Curve25519 public key has.
     pub const LENGTH: usize = 32;
 
+    const BASE64_LENGTH: usize = 43;
+    const PADDED_BASE64_LENGTH: usize = 44;
+
     /// Convert this public key to a byte array.
     #[inline]
     pub fn to_bytes(&self) -> [u8; Self::LENGTH] {
@@ -139,9 +143,17 @@ impl Curve25519PublicKey {
 
     /// Instantiate a Curve25519 public key from an unpadded base64
     /// representation.
-    pub fn from_base64(base64_key: &str) -> Result<Curve25519PublicKey, KeyError> {
-        let key = base64_decode(base64_key)?;
-        Self::from_slice(&key)
+    pub fn from_base64(input: &str) -> Result<Curve25519PublicKey, KeyError> {
+        if input.len() != Self::BASE64_LENGTH && input.len() != Self::PADDED_BASE64_LENGTH {
+            Err(KeyError::InvalidKeyLength {
+                key_type: "Curve25519",
+                expected_length: Self::LENGTH,
+                length: decoded_len_estimate(input.len()),
+            })
+        } else {
+            let key = base64_decode(input)?;
+            Self::from_slice(&key)
+        }
     }
 
     /// Try to create a `Curve25519PublicKey` from a slice of bytes.
@@ -154,7 +166,11 @@ impl Curve25519PublicKey {
 
             Ok(Self::from(key))
         } else {
-            Err(KeyError::InvalidKeyLength(key_len))
+            Err(KeyError::InvalidKeyLength {
+                key_type: "Curve25519",
+                expected_length: Self::LENGTH,
+                length: key_len,
+            })
         }
     }
 
@@ -230,16 +246,16 @@ mod tests {
         let base64_payload = "a";
         assert!(matches!(
             Curve25519PublicKey::from_base64(base64_payload),
-            Err(KeyError::Base64Error(DecodeError::InvalidLength))
+            Err(KeyError::InvalidKeyLength { .. })
         ));
 
-        let base64_payload = "a ";
+        let base64_payload = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA ";
         assert!(matches!(
             Curve25519PublicKey::from_base64(base64_payload),
             Err(KeyError::Base64Error(DecodeError::InvalidByte(..)))
         ));
 
-        let base64_payload = "aZ";
+        let base64_payload = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAZ";
         assert!(matches!(
             Curve25519PublicKey::from_base64(base64_payload),
             Err(KeyError::Base64Error(DecodeError::InvalidLastSymbol(..)))
@@ -251,7 +267,7 @@ mod tests {
         let base64_payload = "aaaa";
         assert!(matches!(
             Curve25519PublicKey::from_base64(base64_payload),
-            Err(KeyError::InvalidKeyLength(..))
+            Err(KeyError::InvalidKeyLength { .. })
         ));
     }
 

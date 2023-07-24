@@ -14,6 +14,7 @@
 
 use std::fmt::Display;
 
+use base64::decoded_len_estimate;
 use curve25519_dalek::EdwardsPoint;
 #[cfg(not(fuzzing))]
 use ed25519_dalek::Verifier;
@@ -170,6 +171,12 @@ impl Default for Ed25519Keypair {
 pub struct Ed25519SecretKey(Box<SigningKey>);
 
 impl Ed25519SecretKey {
+    /// The number of bytes a Ed25519 secret key has.
+    pub const LENGTH: usize = ed25519_dalek::SECRET_KEY_LENGTH;
+
+    const BASE64_LENGTH: usize = 43;
+    const PADDED_BASE64_LENGTH: usize = 44;
+
     /// Create a new random `Ed25519SecretKey`.
     pub fn new() -> Self {
         let mut rng = thread_rng();
@@ -201,18 +208,25 @@ impl Ed25519SecretKey {
     }
 
     /// Try to create a `Ed25519SecretKey` from a base64 encoded string.
-    pub fn from_base64(key: &str) -> Result<Self, crate::KeyError> {
-        // TODO: check the length.
-        let mut bytes = base64_decode(key)?;
-        let mut key_bytes = [0u8; 32];
+    pub fn from_base64(input: &str) -> Result<Self, crate::KeyError> {
+        if input.len() != Self::BASE64_LENGTH && input.len() != Self::PADDED_BASE64_LENGTH {
+            Err(crate::KeyError::InvalidKeyLength {
+                key_type: "Ed25519",
+                expected_length: ed25519_dalek::SECRET_KEY_LENGTH,
+                length: decoded_len_estimate(input.len()),
+            })
+        } else {
+            let mut bytes = base64_decode(input)?;
+            let mut key_bytes = [0u8; 32];
 
-        key_bytes.copy_from_slice(&bytes);
-        let key = Self::from_slice(&key_bytes);
+            key_bytes.copy_from_slice(&bytes);
+            let key = Self::from_slice(&key_bytes);
 
-        bytes.zeroize();
-        key_bytes.zeroize();
+            bytes.zeroize();
+            key_bytes.zeroize();
 
-        Ok(key)
+            Ok(key)
+        }
     }
 
     /// Get the public key that matches this `Ed25519SecretKey`.
@@ -282,6 +296,9 @@ impl Ed25519PublicKey {
     /// The number of bytes a Ed25519 public key has.
     pub const LENGTH: usize = PUBLIC_KEY_LENGTH;
 
+    const BASE64_LENGTH: usize = 43;
+    const PADDED_BASE64_LENGTH: usize = 44;
+
     /// Try to create a `Ed25519PublicKey` from a slice of bytes.
     pub fn from_slice(bytes: &[u8; 32]) -> Result<Self, crate::KeyError> {
         Ok(Self(VerifyingKey::from_bytes(bytes).map_err(SignatureError::from)?))
@@ -294,18 +311,25 @@ impl Ed25519PublicKey {
 
     /// Instantiate a Ed25519PublicKey public key from an unpadded base64
     /// representation.
-    pub fn from_base64(base64_key: &str) -> Result<Self, crate::KeyError> {
-        // TODO: check the length.
-        let mut bytes = base64_decode(base64_key)?;
-        let mut key_bytes = [0u8; 32];
+    pub fn from_base64(input: &str) -> Result<Self, crate::KeyError> {
+        if input.len() != Self::BASE64_LENGTH && input.len() != Self::PADDED_BASE64_LENGTH {
+            Err(crate::KeyError::InvalidKeyLength {
+                key_type: "Ed25519",
+                expected_length: Self::LENGTH,
+                length: decoded_len_estimate(input.len()),
+            })
+        } else {
+            let mut bytes = base64_decode(input)?;
+            let mut key_bytes = [0u8; 32];
 
-        key_bytes.copy_from_slice(&bytes);
-        let key = Self::from_slice(&key_bytes);
+            key_bytes.copy_from_slice(&bytes);
+            let key = Self::from_slice(&key_bytes);
 
-        bytes.zeroize();
-        key_bytes.zeroize();
+            bytes.zeroize();
+            key_bytes.zeroize();
 
-        key
+            key
+        }
     }
 
     /// Serialize a Ed25519PublicKey public key to an unpadded base64
