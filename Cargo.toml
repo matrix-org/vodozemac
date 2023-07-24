@@ -30,8 +30,8 @@ aes = "0.8.2"
 arrayvec = { version = "0.7.2", features = ["serde"] }
 base64 = "0.21.2"
 cbc = { version = "0.1.2", features = ["std"] }
-curve25519-dalek = { git = "https://github.com/dalek-cryptography/curve25519-dalek/", rev = "5f0d41fcecd6a9196a36be0428f3c5ae3f869e71", default-features = false }
-ed25519-dalek = { git = "https://github.com/dalek-cryptography/curve25519-dalek/", rev = "5f0d41fcecd6a9196a36be0428f3c5ae3f869e71", default-features = false, features = ["rand_core", "std", "serde", "hazmat"] }
+curve25519-dalek = { git = "https://github.com/dalek-cryptography/curve25519-dalek/", rev = "e44d4b5903106dde0e5b28a2580061de7dfe8a9f", default-features = false }
+ed25519-dalek = { git = "https://github.com/dalek-cryptography/curve25519-dalek/", rev = "e44d4b5903106dde0e5b28a2580061de7dfe8a9f", default-features = false, features = ["rand_core", "std", "serde", "hazmat"] }
 getrandom = "0.2.10"
 hkdf = "0.12.3"
 hmac = "0.12.1"
@@ -45,7 +45,7 @@ serde_json = "1.0.96"
 sha2 = "0.10.6"
 subtle = "2.5.0"
 thiserror = "1.0.40"
-x25519-dalek = { git = "https://github.com/dalek-cryptography/curve25519-dalek/", rev = "5f0d41fcecd6a9196a36be0428f3c5ae3f869e71", features = ["serde", "reusable_secrets", "static_secrets"] }
+x25519-dalek = { git = "https://github.com/dalek-cryptography/curve25519-dalek/", rev = "e44d4b5903106dde0e5b28a2580061de7dfe8a9f", features = ["serde", "reusable_secrets", "static_secrets"] }
 zeroize = "1.6.0"
 
 [dev-dependencies]
