@@ -187,8 +187,8 @@ impl Ed25519SecretKey {
     }
 
     /// Get the byte representation of the secret key.
-    pub fn as_bytes(&self) -> [u8; 32] {
-        self.0.to_bytes()
+    pub fn to_bytes(&self) -> Box<[u8; 32]> {
+        Box::new(self.0.to_bytes())
     }
 
     /// Try to create a `Ed25519SecretKey` from a slice of bytes.
@@ -204,7 +204,12 @@ impl Ed25519SecretKey {
     /// **Warning**: The string should be zeroized after it has been used,
     /// otherwise an unintentional copy of the key might exist in memory.
     pub fn to_base64(&self) -> String {
-        base64_encode(self.as_bytes())
+        let mut bytes = self.to_bytes();
+        let ret = base64_encode(bytes.as_ref());
+
+        bytes.zeroize();
+
+        ret
     }
 
     /// Try to create a `Ed25519SecretKey` from a base64 encoded string.
