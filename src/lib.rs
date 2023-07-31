@@ -263,9 +263,19 @@ pub enum LibolmPickleError {
     /// Olm session needs to have at least one of them.
     #[error("The pickle didn't contain a valid Olm session")]
     InvalidSession,
+    /// The session contains a chain index that is too big to be put into a
+    /// libolm pickle. Vodozemac uses an `u64` for its chain index, while libolm
+    /// uses an u32.
+    #[error(
+        "The session contains a chain index that is too big to be put into a libolm pickle: {0}"
+    )]
+    ChainIndexTooBig(u64),
     /// The payload of the pickle could not be decoded.
     #[error(transparent)]
     Decode(#[from] matrix_pickle::DecodeError),
+    /// The object could not be encoded as a pickle.
+    #[error(transparent)]
+    Encode(#[from] matrix_pickle::EncodeError),
 }
 
 /// Error type describing the different ways message decoding can fail.

@@ -49,6 +49,11 @@ impl RatchetKey {
     pub fn diffie_hellman(&self, other: &RemoteRatchetKey) -> SharedSecret {
         self.0.diffie_hellman(&other.0)
     }
+
+    #[cfg(feature = "libolm-compat")]
+    pub fn to_bytes(&self) -> [u8; 32] {
+        self.0.to_bytes()
+    }
 }
 
 impl Default for RatchetKey {
@@ -78,6 +83,12 @@ impl From<[u8; 32]> for RemoteRatchetKey {
 impl From<Curve25519PublicKey> for RemoteRatchetKey {
     fn from(key: Curve25519PublicKey) -> Self {
         RemoteRatchetKey(key)
+    }
+}
+
+impl AsRef<Curve25519PublicKey> for RemoteRatchetKey {
+    fn as_ref(&self) -> &Curve25519PublicKey {
+        &self.0
     }
 }
 
@@ -119,5 +130,10 @@ impl Ratchet {
 
     pub fn ratchet_key(&self) -> &RatchetKey {
         &self.ratchet_key
+    }
+
+    #[cfg(feature = "libolm-compat")]
+    pub(super) fn root_key(&self) -> &RootKey {
+        &self.root_key
     }
 }

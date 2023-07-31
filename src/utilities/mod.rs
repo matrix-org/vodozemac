@@ -23,7 +23,7 @@ use base64::{
     Engine,
 };
 #[cfg(feature = "libolm-compat")]
-pub(crate) use libolm_compat::{unpickle_libolm, LibolmEd25519Keypair};
+pub(crate) use libolm_compat::{pickle_libolm, unpickle_libolm, LibolmEd25519Keypair};
 
 const STANDARD_NO_PAD: GeneralPurpose = GeneralPurpose::new(
     &alphabet::STANDARD,

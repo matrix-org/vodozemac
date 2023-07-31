@@ -111,12 +111,17 @@ impl DoubleRatchet {
 
         (Self { inner: DoubleRatchetState::Inactive(ratchet) }, receiver_chain)
     }
+
+    #[cfg(feature = "libolm-compat")]
+    pub fn state(&self) -> &DoubleRatchetState {
+        &self.inner
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "type")]
-enum DoubleRatchetState {
+pub(super) enum DoubleRatchetState {
     Inactive(InactiveDoubleRatchet),
     Active(ActiveDoubleRatchet),
 }
@@ -134,12 +139,17 @@ impl From<ActiveDoubleRatchet> for DoubleRatchetState {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-struct InactiveDoubleRatchet {
+pub(super) struct InactiveDoubleRatchet {
     root_key: RemoteRootKey,
     ratchet_key: RemoteRatchetKey,
 }
 
 impl InactiveDoubleRatchet {
+    #[cfg(feature = "libolm-compat")]
+    pub fn root_key(&self) -> &RemoteRootKey {
+        &self.root_key
+    }
+
     fn activate(&self) -> ActiveDoubleRatchet {
         let (root_key, chain_key, ratchet_key) = self.root_key.advance(&self.ratchet_key);
         let active_ratchet = Ratchet::new_with_ratchet_key(root_key, ratchet_key);
@@ -149,9 +159,9 @@ impl InactiveDoubleRatchet {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-struct ActiveDoubleRatchet {
-    active_ratchet: Ratchet,
-    symmetric_key_ratchet: ChainKey,
+pub(super) struct ActiveDoubleRatchet {
+    pub(super) active_ratchet: Ratchet,
+    pub(super) symmetric_key_ratchet: ChainKey,
 }
 
 impl ActiveDoubleRatchet {
@@ -164,7 +174,7 @@ impl ActiveDoubleRatchet {
         (ratchet, receiver_chain)
     }
 
-    fn ratchet_key(&self) -> RatchetPublicKey {
+    pub fn ratchet_key(&self) -> RatchetPublicKey {
         RatchetPublicKey::from(self.active_ratchet.ratchet_key())
     }
 

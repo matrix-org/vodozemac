@@ -36,12 +36,12 @@ fn default_config() -> SessionConfig {
 
 #[cfg(feature = "libolm-compat")]
 mod libolm {
-    use matrix_pickle::Decode;
+    use matrix_pickle::{Decode, Encode};
     use zeroize::Zeroize;
 
     use super::ratchet::Ratchet;
 
-    #[derive(Zeroize, Decode)]
+    #[derive(Zeroize, Decode, Encode)]
     #[zeroize(drop)]
     pub(crate) struct LibolmRatchetPickle {
         #[secret]
@@ -52,6 +52,15 @@ mod libolm {
     impl From<&LibolmRatchetPickle> for Ratchet {
         fn from(pickle: &LibolmRatchetPickle) -> Self {
             Ratchet::from_bytes(pickle.ratchet.clone(), pickle.index)
+        }
+    }
+
+    impl From<&Ratchet> for LibolmRatchetPickle {
+        fn from(r: &Ratchet) -> Self {
+            let mut ratchet = Box::new([0u8; 128]);
+            ratchet.copy_from_slice(r.as_bytes());
+
+            LibolmRatchetPickle { ratchet, index: r.index() }
         }
     }
 }
@@ -240,6 +249,45 @@ mod test {
         let repickle = serde_json::to_value(repickle)?;
 
         assert_eq!(pickle, repickle);
+
+        Ok(())
+    }
+
+    #[test]
+    #[cfg(feature = "libolm-compat")]
+    fn libolm_pickle_cycle() -> Result<()> {
+        let key = b"DEFAULT_PICKLE_KEY";
+        let session = GroupSession::new(SessionConfig::version_1());
+
+        let pickle = session.to_libolm_pickle(key)?;
+
+        let olm = OlmOutboundGroupSession::unpickle(
+            pickle,
+            olm_rs::PicklingMode::Encrypted { key: key.to_vec() },
+        )?;
+
+        assert_eq!(olm.session_id(), session.session_id());
+        assert_eq!(olm.session_message_index(), session.message_index());
+
+        Ok(())
+    }
+
+    #[test]
+    #[cfg(feature = "libolm-compat")]
+    fn libolm_inbound_pickle_cycle() -> Result<()> {
+        let key = b"DEFAULT_PICKLE_KEY";
+        let session = GroupSession::new(SessionConfig::version_1());
+        let session = InboundGroupSession::from(&session);
+
+        let pickle = session.to_libolm_pickle(key)?;
+
+        let olm = OlmInboundGroupSession::unpickle(
+            pickle,
+            olm_rs::PicklingMode::Encrypted { key: key.to_vec() },
+        )?;
+
+        assert_eq!(olm.session_id(), session.session_id());
+        assert_eq!(olm.first_known_index(), session.first_known_index());
 
         Ok(())
     }

@@ -30,7 +30,7 @@ Matrix clients, such as [SAS][sas].
 
 - [Olm](https://matrix-org.github.io/vodozemac/vodozemac/olm/index.html)
 - [Megolm](https://matrix-org.github.io/vodozemac/vodozemac/megolm/index.html)
-- libolm pickle format (read-only)
+- libolm pickle format
 - Modern pickle format
 - [SAS (Short Authentication Strings)](https://matrix-org.github.io/vodozemac/vodozemac/sas/index.html)
 

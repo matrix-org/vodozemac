@@ -76,6 +76,12 @@ impl RemoteChainKey {
         Self { key: bytes, index: index.into() }
     }
 
+    #[cfg(feature = "libolm-compat")]
+    #[allow(clippy::borrowed_box)]
+    pub fn as_bytes(&self) -> &Box<[u8; 32]> {
+        &self.key
+    }
+
     pub fn advance(&mut self) {
         let output = advance(&self.key).into_bytes();
         self.key.copy_from_slice(output.as_slice());
@@ -97,9 +103,19 @@ impl ChainKey {
         Self { key: bytes, index: 0 }
     }
 
+    pub fn chain_index(&self) -> u64 {
+        self.index
+    }
+
     #[cfg(feature = "libolm-compat")]
     pub fn from_bytes_and_index(bytes: Box<[u8; 32]>, index: u32) -> Self {
         Self { key: bytes, index: index.into() }
+    }
+
+    #[cfg(feature = "libolm-compat")]
+    #[allow(clippy::borrowed_box)]
+    pub fn as_bytes(&self) -> &Box<[u8; 32]> {
+        &self.key
     }
 
     pub fn advance(&mut self) {

@@ -141,45 +141,39 @@ impl GroupSession {
         pickle.into()
     }
 
+    /// Create a [`GroupSession`] object by unpickling a session pickle
+    /// in libolm legacy pickle format.
+    ///
+    /// Such pickles are encrypted and need to first be decrypted using
+    /// `pickle_key`.
     #[cfg(feature = "libolm-compat")]
     pub fn from_libolm_pickle(
         pickle: &str,
         pickle_key: &[u8],
     ) -> Result<Self, crate::LibolmPickleError> {
-        use matrix_pickle::Decode;
-        use zeroize::Zeroize;
+        use libolm::{Pickle, PICKLE_VERSION};
 
-        use crate::{
-            megolm::libolm::LibolmRatchetPickle,
-            utilities::{unpickle_libolm, LibolmEd25519Keypair},
-        };
-
-        #[derive(Zeroize, Decode)]
-        #[zeroize(drop)]
-        struct Pickle {
-            version: u32,
-            ratchet: LibolmRatchetPickle,
-            ed25519_keypair: LibolmEd25519Keypair,
-        }
-
-        impl TryFrom<Pickle> for GroupSession {
-            type Error = crate::LibolmPickleError;
-
-            fn try_from(pickle: Pickle) -> Result<Self, Self::Error> {
-                // Removing the borrow doesn't work and clippy complains about
-                // this on nightly.
-                #[allow(clippy::needless_borrow)]
-                let ratchet = (&pickle.ratchet).into();
-                let signing_key =
-                    Ed25519Keypair::from_expanded_key(&pickle.ed25519_keypair.private_key)?;
-
-                Ok(Self { ratchet, signing_key, config: SessionConfig::version_1() })
-            }
-        }
-
-        const PICKLE_VERSION: u32 = 1;
+        use crate::utilities::unpickle_libolm;
 
         unpickle_libolm::<Pickle, _>(pickle, pickle_key, PICKLE_VERSION)
+    }
+
+    /// Pickle an [`GroupSession`] into a libolm pickle format.
+    ///
+    /// This pickle can be restored using the
+    /// [`InboundGroupSession::from_libolm_pickle`] method, or can be used in
+    /// the [`libolm`] C library.
+    ///
+    /// The pickle will be encryptd using the pickle key.
+    ///
+    /// [`libolm`]: https://gitlab.matrix.org/matrix-org/olm/
+    #[cfg(feature = "libolm-compat")]
+    pub fn to_libolm_pickle(&self, pickle_key: &[u8]) -> Result<String, crate::LibolmPickleError> {
+        use libolm::Pickle;
+
+        use crate::utilities::pickle_libolm;
+
+        pickle_libolm::<Pickle>(self.into(), pickle_key)
     }
 }
 
@@ -213,5 +207,56 @@ impl GroupSessionPickle {
 impl From<GroupSessionPickle> for GroupSession {
     fn from(pickle: GroupSessionPickle) -> Self {
         Self { ratchet: pickle.ratchet, signing_key: pickle.signing_key, config: pickle.config }
+    }
+}
+
+#[cfg(feature = "libolm-compat")]
+mod libolm {
+    use matrix_pickle::{Decode, Encode};
+    use zeroize::Zeroize;
+
+    use super::GroupSession;
+    use crate::{
+        megolm::{libolm::LibolmRatchetPickle, SessionConfig},
+        utilities::LibolmEd25519Keypair,
+        Ed25519Keypair,
+    };
+
+    pub const PICKLE_VERSION: u32 = 1;
+
+    #[derive(Zeroize, Decode, Encode)]
+    #[zeroize(drop)]
+    pub struct Pickle {
+        version: u32,
+        ratchet: LibolmRatchetPickle,
+        ed25519_keypair: LibolmEd25519Keypair,
+    }
+
+    impl From<&GroupSession> for Pickle {
+        fn from(g: &GroupSession) -> Self {
+            Self {
+                version: PICKLE_VERSION,
+                ratchet: (&g.ratchet).into(),
+                ed25519_keypair: LibolmEd25519Keypair {
+                    public_key: g.signing_key.public_key().as_bytes().to_owned(),
+                    private_key: g.signing_key.expanded_secret_key(),
+                },
+            }
+        }
+    }
+
+    impl TryFrom<Pickle> for GroupSession {
+        type Error = crate::LibolmPickleError;
+
+        fn try_from(pickle: Pickle) -> Result<Self, Self::Error> {
+            // Removing the borrow doesn't work and clippy complains about
+            // this on nightly.
+            #[allow(clippy::needless_borrow)]
+            let ratchet = (&pickle.ratchet).into();
+            let signing_key =
+                Ed25519Keypair::from_expanded_key(&pickle.ed25519_keypair.private_key)?;
+
+            Ok(Self { ratchet, signing_key, config: SessionConfig::version_1() })
+        }
     }
 }

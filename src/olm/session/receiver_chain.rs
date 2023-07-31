@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::fmt::Debug;
+use std::{fmt::Debug, slice::Iter};
 
 use arrayvec::ArrayVec;
 use serde::{Deserialize, Serialize};
@@ -27,7 +27,7 @@ const MAX_MESSAGE_GAP: u64 = 2000;
 const MAX_MESSAGE_KEYS: usize = 40;
 
 #[derive(Serialize, Deserialize, Clone)]
-struct MessageKeyStore {
+pub(super) struct MessageKeyStore {
     inner: ArrayVec<RemoteMessageKey, MAX_MESSAGE_KEYS>,
 }
 
@@ -52,6 +52,11 @@ impl MessageKeyStore {
 
     fn get_message_key(&self, chain_index: u64) -> Option<&RemoteMessageKey> {
         self.inner.iter().find(|k| k.chain_index() == chain_index)
+    }
+
+    #[cfg(feature = "libolm-compat")]
+    pub fn iter(&self) -> Iter<'_, RemoteMessageKey> {
+        self.inner.iter()
     }
 
     fn remove_message_key(&mut self, chain_index: u64) {
@@ -90,9 +95,9 @@ impl FoundMessageKey<'_> {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(super) struct ReceiverChain {
-    ratchet_key: RemoteRatchetKey,
-    hkdf_ratchet: RemoteChainKey,
-    skipped_message_keys: MessageKeyStore,
+    pub(super) ratchet_key: RemoteRatchetKey,
+    pub(super) hkdf_ratchet: RemoteChainKey,
+    pub(super) skipped_message_keys: MessageKeyStore,
 }
 
 impl Debug for ReceiverChain {

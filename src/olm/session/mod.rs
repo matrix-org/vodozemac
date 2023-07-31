@@ -32,7 +32,6 @@ use receiver_chain::ReceiverChain;
 use root_key::RemoteRootKey;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use zeroize::Zeroize;
 
 use super::{
     session_config::Version,
@@ -107,6 +106,11 @@ impl ChainStore {
 
     fn find_ratchet(&mut self, ratchet_key: &RemoteRatchetKey) -> Option<&mut ReceiverChain> {
         self.inner.iter_mut().find(|r| r.belongs_to(ratchet_key))
+    }
+
+    #[cfg(feature = "libolm-compat")]
+    pub fn iter(&self) -> std::slice::Iter<'_, ReceiverChain> {
+        self.inner.iter()
     }
 }
 
@@ -325,144 +329,26 @@ impl Session {
         pickle: &str,
         pickle_key: &[u8],
     ) -> Result<Self, crate::LibolmPickleError> {
-        use chain_key::ChainKey;
-        use matrix_pickle::Decode;
-        use message_key::RemoteMessageKey;
-        use ratchet::{Ratchet, RatchetKey};
-        use root_key::RootKey;
+        use libolm::Pickle;
 
-        use crate::{types::Curve25519SecretKey, utilities::unpickle_libolm};
+        use crate::utilities::unpickle_libolm;
 
-        #[derive(Debug, Decode, Zeroize)]
-        #[zeroize(drop)]
-        struct SenderChain {
-            public_ratchet_key: [u8; 32],
-            #[secret]
-            secret_ratchet_key: Box<[u8; 32]>,
-            chain_key: Box<[u8; 32]>,
-            chain_key_index: u32,
-        }
+        unpickle_libolm::<Pickle, _>(pickle, pickle_key, libolm::PICKLE_VERSION)
+    }
 
-        #[derive(Debug, Decode, Zeroize)]
-        #[zeroize(drop)]
-        struct ReceivingChain {
-            public_ratchet_key: [u8; 32],
-            #[secret]
-            chain_key: Box<[u8; 32]>,
-            chain_key_index: u32,
-        }
-
-        impl From<&ReceivingChain> for ReceiverChain {
-            fn from(chain: &ReceivingChain) -> Self {
-                let ratchet_key = RemoteRatchetKey::from(chain.public_ratchet_key);
-                let chain_key = RemoteChainKey::from_bytes_and_index(
-                    chain.chain_key.clone(),
-                    chain.chain_key_index,
-                );
-
-                ReceiverChain::new(ratchet_key, chain_key)
-            }
-        }
-
-        #[derive(Debug, Decode, Zeroize)]
-        #[zeroize(drop)]
-        struct MessageKey {
-            ratchet_key: [u8; 32],
-            #[secret]
-            message_key: Box<[u8; 32]>,
-            index: u32,
-        }
-
-        impl From<&MessageKey> for RemoteMessageKey {
-            fn from(key: &MessageKey) -> Self {
-                RemoteMessageKey { key: key.message_key.clone(), index: key.index.into() }
-            }
-        }
-
-        #[derive(Decode)]
-        struct Pickle {
-            #[allow(dead_code)]
-            version: u32,
-            #[allow(dead_code)]
-            received_message: bool,
-            session_keys: SessionKeys,
-            #[secret]
-            root_key: Box<[u8; 32]>,
-            sender_chains: Vec<SenderChain>,
-            receiver_chains: Vec<ReceivingChain>,
-            message_keys: Vec<MessageKey>,
-        }
-
-        impl Drop for Pickle {
-            fn drop(&mut self) {
-                self.root_key.zeroize();
-                self.sender_chains.zeroize();
-                self.receiver_chains.zeroize();
-                self.message_keys.zeroize();
-            }
-        }
-
-        impl TryFrom<Pickle> for Session {
-            type Error = crate::LibolmPickleError;
-
-            fn try_from(pickle: Pickle) -> Result<Self, Self::Error> {
-                let mut receiving_chains = ChainStore::new();
-
-                for chain in &pickle.receiver_chains {
-                    receiving_chains.push(chain.into())
-                }
-
-                for key in &pickle.message_keys {
-                    let ratchet_key =
-                        RemoteRatchetKey::from(Curve25519PublicKey::from(key.ratchet_key));
-
-                    if let Some(receiving_chain) = receiving_chains.find_ratchet(&ratchet_key) {
-                        receiving_chain.insert_message_key(key.into())
-                    }
-                }
-
-                if let Some(chain) = pickle.sender_chains.get(0) {
-                    // XXX: Passing in secret array as value.
-                    let ratchet_key = RatchetKey::from(Curve25519SecretKey::from_slice(
-                        chain.secret_ratchet_key.as_ref(),
-                    ));
-                    let chain_key = ChainKey::from_bytes_and_index(
-                        chain.chain_key.clone(),
-                        chain.chain_key_index,
-                    );
-
-                    let root_key = RootKey::new(pickle.root_key.clone());
-
-                    let ratchet = Ratchet::new_with_ratchet_key(root_key, ratchet_key);
-                    let sending_ratchet =
-                        DoubleRatchet::from_ratchet_and_chain_key(ratchet, chain_key);
-
-                    Ok(Self {
-                        session_keys: pickle.session_keys,
-                        sending_ratchet,
-                        receiving_chains,
-                        config: SessionConfig::version_1(),
-                    })
-                } else if let Some(chain) = receiving_chains.get(0) {
-                    let sending_ratchet = DoubleRatchet::inactive(
-                        RemoteRootKey::new(pickle.root_key.clone()),
-                        chain.ratchet_key(),
-                    );
-
-                    Ok(Self {
-                        session_keys: pickle.session_keys,
-                        sending_ratchet,
-                        receiving_chains,
-                        config: SessionConfig::version_1(),
-                    })
-                } else {
-                    Err(crate::LibolmPickleError::InvalidSession)
-                }
-            }
-        }
-
-        const PICKLE_VERSION: u32 = 1;
-        unpickle_libolm::<Pickle, _>(pickle, pickle_key, PICKLE_VERSION)
+    /// Pickle an [`Session`] into a libolm pickle format.
+    ///
+    /// This pickle can be restored using the [`Session::from_libolm_pickle`]
+    /// method, or can be used in the [`libolm`] C library.
+    ///
+    /// The pickle will be encryptd using the pickle key.
+    ///
+    /// [`libolm`]: https://gitlab.matrix.org/matrix-org/olm/
+    #[cfg(feature = "libolm-compat")]
+    pub fn to_libolm_pickle(&self, pickle_key: &[u8]) -> Result<String, crate::LibolmPickleError> {
+        use self::libolm::Pickle;
+        use crate::utilities::pickle_libolm;
+        pickle_libolm::<Pickle>(self.try_into()?, pickle_key)
     }
 }
 
@@ -509,13 +395,245 @@ impl From<SessionPickle> for Session {
     }
 }
 
+#[cfg(feature = "libolm-compat")]
+mod libolm {
+    use matrix_pickle::{Decode, Encode};
+    use zeroize::Zeroize;
+
+    use super::{
+        chain_key::{ChainKey, RemoteChainKey},
+        double_ratchet::DoubleRatchet,
+        message_key::RemoteMessageKey,
+        ratchet::{Ratchet, RatchetKey, RemoteRatchetKey},
+        receiver_chain::ReceiverChain,
+        root_key::{RemoteRootKey, RootKey},
+        ChainStore, Session,
+    };
+    use crate::{
+        olm::{SessionConfig, SessionKeys},
+        types::Curve25519SecretKey,
+        Curve25519PublicKey, LibolmPickleError,
+    };
+
+    pub const PICKLE_VERSION: u32 = 1;
+    const LIBOLM_MAX_MESSAGE_KEYS: usize = 40;
+
+    #[derive(Debug, Decode, Encode, Zeroize)]
+    #[zeroize(drop)]
+    struct SenderChain {
+        public_ratchet_key: [u8; 32],
+        #[secret]
+        secret_ratchet_key: Box<[u8; 32]>,
+        chain_key: Box<[u8; 32]>,
+        chain_key_index: u32,
+    }
+
+    #[derive(Debug, Decode, Encode, Zeroize)]
+    #[zeroize(drop)]
+    struct LibolmReceiverChain {
+        public_ratchet_key: [u8; 32],
+        #[secret]
+        chain_key: Box<[u8; 32]>,
+        chain_key_index: u32,
+    }
+
+    impl From<&LibolmReceiverChain> for ReceiverChain {
+        fn from(chain: &LibolmReceiverChain) -> Self {
+            let ratchet_key = RemoteRatchetKey::from(chain.public_ratchet_key);
+            let chain_key = RemoteChainKey::from_bytes_and_index(
+                chain.chain_key.clone(),
+                chain.chain_key_index,
+            );
+
+            ReceiverChain::new(ratchet_key, chain_key)
+        }
+    }
+
+    impl TryFrom<&ReceiverChain> for LibolmReceiverChain {
+        type Error = LibolmPickleError;
+
+        fn try_from(chain: &ReceiverChain) -> Result<Self, Self::Error> {
+            Ok(LibolmReceiverChain {
+                chain_key: chain.hkdf_ratchet.as_bytes().to_owned(),
+                chain_key_index: chain.hkdf_ratchet.chain_index().try_into().map_err(|_| {
+                    LibolmPickleError::ChainIndexTooBig(chain.hkdf_ratchet.chain_index())
+                })?,
+                public_ratchet_key: chain.ratchet_key().as_ref().to_bytes(),
+            })
+        }
+    }
+
+    #[derive(Debug, Decode, Encode, Zeroize)]
+    #[zeroize(drop)]
+    struct MessageKey {
+        ratchet_key: [u8; 32],
+        #[secret]
+        message_key: Box<[u8; 32]>,
+        index: u32,
+    }
+
+    impl From<&MessageKey> for RemoteMessageKey {
+        fn from(key: &MessageKey) -> Self {
+            RemoteMessageKey { key: key.message_key.clone(), index: key.index.into() }
+        }
+    }
+
+    #[derive(Decode, Encode)]
+    pub struct Pickle {
+        #[allow(dead_code)]
+        version: u32,
+        #[allow(dead_code)]
+        received_message: bool,
+        session_keys: SessionKeys,
+        #[secret]
+        root_key: Box<[u8; 32]>,
+        sender_chains: Vec<SenderChain>,
+        receiver_chains: Vec<LibolmReceiverChain>,
+        message_keys: Vec<MessageKey>,
+    }
+
+    impl Drop for Pickle {
+        fn drop(&mut self) {
+            self.root_key.zeroize();
+            self.sender_chains.zeroize();
+            self.receiver_chains.zeroize();
+            self.message_keys.zeroize();
+        }
+    }
+
+    impl TryFrom<&Session> for Pickle {
+        type Error = LibolmPickleError;
+
+        fn try_from(session: &Session) -> Result<Self, Self::Error> {
+            use super::double_ratchet::DoubleRatchetState::*;
+
+            let receiver_chains: Result<Vec<_>, _> =
+                session.receiving_chains.iter().map(LibolmReceiverChain::try_from).collect();
+
+            let (root_key, sender_chains) = match session.sending_ratchet.state() {
+                Active(chain) => {
+                    let root_key = chain.active_ratchet.root_key().as_bytes().to_owned();
+
+                    // XXX: Moving an array of secret bytes into a box.
+                    let secret_ratchet_key =
+                        Box::new(chain.active_ratchet.ratchet_key().to_bytes());
+
+                    let chain = SenderChain {
+                        public_ratchet_key: chain.ratchet_key().as_ref().to_bytes(),
+                        secret_ratchet_key,
+                        chain_key: chain.symmetric_key_ratchet.as_bytes().to_owned(),
+                        chain_key_index: chain
+                            .symmetric_key_ratchet
+                            .chain_index()
+                            .try_into()
+                            .map_err(|_| {
+                                crate::LibolmPickleError::ChainIndexTooBig(
+                                    chain.symmetric_key_ratchet.chain_index(),
+                                )
+                            })?,
+                    };
+
+                    (root_key, vec![chain])
+                }
+                Inactive(chain) => {
+                    let root_key = chain.root_key().as_bytes().to_owned();
+
+                    (root_key, vec![])
+                }
+            };
+
+            let mut message_keys: Vec<MessageKey> = session
+                .receiving_chains
+                .iter()
+                .flat_map(|c| {
+                    c.skipped_message_keys
+                        .iter()
+                        .filter_map(|k| {
+                            Some(MessageKey {
+                                ratchet_key: c.ratchet_key().as_ref().to_bytes(),
+                                index: k.chain_index().try_into().ok()?,
+                                message_key: k.key.to_owned(),
+                            })
+                        })
+                        .collect::<Vec<MessageKey>>()
+                })
+                .collect();
+
+            message_keys.truncate(LIBOLM_MAX_MESSAGE_KEYS);
+
+            Ok(Pickle {
+                version: PICKLE_VERSION,
+                received_message: session.has_received_message(),
+                session_keys: session.session_keys(),
+                receiver_chains: receiver_chains?,
+                sender_chains,
+                message_keys,
+                root_key,
+            })
+        }
+    }
+
+    impl TryFrom<Pickle> for Session {
+        type Error = LibolmPickleError;
+
+        fn try_from(pickle: Pickle) -> Result<Self, Self::Error> {
+            let mut receiving_chains = ChainStore::new();
+
+            for chain in &pickle.receiver_chains {
+                receiving_chains.push(chain.into())
+            }
+
+            for key in &pickle.message_keys {
+                let ratchet_key =
+                    RemoteRatchetKey::from(Curve25519PublicKey::from(key.ratchet_key));
+
+                if let Some(receiving_chain) = receiving_chains.find_ratchet(&ratchet_key) {
+                    receiving_chain.insert_message_key(key.into())
+                }
+            }
+
+            if let Some(chain) = pickle.sender_chains.get(0) {
+                // XXX: Passing in secret array as value.
+                let ratchet_key = RatchetKey::from(Curve25519SecretKey::from_slice(
+                    chain.secret_ratchet_key.as_ref(),
+                ));
+                let chain_key =
+                    ChainKey::from_bytes_and_index(chain.chain_key.clone(), chain.chain_key_index);
+
+                let root_key = RootKey::new(pickle.root_key.clone());
+
+                let ratchet = Ratchet::new_with_ratchet_key(root_key, ratchet_key);
+                let sending_ratchet = DoubleRatchet::from_ratchet_and_chain_key(ratchet, chain_key);
+
+                Ok(Self {
+                    session_keys: pickle.session_keys,
+                    sending_ratchet,
+                    receiving_chains,
+                    config: SessionConfig::version_1(),
+                })
+            } else if let Some(chain) = receiving_chains.get(0) {
+                let sending_ratchet = DoubleRatchet::inactive(
+                    RemoteRootKey::new(pickle.root_key.clone()),
+                    chain.ratchet_key(),
+                );
+
+                Ok(Self {
+                    session_keys: pickle.session_keys,
+                    sending_ratchet,
+                    receiving_chains,
+                    config: SessionConfig::version_1(),
+                })
+            } else {
+                Err(crate::LibolmPickleError::InvalidSession)
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use anyhow::{bail, Result};
-    use olm_rs::{
-        account::OlmAccount,
-        session::{OlmMessage, OlmSession},
-    };
+    use olm_rs::{account::OlmAccount, session::OlmSession};
 
     use super::Session;
     use crate::{
@@ -549,7 +667,7 @@ mod test {
         let olm_message = alice_session.encrypt(message);
         bob.mark_keys_as_published();
 
-        if let OlmMessage::PreKey(m) = olm_message.into() {
+        if let olm_rs::session::OlmMessage::PreKey(m) = olm_message.into() {
             let session =
                 bob.create_inbound_session_from(&alice.curve25519_key().to_base64(), m)?;
 
@@ -602,6 +720,8 @@ mod test {
     #[test]
     #[cfg(feature = "libolm-compat")]
     fn libolm_unpickling() -> Result<()> {
+        use crate::olm::OlmMessage;
+
         let (_, _, mut session, olm) = sessions()?;
 
         let plaintext = "It's a secret to everybody";
@@ -614,6 +734,15 @@ mod test {
         let message = session.encrypt("Hello");
         olm.decrypt(message.into())?;
 
+        for _ in 0..9 {
+            olm.encrypt(plaintext);
+        }
+
+        let message = olm.encrypt("Hello");
+        let (message_type, ciphertext) = message.to_tuple();
+        let message = OlmMessage::from_parts(message_type as usize, &ciphertext)?;
+        session.decrypt(&message)?;
+
         let key = b"DEFAULT_PICKLE_KEY";
         let pickle = olm.pickle(olm_rs::PicklingMode::Encrypted { key: key.to_vec() });
 
@@ -625,6 +754,11 @@ mod test {
 
         let message = unpickled.encrypt(plaintext);
 
+        assert_eq!(session.receiving_chains.len(), 1);
+        assert_eq!(
+            session.receiving_chains.iter().next().unwrap().skipped_message_keys.iter().len(),
+            9
+        );
         assert_eq!(session.decrypt(&message)?, plaintext.as_bytes());
 
         Ok(())
@@ -648,6 +782,48 @@ mod test {
 
         assert_eq!(pickle, repickle);
 
+        Ok(())
+    }
+
+    #[test]
+    #[cfg(feature = "libolm-compat")]
+    fn libolm_pickle_cycle() -> Result<()> {
+        use crate::olm::OlmMessage;
+        let plaintext = "It's a secret to everybody";
+
+        let (_, _, mut session, olm) = sessions()?;
+
+        for _ in 0..9 {
+            olm.encrypt(plaintext);
+        }
+
+        for _ in 0..9 {
+            session.encrypt(plaintext);
+        }
+
+        let message = olm.encrypt("It's a secret to everybody");
+        let (message_type, ciphertext) = message.to_tuple();
+        let message = OlmMessage::from_parts(message_type as usize, &ciphertext)?;
+        let _ = session.decrypt(&message)?;
+
+        let vodozemac_pickle = session.to_libolm_pickle(&PICKLE_KEY)?;
+
+        let libolm_session = OlmSession::unpickle(
+            vodozemac_pickle,
+            olm_rs::PicklingMode::Encrypted { key: PICKLE_KEY.to_vec() },
+        )?;
+
+        assert_eq!(olm.session_id(), libolm_session.session_id());
+
+        let repickle =
+            libolm_session.pickle(olm_rs::PicklingMode::Encrypted { key: PICKLE_KEY.to_vec() });
+        let session = Session::from_libolm_pickle(&repickle, &PICKLE_KEY)?;
+
+        assert_eq!(olm.session_id(), session.session_id());
+        assert_eq!(
+            session.receiving_chains.iter().next().unwrap().skipped_message_keys.iter().len(),
+            9
+        );
         Ok(())
     }
 }
