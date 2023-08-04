@@ -19,6 +19,7 @@ use matrix_pickle::{Decode, DecodeError};
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use x25519_dalek::{EphemeralSecret, PublicKey, ReusableSecret, SharedSecret, StaticSecret};
+use zeroize::Zeroize;
 
 use super::KeyError;
 use crate::utilities::{base64_decode, base64_encode};
@@ -53,8 +54,14 @@ impl Curve25519SecretKey {
     ///
     /// **Note**: This creates a copy of the key which won't be zeroized, the
     /// caller of the method needs to make sure to zeroize the returned array.
-    pub fn to_bytes(&self) -> [u8; 32] {
-        self.0.to_bytes()
+    pub fn to_bytes(&self) -> Box<[u8; 32]> {
+        let mut key = Box::new([0u8; 32]);
+        let mut bytes = self.0.to_bytes();
+        key.copy_from_slice(&bytes);
+
+        bytes.zeroize();
+
+        key
     }
 }
 

@@ -577,7 +577,7 @@ mod libolm {
                 key_id: key.key_id.0.try_into().map_err(|_| ())?,
                 published: key.published(),
                 public_key: key.public_key().to_bytes(),
-                private_key: key.secret_key().to_bytes().into(),
+                private_key: key.secret_key().to_bytes(),
             })
         }
     }
@@ -593,7 +593,7 @@ mod libolm {
                         key_id: key_id.0.try_into().ok()?,
                         published: account.one_time_keys.is_secret_key_published(key_id),
                         public_key: Curve25519PublicKey::from(secret_key).to_bytes(),
-                        private_key: secret_key.to_bytes().into(),
+                        private_key: secret_key.to_bytes(),
                     })
                 })
                 .collect();
@@ -620,7 +620,7 @@ mod libolm {
                     public_key: account.signing_key.public_key().as_bytes().to_owned(),
                 },
                 public_curve25519_key: account.diffie_hellman_key.public_key().to_bytes(),
-                private_curve25519_key: account.diffie_hellman_key.secret_key().to_bytes().into(),
+                private_curve25519_key: account.diffie_hellman_key.secret_key().to_bytes(),
                 one_time_keys,
                 fallback_keys,
                 next_key_id,
