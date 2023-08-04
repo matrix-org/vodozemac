@@ -23,7 +23,7 @@ use base64::{
     Engine,
 };
 #[cfg(feature = "libolm-compat")]
-pub(crate) use libolm_compat::{unpickle_libolm, LibolmEd25519Keypair};
+pub(crate) use libolm_compat::{pickle_libolm, unpickle_libolm, LibolmEd25519Keypair};
 
 const STANDARD_NO_PAD: GeneralPurpose = GeneralPurpose::new(
     &alphabet::STANDARD,
@@ -136,8 +136,7 @@ impl VarInt for u32 {
 impl VarInt for u64 {
     #[inline]
     fn to_var_int(self) -> Vec<u8> {
-        let mut v = Vec::new();
-        v.resize(required_encoded_space_unsigned(self), 0);
+        let mut v = vec![0u8; required_encoded_space_unsigned(self)];
 
         let mut n = self;
         let mut i = 0;

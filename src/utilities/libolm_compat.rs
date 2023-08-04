@@ -14,10 +14,10 @@
 
 use std::io::Cursor;
 
-use matrix_pickle::Decode;
+use matrix_pickle::{Decode, Encode};
 use zeroize::Zeroize;
 
-use super::base64_decode;
+use super::{base64_decode, base64_encode};
 use crate::{cipher::Cipher, LibolmPickleError};
 
 /// Decrypt and decode the given pickle with the given pickle key.
@@ -65,10 +65,40 @@ pub(crate) fn unpickle_libolm<P: Decode, T: TryFrom<P, Error = LibolmPickleError
     }
 }
 
-#[derive(Zeroize, Decode)]
+pub(crate) fn pickle_libolm<P>(pickle: P, pickle_key: &[u8]) -> Result<String, LibolmPickleError>
+where
+    P: Encode,
+{
+    let mut encoded = pickle.encode_to_vec()?;
+
+    let cipher = Cipher::new_pickle(pickle_key);
+    let encrypted = cipher.encrypt_pickle(&encoded);
+    encoded.zeroize();
+
+    Ok(base64_encode(encrypted))
+}
+
+#[derive(Zeroize, Encode, Decode)]
 #[zeroize(drop)]
 pub(crate) struct LibolmEd25519Keypair {
     pub public_key: [u8; 32],
     #[secret]
     pub private_key: Box<[u8; 64]>,
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn encode_cycle() {
+        let key_pair =
+            LibolmEd25519Keypair { public_key: [10u8; 32], private_key: [20u8; 64].into() };
+
+        let encoded = key_pair.encode_to_vec().unwrap();
+        let decoded = LibolmEd25519Keypair::decode_from_slice(&encoded).unwrap();
+
+        assert_eq!(key_pair.public_key, decoded.public_key);
+        assert_eq!(key_pair.private_key, decoded.private_key);
+    }
 }
