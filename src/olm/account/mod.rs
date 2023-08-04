@@ -384,11 +384,11 @@ impl Account {
     /// ability to hold more one-time keys compared to the [`libolm`]
     /// variant.
     ///
-    /// ⚠️  ***Security Warning***: The pickle key will get expanded into both an AES
-    /// key and an IV in a deterministic manner. If the same pickle key is
-    /// reused, this will lead to IV reuse. To prevent this, users have to
-    /// ensure that they always use a globally (probabilistically) unique pickle
-    /// key.
+    /// ⚠️  ***Security Warning***: The pickle key will get expanded into both an
+    /// AES key and an IV in a deterministic manner. If the same pickle key
+    /// is reused, this will lead to IV reuse. To prevent this, users have
+    /// to ensure that they always use a globally (probabilistically) unique
+    /// pickle key.
     ///
     /// [`libolm`]: https://gitlab.matrix.org/matrix-org/olm/
     ///
