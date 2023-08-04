@@ -378,15 +378,17 @@ impl Account {
     /// This pickle can be restored using the `[Account::from_libolm_pickle]`
     /// method, or can be used in the [`libolm`] C library.
     ///
-    /// The pickle will be encryptd using the pickle key.
+    /// The pickle will be encrypted using the pickle key.
     ///
     /// *Note*: This method might be lossy, the vodozemac [`Account`] has the
     /// ability to hold more one-time keys compared to the [`libolm`]
     /// variant.
     ///
-    /// ⚠️  *Security warning*: The pickle key will get expanded into a AES key
-    /// and IV in a deterministic manner, this might lead to IV reuse if the
-    /// same pickle key is used multiple times.
+    /// ⚠️  ***Security Warning***: The pickle key will get expanded into both an AES
+    /// key and an IV in a deterministic manner. If the same pickle key is
+    /// reused, this will lead to IV reuse. To prevent this, users have to
+    /// ensure that they always use a globally (probabilistically) unique pickle
+    /// key.
     ///
     /// [`libolm`]: https://gitlab.matrix.org/matrix-org/olm/
     ///
