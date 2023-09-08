@@ -33,7 +33,7 @@ const VERSION: u8 = 4;
 /// An encrypted Megolm message.
 ///
 /// Contains metadata that is required to find the correct ratchet state of a
-/// [`InboundGroupSession`] necessary to decryp the message.
+/// [`InboundGroupSession`] necessary to decrypt the message.
 ///
 /// [`InboundGroupSession`]: crate::megolm::InboundGroupSession
 #[derive(Clone, PartialEq, Eq)]
