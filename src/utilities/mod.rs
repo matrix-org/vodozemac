@@ -152,3 +152,24 @@ impl VarInt for u64 {
         v
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_b64_decode_any_padding() {
+        let encoded_with_padding = "VGhpc0lzQVRlc3Q=";
+        let encoded_without_padding = "VGhpc0lzQVRlc3Q";
+
+        let first = base64_decode(encoded_with_padding).expect("Should decode if there is padding");
+        let second =
+            base64_decode(encoded_without_padding).expect("Should decode if there is no padding");
+
+        assert_eq!(
+            first,
+            second,
+            "Decoding the same base64 string with and without padding should produce the same result"
+        )
+    }
+}
