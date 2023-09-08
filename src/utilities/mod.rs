@@ -169,7 +169,7 @@ mod test {
         assert_eq!(
             first,
             second,
-            "Decoding the same paded base64 string and unpadded base64 string should produce the same result"
+            "Decoding the same base64 string with and without padding should produce the same result"
         )
     }
 }
