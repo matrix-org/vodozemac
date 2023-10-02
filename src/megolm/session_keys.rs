@@ -314,6 +314,13 @@ impl TryFrom<&str> for SessionKey {
     }
 }
 
+impl From<&ExportedSessionKey> for SessionKey {
+    fn from(value: &ExportedSessionKey) -> Self {
+        let ratchet = Ratchet::from_bytes(value.ratchet.clone(), value.ratchet_index);
+        SessionKey::new(&ratchet, value.signing_key)
+    }
+}
+
 impl Serialize for SessionKey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
