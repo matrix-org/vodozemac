@@ -6,8 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Features
 
-- Add support to export an Account to a libolm pickle ([#111](https://github.com/matrix-org/vodozemac/pull/111))
-- Added the base64 decoding and encoding methods to the public interface ([#112](https://github.com/matrix-org/vodozemac/pull/112))
+- Add support for exporting an Account to a libolm pickle ([#111](https://github.com/matrix-org/vodozemac/pull/111))
+- Add base64 decoding and encoding methods to the public interface ([#112](https://github.com/matrix-org/vodozemac/pull/112))
 
 
 ## [0.4.0] - 2023-05-31
