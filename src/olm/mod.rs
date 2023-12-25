@@ -57,7 +57,7 @@
 //!     let mut bob = Account::new();
 //!
 //!     bob.generate_one_time_keys(1);
-//!     let bob_otk = *bob.one_time_keys().values().next().unwrap();
+//!     let bob_otk = *bob.one_time_keys().curve25519.values().next().unwrap();
 //!
 //!     let mut alice_session = alice
 //!         .create_outbound_session(SessionConfig::version_2(), bob.curve25519_key(), bob_otk);

@@ -86,6 +86,10 @@ pub struct InboundCreationResult {
     pub plaintext: Vec<u8>,
 }
 
+pub struct UnpublishedKeys {
+    pub curve25519: HashMap<KeyId, Curve25519PublicKey>,
+}
+
 /// An Olm account manages all cryptographic keys used on a device.
 pub struct Account {
     /// A permanent Ed25519 key used for signing. Also known as the fingerprint
@@ -293,12 +297,16 @@ impl Account {
     ///
     /// The one-time keys should be published to a server and marked as
     /// published using the `mark_keys_as_published()` method.
-    pub fn one_time_keys(&self) -> HashMap<KeyId, Curve25519PublicKey> {
-        self.one_time_keys
+    pub fn one_time_keys(&self) -> UnpublishedKeys {
+        let curve25519 = self.one_time_keys
             .unpublished_public_keys
             .iter()
             .map(|(key_id, key)| (*key_id, *key))
-            .collect()
+            .collect();
+
+        UnpublishedKeys {
+            curve25519
+        }
     }
 
     /// Generate a single new fallback key.
@@ -766,7 +774,7 @@ mod test {
         let mut alice_session = alice.create_outbound_session(
             SessionConfig::version_2(),
             bob.curve25519_key(),
-            *bob.one_time_keys()
+            *bob.one_time_keys().curve25519
                 .iter()
                 .next()
                 .context("Failed getting bob's OTK, which should never happen here.")?
@@ -823,7 +831,7 @@ mod test {
         bob.generate_one_time_keys(1);
 
         let one_time_key =
-            bob.one_time_keys().values().next().cloned().expect("Didn't find a valid one-time key");
+            bob.one_time_keys().curve25519.values().next().cloned().expect("Didn't find a valid one-time key");
 
         let alice_session = alice.create_outbound_session(
             &bob.curve25519_key().to_base64(),
@@ -931,7 +939,7 @@ mod test {
         let mut olm_one_time_keys: Vec<_> =
             olm.parsed_one_time_keys().curve25519().values().map(|k| k.to_owned()).collect();
         let mut one_time_keys: Vec<_> =
-            unpickled.one_time_keys().values().map(|k| k.to_base64()).collect();
+            unpickled.one_time_keys().curve25519.values().map(|k| k.to_base64()).collect();
 
         // We generated 10 one-time keys on the libolm side, we expect the next key id
         // to be 11.
@@ -986,7 +994,7 @@ mod test {
         let mut session = malory.create_outbound_session(
             SessionConfig::default(),
             alice.curve25519_key(),
-            *alice.one_time_keys().values().next().expect("Should have one-time key"),
+            *alice.one_time_keys().curve25519.values().next().expect("Should have one-time key"),
         );
 
         let message = session.encrypt("Test");
