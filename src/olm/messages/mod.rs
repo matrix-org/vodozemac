@@ -1,4 +1,4 @@
-// Copyright 2021 Damir Jelić
+// Copyright 2021-2024 Damir Jelić
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ mod message;
 mod pre_key;
 
 pub use message::Message;
-pub use pre_key::PreKeyMessage;
+pub use pre_key::{PqPreKeyMessage, PreKeyMessage};
 use serde::{Deserialize, Serialize};
 
 use crate::DecodeError;
@@ -40,6 +40,7 @@ pub enum OlmMessage {
     ///
     /// [`Session`]: crate::olm::Session
     PreKey(PreKeyMessage),
+    PqPreKey(PqPreKeyMessage),
 }
 
 impl From<Message> for OlmMessage {
@@ -99,6 +100,7 @@ impl OlmMessage {
         match self {
             OlmMessage::Normal(m) => &m.ciphertext,
             OlmMessage::PreKey(m) => &m.message.ciphertext,
+            OlmMessage::PqPreKey(m) => &m.message.ciphertext,
         }
     }
 
@@ -107,6 +109,7 @@ impl OlmMessage {
         match self {
             OlmMessage::Normal(_) => MessageType::Normal,
             OlmMessage::PreKey(_) => MessageType::PreKey,
+            OlmMessage::PqPreKey(_) => MessageType::PreKey,
         }
     }
 
@@ -118,6 +121,7 @@ impl OlmMessage {
         match self {
             OlmMessage::Normal(m) => (message_type.into(), m.to_base64()),
             OlmMessage::PreKey(m) => (message_type.into(), m.to_base64()),
+            OlmMessage::PqPreKey(m) => todo!(),
         }
     }
 }
@@ -169,6 +173,7 @@ impl From<OlmMessage> for LibolmMessage {
                 .expect("Can't create a valid libolm message"),
             OlmMessage::PreKey(m) => LibolmMessage::from_type_and_ciphertext(0, m.to_base64())
                 .expect("Can't create a valid libolm pre-key message"),
+            OlmMessage::PqPreKey(_) => todo!(),
         }
     }
 }
@@ -176,7 +181,7 @@ impl From<OlmMessage> for LibolmMessage {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use assert_matches::assert_matches;
+    use assert_matches2::assert_matches;
     use serde_json::json;
 
     use super::*;
@@ -218,7 +223,7 @@ mod tests {
         });
 
         let message: OlmMessage = serde_json::from_value(value.clone())?;
-        assert_matches!(message, OlmMessage::PreKey(_));
+        assert_matches!(&message, OlmMessage::PreKey(_));
 
         let serialized = serde_json::to_value(message)?;
         assert_eq!(value, serialized, "The serialization cycle isn't a noop");
@@ -229,7 +234,7 @@ mod tests {
         });
 
         let message: OlmMessage = serde_json::from_value(value.clone())?;
-        assert_matches!(message, OlmMessage::Normal(_));
+        assert_matches!(&message, OlmMessage::Normal(_));
 
         let serialized = serde_json::to_value(message)?;
         assert_eq!(value, serialized, "The serialization cycle isn't a noop");
@@ -240,7 +245,7 @@ mod tests {
     #[test]
     fn from_parts() -> Result<()> {
         let message = OlmMessage::from_parts(0, PRE_KEY_MESSAGE)?;
-        assert_matches!(message, OlmMessage::PreKey(_));
+        assert_matches!(&message, OlmMessage::PreKey(_));
         assert_eq!(
             message.message_type(),
             MessageType::PreKey,

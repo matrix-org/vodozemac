@@ -1,4 +1,4 @@
-// Copyright 2021 Damir Jelić
+// Copyright 2021-2024 Damir Jelić
 // Copyright 2021 The Matrix.org Foundation C.I.C.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -37,13 +37,16 @@ use zeroize::Zeroize;
 use super::{
     session_config::Version,
     session_keys::SessionKeys,
-    shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
+    shared_secret::{
+        RemoteShared3DHSecret, RemoteSharedPqXDHSecret, Shared3DHSecret, SharedPqXDHSecret,
+    },
     SessionConfig,
 };
 #[cfg(feature = "low-level-api")]
 use crate::hazmat::olm::MessageKey;
 use crate::{
-    olm::messages::{Message, OlmMessage, PreKeyMessage},
+    olm::messages::{Message, OlmMessage, PqPreKeyMessage, PreKeyMessage},
+    types::kyber::KyberCipherText,
     utilities::{pickle, unpickle},
     Curve25519PublicKey, PickleError,
 };
@@ -149,12 +152,18 @@ pub struct Session {
     session_keys: SessionKeys,
     sending_ratchet: DoubleRatchet,
     receiving_chains: ChainStore,
+    pre_key_info: Option<PreKeyInfo>,
     config: SessionConfig,
+}
+
+struct PreKeyInfo {
+    kyber_ciphertext: KyberCipherText,
 }
 
 impl Debug for Session {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let Self { session_keys: _, sending_ratchet, receiving_chains, config } = self;
+        let Self { session_keys: _, pre_key_info: _, sending_ratchet, receiving_chains, config } =
+            self;
 
         f.debug_struct("Session")
             .field("session_id", &self.session_id())
@@ -174,10 +183,60 @@ impl Session {
         let local_ratchet = DoubleRatchet::active(shared_secret);
 
         Self {
+            pre_key_info: None,
             session_keys,
             sending_ratchet: local_ratchet,
             receiving_chains: Default::default(),
             config,
+        }
+    }
+
+    pub(super) fn new_pq(
+        shared_secret: SharedPqXDHSecret,
+        config: SessionConfig,
+        session_keys: SessionKeys,
+    ) -> Self {
+        // TODO: As per [spec], we should create and remember some associated data here. This
+        // associated data should then be used in an AEAD which is keyed by each message key.
+        // [spec]: https://signal.org/docs/specifications/pqxdh/#sending-the-initial-message
+        let sending_ratchet = DoubleRatchet::active_pq(&shared_secret);
+        let kyber_ciphertext = shared_secret.kyber_ciphertext.to_owned();
+        let pre_key_info = Some(PreKeyInfo { kyber_ciphertext });
+
+        Self {
+            session_keys,
+            pre_key_info,
+            sending_ratchet,
+            receiving_chains: Default::default(),
+            config,
+        }
+    }
+
+    pub(super) fn new_remote_pq(
+        config: SessionConfig,
+        shared_secret: RemoteSharedPqXDHSecret,
+        remote_ratchet_key: Curve25519PublicKey,
+        session_keys: SessionKeys,
+    ) -> Self {
+        let (root_key, remote_chain_key) = shared_secret.expand();
+
+        // TODO: Again, no associated data is created and no AEAD is used.
+        let remote_ratchet_key = RemoteRatchetKey::from(remote_ratchet_key);
+        let root_key = RemoteRootKey::new(root_key);
+        let remote_chain_key = RemoteChainKey::new(remote_chain_key);
+
+        let local_ratchet = DoubleRatchet::inactive(root_key, remote_ratchet_key);
+        let remote_ratchet = ReceiverChain::new(remote_ratchet_key, remote_chain_key);
+
+        let mut ratchet_store = ChainStore::new();
+        ratchet_store.push(remote_ratchet);
+
+        Self {
+            session_keys,
+            sending_ratchet: local_ratchet,
+            receiving_chains: ratchet_store,
+            config,
+            pre_key_info: None,
         }
     }
 
@@ -204,6 +263,7 @@ impl Session {
             sending_ratchet: local_ratchet,
             receiving_chains: ratchet_store,
             config,
+            pre_key_info: None,
         }
     }
 
@@ -230,16 +290,47 @@ impl Session {
     /// message from the other side.
     pub fn encrypt(&mut self, plaintext: impl AsRef<[u8]>) -> OlmMessage {
         let message = match self.config.version {
-            Version::V1 => self.sending_ratchet.encrypt_truncated_mac(plaintext.as_ref()),
-            Version::V2 => self.sending_ratchet.encrypt(plaintext.as_ref()),
+            Version::V1(_) => self.sending_ratchet.encrypt_truncated_mac(plaintext.as_ref()),
+            Version::V2(_) => self.sending_ratchet.encrypt(plaintext.as_ref()),
+            // TODO: The PQXDH spec requires the use of an AEAD which the
+            // [`DoubleRatchet::encrypt()`] method does not use.
+            Version::VPQ(_) => self.sending_ratchet.encrypt(plaintext.as_ref()),
         };
 
         if self.has_received_message() {
             OlmMessage::Normal(message)
         } else {
-            let message = PreKeyMessage::new(self.session_keys, message);
+            match &self.config.version {
+                Version::V1(_) | Version::V2(_) => {
+                    let message = PreKeyMessage::new(self.session_keys, message);
+                    OlmMessage::PreKey(message)
+                }
+                Version::VPQ(config) => {
+                    let identity_key = self.session_keys.identity_key;
+                    let base_key = self.session_keys.base_key;
+                    let one_time_key = config.one_time_key;
+                    let signed_pre_key = config.signed_pre_key;
+                    let kyber_ciphertext = self
+                        .pre_key_info
+                        .as_ref()
+                        .expect("We should have a pre-key info if we didn't yet receive a message")
+                        .kyber_ciphertext
+                        .to_owned();
+                    let kyber_id = config.kyber_key_id;
 
-            OlmMessage::PreKey(message)
+                    let message = PqPreKeyMessage::new(
+                        identity_key,
+                        base_key,
+                        one_time_key,
+                        signed_pre_key,
+                        kyber_ciphertext,
+                        kyber_id,
+                        message,
+                    );
+
+                    OlmMessage::PqPreKey(message)
+                }
+            }
         }
     }
 
@@ -248,8 +339,8 @@ impl Session {
         self.session_keys
     }
 
-    pub fn session_config(&self) -> SessionConfig {
-        self.config
+    pub fn session_config(&self) -> &SessionConfig {
+        &self.config
     }
 
     /// Get the [`MessageKey`] to encrypt the next message.
@@ -274,6 +365,7 @@ impl Session {
         let decrypted = match message {
             OlmMessage::Normal(m) => self.decrypt_decoded(m)?,
             OlmMessage::PreKey(m) => self.decrypt_decoded(&m.message)?,
+            OlmMessage::PqPreKey(m) => self.decrypt_decoded(&m.message)?,
         };
 
         Ok(decrypted)
@@ -306,7 +398,7 @@ impl Session {
             session_keys: self.session_keys,
             sending_ratchet: self.sending_ratchet.clone(),
             receiving_chains: self.receiving_chains.clone(),
-            config: self.config,
+            config: self.config.clone(),
         }
     }
 
@@ -441,7 +533,8 @@ impl Session {
                         session_keys: pickle.session_keys,
                         sending_ratchet,
                         receiving_chains,
-                        config: SessionConfig::version_1(),
+                        pre_key_info: None,
+                        config: todo!(),
                     })
                 } else if let Some(chain) = receiving_chains.get(0) {
                     let sending_ratchet = DoubleRatchet::inactive(
@@ -453,7 +546,8 @@ impl Session {
                         session_keys: pickle.session_keys,
                         sending_ratchet,
                         receiving_chains,
-                        config: SessionConfig::version_1(),
+                        pre_key_info: None,
+                        config: todo!(),
                     })
                 } else {
                     Err(crate::LibolmPickleError::InvalidSession)
@@ -473,12 +567,7 @@ pub struct SessionPickle {
     session_keys: SessionKeys,
     sending_ratchet: DoubleRatchet,
     receiving_chains: ChainStore,
-    #[serde(default = "default_config")]
     config: SessionConfig,
-}
-
-fn default_config() -> SessionConfig {
-    SessionConfig::version_1()
 }
 
 impl SessionPickle {
@@ -504,6 +593,7 @@ impl From<SessionPickle> for Session {
             session_keys: pickle.session_keys,
             sending_ratchet: pickle.sending_ratchet,
             receiving_chains: pickle.receiving_chains,
+            pre_key_info: todo!(),
             config: pickle.config,
         }
     }
@@ -542,7 +632,7 @@ mod test {
         let curve25519_key = Curve25519PublicKey::from_base64(identity_keys.curve25519())?;
         let one_time_key = Curve25519PublicKey::from_base64(&one_time_key)?;
         let mut alice_session =
-            alice.create_outbound_session(SessionConfig::version_1(), curve25519_key, one_time_key);
+            alice.create_outbound_session(SessionConfig::version_1(curve25519_key, one_time_key));
 
         let message = "It's a secret to everybody";
 
