@@ -196,9 +196,9 @@ impl Session {
         config: SessionConfig,
         session_keys: SessionKeys,
     ) -> Self {
-        // TODO: As per [spec], we should create and remember some associated data here. This
-        // associated data should then be used in an AEAD which is keyed by each message key.
-        // [spec]: https://signal.org/docs/specifications/pqxdh/#sending-the-initial-message
+        // TODO: As per [spec], we should create and remember some associated data here.
+        // This associated data should then be used in an AEAD which is keyed by
+        // each message key. [spec]: https://signal.org/docs/specifications/pqxdh/#sending-the-initial-message
         let sending_ratchet = DoubleRatchet::active_pq(&shared_secret);
         let kyber_ciphertext = shared_secret.kyber_ciphertext.to_owned();
         let pre_key_info = Some(PreKeyInfo { kyber_ciphertext });
