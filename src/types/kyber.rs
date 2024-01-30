@@ -84,8 +84,13 @@ impl KyberPublicKey {
         let mut shared_secret =
             KyberSharedSecret { inner: Box::new([0u8; pqc_kyber::KYBER_SSBYTES]) };
 
-        // TODO: remove this unwrap
-        let mut result = pqc_kyber::encapsulate(self.inner.as_slice(), &mut rng).unwrap();
+        // The encapsulation only fails if we can't generate enough randomness or if the
+        // public key has not the correct size, the [`KyberPublicKey`] type
+        // ensures the correct size and we do tread RNG errors as panics.
+        let mut result = pqc_kyber::encapsulate(self.inner.as_slice(), &mut rng).expect(
+            "We should be able to perform the encapsulation operation, the key guaranteed \
+             to be the correct size.",
+        );
 
         shared_secret.inner.copy_from_slice(&result.1);
         let ciphertext = KyberCipherText { inner: result.0 };
@@ -134,6 +139,12 @@ impl KyberPublicKey {
     pub fn from_bytes(slice: &[u8; Self::LENGTH]) -> Self {
         // TODO: Can we just take any random bytes or does a public key need to
         // contain some structure?
+        // The public key is a pair (b, a) where a is a polynomial in the ring Rq, while
+        // b is computed as b=a×s+e, s being the secret key and e is a noise
+        // polynomial.
+        // On the other hand, the public key unpacking method inside the kyber codebase
+        // only requires the key to be the correct size, which we guarantee
+        // here.
         let mut public_key = Box::new([0u8; Self::LENGTH]);
 
         public_key.copy_from_slice(slice);
