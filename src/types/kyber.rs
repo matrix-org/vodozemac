@@ -17,6 +17,7 @@
 use base64::decoded_len_estimate;
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
+use serde_bytes::{ByteBuf as SerdeByteBuf, Bytes as SerdeBytes};
 use sha2::{Digest, Sha256};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -53,7 +54,8 @@ impl Serialize for KyberPublicKey {
     where
         S: serde::Serializer,
     {
-        todo!()
+        let bytes = self.as_bytes();
+        SerdeBytes::new(bytes).serialize(serializer)
     }
 }
 
@@ -62,13 +64,29 @@ impl<'de> Deserialize<'de> for KyberPublicKey {
     where
         D: serde::Deserializer<'de>,
     {
-        todo!()
+        let bytes = <SerdeByteBuf>::deserialize(deserializer)?;
+        let length = bytes.len();
+
+        let expected_length = Self::LENGTH;
+
+        if length != expected_length {
+            Err(serde::de::Error::custom(format!(
+                "Invalid public key length: expected {expected_length} bytes, got {length}"
+            )))
+        } else {
+            let mut slice = Box::new([0u8; Self::LENGTH]);
+            slice.copy_from_slice(&bytes);
+
+            let key = Self { inner: slice };
+
+            Ok(key)
+        }
     }
 }
 
 impl std::fmt::Debug for KyberPublicKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "{}", self.fingerprint())
     }
 }
 
