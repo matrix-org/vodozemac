@@ -1,4 +1,5 @@
-// Copyright 2021 Damir Jelić, Denis Kasak
+// Copyright 2021 Denis Kasak
+// Copyright 2021-2024 Damir Jelić
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,19 +26,22 @@ use x25519_dalek::ReusableSecret;
 pub use self::one_time_keys::OneTimeKeyGenerationResult;
 use self::{
     fallback_keys::FallbackKeys,
-    one_time_keys::{OneTimeKeys, OneTimeKeysPickle},
+    one_time_keys::{KyberKeys, OneTimeKeys, OneTimeKeysPickle},
 };
 use super::{
-    messages::PreKeyMessage,
+    messages::{PqPreKeyMessage, PreKeyMessage},
     session::{DecryptionError, Session},
+    session_config::Version,
     session_keys::SessionKeys,
-    shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
+    shared_secret::{
+        RemoteShared3DHSecret, RemoteSharedPqXDHSecret, Shared3DHSecret, SharedPqXDHSecret,
+    },
     SessionConfig,
 };
 use crate::{
     types::{
         Curve25519Keypair, Curve25519KeypairPickle, Curve25519PublicKey, Curve25519SecretKey,
-        Ed25519Keypair, Ed25519KeypairPickle, Ed25519PublicKey, KeyId,
+        Ed25519Keypair, Ed25519KeypairPickle, Ed25519PublicKey, KeyId, KyberPublicKey,
     },
     utilities::{pickle, unpickle},
     Ed25519Signature, PickleError,
@@ -77,6 +81,61 @@ pub struct IdentityKeys {
     pub curve25519: Curve25519PublicKey,
 }
 
+pub struct Curve25519Keys {
+    one_time_keys: OneTimeKeys,
+    /// The ephemeral Curve25519 keys used in lieu of a one-time key as part of
+    /// the 3DH, in case we run out of those. We keep track of both the current
+    /// and the previous fallback key in any given moment.
+    last_resort_keys: FallbackKeys,
+}
+
+impl Curve25519Keys {
+    fn new() -> Self {
+        Self { one_time_keys: OneTimeKeys::new(), last_resort_keys: FallbackKeys::new() }
+    }
+
+    fn find_one_time_key(&self, public_key: &Curve25519PublicKey) -> Option<&Curve25519SecretKey> {
+        self.one_time_keys
+            .get_secret_key(public_key)
+            .or_else(|| self.last_resort_keys.get_secret_key(public_key))
+    }
+
+    pub fn generate(&mut self, count: usize) -> OneTimeKeyGenerationResult<Curve25519PublicKey> {
+        self.one_time_keys.generate(count)
+    }
+
+    fn remove_one_time_key(
+        &mut self,
+        public_key: Curve25519PublicKey,
+    ) -> Option<Curve25519SecretKey> {
+        self.one_time_keys.remove_secret_key(&public_key)
+    }
+}
+
+pub struct Keys {
+    curve25519: Curve25519Keys,
+    kyber: KyberKeys,
+}
+
+impl Keys {
+    fn new() -> Self {
+        Self { curve25519: Curve25519Keys::new(), kyber: Default::default() }
+    }
+
+    fn mark_as_published(&mut self) {
+        self.curve25519.one_time_keys.mark_as_published();
+        self.curve25519.last_resort_keys.mark_as_published();
+    }
+
+    pub fn kyber(&mut self) -> &mut KyberKeys {
+        &mut self.kyber
+    }
+
+    pub fn curve25519(&self) -> &Curve25519Keys {
+        &self.curve25519
+    }
+}
+
 /// Return type for the creation of inbound [`Session`] objects.
 #[derive(Debug)]
 pub struct InboundCreationResult {
@@ -84,6 +143,11 @@ pub struct InboundCreationResult {
     pub session: Session,
     /// The plaintext of the pre-key message.
     pub plaintext: Vec<u8>,
+}
+
+pub struct UnpublishedKeys {
+    pub curve25519: HashMap<KeyId, Curve25519PublicKey>,
+    pub kyber: HashMap<KeyId, KyberPublicKey>,
 }
 
 /// An Olm account manages all cryptographic keys used on a device.
@@ -94,12 +158,7 @@ pub struct Account {
     /// The permanent Curve25519 key used for 3DH. Also known as the sender key
     /// or the identity key.
     diffie_hellman_key: Curve25519Keypair,
-    /// The ephemeral (one-time) Curve25519 keys used as part of the 3DH.
-    one_time_keys: OneTimeKeys,
-    /// The ephemeral Curve25519 keys used in lieu of a one-time key as part of
-    /// the 3DH, in case we run out of those. We keep track of both the current
-    /// and the previous fallback key in any given moment.
-    fallback_keys: FallbackKeys,
+    one_time_keys: Keys,
 }
 
 impl Account {
@@ -108,8 +167,7 @@ impl Account {
         Self {
             signing_key: Ed25519Keypair::new(),
             diffie_hellman_key: Curve25519Keypair::new(),
-            one_time_keys: OneTimeKeys::new(),
-            fallback_keys: FallbackKeys::new(),
+            one_time_keys: Keys::new(),
         }
     }
 
@@ -153,37 +211,49 @@ impl Account {
     }
 
     /// Create a `Session` with the given identity key and one-time key.
-    pub fn create_outbound_session(
-        &self,
-        session_config: SessionConfig,
-        identity_key: Curve25519PublicKey,
-        one_time_key: Curve25519PublicKey,
-    ) -> Session {
+    pub fn create_outbound_session(&self, session_config: SessionConfig) -> Session {
         let rng = thread_rng();
 
         let base_key = ReusableSecret::random_from_rng(rng);
         let public_base_key = Curve25519PublicKey::from(&base_key);
 
-        let shared_secret = Shared3DHSecret::new(
-            self.diffie_hellman_key.secret_key(),
-            &base_key,
-            &identity_key,
-            &one_time_key,
-        );
+        match &session_config.version {
+            Version::V1(session_keys) | Version::V2(session_keys) => {
+                let shared_secret = Shared3DHSecret::new(
+                    self.diffie_hellman_key.secret_key(),
+                    &base_key,
+                    &session_keys.remote_identity_key,
+                    &session_keys.one_time_key,
+                );
 
-        let session_keys = SessionKeys {
-            identity_key: self.curve25519_key(),
-            base_key: public_base_key,
-            one_time_key,
-        };
+                let session_keys = SessionKeys {
+                    identity_key: self.curve25519_key(),
+                    base_key: public_base_key,
+                    one_time_key: session_keys.one_time_key,
+                };
 
-        Session::new(session_config, shared_secret, session_keys)
-    }
+                Session::new(session_config, shared_secret, session_keys)
+            }
+            Version::VPQ(session_keys) => {
+                let shared_secret = SharedPqXDHSecret::new(
+                    &self.diffie_hellman_key.secret_key,
+                    &base_key,
+                    &session_keys.remote_identity_key,
+                    &session_keys.signed_pre_key,
+                    session_keys.one_time_key.as_ref(),
+                    &session_keys.kyber_key,
+                );
 
-    fn find_one_time_key(&self, public_key: &Curve25519PublicKey) -> Option<&Curve25519SecretKey> {
-        self.one_time_keys
-            .get_secret_key(public_key)
-            .or_else(|| self.fallback_keys.get_secret_key(public_key))
+                // TODO: The semantics of [`SessionKeys`] isn't correct here.
+                let session_keys = SessionKeys {
+                    identity_key: self.curve25519_key(),
+                    base_key: public_base_key,
+                    one_time_key: session_keys.signed_pre_key,
+                };
+
+                Session::new_pq(shared_secret, session_config, session_keys)
+            }
+        }
     }
 
     /// Remove a one-time key that has previously been published but not yet
@@ -201,11 +271,89 @@ impl Account {
         self.remove_one_time_key_helper(public_key)
     }
 
-    fn remove_one_time_key_helper(
+    pub fn create_inbound_session_pq(
         &mut self,
-        public_key: Curve25519PublicKey,
-    ) -> Option<Curve25519SecretKey> {
-        self.one_time_keys.remove_secret_key(&public_key)
+        pre_key_message: &PqPreKeyMessage,
+    ) -> Result<InboundCreationResult, SessionCreationError> {
+        // Find the matching private part of the OTK that the message claims
+        // was used to create the session that encrypted it.
+        let private_otk = pre_key_message
+            .one_time_key
+            .map(|public_key| {
+                self.one_time_keys
+                    .curve25519
+                    .find_one_time_key(&public_key)
+                    .ok_or(SessionCreationError::MissingOneTimeKey(public_key))
+            })
+            .transpose()?;
+        let signed_pre_key = self
+            .one_time_keys
+            .curve25519
+            .last_resort_keys
+            .get_secret_key(&pre_key_message.signed_pre_key)
+            .ok_or(SessionCreationError::MissingOneTimeKey(pre_key_message.signed_pre_key))?;
+        let kyber_key =
+            self.one_time_keys
+                .kyber
+                .secret_keys()
+                .get(&pre_key_message.kyber_key_id)
+                .ok_or(SessionCreationError::MissingOneTimeKey(pre_key_message.signed_pre_key))?;
+
+        // Construct a PQXDH shared secret from the various Curve25519 keys and the
+        // Kyber ciphertext.
+        // TODO: Remove the unwrap.
+        let shared_secret = RemoteSharedPqXDHSecret::new(
+            self.diffie_hellman_key.secret_key(),
+            signed_pre_key,
+            private_otk,
+            &pre_key_message.identity_key,
+            &pre_key_message.base_key,
+            kyber_key,
+            &pre_key_message.kyber_ciphertext,
+        )
+        .unwrap();
+
+        // These will be used to uniquely identify the Session.
+        let session_keys = SessionKeys {
+            identity_key: pre_key_message.identity_key,
+            base_key: pre_key_message.base_key,
+            one_time_key: pre_key_message.signed_pre_key,
+        };
+
+        let config = SessionConfig::version_pq(
+            pre_key_message.identity_key,
+            pre_key_message.signed_pre_key,
+            pre_key_message.one_time_key,
+            kyber_key.public_key(),
+            pre_key_message.kyber_key_id,
+        );
+
+        // Create a Session, AKA a double ratchet, this one will have an
+        // inactive sending chain until we decide to encrypt a message.
+        let mut session = Session::new_remote_pq(
+            config,
+            shared_secret,
+            pre_key_message.message.ratchet_key,
+            session_keys,
+        );
+
+        // Decrypt the message to check if the Session is actually valid.
+        let plaintext = session.decrypt_decoded(&pre_key_message.message)?;
+
+        // We only drop the one-time key now, this is why we can't use a
+        // one-time key type that takes `self`. If we didn't do this,
+        // someone could maliciously pretend to use up our one-time key and
+        // make us drop the private part. Unsuspecting users that actually
+        // try to use such an one-time key won't be able to commnuicate with
+        // us. This is strictly worse than the one-time key exhaustion
+        // scenario.
+        if let Some(one_time_key) = pre_key_message.one_time_key {
+            self.one_time_keys.curve25519.remove_one_time_key(one_time_key);
+        }
+
+        let _ = self.keys().kyber.private_keys.remove(&pre_key_message.kyber_key_id);
+
+        Ok(InboundCreationResult { session, plaintext })
     }
 
     /// Create a [`Session`] from the given pre-key message and identity key
@@ -224,6 +372,8 @@ impl Account {
             // was used to create the session that encrypted it.
             let public_otk = pre_key_message.one_time_key();
             let private_otk = self
+                .one_time_keys
+                .curve25519
                 .find_one_time_key(&public_otk)
                 .ok_or(SessionCreationError::MissingOneTimeKey(public_otk))?;
 
@@ -243,9 +393,9 @@ impl Account {
             };
 
             let config = if pre_key_message.message.mac_truncated() {
-                SessionConfig::version_1()
+                SessionConfig::version_1(their_identity_key, pre_key_message.one_time_key())
             } else {
-                SessionConfig::version_2()
+                SessionConfig::version_2(their_identity_key, pre_key_message.one_time_key())
             };
 
             // Create a Session, AKA a double ratchet, this one will have an
@@ -267,7 +417,7 @@ impl Account {
             // try to use such an one-time key won't be able to commnuicate with
             // us. This is strictly worse than the one-time key exhaustion
             // scenario.
-            self.remove_one_time_key_helper(pre_key_message.one_time_key());
+            self.one_time_keys.curve25519.remove_one_time_key(pre_key_message.one_time_key());
 
             Ok(InboundCreationResult { session, plaintext })
         }
@@ -281,24 +431,44 @@ impl Account {
     /// places for one-time keys, If we try to generate new ones while the store
     /// is completely populated, the oldest one-time keys will get discarded
     /// to make place for new ones.
-    pub fn generate_one_time_keys(&mut self, count: usize) -> OneTimeKeyGenerationResult {
-        self.one_time_keys.generate(count)
+    pub fn generate_one_time_keys(
+        &mut self,
+        count: usize,
+    ) -> OneTimeKeyGenerationResult<Curve25519PublicKey> {
+        self.one_time_keys.curve25519.generate(count)
     }
 
     pub fn stored_one_time_key_count(&self) -> usize {
-        self.one_time_keys.private_keys.len()
+        self.one_time_keys.curve25519.one_time_keys.private_keys.len()
     }
 
     /// Get the currently unpublished one-time keys.
     ///
     /// The one-time keys should be published to a server and marked as
     /// published using the `mark_keys_as_published()` method.
-    pub fn one_time_keys(&self) -> HashMap<KeyId, Curve25519PublicKey> {
-        self.one_time_keys
+    pub fn one_time_keys(&self) -> UnpublishedKeys {
+        let curve25519 = self
+            .one_time_keys
+            .curve25519
+            .one_time_keys
             .unpublished_public_keys
             .iter()
             .map(|(key_id, key)| (*key_id, *key))
-            .collect()
+            .collect();
+
+        let kyber = self
+            .one_time_keys
+            .kyber
+            .unpublished_public_keys
+            .iter()
+            .map(|(key_id, key)| (*key_id, key.clone()))
+            .collect();
+
+        UnpublishedKeys { curve25519, kyber }
+    }
+
+    pub fn keys(&mut self) -> &mut Keys {
+        &mut self.one_time_keys
     }
 
     /// Generate a single new fallback key.
@@ -310,7 +480,7 @@ impl Account {
     /// is, the one that will get removed from the [`Account`] when this method
     /// is called. This return value is mostly useful for logging purposes.
     pub fn generate_fallback_key(&mut self) -> Option<Curve25519PublicKey> {
-        self.fallback_keys.generate_fallback_key()
+        self.one_time_keys.curve25519.last_resort_keys.generate_fallback_key()
     }
 
     /// Get the currently unpublished fallback key.
@@ -319,7 +489,8 @@ impl Account {
     /// it has been successfully published it needs to be marked as published
     /// using the `mark_keys_as_published()` method as well.
     pub fn fallback_key(&self) -> HashMap<KeyId, Curve25519PublicKey> {
-        let fallback_key = self.fallback_keys.unpublished_fallback_key();
+        let fallback_key =
+            self.one_time_keys.curve25519.last_resort_keys.unpublished_fallback_key();
 
         if let Some(fallback_key) = fallback_key {
             HashMap::from([(fallback_key.key_id(), fallback_key.public_key())])
@@ -331,24 +502,24 @@ impl Account {
     /// The `Account` stores at most two private parts of the fallback key. This
     /// method lets us forget the previously used fallback key.
     pub fn forget_fallback_key(&mut self) -> bool {
-        self.fallback_keys.forget_previous_fallback_key().is_some()
+        self.one_time_keys.curve25519.last_resort_keys.forget_previous_fallback_key().is_some()
     }
 
     /// Mark all currently unpublished one-time and fallback keys as published.
     pub fn mark_keys_as_published(&mut self) {
         self.one_time_keys.mark_as_published();
-        self.fallback_keys.mark_as_published();
     }
 
     /// Convert the account into a struct which implements [`serde::Serialize`]
     /// and [`serde::Deserialize`].
     pub fn pickle(&self) -> AccountPickle {
-        AccountPickle {
-            signing_key: self.signing_key.clone().into(),
-            diffie_hellman_key: self.diffie_hellman_key.clone().into(),
-            one_time_keys: self.one_time_keys.clone().into(),
-            fallback_keys: self.fallback_keys.clone(),
-        }
+        todo!()
+        // AccountPickle {
+        //     signing_key: self.signing_key.clone().into(),
+        //     diffie_hellman_key: self.diffie_hellman_key.clone().into(),
+        //     one_time_keys: self.one_time_keys.clone().into(),
+        //     fallback_keys: self.fallback_keys.clone(),
+        // }
     }
 
     /// Restore an [`Account`] from a previously saved [`AccountPickle`].
@@ -466,12 +637,15 @@ impl AccountPickle {
 
 impl From<AccountPickle> for Account {
     fn from(pickle: AccountPickle) -> Self {
-        Self {
-            signing_key: pickle.signing_key.into(),
-            diffie_hellman_key: pickle.diffie_hellman_key.into(),
-            one_time_keys: pickle.one_time_keys.into(),
-            fallback_keys: pickle.fallback_keys,
-        }
+        todo!()
+        // Self {
+        //     signing_key: pickle.signing_key.into(),
+        //     diffie_hellman_key: pickle.diffie_hellman_key.into(),
+        //     one_time_keys: pickle.one_time_keys.into(),
+        //     fallback_keys: pickle.fallback_keys,
+        //     // TODO: Support pickling.
+        //     kyber_keys: Default::default(),
+        // }
     }
 }
 
@@ -485,11 +659,7 @@ mod libolm {
         one_time_keys::OneTimeKeys,
         Account,
     };
-    use crate::{
-        types::{Curve25519Keypair, Curve25519SecretKey},
-        utilities::LibolmEd25519Keypair,
-        Curve25519PublicKey, Ed25519Keypair, KeyId,
-    };
+    use crate::{types::Curve25519SecretKey, utilities::LibolmEd25519Keypair, KeyId};
 
     #[derive(Debug, Zeroize, Encode, Decode)]
     #[zeroize(drop)]
@@ -586,47 +756,54 @@ mod libolm {
 
     impl From<&Account> for Pickle {
         fn from(account: &Account) -> Self {
-            let one_time_keys: Vec<_> = account
-                .one_time_keys
-                .secret_keys()
-                .iter()
-                .filter_map(|(key_id, secret_key)| {
-                    Some(OneTimeKey {
-                        key_id: key_id.0.try_into().ok()?,
-                        published: account.one_time_keys.is_secret_key_published(key_id),
-                        public_key: Curve25519PublicKey::from(secret_key).to_bytes(),
-                        private_key: secret_key.to_bytes(),
-                    })
-                })
-                .collect();
-
-            let fallback_keys = FallbackKeysArray {
-                fallback_key: account
-                    .fallback_keys
-                    .fallback_key
-                    .as_ref()
-                    .and_then(|f| f.try_into().ok()),
-                previous_fallback_key: account
-                    .fallback_keys
-                    .previous_fallback_key
-                    .as_ref()
-                    .and_then(|f| f.try_into().ok()),
-            };
-
-            let next_key_id = account.one_time_keys.next_key_id.try_into().unwrap_or_default();
-
-            Self {
-                version: 4,
-                ed25519_keypair: LibolmEd25519Keypair {
-                    private_key: account.signing_key.expanded_secret_key(),
-                    public_key: account.signing_key.public_key().as_bytes().to_owned(),
-                },
-                public_curve25519_key: account.diffie_hellman_key.public_key().to_bytes(),
-                private_curve25519_key: account.diffie_hellman_key.secret_key().to_bytes(),
-                one_time_keys,
-                fallback_keys,
-                next_key_id,
-            }
+            todo!()
+            // let one_time_keys: Vec<_> = account
+            //     .one_time_keys
+            //     .secret_keys()
+            //     .iter()
+            //     .filter_map(|(key_id, secret_key)| {
+            //         Some(OneTimeKey {
+            //             key_id: key_id.0.try_into().ok()?,
+            //             published:
+            // account.one_time_keys.is_secret_key_published(key_id),
+            //             public_key:
+            // Curve25519PublicKey::from(secret_key).to_bytes(),
+            //             private_key: secret_key.to_bytes(),
+            //         })
+            //     })
+            //     .collect();
+            //
+            // let fallback_keys = FallbackKeysArray {
+            //     fallback_key: account
+            //         .fallback_keys
+            //         .fallback_key
+            //         .as_ref()
+            //         .and_then(|f| f.try_into().ok()),
+            //     previous_fallback_key: account
+            //         .fallback_keys
+            //         .previous_fallback_key
+            //         .as_ref()
+            //         .and_then(|f| f.try_into().ok()),
+            // };
+            //
+            // let next_key_id =
+            // account.one_time_keys.next_key_id.try_into().unwrap_or_default();
+            //
+            // Self {
+            //     version: 4,
+            //     ed25519_keypair: LibolmEd25519Keypair {
+            //         private_key: account.signing_key.expanded_secret_key(),
+            //         public_key:
+            // account.signing_key.public_key().as_bytes().to_owned(),
+            //     },
+            //     public_curve25519_key:
+            // account.diffie_hellman_key.public_key().to_bytes(),
+            //     private_curve25519_key:
+            // account.diffie_hellman_key.secret_key().to_bytes(),
+            //     one_time_keys,
+            //     fallback_keys,
+            //     next_key_id,
+            // }
         }
     }
 
@@ -658,17 +835,19 @@ mod libolm {
                     .as_ref()
                     .map(|k| k.into()),
             };
+            todo!()
 
-            Ok(Self {
-                signing_key: Ed25519Keypair::from_expanded_key(
-                    &pickle.ed25519_keypair.private_key,
-                )?,
-                diffie_hellman_key: Curve25519Keypair::from_secret_key(
-                    &pickle.private_curve25519_key,
-                ),
-                one_time_keys,
-                fallback_keys,
-            })
+            // Ok(Self {
+            //     signing_key: Ed25519Keypair::from_expanded_key(
+            //         &pickle.ed25519_keypair.private_key,
+            //     )?,
+            //     diffie_hellman_key: Curve25519Keypair::from_secret_key(
+            //         &pickle.private_curve25519_key,
+            //     ),
+            //     one_time_keys,
+            //     fallback_keys,
+            //     kyber_keys: Default::default(),
+            // })
         }
     }
 }
@@ -676,6 +855,7 @@ mod libolm {
 #[cfg(test)]
 mod test {
     use anyhow::{bail, Context, Result};
+    use assert_matches2::assert_let;
     use olm_rs::{account::OlmAccount, session::OlmMessage as LibolmOlmMessage};
 
     use super::{Account, InboundCreationResult, SessionConfig, SessionCreationError};
@@ -713,7 +893,7 @@ mod test {
         let curve25519_key = PublicKey::from_base64(identity_keys.curve25519())?;
         let one_time_key = PublicKey::from_base64(&one_time_key)?;
         let mut alice_session =
-            alice.create_outbound_session(SessionConfig::version_1(), curve25519_key, one_time_key);
+            alice.create_outbound_session(SessionConfig::version_1(curve25519_key, one_time_key));
 
         let message = "It's a secret to everybody";
         let olm_message: LibolmOlmMessage = alice_session.encrypt(message).into();
@@ -763,15 +943,15 @@ mod test {
 
         bob.generate_one_time_keys(1);
 
-        let mut alice_session = alice.create_outbound_session(
-            SessionConfig::version_2(),
+        let mut alice_session = alice.create_outbound_session(SessionConfig::version_2(
             bob.curve25519_key(),
-            *bob.one_time_keys()
-                .iter()
+            bob.one_time_keys()
+                .curve25519
+                .into_iter()
                 .next()
                 .context("Failed getting bob's OTK, which should never happen here.")?
                 .1,
-        );
+        ));
 
         bob.mark_keys_as_published();
 
@@ -822,8 +1002,13 @@ mod test {
 
         bob.generate_one_time_keys(1);
 
-        let one_time_key =
-            bob.one_time_keys().values().next().cloned().expect("Didn't find a valid one-time key");
+        let one_time_key = bob
+            .one_time_keys()
+            .curve25519
+            .values()
+            .next()
+            .cloned()
+            .expect("Didn't find a valid one-time key");
 
         let alice_session = alice.create_outbound_session(
             &bob.curve25519_key().to_base64(),
@@ -842,7 +1027,7 @@ mod test {
         };
 
         assert_eq!(alice_session.session_id(), session.session_id());
-        assert!(bob.one_time_keys.private_keys.is_empty());
+        assert!(bob.one_time_keys.curve25519.one_time_keys.private_keys.is_empty());
 
         assert_eq!(text.as_bytes(), plaintext);
 
@@ -858,7 +1043,7 @@ mod test {
 
         let one_time_key =
             bob.fallback_key().values().next().cloned().expect("Didn't find a valid fallback key");
-        assert!(bob.one_time_keys.private_keys.is_empty());
+        assert!(bob.one_time_keys.curve25519.one_time_keys.private_keys.is_empty());
 
         let alice_session = alice.create_outbound_session(
             &bob.curve25519_key().to_base64(),
@@ -876,7 +1061,7 @@ mod test {
 
             assert_eq!(m.session_keys(), session.session_keys());
             assert_eq!(alice_session.session_id(), session.session_id());
-            assert!(bob.fallback_keys.fallback_key.is_some());
+            assert!(bob.one_time_keys.curve25519.last_resort_keys.fallback_key.is_some());
 
             assert_eq!(text.as_bytes(), plaintext);
         } else {
@@ -931,11 +1116,11 @@ mod test {
         let mut olm_one_time_keys: Vec<_> =
             olm.parsed_one_time_keys().curve25519().values().map(|k| k.to_owned()).collect();
         let mut one_time_keys: Vec<_> =
-            unpickled.one_time_keys().values().map(|k| k.to_base64()).collect();
+            unpickled.one_time_keys().curve25519.values().map(|k| k.to_base64()).collect();
 
         // We generated 10 one-time keys on the libolm side, we expect the next key id
         // to be 11.
-        assert_eq!(unpickled.one_time_keys.next_key_id, 11);
+        assert_eq!(unpickled.one_time_keys.curve25519.one_time_keys.next_key_id, 11);
 
         olm_one_time_keys.sort();
         one_time_keys.sort();
@@ -983,11 +1168,10 @@ mod test {
         let malory = Account::new();
         alice.generate_one_time_keys(1);
 
-        let mut session = malory.create_outbound_session(
-            SessionConfig::default(),
+        let mut session = malory.create_outbound_session(SessionConfig::version_1(
             alice.curve25519_key(),
-            *alice.one_time_keys().values().next().expect("Should have one-time key"),
-        );
+            *alice.one_time_keys().curve25519.values().next().expect("Should have one-time key"),
+        ));
 
         let message = session.encrypt("Test");
 
@@ -1007,7 +1191,7 @@ mod test {
                 e => bail!("Expected a decryption error, got {:?}", e),
             }
             assert!(
-                !alice.one_time_keys.private_keys.is_empty(),
+                !alice.one_time_keys.curve25519.one_time_keys.private_keys.is_empty(),
                 "The one-time key was removed when it shouldn't"
             );
 

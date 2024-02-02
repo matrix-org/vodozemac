@@ -18,9 +18,95 @@ use serde::{Deserialize, Serialize};
 
 use super::PUBLIC_MAX_ONE_TIME_KEYS;
 use crate::{
-    types::{Curve25519SecretKey, KeyId},
+    types::{
+        kyber::{KyberKeyPair, KyberSecretKey},
+        Curve25519SecretKey, KeyId, KyberPublicKey,
+    },
     Curve25519PublicKey,
 };
+
+pub struct KyberKeys {
+    pub(super) next_key_id: u64,
+    pub(super) unpublished_public_keys: BTreeMap<KeyId, KyberPublicKey>,
+    pub(super) private_keys: BTreeMap<KeyId, KyberSecretKey>,
+}
+
+impl Default for KyberKeys {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl KyberKeys {
+    const MAX_ONE_TIME_KEYS: usize = 50;
+
+    pub(super) fn new() -> Self {
+        Self {
+            next_key_id: Default::default(),
+            unpublished_public_keys: Default::default(),
+            private_keys: Default::default(),
+        }
+    }
+
+    fn generate_one_time_key(&mut self) -> (KyberPublicKey, Option<KyberPublicKey>) {
+        let key_id = KeyId(self.next_key_id);
+        let key_pair = KyberKeyPair::new();
+
+        // If we hit the max number of one-time keys we'd like to keep, first remove one
+        // before we create a new one.
+        let removed = if self.private_keys.len() >= Self::MAX_ONE_TIME_KEYS {
+            if let Some(key_id) = self.private_keys.keys().next().copied() {
+                self.unpublished_public_keys.remove(&key_id);
+
+                if let Some(private_key) = self.private_keys.remove(&key_id) {
+                    let public_key = private_key.public_key();
+
+                    Some(public_key)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let KyberKeyPair { secret_key, public_key } = key_pair;
+
+        self.private_keys.insert(key_id, secret_key);
+        self.unpublished_public_keys.insert(key_id, public_key.clone());
+
+        (public_key, removed)
+    }
+
+    pub(crate) fn secret_keys(&self) -> &BTreeMap<KeyId, KyberSecretKey> {
+        &self.private_keys
+    }
+
+    pub(crate) fn is_secret_key_published(&self, key_id: &KeyId) -> bool {
+        !self.unpublished_public_keys.contains_key(key_id)
+    }
+
+    pub fn generate(&mut self, count: usize) -> OneTimeKeyGenerationResult<KyberPublicKey> {
+        let mut removed_keys = Vec::new();
+        let mut created_keys = Vec::new();
+
+        for _ in 0..count {
+            let (created, removed) = self.generate_one_time_key();
+
+            created_keys.push(created);
+
+            if let Some(removed) = removed {
+                removed_keys.push(removed);
+            }
+
+            self.next_key_id = self.next_key_id.wrapping_add(1);
+        }
+
+        OneTimeKeyGenerationResult { created: created_keys, removed: removed_keys }
+    }
+}
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(from = "OneTimeKeysPickle")]
@@ -33,12 +119,12 @@ pub(super) struct OneTimeKeys {
 }
 
 /// The result type for the one-time key generation operation.
-pub struct OneTimeKeyGenerationResult {
+pub struct OneTimeKeyGenerationResult<T> {
     /// The public part of the one-time keys that were newly generated.
-    pub created: Vec<Curve25519PublicKey>,
+    pub created: Vec<T>,
     /// The public part of the one-time keys that had to be removed to make
     /// space for the new ones.
-    pub removed: Vec<Curve25519PublicKey>,
+    pub removed: Vec<T>,
 }
 
 impl OneTimeKeys {
@@ -126,7 +212,7 @@ impl OneTimeKeys {
         !self.unpublished_public_keys.contains_key(key_id)
     }
 
-    pub fn generate(&mut self, count: usize) -> OneTimeKeyGenerationResult {
+    pub fn generate(&mut self, count: usize) -> OneTimeKeyGenerationResult<Curve25519PublicKey> {
         let mut removed_keys = Vec::new();
         let mut created_keys = Vec::new();
 

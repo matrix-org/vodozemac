@@ -1,4 +1,4 @@
-// Copyright 2021 Damir Jelić
+// Copyright 2021-2024 Damir Jelić
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,8 +20,9 @@ use serde::{Deserialize, Serialize};
 use super::Message;
 use crate::{
     olm::SessionKeys,
+    types::kyber::KyberCipherText,
     utilities::{base64_decode, base64_encode},
-    Curve25519PublicKey, DecodeError,
+    Curve25519PublicKey, DecodeError, KeyId,
 };
 
 /// An encrypted Olm pre-key message.
@@ -230,4 +231,37 @@ struct ProtoBufPreKeyMessage {
     identity_key: Vec<u8>,
     #[prost(bytes, tag = "4")]
     message: Vec<u8>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PqPreKeyMessage {
+    pub(crate) identity_key: Curve25519PublicKey,
+    pub(crate) base_key: Curve25519PublicKey,
+    pub(crate) one_time_key: Option<Curve25519PublicKey>,
+    pub(crate) signed_pre_key: Curve25519PublicKey,
+    pub(crate) kyber_ciphertext: KyberCipherText,
+    pub(crate) kyber_key_id: KeyId,
+    pub(crate) message: Message,
+}
+
+impl PqPreKeyMessage {
+    pub fn new(
+        identity_key: Curve25519PublicKey,
+        base_key: Curve25519PublicKey,
+        one_time_key: Option<Curve25519PublicKey>,
+        signed_pre_key: Curve25519PublicKey,
+        kyber_ciphertext: KyberCipherText,
+        kyber_key_id: KeyId,
+        message: Message,
+    ) -> Self {
+        Self {
+            identity_key,
+            base_key,
+            one_time_key,
+            signed_pre_key,
+            kyber_ciphertext,
+            kyber_key_id,
+            message,
+        }
+    }
 }

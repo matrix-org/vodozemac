@@ -46,7 +46,7 @@ pub struct Shared3DHSecret(Box<[u8; 96]>);
 #[zeroize(drop)]
 pub struct RemoteShared3DHSecret(Box<[u8; 96]>);
 
-fn expand(shared_secret: &[u8; 96]) -> (Box<[u8; 32]>, Box<[u8; 32]>) {
+pub(super) fn expand(shared_secret: &[u8]) -> (Box<[u8; 32]>, Box<[u8; 32]>) {
     let hkdf: Hkdf<Sha256> = Hkdf::new(Some(&[0]), shared_secret);
     let mut root_key = Box::new([0u8; 32]);
     let mut chain_key = Box::new([0u8; 32]);
@@ -93,7 +93,7 @@ impl RemoteShared3DHSecret {
     }
 
     pub fn expand(self) -> (Box<[u8; 32]>, Box<[u8; 32]>) {
-        expand(&self.0)
+        expand(self.0.as_slice())
     }
 }
 
@@ -112,7 +112,7 @@ impl Shared3DHSecret {
     }
 
     pub fn expand(self) -> (Box<[u8; 32]>, Box<[u8; 32]>) {
-        expand(&self.0)
+        expand(self.0.as_slice())
     }
 }
 

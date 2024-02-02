@@ -1,4 +1,4 @@
-// Copyright 2021 Damir Jelić
+// Copyright 2021-2024 Damir Jelić
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,7 +21,10 @@ use super::{
     receiver_chain::ReceiverChain,
     root_key::{RemoteRootKey, RootKey},
 };
-use crate::olm::{messages::Message, shared_secret::Shared3DHSecret};
+use crate::olm::{
+    messages::Message,
+    shared_secret::{Shared3DHSecret, SharedPqXDHSecret},
+};
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(transparent)]
@@ -57,6 +60,20 @@ impl DoubleRatchet {
 
     pub fn encrypt_truncated_mac(&mut self, plaintext: &[u8]) -> Message {
         self.next_message_key().encrypt_truncated_mac(plaintext)
+    }
+
+    pub fn active_pq(shared_secret: &SharedPqXDHSecret) -> Self {
+        let (root_key, chain_key) = shared_secret.expand();
+
+        let root_key = RootKey::new(root_key);
+        let chain_key = ChainKey::new(chain_key);
+
+        let ratchet = ActiveDoubleRatchet {
+            active_ratchet: Ratchet::new(root_key),
+            symmetric_key_ratchet: chain_key,
+        };
+
+        Self { inner: ratchet.into() }
     }
 
     pub fn active(shared_secret: Shared3DHSecret) -> Self {

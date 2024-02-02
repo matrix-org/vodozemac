@@ -1,4 +1,5 @@
-// Copyright 2021 Damir Jelić, Denis Kasak
+// Copyright 2021-2024 Damir Jelić
+// Copyright 2021 Denis Kasak
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -81,9 +82,11 @@ impl FoundMessageKey<'_> {
             FoundMessageKey::New(m) => &m.2,
         };
 
-        match config.version {
-            Version::V1 => message_key.decrypt_truncated_mac(message),
-            Version::V2 => message_key.decrypt(message),
+        match &config.version {
+            Version::V1(_) => message_key.decrypt_truncated_mac(message),
+            Version::V2(_) => message_key.decrypt(message),
+            // TODO: Again we would need an AEAD here to be PQXDH spec compliant.
+            Version::VPQ(_) => message_key.decrypt(message),
         }
     }
 }
