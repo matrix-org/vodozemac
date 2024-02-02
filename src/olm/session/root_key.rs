@@ -21,8 +21,10 @@ use super::{
     chain_key::{ChainKey, RemoteChainKey},
     ratchet::{RatchetKey, RemoteRatchetKey},
 };
+use crate::olm::{session_config::Version, SessionConfig};
 
-const ADVANCEMENT_SEED: &[u8; 11] = b"OLM_RATCHET";
+const ADVANCEMENT_SEED_OLM: &[u8; 11] = b"OLM_RATCHET";
+const ADVANCEMENT_SEED_INTEROLM: &[u8; 11] = b"OLM_RATCHET";
 
 #[derive(Serialize, Deserialize, Clone, Zeroize)]
 #[serde(transparent)]
@@ -38,6 +40,7 @@ pub(crate) struct RemoteRootKey {
 }
 
 fn kdf(
+    info: &[u8],
     root_key: &[u8; 32],
     ratchet_key: &RatchetKey,
     remote_ratchet_key: &RemoteRatchetKey,
@@ -46,9 +49,25 @@ fn kdf(
     let hkdf: Hkdf<Sha256> = Hkdf::new(Some(root_key.as_ref()), shared_secret.as_bytes());
     let mut output = Box::new([0u8; 64]);
 
-    hkdf.expand(ADVANCEMENT_SEED, output.as_mut_slice()).expect("Can't expand");
+    hkdf.expand(info, output.as_mut_slice()).expect("Can't expand");
 
     output
+}
+
+fn kdf_olm(
+    root_key: &[u8; 32],
+    ratchet_key: &RatchetKey,
+    remote_ratchet_key: &RemoteRatchetKey,
+) -> Box<[u8; 64]> {
+    kdf(ADVANCEMENT_SEED_OLM, root_key, ratchet_key, remote_ratchet_key)
+}
+
+fn kdf_interolm(
+    root_key: &[u8; 32],
+    ratchet_key: &RatchetKey,
+    remote_ratchet_key: &RemoteRatchetKey,
+) -> Box<[u8; 64]> {
+    kdf(ADVANCEMENT_SEED_INTEROLM, root_key, ratchet_key, remote_ratchet_key)
 }
 
 impl RemoteRootKey {
@@ -58,16 +77,21 @@ impl RemoteRootKey {
 
     pub(super) fn advance(
         &self,
+        config: &SessionConfig,
         remote_ratchet_key: &RemoteRatchetKey,
     ) -> (RootKey, ChainKey, RatchetKey) {
         let ratchet_key = RatchetKey::new();
-        let output = kdf(&self.key, &ratchet_key, remote_ratchet_key);
+
+        let output = match config.version {
+            Version::V1 | Version::V2 => kdf_olm(&self.key, &ratchet_key, remote_ratchet_key),
+            Version::Interolm(..) => kdf_interolm(&self.key, &ratchet_key, remote_ratchet_key),
+        };
 
         let mut chain_key = Box::new([0u8; 32]);
         let mut root_key = Box::new([0u8; 32]);
 
-        chain_key.copy_from_slice(&output[32..]);
         root_key.copy_from_slice(&output[..32]);
+        chain_key.copy_from_slice(&output[32..]);
 
         let chain_key = ChainKey::new(chain_key);
         let root_key = RootKey::new(root_key);
@@ -83,10 +107,14 @@ impl RootKey {
 
     pub(super) fn advance(
         &self,
+        config: &SessionConfig,
         old_ratchet_key: &RatchetKey,
         remote_ratchet_key: &RemoteRatchetKey,
     ) -> (RemoteRootKey, RemoteChainKey) {
-        let output = kdf(&self.key, old_ratchet_key, remote_ratchet_key);
+        let output = match config.version {
+            Version::V1 | Version::V2 => kdf_olm(&self.key, old_ratchet_key, remote_ratchet_key),
+            Version::Interolm(..) => kdf_interolm(&self.key, old_ratchet_key, remote_ratchet_key),
+        };
 
         let mut chain_key = Box::new([0u8; 32]);
         let mut root_key = Box::new([0u8; 32]);

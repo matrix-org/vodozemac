@@ -17,9 +17,9 @@ use std::fmt::Debug;
 use prost::Message as ProstMessage;
 use serde::{Deserialize, Serialize};
 
-use super::Message;
+use super::{message::InterolmMessage, Message};
 use crate::{
-    olm::SessionKeys,
+    olm::{session_config::InterolmSessionMetadata, OlmSessionKeys, SessionKeys},
     utilities::{base64_decode, base64_encode},
     Curve25519PublicKey, DecodeError,
 };
@@ -32,7 +32,7 @@ use crate::{
 /// [`Session`]: crate::olm::Session
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PreKeyMessage {
-    pub(crate) session_keys: SessionKeys,
+    pub(crate) session_keys: OlmSessionKeys,
     pub(crate) message: Message,
 }
 
@@ -70,7 +70,7 @@ impl PreKeyMessage {
     /// can be used to retrieve individual keys from this collection.
     ///
     /// [`Session`]: crate::olm::Session
-    pub fn session_keys(&self) -> SessionKeys {
+    pub fn session_keys(&self) -> OlmSessionKeys {
         self.session_keys
     }
 
@@ -157,7 +157,7 @@ impl PreKeyMessage {
         PreKeyMessage::new(session_keys, message)
     }
 
-    pub(crate) fn new(session_keys: SessionKeys, message: Message) -> Self {
+    pub(crate) fn new(session_keys: OlmSessionKeys, message: Message) -> Self {
         Self { session_keys, message }
     }
 }
@@ -213,10 +213,95 @@ impl TryFrom<&[u8]> for PreKeyMessage {
 
             let message = decoded.message.try_into()?;
 
-            let session_keys = SessionKeys { one_time_key, identity_key, base_key };
+            let session_keys = OlmSessionKeys { one_time_key, identity_key, base_key };
 
             Ok(Self { session_keys, message })
         }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InterolmPreKeyMessage {
+    pub(crate) registration_id: u32,
+    pub(crate) pre_key_id: Option<u32>,
+    pub(crate) signed_pre_key_id: u32,
+    pub(crate) identity_key: Curve25519PublicKey,
+    pub(crate) base_key: Curve25519PublicKey,
+    pub(crate) message: InterolmMessage,
+}
+
+impl InterolmPreKeyMessage {
+    const VERSION: u8 = 51;
+
+    pub fn new(
+        session_keys: SessionKeys,
+        metadata: InterolmSessionMetadata,
+        message: InterolmMessage,
+    ) -> Self {
+        let registration_id = metadata.registration_id;
+        let signed_pre_key_id = metadata
+            .signed_pre_key_id
+            .0
+            .try_into()
+            .expect("Key IDs will always be < 2^32 for Interolm");
+        let pre_key_id = metadata
+            .one_time_key_id
+            .map(|id| id.0.try_into().expect("Key IDs will always be < 2^32 for Interolm"));
+        let identity_key = session_keys.identity_key;
+        let base_key = session_keys.base_key;
+
+        Self { registration_id, pre_key_id, signed_pre_key_id, base_key, identity_key, message }
+    }
+
+    pub fn from_base64(message: &str) -> Result<Self, DecodeError> {
+        let decoded = base64_decode(message)?;
+        Self::from_bytes(&decoded)
+    }
+
+    pub fn to_base64(&self) -> String {
+        base64_encode(self.to_bytes())
+    }
+
+    pub fn from_bytes(message: &[u8]) -> Result<Self, DecodeError> {
+        let version = *message.first().ok_or(DecodeError::MissingVersion)?;
+
+        if version != Self::VERSION {
+            Err(DecodeError::InvalidVersion(Self::VERSION, version))
+        } else {
+            let decoded = InterolmProtoBufPrekeyMessage::decode(&message[1..message.len()])?;
+            let base_key = Curve25519PublicKey::from_slice(&decoded.base_key)?;
+            let identity_key = Curve25519PublicKey::from_slice(&decoded.identity_key)?;
+            let message = InterolmMessage::from_bytes(&decoded.message)?;
+
+            Ok(Self {
+                registration_id: decoded.registration_id,
+                pre_key_id: decoded.pre_key_id,
+                signed_pre_key_id: decoded.signed_pre_key_id,
+                identity_key,
+                base_key,
+                message,
+            })
+        }
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let message = InterolmProtoBufPrekeyMessage {
+            registration_id: self.registration_id,
+            pre_key_id: self.pre_key_id,
+            signed_pre_key_id: self.signed_pre_key_id,
+            base_key: self.base_key.to_interolm_bytes().to_vec(),
+            identity_key: self.identity_key.to_interolm_bytes().to_vec(),
+            message: self.message.to_bytes(),
+        };
+
+        let mut bytes = Vec::with_capacity(1 + message.encoded_len());
+        bytes.push(Self::VERSION);
+
+        message
+            .encode(&mut bytes)
+            .expect("Couldn't encode a pre-key Interolm message message into protobuf");
+
+        bytes
     }
 }
 
@@ -224,6 +309,22 @@ impl TryFrom<&[u8]> for PreKeyMessage {
 struct ProtoBufPreKeyMessage {
     #[prost(bytes, tag = "1")]
     one_time_key: Vec<u8>,
+    #[prost(bytes, tag = "2")]
+    base_key: Vec<u8>,
+    #[prost(bytes, tag = "3")]
+    identity_key: Vec<u8>,
+    #[prost(bytes, tag = "4")]
+    message: Vec<u8>,
+}
+
+#[derive(Clone, ProstMessage)]
+pub struct InterolmProtoBufPrekeyMessage {
+    #[prost(uint32, tag = "5")]
+    registration_id: u32,
+    #[prost(uint32, optional, tag = "1")]
+    pre_key_id: Option<u32>,
+    #[prost(uint32, tag = "6")]
+    signed_pre_key_id: u32,
     #[prost(bytes, tag = "2")]
     base_key: Vec<u8>,
     #[prost(bytes, tag = "3")]

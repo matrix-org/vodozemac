@@ -196,7 +196,7 @@
 #![deny(
     clippy::mem_forget,
     clippy::unwrap_used,
-    dead_code,
+    //dead_code,
     trivial_casts,
     trivial_numeric_casts,
     unsafe_code,
@@ -211,6 +211,7 @@
 mod cipher;
 mod types;
 mod utilities;
+mod xeddsa;
 
 pub mod hazmat;
 pub mod megolm;
@@ -225,6 +226,8 @@ pub use types::{
 };
 pub use utilities::{base64_decode, base64_encode};
 
+pub use crate::xeddsa::{SignatureError as XEdDsaSignatureError, XEdDsaSignature};
+
 /// Error type describing the various ways Vodozemac pickles can fail to be
 /// decoded.
 #[derive(Debug, thiserror::Error)]
@@ -235,7 +238,7 @@ pub enum PickleError {
     /// The encrypted pickle could not have been decrypted.
     #[error("The pickle couldn't be decrypted: {0}")]
     Decryption(#[from] crate::cipher::DecryptionError),
-    /// The serialized Vodozemac object couldn't be deserialized.
+    /// The serialized Vodozemac object couldn't be deserialised.
     #[error("The pickle couldn't be deserialized: {0}")]
     Serialization(#[from] serde_json::Error),
 }

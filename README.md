@@ -9,11 +9,11 @@ A Rust implementation of Olm and Megolm
 vodozemac is a Rust reimplementation of
 [libolm](https://gitlab.matrix.org/matrix-org/olm), a cryptographic library
 used for end-to-end encryption in [Matrix](https://matrix.org). At its core, it
-is an implementation of the [Olm][olm-docs] and [Megolm][megolm-docs] cryptographic ratchets,
-along with a high-level API to easily establish cryptographic communication
-channels employing those ratchets with other parties. It also implements some
-other miscellaneous cryptographic functionality which is useful for building
-Matrix clients, such as [SAS][sas].
+is an implementation of the [Olm][olm-docs] and [Megolm][megolm-docs]
+cryptographic ratchets, along with a high-level API to easily establish
+cryptographic communication channels employing those ratchets with other
+parties. It also implements some other miscellaneous cryptographic
+functionality which is useful for building Matrix clients, such as [SAS][sas].
 
 [olm-docs]:
 <https://gitlab.matrix.org/matrix-org/olm/-/blob/master/docs/olm.md>

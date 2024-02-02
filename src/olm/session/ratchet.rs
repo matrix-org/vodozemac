@@ -22,18 +22,18 @@ use super::{
     chain_key::RemoteChainKey,
     root_key::{RemoteRootKey, RootKey},
 };
-use crate::{types::Curve25519SecretKey, Curve25519PublicKey};
+use crate::{olm::SessionConfig, types::Curve25519SecretKey, Curve25519PublicKey};
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(transparent)]
-pub(super) struct RatchetKey(Curve25519SecretKey);
+pub(crate) struct RatchetKey(pub(crate) Curve25519SecretKey);
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct RatchetPublicKey(Curve25519PublicKey);
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, Decode)]
 #[serde(transparent)]
-pub struct RemoteRatchetKey(Curve25519PublicKey);
+pub(crate) struct RemoteRatchetKey(pub(crate) Curve25519PublicKey);
 
 impl Debug for RemoteRatchetKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -110,9 +110,13 @@ impl Ratchet {
         Self { root_key, ratchet_key }
     }
 
-    pub fn advance(&self, remote_key: RemoteRatchetKey) -> (RemoteRootKey, RemoteChainKey) {
+    pub fn advance(
+        &self,
+        config: &SessionConfig,
+        remote_key: RemoteRatchetKey,
+    ) -> (RemoteRootKey, RemoteChainKey) {
         let (remote_root_key, remote_chain_key) =
-            self.root_key.advance(&self.ratchet_key, &remote_key);
+            self.root_key.advance(config, &self.ratchet_key, &remote_key);
 
         (remote_root_key, remote_chain_key)
     }

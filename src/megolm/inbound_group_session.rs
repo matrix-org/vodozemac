@@ -99,7 +99,7 @@ pub struct DecryptedMessage {
 }
 
 impl InboundGroupSession {
-    pub fn new(key: &SessionKey, session_config: SessionConfig) -> Self {
+    pub fn new(key: &SessionKey, config: SessionConfig) -> Self {
         let initial_ratchet =
             Ratchet::from_bytes(key.session_key.ratchet.clone(), key.session_key.ratchet_index);
         let latest_ratchet = initial_ratchet.clone();
@@ -109,11 +109,11 @@ impl InboundGroupSession {
             latest_ratchet,
             signing_key: key.session_key.signing_key,
             signing_key_verified: true,
-            config: session_config,
+            config,
         }
     }
 
-    pub fn import(session_key: &ExportedSessionKey, session_config: SessionConfig) -> Self {
+    pub fn import(session_key: &ExportedSessionKey, config: SessionConfig) -> Self {
         let initial_ratchet =
             Ratchet::from_bytes(session_key.ratchet.clone(), session_key.ratchet_index);
         let latest_ratchet = initial_ratchet.clone();
@@ -123,7 +123,7 @@ impl InboundGroupSession {
             latest_ratchet,
             signing_key: session_key.signing_key,
             signing_key_verified: false,
-            config: session_config,
+            config,
         }
     }
 

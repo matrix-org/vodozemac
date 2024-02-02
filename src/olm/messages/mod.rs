@@ -15,23 +15,104 @@
 mod message;
 mod pre_key;
 
-pub use message::Message;
-pub use pre_key::PreKeyMessage;
+pub use message::{InterolmMessage, Message};
+pub use pre_key::{InterolmPreKeyMessage, PreKeyMessage};
 use serde::{Deserialize, Serialize};
 
-use crate::DecodeError;
+use crate::{Curve25519PublicKey, DecodeError};
 
-/// Enum over the different Olm message types.
+/// A type covering all possible messages supported by vodozemac.
+///
+/// Includes both normal and pre-key messages of both the native and Interolm
+/// message variants.
+#[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AnyMessage {
+    Native(AnyNativeMessage),
+    #[cfg(feature = "interolm")]
+    Interolm(AnyInterolmMessage),
+}
+
+impl From<AnyNativeMessage> for AnyMessage {
+    fn from(value: AnyNativeMessage) -> Self {
+        Self::Native(value)
+    }
+}
+
+impl From<AnyInterolmMessage> for AnyMessage {
+    fn from(value: AnyInterolmMessage) -> Self {
+        Self::Interolm(value)
+    }
+}
+
+/// A type covering all possible "normal" (non-prekey) messages supported by
+/// vodozemac.
+///
+/// Includes both the native and Interolm message variants.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AnyNormalMessage<'a> {
+    Native(&'a Message),
+    #[cfg(feature = "interolm")]
+    Interolm(&'a InterolmMessage),
+}
+
+impl AnyNormalMessage<'_> {
+    pub(crate) fn ratchet_key(&self) -> Curve25519PublicKey {
+        match self {
+            AnyNormalMessage::Native(m) => m.ratchet_key,
+            AnyNormalMessage::Interolm(m) => m.ratchet_key,
+        }
+    }
+
+    pub(crate) fn chain_index(&self) -> u64 {
+        match self {
+            AnyNormalMessage::Native(m) => m.chain_index,
+            AnyNormalMessage::Interolm(m) => m.counter.into(),
+        }
+    }
+}
+
+/// A type covering all pre-key messages supported by vodozemac.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AnyPreKeyMessage {
+    Native(PreKeyMessage),
+    #[cfg(feature = "interolm")]
+    Interolm(InterolmPreKeyMessage),
+}
+
+impl From<PreKeyMessage> for AnyPreKeyMessage {
+    fn from(value: PreKeyMessage) -> Self {
+        AnyPreKeyMessage::Native(value)
+    }
+}
+
+#[cfg(feature = "interolm")]
+impl From<InterolmPreKeyMessage> for AnyPreKeyMessage {
+    fn from(value: InterolmPreKeyMessage) -> Self {
+        AnyPreKeyMessage::Interolm(value)
+    }
+}
+
+#[cfg(feature = "interolm")]
+impl From<InterolmPreKeyMessage> for AnyInterolmMessage {
+    fn from(value: InterolmPreKeyMessage) -> Self {
+        Self::PreKey(value)
+    }
+}
+
+/// A type representing the native Olm message types.
 ///
 /// Olm uses two types of messages. The underlying transport protocol must
 /// provide a means for recipients to distinguish between them.
 ///
-/// [`OlmMessage`] provides [`Serialize`] and [`Deserialize`] implementations
-/// that are compatible with [Matrix].
+/// [`AnyNativeMessage`] provides [`Serialize`] and [`Deserialize`]
+/// implementations that are compatible with [Matrix].
+///
+/// The type is called "native" because we also support Interolm messages.
 ///
 /// [Matrix]: https://spec.matrix.org/latest/client-server-api/#molmv1curve25519-aes-sha2
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum OlmMessage {
+pub enum AnyNativeMessage {
     /// A normal message, contains only the ciphertext and metadata to decrypt
     /// it.
     Normal(Message),
@@ -42,13 +123,13 @@ pub enum OlmMessage {
     PreKey(PreKeyMessage),
 }
 
-impl From<Message> for OlmMessage {
+impl From<Message> for AnyNativeMessage {
     fn from(m: Message) -> Self {
         Self::Normal(m)
     }
 }
 
-impl From<PreKeyMessage> for OlmMessage {
+impl From<PreKeyMessage> for AnyNativeMessage {
     fn from(m: PreKeyMessage) -> Self {
         Self::PreKey(m)
     }
@@ -62,7 +143,7 @@ struct MessageSerdeHelper {
     ciphertext: String,
 }
 
-impl Serialize for OlmMessage {
+impl Serialize for AnyNativeMessage {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -75,17 +156,17 @@ impl Serialize for OlmMessage {
     }
 }
 
-impl<'de> Deserialize<'de> for OlmMessage {
+impl<'de> Deserialize<'de> for AnyNativeMessage {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let value = MessageSerdeHelper::deserialize(d)?;
 
-        OlmMessage::from_parts(value.message_type, &value.ciphertext)
+        AnyNativeMessage::from_parts(value.message_type, &value.ciphertext)
             .map_err(serde::de::Error::custom)
     }
 }
 
-impl OlmMessage {
-    /// Create a `OlmMessage` from a message type and a ciphertext.
+impl AnyNativeMessage {
+    /// Create an `AnyNativeMessage` from a message type and a ciphertext.
     pub fn from_parts(message_type: usize, ciphertext: &str) -> Result<Self, DecodeError> {
         match message_type {
             0 => Ok(Self::PreKey(PreKeyMessage::try_from(ciphertext)?)),
@@ -97,27 +178,27 @@ impl OlmMessage {
     /// Get the message as a byte array.
     pub fn message(&self) -> &[u8] {
         match self {
-            OlmMessage::Normal(m) => &m.ciphertext,
-            OlmMessage::PreKey(m) => &m.message.ciphertext,
+            AnyNativeMessage::Normal(m) => &m.ciphertext,
+            AnyNativeMessage::PreKey(m) => &m.message.ciphertext,
         }
     }
 
     /// Get the type of the message.
     pub fn message_type(&self) -> MessageType {
         match self {
-            OlmMessage::Normal(_) => MessageType::Normal,
-            OlmMessage::PreKey(_) => MessageType::PreKey,
+            AnyNativeMessage::Normal(_) => MessageType::Normal,
+            AnyNativeMessage::PreKey(_) => MessageType::PreKey,
         }
     }
 
-    /// Convert the `OlmMessage` into a message type, and base64 encoded message
-    /// tuple.
+    /// Convert the `AnyNativeMessage` into a message type, and base64 encoded
+    /// message tuple.
     pub fn to_parts(self) -> (usize, String) {
         let message_type = self.message_type();
 
         match self {
-            OlmMessage::Normal(m) => (message_type.into(), m.to_base64()),
-            OlmMessage::PreKey(m) => (message_type.into(), m.to_base64()),
+            AnyNativeMessage::Normal(m) => (message_type.into(), m.to_base64()),
+            AnyNativeMessage::PreKey(m) => (message_type.into(), m.to_base64()),
         }
     }
 }
@@ -149,11 +230,24 @@ impl From<MessageType> for usize {
     }
 }
 
+#[cfg(feature = "interolm")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AnyInterolmMessage {
+    /// A normal message, contains only the ciphertext and metadata to decrypt
+    /// it.
+    Normal(InterolmMessage),
+    /// A pre-key message, contains metadata to establish a [`Session`] as well
+    /// as a [`Message`].
+    ///
+    /// [`Session`]: crate::olm::Session
+    PreKey(InterolmPreKeyMessage),
+}
+
 #[cfg(test)]
 use olm_rs::session::OlmMessage as LibolmMessage;
 
 #[cfg(test)]
-impl From<LibolmMessage> for OlmMessage {
+impl From<LibolmMessage> for AnyNativeMessage {
     fn from(other: LibolmMessage) -> Self {
         let (message_type, ciphertext) = other.to_tuple();
 
@@ -162,13 +256,17 @@ impl From<LibolmMessage> for OlmMessage {
 }
 
 #[cfg(test)]
-impl From<OlmMessage> for LibolmMessage {
-    fn from(value: OlmMessage) -> LibolmMessage {
+impl From<AnyNativeMessage> for LibolmMessage {
+    fn from(value: AnyNativeMessage) -> LibolmMessage {
         match value {
-            OlmMessage::Normal(m) => LibolmMessage::from_type_and_ciphertext(1, m.to_base64())
-                .expect("Can't create a valid libolm message"),
-            OlmMessage::PreKey(m) => LibolmMessage::from_type_and_ciphertext(0, m.to_base64())
-                .expect("Can't create a valid libolm pre-key message"),
+            AnyNativeMessage::Normal(m) => {
+                LibolmMessage::from_type_and_ciphertext(1, m.to_base64())
+                    .expect("Can't create a valid libolm message")
+            }
+            AnyNativeMessage::PreKey(m) => {
+                LibolmMessage::from_type_and_ciphertext(0, m.to_base64())
+                    .expect("Can't create a valid libolm pre-key message")
+            }
         }
     }
 }
@@ -180,7 +278,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::run_corpus;
+    use crate::{run_corpus, utilities::base64_decode, Curve25519PublicKey};
 
     const PRE_KEY_MESSAGE: &str = "AwoghAEuxPZ+w7M3pgUae4tDNiggUpOsQ/zci457VAti\
                                    AEYSIO3xOKRDBWKicIfxjSmYCYZ9DD4RMLjvvclbMlE5\
@@ -211,14 +309,39 @@ mod tests {
     }
 
     #[test]
+    fn from_interolm() {
+        let message =
+            "MwgCEiEF/VRCSPW3XOxQK75pnA18atUmaj4KSP5E3Fhk8QZMdkAaIQVzGcWwnUJF3Y83c3E7V/B1\
+             sdAdPO0Igal5I2ak4xw9fCJCMwohBQH58JyqI+8NqoaTYKB/4h4GCtiXpRvg+WLm6JTgRsNgEAAY\
+             ACIQ2N/SJfeTaikQb8DmRWja6Vkzmhm1yBq8KAEwAQ==";
+
+        let identity_key =
+            Curve25519PublicKey::from_base64("BXMZxbCdQkXdjzdzcTtX8HWx0B087QiBqXkjZqTjHD18")
+                .expect("The type-prefixed Curve25519 can be decoded");
+
+        let parsed = InterolmPreKeyMessage::from_base64(message)
+            .expect("We can parse Interolm pre-key messages");
+
+        assert_eq!(
+            identity_key, parsed.identity_key,
+            "The identity key from the message matches the static identity key"
+        );
+
+        let bytes = base64_decode(message).unwrap();
+        let encoded = parsed.to_bytes();
+
+        assert_eq!(bytes, encoded);
+    }
+
+    #[test]
     fn from_json() -> Result<()> {
         let value = json!({
             "type": 0u8,
             "body": PRE_KEY_MESSAGE,
         });
 
-        let message: OlmMessage = serde_json::from_value(value.clone())?;
-        assert_matches!(message, OlmMessage::PreKey(_));
+        let message: AnyNativeMessage = serde_json::from_value(value.clone())?;
+        assert_matches!(message, AnyNativeMessage::PreKey(_));
 
         let serialized = serde_json::to_value(message)?;
         assert_eq!(value, serialized, "The serialization cycle isn't a noop");
@@ -228,8 +351,8 @@ mod tests {
             "body": MESSAGE,
         });
 
-        let message: OlmMessage = serde_json::from_value(value.clone())?;
-        assert_matches!(message, OlmMessage::Normal(_));
+        let message: AnyNativeMessage = serde_json::from_value(value.clone())?;
+        assert_matches!(message, AnyNativeMessage::Normal(_));
 
         let serialized = serde_json::to_value(message)?;
         assert_eq!(value, serialized, "The serialization cycle isn't a noop");
@@ -239,8 +362,8 @@ mod tests {
 
     #[test]
     fn from_parts() -> Result<()> {
-        let message = OlmMessage::from_parts(0, PRE_KEY_MESSAGE)?;
-        assert_matches!(message, OlmMessage::PreKey(_));
+        let message = AnyNativeMessage::from_parts(0, PRE_KEY_MESSAGE)?;
+        assert_matches!(message, AnyNativeMessage::PreKey(_));
         assert_eq!(
             message.message_type(),
             MessageType::PreKey,
@@ -249,7 +372,7 @@ mod tests {
 
         assert_eq!(message.to_parts(), (0, PRE_KEY_MESSAGE.to_string()), "Roundtrip not identity.");
 
-        let message = OlmMessage::from_parts(1, MESSAGE)?;
+        let message = AnyNativeMessage::from_parts(1, MESSAGE)?;
         assert_eq!(
             message.message_type(),
             MessageType::Normal,
@@ -257,7 +380,7 @@ mod tests {
         );
         assert_eq!(message.to_parts(), (1, MESSAGE.to_string()), "Roundtrip not identity.");
 
-        OlmMessage::from_parts(3, PRE_KEY_MESSAGE)
+        AnyNativeMessage::from_parts(3, PRE_KEY_MESSAGE)
             .expect_err("Unknown message types can't be parsed");
 
         Ok(())
