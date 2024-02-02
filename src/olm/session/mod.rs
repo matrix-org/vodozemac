@@ -421,7 +421,7 @@ impl Session {
                     }
                 }
 
-                if let Some(chain) = pickle.sender_chains.get(0) {
+                if let Some(chain) = pickle.sender_chains.first() {
                     // XXX: Passing in secret array as value.
                     let ratchet_key = RatchetKey::from(Curve25519SecretKey::from_slice(
                         chain.secret_ratchet_key.as_ref(),
