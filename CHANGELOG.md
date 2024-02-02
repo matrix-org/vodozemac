@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.1] - 2024-02-05
+
+### Features
+
+- Include the ratchet key in the Debug output of the Session
+
 ## [0.5.0] - 2023-10-06
 
 ### Features
