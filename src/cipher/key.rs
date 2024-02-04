@@ -34,9 +34,16 @@ struct ExpandedKeys(Box<[u8; 80]>);
 impl ExpandedKeys {
     const OLM_HKDF_INFO: &'static [u8] = b"OLM_KEYS";
     const MEGOLM_HKDF_INFO: &'static [u8] = b"MEGOLM_KEYS";
+    #[cfg(feature = "interolm")]
+    const INTEROLM_HKDF_INFO: &'static [u8] = b"OLM_KEYS";
 
     fn new(message_key: &[u8; 32]) -> Self {
         Self::new_helper(message_key, Self::OLM_HKDF_INFO)
+    }
+
+    #[cfg(feature = "interolm")]
+    fn new_interolm(message_key: &[u8; 32]) -> Self {
+        Self::new_helper(message_key, Self::INTEROLM_HKDF_INFO)
     }
 
     fn new_megolm(message_key: &[u8; 128]) -> Self {
@@ -70,6 +77,13 @@ pub(super) struct CipherKeys {
 impl CipherKeys {
     pub fn new(message_key: &[u8; 32]) -> Self {
         let expanded_keys = ExpandedKeys::new(message_key);
+
+        Self::from_expanded_keys(expanded_keys)
+    }
+
+    #[cfg(feature = "interolm")]
+    pub fn new_interolm(message_key: &[u8; 32]) -> Self {
+        let expanded_keys = ExpandedKeys::new_interolm(message_key);
 
         Self::from_expanded_keys(expanded_keys)
     }

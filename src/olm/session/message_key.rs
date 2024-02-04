@@ -19,8 +19,8 @@ use zeroize::Zeroize;
 
 use super::{ratchet::RatchetPublicKey, DecryptionError};
 use crate::{
-    cipher::{Cipher, Mac},
-    olm::messages::Message,
+    cipher::{Cipher, InterolmMessageMac, Mac},
+    olm::{messages::Message, session_config::SessionCreator, InterolmMessage, SessionKeys},
 };
 
 pub struct MessageKey {
@@ -87,6 +87,45 @@ impl MessageKey {
         message
     }
 
+    #[cfg(feature = "interolm")]
+    pub fn encrypt_interolm(
+        self,
+        session_keys: &SessionKeys,
+        session_creator: SessionCreator,
+        previous_counter: u32,
+        plaintext: &[u8],
+    ) -> InterolmMessage {
+        let cipher = Cipher::new_interolm(&self.key);
+
+        let ciphertext = cipher.encrypt(plaintext);
+
+        let mut message = InterolmMessage::new(
+            *self.ratchet_key.as_ref(),
+            self.index.try_into().expect("Interolm doesn't support encrypting more than 2^32 messages with a single sender chain"),
+            previous_counter,
+            ciphertext,
+        );
+
+        let sender_identity;
+        let receiver_identity;
+
+        match session_creator {
+            SessionCreator::Us => {
+                sender_identity = session_keys.identity_key;
+                receiver_identity = session_keys.other_identity_key;
+            }
+            SessionCreator::Them => {
+                sender_identity = session_keys.other_identity_key;
+                receiver_identity = session_keys.identity_key;
+            }
+        };
+
+        let mac = cipher.mac_interolm(sender_identity, receiver_identity, &message.to_mac_bytes());
+        message.set_mac(mac);
+
+        message
+    }
+
     /// Get a reference to the message key's key.
     #[cfg(feature = "low-level-api")]
     pub fn key(&self) -> &[u8; 32] {
@@ -115,6 +154,17 @@ impl RemoteMessageKey {
         self.index
     }
 
+    pub fn decrypt(&self, message: &Message) -> Result<Vec<u8>, DecryptionError> {
+        let cipher = Cipher::new(&self.key);
+
+        if let crate::cipher::MessageMac::Full(m) = &message.mac {
+            cipher.verify_mac(&message.to_mac_bytes(), m)?;
+            Ok(cipher.decrypt(&message.ciphertext)?)
+        } else {
+            Err(DecryptionError::InvalidMACLength(Mac::LENGTH, Mac::TRUNCATED_LEN))
+        }
+    }
+
     pub fn decrypt_truncated_mac(&self, message: &Message) -> Result<Vec<u8>, DecryptionError> {
         let cipher = Cipher::new(&self.key);
 
@@ -126,14 +176,37 @@ impl RemoteMessageKey {
         }
     }
 
-    pub fn decrypt(&self, message: &Message) -> Result<Vec<u8>, DecryptionError> {
-        let cipher = Cipher::new(&self.key);
+    #[cfg(feature = "interolm")]
+    pub fn decrypt_interolm(
+        &self,
+        session_keys: &SessionKeys,
+        session_creator: SessionCreator,
+        message: &InterolmMessage,
+    ) -> Result<Vec<u8>, DecryptionError> {
+        let cipher = Cipher::new_interolm(&self.key);
 
-        if let crate::cipher::MessageMac::Full(m) = &message.mac {
-            cipher.verify_mac(&message.to_mac_bytes(), m)?;
-            Ok(cipher.decrypt(&message.ciphertext)?)
-        } else {
-            Err(DecryptionError::InvalidMACLength(Mac::LENGTH, Mac::TRUNCATED_LEN))
-        }
+        let sender_identity;
+        let receiver_identity;
+
+        match session_creator {
+            SessionCreator::Us => {
+                sender_identity = session_keys.other_identity_key;
+                receiver_identity = session_keys.identity_key;
+            }
+            SessionCreator::Them => {
+                sender_identity = session_keys.identity_key;
+                receiver_identity = session_keys.other_identity_key;
+            }
+        };
+
+        let InterolmMessageMac(m) = &message.mac;
+        cipher.verify_interolm_mac(
+            &message.to_mac_bytes(),
+            sender_identity,
+            receiver_identity,
+            m,
+        )?;
+
+        Ok(cipher.decrypt(&message.ciphertext)?)
     }
 }

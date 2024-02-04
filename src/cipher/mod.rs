@@ -23,9 +23,10 @@ use aes::{
     Aes256,
 };
 use hmac::{digest::MacError, Hmac, Mac as MacT};
-use key::CipherKeys;
 use sha2::Sha256;
 use thiserror::Error;
+
+use crate::{cipher::key::CipherKeys, Curve25519PublicKey};
 
 type Aes256CbcEnc = cbc::Encryptor<Aes256>;
 type Aes256CbcDec = cbc::Decryptor<Aes256>;
@@ -77,6 +78,38 @@ impl From<[u8; Mac::TRUNCATED_LEN]> for MessageMac {
     }
 }
 
+#[cfg(feature = "interolm")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct InterolmMessageMac(pub(crate) [u8; Mac::TRUNCATED_LEN]);
+
+#[cfg(feature = "interolm")]
+impl InterolmMessageMac {
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+#[cfg(feature = "interolm")]
+impl From<Mac> for InterolmMessageMac {
+    fn from(m: Mac) -> Self {
+        Self(m.truncate())
+    }
+}
+
+#[cfg(feature = "interolm")]
+impl From<[u8; Mac::TRUNCATED_LEN]> for InterolmMessageMac {
+    fn from(m: [u8; Mac::TRUNCATED_LEN]) -> Self {
+        Self(m)
+    }
+}
+
+#[cfg(feature = "interolm")]
+impl From<InterolmMessageMac> for MessageMac {
+    fn from(value: InterolmMessageMac) -> Self {
+        Self::Truncated(value.0)
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum DecryptionError {
     #[error("Failed decrypting, invalid padding")]
@@ -99,6 +132,13 @@ impl Cipher {
         Self { keys }
     }
 
+    #[cfg(feature = "interolm")]
+    pub fn new_interolm(key: &[u8; 32]) -> Self {
+        let keys = CipherKeys::new_interolm(key);
+
+        Self { keys }
+    }
+
     pub fn new_megolm(&key: &[u8; 128]) -> Self {
         let keys = CipherKeys::new_megolm(&key);
 
@@ -114,7 +154,7 @@ impl Cipher {
 
     fn get_hmac(&self) -> HmacSha256 {
         // We don't use HmacSha256::new() here because it expects a 64-byte
-        // large HMAC key while the Olm spec defines a 32-byte one instead.
+        // HMAC key while the Olm spec uses a 32-byte one instead.
         //
         // https://gitlab.matrix.org/matrix-org/olm/-/blob/master/docs/olm.md#version-1
         HmacSha256::new_from_slice(self.keys.mac_key()).expect("Invalid HMAC key size")
@@ -129,10 +169,24 @@ impl Cipher {
         let mut hmac = self.get_hmac();
         hmac.update(message);
 
-        let mac_bytes = hmac.finalize().into_bytes();
+        let mac = hmac.finalize().into_bytes().into();
 
-        let mut mac = [0u8; 32];
-        mac.copy_from_slice(&mac_bytes);
+        Mac(mac)
+    }
+
+    pub fn mac_interolm(
+        &self,
+        sender_identity: Curve25519PublicKey,
+        receiver_identity: Curve25519PublicKey,
+        message: &[u8],
+    ) -> Mac {
+        let mut hmac = self.get_hmac();
+
+        hmac.update(&sender_identity.to_interolm_bytes());
+        hmac.update(&receiver_identity.to_interolm_bytes());
+        hmac.update(message);
+
+        let mac = hmac.finalize().into_bytes().into();
 
         Mac(mac)
     }
@@ -178,6 +232,22 @@ impl Cipher {
         hmac.verify_truncated_left(tag)
     }
 
+    #[cfg(not(fuzzing))]
+    pub fn verify_interolm_mac(
+        &self,
+        message: &[u8],
+        sender_identity: Curve25519PublicKey,
+        receiver_identity: Curve25519PublicKey,
+        tag: &[u8],
+    ) -> Result<(), MacError> {
+        let mut hmac = self.get_hmac();
+
+        hmac.update(&sender_identity.to_interolm_bytes());
+        hmac.update(&receiver_identity.to_interolm_bytes());
+        hmac.update(message);
+        hmac.verify_truncated_left(tag)
+    }
+
     /// A verify_mac method that always succeeds.
     ///
     /// Useful if we're fuzzing vodozemac, since MAC verification discards a lot
@@ -189,6 +259,17 @@ impl Cipher {
 
     #[cfg(fuzzing)]
     pub fn verify_truncated_mac(&self, _: &[u8], _: &[u8]) -> Result<(), MacError> {
+        Ok(())
+    }
+
+    #[cfg(fuzzing)]
+    pub fn verify_interolm_mac(
+        &self,
+        _: &[u8],
+        _: Curve25519PublicKey,
+        _: Curve25519PublicKey,
+        _: &[u8],
+    ) -> Result<(), MacError> {
         Ok(())
     }
 }

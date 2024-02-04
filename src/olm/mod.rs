@@ -50,7 +50,7 @@
 //!
 //! ```rust
 //! use anyhow::Result;
-//! use vodozemac::olm::{Account, InboundCreationResult, OlmMessage, SessionConfig};
+//! use vodozemac::olm::{Account, InboundCreationResult, AnyNativeMessage, SessionConfig};
 //!
 //! fn main() -> Result<()> {
 //!     let alice = Account::new();
@@ -60,15 +60,15 @@
 //!     let bob_otk = *bob.one_time_keys().values().next().unwrap();
 //!
 //!     let mut alice_session = alice
-//!         .create_outbound_session(SessionConfig::version_2(), bob.curve25519_key(), bob_otk);
+//!         .create_outbound_session(SessionConfig::version_2(), bob.curve25519_key(), bob_otk, None);
 //!
 //!     bob.mark_keys_as_published();
 //!
 //!     let message = "Keep it between us, OK?";
 //!     let alice_msg = alice_session.encrypt(message);
 //!
-//!     if let OlmMessage::PreKey(m) = alice_msg.clone() {
-//!         let result = bob.create_inbound_session(alice.curve25519_key(), &m)?;
+//!     if let AnyNativeMessage::PreKey(m) = alice_msg.clone() {
+//!         let result = bob.create_inbound_session(alice.curve25519_key(), &m.into())?;
 //!
 //!         let mut bob_session = result.session;
 //!         let what_bob_received = result.plaintext;
@@ -92,10 +92,10 @@
 //! ## Sending messages
 //!
 //! To encrypt a message, just call `Session::encrypt(msg_content)`. This will
-//! either produce an `OlmMessage::PreKey(..)` or `OlmMessage::Normal(..)`
-//! depending on whether the session is fully established. A session is fully
-//! established once you receive (and decrypt) at least one message from the
-//! other side.
+//! either produce an `AnyNativeMessage::PreKey(..)` or
+//! `AnyNativeMessage::Normal(..)` depending on whether the session is fully
+//! established. A session is fully established once you receive (and decrypt)
+//! at least one message from the other side.
 
 mod account;
 mod messages;
@@ -108,7 +108,10 @@ pub use account::{
     Account, AccountPickle, IdentityKeys, InboundCreationResult, OneTimeKeyGenerationResult,
     SessionCreationError,
 };
-pub use messages::{Message, MessageType, OlmMessage, PreKeyMessage};
+pub use messages::{
+    AnyInterolmMessage, AnyMessage, AnyNativeMessage, AnyNormalMessage, AnyPreKeyMessage,
+    InterolmMessage, InterolmPreKeyMessage, Message, MessageType, PreKeyMessage,
+};
 pub use session::{ratchet::RatchetPublicKey, DecryptionError, Session, SessionPickle};
-pub use session_config::SessionConfig;
-pub use session_keys::SessionKeys;
+pub use session_config::{InterolmSessionMetadata, SessionConfig};
+pub use session_keys::{OlmSessionKeys, SessionKeys};

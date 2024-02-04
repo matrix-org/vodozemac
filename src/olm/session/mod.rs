@@ -29,39 +29,43 @@ use double_ratchet::DoubleRatchet;
 use hmac::digest::MacError;
 use ratchet::RemoteRatchetKey;
 use receiver_chain::ReceiverChain;
-use root_key::RemoteRootKey;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use zeroize::Zeroize;
 
+use self::ratchet::RatchetKey;
 use super::{
-    session_config::Version,
+    session_config::{SessionCreator, Version},
     session_keys::SessionKeys,
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
-    SessionConfig,
+    AnyMessage, AnyNormalMessage, InterolmPreKeyMessage, SessionConfig,
 };
 #[cfg(feature = "low-level-api")]
 use crate::hazmat::olm::MessageKey;
 use crate::{
-    olm::messages::{Message, OlmMessage, PreKeyMessage},
+    olm::{
+        messages::{AnyInterolmMessage, AnyNativeMessage, PreKeyMessage},
+        session::root_key::{RemoteRootKey, RootKey},
+    },
+    types::Curve25519SecretKey,
     utilities::{pickle, unpickle},
     Curve25519PublicKey, PickleError,
 };
 
 const MAX_RECEIVING_CHAINS: usize = 5;
 
-/// Error type for Olm-based decryption failures.
+/// Error type for decryption failures.
 #[derive(Error, Debug)]
 pub enum DecryptionError {
     /// The message authentication code of the message was invalid.
-    #[error("Failed decrypting Olm message, invalid MAC: {0}")]
+    #[error("Failed decrypting message, invalid MAC: {0}")]
     InvalidMAC(#[from] MacError),
     /// The length of the message authentication code of the message did not
     /// match our expected length.
-    #[error("Failed decrypting Olm message, invalid MAC length: expected {0}, got {1}")]
+    #[error("Failed decrypting message, invalid MAC length: expected {0}, got {1}")]
     InvalidMACLength(usize, usize),
     /// The ciphertext of the message isn't padded correctly.
-    #[error("Failed decrypting Olm message, invalid padding")]
+    #[error("Failed decrypting message, invalid padding")]
     InvalidPadding(#[from] UnpadError),
     /// The session is missing the correct message key to decrypt the message,
     /// either because it was already used up, or because the Session has been
@@ -71,6 +75,9 @@ pub enum DecryptionError {
     /// Too many messages have been skipped to attempt decrypting this message.
     #[error("The message gap was too big, got {0}, max allowed {1}")]
     TooBigMessageGap(u64, u64),
+    /// We were expecting one algorithm but the message was in another.
+    #[error("The message had an unexpected algorithm: expected {0}, got {1}")]
+    WrongAlgorithm(String, String),
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -91,10 +98,6 @@ impl ChainStore {
         self.inner.push(ratchet)
     }
 
-    fn is_empty(&self) -> bool {
-        self.inner.is_empty()
-    }
-
     #[cfg(test)]
     pub fn len(&self) -> usize {
         self.inner.len()
@@ -107,6 +110,33 @@ impl ChainStore {
 
     fn find_ratchet(&mut self, ratchet_key: &RemoteRatchetKey) -> Option<&mut ReceiverChain> {
         self.inner.iter_mut().find(|r| r.belongs_to(ratchet_key))
+    }
+
+    #[cfg(feature = "interolm")]
+    fn previous_chain(&self) -> Option<ReceiverChain> {
+        let num_chains = self.inner.len();
+
+        if num_chains >= 2 {
+            self.inner.get(num_chains - 2).cloned()
+        } else {
+            None
+        }
+    }
+
+    #[cfg(feature = "interolm")]
+    fn previous_counter(&self) -> u32 {
+        match self.previous_chain() {
+            Some(chain) => {
+                if chain.hkdf_ratchet.chain_index() > 0 {
+                    (chain.hkdf_ratchet.chain_index() - 1)
+                        .try_into()
+                        .expect("Interolm counter should fit into u32")
+                } else {
+                    0
+                }
+            }
+            None => 0,
+        }
     }
 }
 
@@ -125,13 +155,13 @@ impl Default for ChainStore {
 /// Olm sessions have two important properties:
 ///
 /// 1. They are based on a double ratchet algorithm which continuously
-/// introduces new entropy into    the channel as messages are sent and
-/// received. This imbues the channel with *self-healing*    properties,
-/// allowing it to recover from a momentary loss of confidentiality in the event
-/// of    a key compromise.
+///    introduces new entropy into the channel as messages are sent and
+///    received. This imbues the channel with *self-healing* properties,
+///    allowing it to recover from a momentary loss of confidentiality in the
+///    event of a key compromise.
 /// 2. They are *asynchronous*, allowing the participant to start sending
-/// messages to the other    side even if the other participant is not online at
-/// the moment.
+///    messages to the other side even if the other participant is not online at
+///    the moment.
 ///
 /// An Olm [`Session`] is acquired from an [`Account`], by calling either
 ///
@@ -150,16 +180,20 @@ pub struct Session {
     sending_ratchet: DoubleRatchet,
     receiving_chains: ChainStore,
     config: SessionConfig,
+    session_creator: SessionCreator,
 }
 
 impl Debug for Session {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let Self { session_keys: _, sending_ratchet, receiving_chains, config } = self;
+        let Self { session_keys: _, sending_ratchet, receiving_chains, config, session_creator } =
+            self;
 
         f.debug_struct("Session")
             .field("session_id", &self.session_id())
             .field("sending_chain_index", &sending_ratchet.chain_index())
             .field("receiving_chains", &receiving_chains.inner)
+            .field("message_received", &self.has_received_message())
+            .field("session_creator", session_creator)
             .field("config", config)
             .finish_non_exhaustive()
     }
@@ -171,23 +205,24 @@ impl Session {
         shared_secret: Shared3DHSecret,
         session_keys: SessionKeys,
     ) -> Self {
-        let local_ratchet = DoubleRatchet::active(shared_secret);
+        let local_ratchet = DoubleRatchet::active(&config, shared_secret);
 
         Self {
             session_keys,
             sending_ratchet: local_ratchet,
             receiving_chains: Default::default(),
             config,
+            session_creator: SessionCreator::Us,
         }
     }
 
     pub(super) fn new_remote(
-        config: SessionConfig,
+        config: &SessionConfig,
         shared_secret: RemoteShared3DHSecret,
         remote_ratchet_key: Curve25519PublicKey,
         session_keys: SessionKeys,
     ) -> Self {
-        let (root_key, remote_chain_key) = shared_secret.expand();
+        let (root_key, remote_chain_key) = shared_secret.expand(config);
 
         let remote_ratchet_key = RemoteRatchetKey::from(remote_ratchet_key);
         let root_key = RemoteRootKey::new(root_key);
@@ -203,7 +238,58 @@ impl Session {
             session_keys,
             sending_ratchet: local_ratchet,
             receiving_chains: ratchet_store,
+            config: *config,
+            session_creator: SessionCreator::Them,
+        }
+    }
+
+    #[cfg(feature = "interolm")]
+    pub(super) fn new_interolm(
+        config: SessionConfig,
+        shared_secret: Shared3DHSecret,
+        session_keys: SessionKeys,
+    ) -> Self {
+        let their_ratchet_key = RemoteRatchetKey(session_keys.signed_pre_key);
+
+        let (local_ratchet, receiver_chain) =
+            DoubleRatchet::active_interolm(&config, shared_secret, their_ratchet_key);
+
+        let mut ratchet_store = ChainStore::new();
+        ratchet_store.push(receiver_chain);
+
+        Self {
+            session_keys,
+            sending_ratchet: local_ratchet,
+            receiving_chains: ratchet_store,
             config,
+            session_creator: SessionCreator::Us,
+        }
+    }
+
+    #[cfg(feature = "interolm")]
+    pub(super) fn new_interolm_remote(
+        config: &SessionConfig,
+        shared_secret: RemoteShared3DHSecret,
+        remote_ratchet_key: RemoteRatchetKey,
+        session_keys: SessionKeys,
+        our_ratchet_key: RatchetKey,
+    ) -> Self {
+        let (local_ratchet, receiver_chain) = DoubleRatchet::inactive_interolm(
+            config,
+            shared_secret,
+            our_ratchet_key,
+            remote_ratchet_key,
+        );
+
+        let mut ratchet_store = ChainStore::new();
+        ratchet_store.push(receiver_chain);
+
+        Self {
+            session_keys,
+            sending_ratchet: local_ratchet,
+            receiving_chains: ratchet_store,
+            config: *config,
+            session_creator: SessionCreator::Them,
         }
     }
 
@@ -219,27 +305,101 @@ impl Session {
     /// Used to decide if outgoing messages should be sent as normal or pre-key
     /// messages.
     pub fn has_received_message(&self) -> bool {
-        !self.receiving_chains.is_empty()
+        let initial_ratchet_key = RemoteRatchetKey(self.session_keys().signed_pre_key);
+
+        // Interolm immediately initializes a receiving chain, using the signed prekey
+        // as the initial (remote) ratchet key, even though it's never received a
+        // message from the other side. Therefore we need to filter that chain
+        // out when trying to determine whether we've ever received a message
+        // from the other side.
+        self.receiving_chains.inner.iter().any(|c| !c.belongs_to(&initial_ratchet_key))
     }
 
-    /// Encrypt the `plaintext` and construct an [`OlmMessage`].
+    pub fn is_message_for_this_session(&self, message: &AnyMessage) -> Option<bool> {
+        match message {
+            AnyMessage::Native(AnyNativeMessage::PreKey(n)) => {
+                Some(n.session_id() == self.session_id())
+            }
+            AnyMessage::Interolm(AnyInterolmMessage::PreKey(s)) => {
+                if let Version::Interolm(meta_data) = self.config.version {
+                    let pre_key_id = meta_data
+                        .one_time_key_id
+                        .map(|k| k.0.try_into().expect("Interolm key IDs are bound to 32 bits"));
+                    let signed_pre_key_id: u32 = meta_data
+                        .signed_pre_key_id
+                        .0
+                        .try_into()
+                        .expect("Interolm key IDs are bound to 32 bits");
+
+                    Some(
+                        pre_key_id == s.pre_key_id
+                            && signed_pre_key_id == s.signed_pre_key_id
+                            && meta_data.registration_id == s.registration_id,
+                    )
+                } else {
+                    Some(false)
+                }
+            }
+            _ => None,
+        }
+    }
+
+    /// Encrypt the `plaintext` and construct an [`AnyNativeMessage`].
     ///
     /// The message will either be a pre-key message or a normal message,
     /// depending on whether the session is fully established. A session is
     /// fully established once you receive (and decrypt) at least one
     /// message from the other side.
-    pub fn encrypt(&mut self, plaintext: impl AsRef<[u8]>) -> OlmMessage {
+    pub fn encrypt(&mut self, plaintext: impl AsRef<[u8]>) -> AnyNativeMessage {
         let message = match self.config.version {
-            Version::V1 => self.sending_ratchet.encrypt_truncated_mac(plaintext.as_ref()),
-            Version::V2 => self.sending_ratchet.encrypt(plaintext.as_ref()),
+            Version::V1 => {
+                self.sending_ratchet.encrypt_truncated_mac(&self.config, plaintext.as_ref())
+            }
+            Version::V2 => self.sending_ratchet.encrypt(&self.config, plaintext.as_ref()),
+            #[cfg(feature = "interolm")]
+            Version::Interolm(..) => panic!("`Session::encrypt` called on an Interolm session!"),
         };
 
         if self.has_received_message() {
-            OlmMessage::Normal(message)
+            AnyNativeMessage::Normal(message)
         } else {
-            let message = PreKeyMessage::new(self.session_keys, message);
+            let message = PreKeyMessage::new(self.session_keys.into(), message);
 
-            OlmMessage::PreKey(message)
+            AnyNativeMessage::PreKey(message)
+        }
+    }
+
+    /// Encrypt the `plaintext` for Interolm and construct an
+    /// [`AnyInterolmMessage`].
+    ///
+    /// The message will either be a pre-key message or a normal message,
+    /// depending on whether the session is fully established. A session is
+    /// fully established once you receive (and decrypt) at least one
+    /// message from the other side.
+    #[cfg(feature = "interolm")]
+    pub fn encrypt_interolm(&mut self, plaintext: impl AsRef<[u8]>) -> AnyInterolmMessage {
+        let (metadata, message) = match self.config.version {
+            Version::V1 | Version::V2 => {
+                panic!("`Session::encrypt_interolm` called on a non-Interolm session!")
+            }
+            Version::Interolm(metadata) => (
+                metadata,
+                self.sending_ratchet.encrypt_interolm(
+                    &self.config,
+                    self.session_creator,
+                    &self.session_keys,
+                    self.receiving_chains.previous_counter(),
+                    plaintext.as_ref(),
+                ),
+            ),
+        };
+
+        if self.has_received_message() {
+            AnyInterolmMessage::Normal(message)
+        } else {
+            let message = InterolmPreKeyMessage::new(self.session_keys, metadata, message);
+
+            AnyInterolmMessage::PreKey(message)
         }
     }
 
@@ -270,10 +430,31 @@ impl Session {
     /// result in a [`DecryptionError`].
     ///
     /// [`DecryptionError`]: self::DecryptionError
-    pub fn decrypt(&mut self, message: &OlmMessage) -> Result<Vec<u8>, DecryptionError> {
+    pub fn decrypt(&mut self, message: &AnyNativeMessage) -> Result<Vec<u8>, DecryptionError> {
         let decrypted = match message {
-            OlmMessage::Normal(m) => self.decrypt_decoded(m)?,
-            OlmMessage::PreKey(m) => self.decrypt_decoded(&m.message)?,
+            AnyNativeMessage::Normal(m) => self.decrypt_decoded(AnyNormalMessage::Native(m))?,
+            AnyNativeMessage::PreKey(m) => {
+                self.decrypt_decoded(AnyNormalMessage::Native(&m.message))?
+            }
+        };
+
+        Ok(decrypted)
+    }
+
+    /// Try to decrypt an Interolm message, which will either return the
+    /// plaintext or result in a [`DecryptionError`].
+    ///
+    /// [`DecryptionError`]: self::DecryptionError
+    #[cfg(feature = "interolm")]
+    pub fn decrypt_interolm(
+        &mut self,
+        message: &AnyInterolmMessage,
+    ) -> Result<Vec<u8>, DecryptionError> {
+        let decrypted = match message {
+            AnyInterolmMessage::Normal(m) => self.decrypt_decoded(AnyNormalMessage::Interolm(m))?,
+            AnyInterolmMessage::PreKey(m) => {
+                self.decrypt_decoded(AnyNormalMessage::Interolm(&m.message))?
+            }
         };
 
         Ok(decrypted)
@@ -281,16 +462,22 @@ impl Session {
 
     pub(super) fn decrypt_decoded(
         &mut self,
-        message: &Message,
+        message: AnyNormalMessage<'_>,
     ) -> Result<Vec<u8>, DecryptionError> {
-        let ratchet_key = RemoteRatchetKey::from(message.ratchet_key);
+        let ratchet_key = RemoteRatchetKey::from(message.ratchet_key());
 
         if let Some(ratchet) = self.receiving_chains.find_ratchet(&ratchet_key) {
-            ratchet.decrypt(message, &self.config)
+            ratchet.decrypt(&self.config, &self.session_keys, self.session_creator, message)
         } else {
-            let (sending_ratchet, mut remote_ratchet) = self.sending_ratchet.advance(ratchet_key);
+            let (sending_ratchet, mut remote_ratchet) =
+                self.sending_ratchet.advance(&self.config, ratchet_key);
 
-            let plaintext = remote_ratchet.decrypt(message, &self.config)?;
+            let plaintext = remote_ratchet.decrypt(
+                &self.config,
+                &self.session_keys,
+                self.session_creator,
+                message,
+            )?;
 
             self.sending_ratchet = sending_ratchet;
             self.receiving_chains.push(remote_ratchet);
@@ -307,6 +494,7 @@ impl Session {
             sending_ratchet: self.sending_ratchet.clone(),
             receiving_chains: self.receiving_chains.clone(),
             config: self.config,
+            session_creator: self.session_creator,
         }
     }
 
@@ -328,10 +516,8 @@ impl Session {
         use chain_key::ChainKey;
         use matrix_pickle::Decode;
         use message_key::RemoteMessageKey;
-        use ratchet::{Ratchet, RatchetKey};
-        use root_key::RootKey;
 
-        use crate::{types::Curve25519SecretKey, utilities::unpickle_libolm};
+        use crate::{olm::session::ratchet::Ratchet, utilities::unpickle_libolm};
 
         #[derive(Debug, Decode, Zeroize)]
         #[zeroize(drop)]
@@ -373,6 +559,19 @@ impl Session {
             index: u32,
         }
 
+        /// The set of keys that were used to establish the Olm Session.
+        // XXX: Could probably be removed (in favour of) when SessionKeysWire is renamed to
+        // OlmSessionKeys.
+        #[derive(Clone, Copy, Deserialize, Serialize, PartialEq, Eq, Decode)]
+        pub struct OlmSessionKeys {
+            /// Alice's identity key.
+            pub identity_key: Curve25519PublicKey,
+            /// Alice's ephemeral (base) key.
+            pub base_key: Curve25519PublicKey,
+            /// Bob's OTK which Alice used.
+            pub one_time_key: Curve25519PublicKey,
+        }
+
         impl From<&MessageKey> for RemoteMessageKey {
             fn from(key: &MessageKey) -> Self {
                 RemoteMessageKey { key: key.message_key.clone(), index: key.index.into() }
@@ -385,7 +584,7 @@ impl Session {
             version: u32,
             #[allow(dead_code)]
             received_message: bool,
-            session_keys: SessionKeys,
+            session_keys: OlmSessionKeys,
             #[secret]
             root_key: Box<[u8; 32]>,
             sender_chains: Vec<SenderChain>,
@@ -405,6 +604,7 @@ impl Session {
         impl TryFrom<Pickle> for Session {
             type Error = crate::LibolmPickleError;
 
+            #[allow(unreachable_code, clippy::diverging_sub_expression)]
             fn try_from(pickle: Pickle) -> Result<Self, Self::Error> {
                 let mut receiving_chains = ChainStore::new();
 
@@ -420,6 +620,18 @@ impl Session {
                         receiving_chain.insert_message_key(key.into())
                     }
                 }
+
+                let _session_keys = SessionKeys {
+                    identity_key: pickle.session_keys.identity_key,
+                    base_key: pickle.session_keys.base_key,
+                    signed_pre_key: pickle.session_keys.one_time_key,
+                    one_time_key: None,
+                    // TODO: Figure out what to do with libolm session pickles
+                    other_identity_key: unimplemented!(
+                        "libolm session pickles don't contain this information, \
+                        so there's not enough information to reconstruct a `Session`"
+                    ),
+                };
 
                 if let Some(chain) = pickle.sender_chains.first() {
                     // XXX: Passing in secret array as value.
@@ -438,10 +650,12 @@ impl Session {
                         DoubleRatchet::from_ratchet_and_chain_key(ratchet, chain_key);
 
                     Ok(Self {
-                        session_keys: pickle.session_keys,
+                        session_keys: _session_keys,
                         sending_ratchet,
                         receiving_chains,
                         config: SessionConfig::version_1(),
+                        session_creator: todo!("libolm session pickles don't contain this information, \
+                                              so there's not enough information to reconstruct a `Session`")
                     })
                 } else if let Some(chain) = receiving_chains.get(0) {
                     let sending_ratchet = DoubleRatchet::inactive(
@@ -450,10 +664,12 @@ impl Session {
                     );
 
                     Ok(Self {
-                        session_keys: pickle.session_keys,
+                        session_keys: _session_keys,
                         sending_ratchet,
                         receiving_chains,
                         config: SessionConfig::version_1(),
+                        session_creator: todo!("libolm session pickles don't contain this information, \
+                                              so there's not enough information to reconstruct a `Session`")
                     })
                 } else {
                     Err(crate::LibolmPickleError::InvalidSession)
@@ -475,6 +691,7 @@ pub struct SessionPickle {
     receiving_chains: ChainStore,
     #[serde(default = "default_config")]
     config: SessionConfig,
+    session_creator: SessionCreator,
 }
 
 fn default_config() -> SessionConfig {
@@ -505,6 +722,7 @@ impl From<SessionPickle> for Session {
             sending_ratchet: pickle.sending_ratchet,
             receiving_chains: pickle.receiving_chains,
             config: pickle.config,
+            session_creator: pickle.session_creator,
         }
     }
 }
@@ -519,8 +737,11 @@ mod test {
 
     use super::Session;
     use crate::{
-        olm::{Account, SessionConfig, SessionPickle},
-        Curve25519PublicKey,
+        olm::{
+            Account, AnyInterolmMessage, AnyMessage, InboundCreationResult, SessionConfig,
+            SessionPickle,
+        },
+        Curve25519PublicKey, KeyId,
     };
 
     const PICKLE_KEY: [u8; 32] = [0u8; 32];
@@ -541,8 +762,12 @@ mod test {
         let identity_keys = bob.parsed_identity_keys();
         let curve25519_key = Curve25519PublicKey::from_base64(identity_keys.curve25519())?;
         let one_time_key = Curve25519PublicKey::from_base64(&one_time_key)?;
-        let mut alice_session =
-            alice.create_outbound_session(SessionConfig::version_1(), curve25519_key, one_time_key);
+        let mut alice_session = alice.create_outbound_session(
+            SessionConfig::version_1(),
+            curve25519_key,
+            one_time_key,
+            None,
+        );
 
         let message = "It's a secret to everybody";
 
@@ -552,6 +777,44 @@ mod test {
         if let OlmMessage::PreKey(m) = olm_message.into() {
             let session =
                 bob.create_inbound_session_from(&alice.curve25519_key().to_base64(), m)?;
+
+            Ok((alice, bob, alice_session, session))
+        } else {
+            bail!("Invalid message type");
+        }
+    }
+
+    fn interolm_sessions() -> Result<(Account, Account, Session, Session)> {
+        let alice = Account::new();
+        let mut bob = Account::new();
+        bob.generate_one_time_keys(2);
+
+        let mut bob_prekeys: Vec<(KeyId, Curve25519PublicKey)> =
+            bob.one_time_keys().iter().map(|(t1, t2)| (*t1, *t2)).take(2).collect();
+        let (otk_id, otk) =
+            bob_prekeys.pop().expect("Bob should have an OTK because we just generated it");
+        let (skey_id, skey) = bob_prekeys
+            .pop()
+            .expect("Bob should have a signed prekey because we just generated it");
+
+        bob.mark_keys_as_published();
+
+        let identity_keys = bob.identity_keys();
+        let curve25519_key = identity_keys.curve25519;
+
+        let mut alice_session = alice.create_outbound_session(
+            SessionConfig::version_interolm(0, skey_id, Some(otk_id)),
+            curve25519_key,
+            skey,
+            Some(otk),
+        );
+
+        let message = "It's a secret to everybody";
+        let ciphertext = alice_session.encrypt_interolm(message);
+
+        if let AnyMessage::Interolm(AnyInterolmMessage::PreKey(m)) = ciphertext.into() {
+            let InboundCreationResult { session, .. } =
+                bob.create_inbound_session(alice.identity_keys().curve25519, &m.into())?;
 
             Ok((alice, bob, alice_session, session))
         } else {
@@ -647,6 +910,34 @@ mod test {
         let repickle = serde_json::to_value(repickle)?;
 
         assert_eq!(pickle, repickle);
+
+        Ok(())
+    }
+
+    #[test]
+    fn message_received_flag_survives_pickling_roundtrip() -> Result<()> {
+        let (_, _, alice_session, mut bob_session) = interolm_sessions()?;
+
+        assert!(!alice_session.has_received_message());
+
+        let pickle = alice_session.pickle().encrypt(&PICKLE_KEY);
+        let decrypted_pickle = SessionPickle::from_encrypted(&pickle, &PICKLE_KEY)?;
+        let mut alice_session = Session::from_pickle(decrypted_pickle);
+
+        assert!(!alice_session.has_received_message());
+
+        let bob_msg = bob_session.encrypt_interolm("Hello Alice!");
+        let _ = alice_session
+            .decrypt_interolm(&bob_msg)
+            .expect("Alice should be able to decrypt Bob's message");
+
+        assert!(alice_session.has_received_message());
+
+        let pickle = alice_session.pickle().encrypt(&PICKLE_KEY);
+        let decrypted_pickle = SessionPickle::from_encrypted(&pickle, &PICKLE_KEY)?;
+        let alice_session = Session::from_pickle(decrypted_pickle);
+
+        assert!(alice_session.has_received_message());
 
         Ok(())
     }

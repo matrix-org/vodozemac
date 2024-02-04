@@ -21,7 +21,10 @@ use super::{
     chain_key::RemoteChainKey, message_key::RemoteMessageKey, ratchet::RemoteRatchetKey,
     DecryptionError,
 };
-use crate::olm::{messages::Message, session_config::Version, SessionConfig};
+use crate::olm::{
+    session_config::{SessionCreator, Version},
+    AnyNormalMessage, SessionConfig, SessionKeys,
+};
 
 const MAX_MESSAGE_GAP: u64 = 2000;
 const MAX_MESSAGE_KEYS: usize = 40;
@@ -73,17 +76,34 @@ enum FoundMessageKey<'a> {
 impl FoundMessageKey<'_> {
     fn decrypt(
         &self,
-        message: &Message,
         config: &SessionConfig,
+        session_keys: &SessionKeys,
+        session_creator: SessionCreator,
+        message: AnyNormalMessage<'_>,
     ) -> Result<Vec<u8>, DecryptionError> {
         let message_key = match self {
             FoundMessageKey::Existing(m) => m,
             FoundMessageKey::New(m) => &m.2,
         };
 
-        match config.version {
-            Version::V1 => message_key.decrypt_truncated_mac(message),
-            Version::V2 => message_key.decrypt(message),
+        match message {
+            AnyNormalMessage::Native(message) => match config.version {
+                Version::V1 => message_key.decrypt_truncated_mac(message),
+                Version::V2 => message_key.decrypt(message),
+                #[cfg(feature = "interolm")]
+                Version::Interolm(..) => {
+                    Err(DecryptionError::WrongAlgorithm("Interolm".into(), "Olm".into()))
+                }
+            },
+            #[cfg(feature = "interolm")]
+            AnyNormalMessage::Interolm(message) => match config.version {
+                Version::V1 | Version::V2 => {
+                    Err(DecryptionError::WrongAlgorithm("Olm".into(), "Interolm".into()))
+                }
+                Version::Interolm(..) => {
+                    message_key.decrypt_interolm(session_keys, session_creator, message)
+                }
+            },
         }
     }
 }
@@ -91,7 +111,7 @@ impl FoundMessageKey<'_> {
 #[derive(Serialize, Deserialize, Clone)]
 pub(super) struct ReceiverChain {
     ratchet_key: RemoteRatchetKey,
-    hkdf_ratchet: RemoteChainKey,
+    pub(super) hkdf_ratchet: RemoteChainKey,
     skipped_message_keys: MessageKeyStore,
 }
 
@@ -149,13 +169,15 @@ impl ReceiverChain {
 
     pub fn decrypt(
         &mut self,
-        message: &Message,
         config: &SessionConfig,
+        session_keys: &SessionKeys,
+        session_creator: SessionCreator,
+        message: AnyNormalMessage<'_>,
     ) -> Result<Vec<u8>, DecryptionError> {
-        let chain_index = message.chain_index;
+        let chain_index = message.chain_index();
         let message_key = self.find_message_key(chain_index)?;
 
-        let plaintext = message_key.decrypt(message, config)?;
+        let plaintext = message_key.decrypt(config, session_keys, session_creator, message)?;
 
         match message_key {
             FoundMessageKey::Existing(m) => {

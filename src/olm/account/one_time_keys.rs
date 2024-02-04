@@ -16,7 +16,6 @@ use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
 
-use super::PUBLIC_MAX_ONE_TIME_KEYS;
 use crate::{
     types::{Curve25519SecretKey, KeyId},
     Curve25519PublicKey,
@@ -25,11 +24,14 @@ use crate::{
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(from = "OneTimeKeysPickle")]
 #[serde(into = "OneTimeKeysPickle")]
-pub(super) struct OneTimeKeys {
+pub(super) struct OneTimeKeys<const N: usize> {
     pub next_key_id: u64,
     pub unpublished_public_keys: BTreeMap<KeyId, Curve25519PublicKey>,
+    // XXX: This is now a bit of a mess. We can probably rationalize away some
+    // of these maps.
     pub private_keys: BTreeMap<KeyId, Curve25519SecretKey>,
     pub key_ids_by_key: HashMap<Curve25519PublicKey, KeyId>,
+    pub keys_by_key_id: HashMap<KeyId, Curve25519PublicKey>,
 }
 
 /// The result type for the one-time key generation operation.
@@ -41,8 +43,8 @@ pub struct OneTimeKeyGenerationResult {
     pub removed: Vec<Curve25519PublicKey>,
 }
 
-impl OneTimeKeys {
-    const MAX_ONE_TIME_KEYS: usize = 100 * PUBLIC_MAX_ONE_TIME_KEYS;
+impl<const N: usize> OneTimeKeys<N> {
+    const MAX_ONE_TIME_KEYS: usize = N;
 
     pub fn new() -> Self {
         Self {
@@ -50,11 +52,16 @@ impl OneTimeKeys {
             unpublished_public_keys: Default::default(),
             private_keys: Default::default(),
             key_ids_by_key: Default::default(),
+            keys_by_key_id: Default::default(),
         }
     }
 
     pub fn mark_as_published(&mut self) {
         self.unpublished_public_keys.clear();
+    }
+
+    pub fn get_public_key_by_id(&self, key_id: &KeyId) -> Option<Curve25519PublicKey> {
+        self.keys_by_key_id.get(key_id).copied()
     }
 
     pub fn get_secret_key(&self, public_key: &Curve25519PublicKey) -> Option<&Curve25519SecretKey> {
@@ -66,8 +73,10 @@ impl OneTimeKeys {
         public_key: &Curve25519PublicKey,
     ) -> Option<Curve25519SecretKey> {
         self.key_ids_by_key.remove(public_key).and_then(|key_id| {
-            self.unpublished_public_keys.remove(&key_id);
-            self.private_keys.remove(&key_id)
+            self.keys_by_key_id.remove(&key_id).and_then(|_| {
+                self.unpublished_public_keys.remove(&key_id);
+                self.private_keys.remove(&key_id)
+            })
         })
     }
 
@@ -84,6 +93,7 @@ impl OneTimeKeys {
                 let public_key = if let Some(private_key) = self.private_keys.remove(&key_id) {
                     let public_key = Curve25519PublicKey::from(&private_key);
                     self.key_ids_by_key.remove(&public_key);
+                    self.keys_by_key_id.remove(&key_id);
 
                     Some(public_key)
                 } else {
@@ -104,6 +114,7 @@ impl OneTimeKeys {
 
         self.private_keys.insert(key_id, key);
         self.key_ids_by_key.insert(public_key, key_id);
+        self.keys_by_key_id.insert(key_id, public_key);
 
         if !published {
             self.unpublished_public_keys.insert(key_id, public_key);
@@ -153,12 +164,14 @@ pub(super) struct OneTimeKeysPickle {
     private_keys: BTreeMap<KeyId, Curve25519SecretKey>,
 }
 
-impl From<OneTimeKeysPickle> for OneTimeKeys {
+impl<const N: usize> From<OneTimeKeysPickle> for OneTimeKeys<N> {
     fn from(pickle: OneTimeKeysPickle) -> Self {
         let mut key_ids_by_key = HashMap::new();
+        let mut keys_by_key_id = HashMap::new();
 
         for (k, v) in pickle.private_keys.iter() {
             key_ids_by_key.insert(v.into(), *k);
+            keys_by_key_id.insert(*k, v.into());
         }
 
         Self {
@@ -166,12 +179,13 @@ impl From<OneTimeKeysPickle> for OneTimeKeys {
             unpublished_public_keys: pickle.public_keys.iter().map(|(&k, &v)| (k, v)).collect(),
             private_keys: pickle.private_keys,
             key_ids_by_key,
+            keys_by_key_id,
         }
     }
 }
 
-impl From<OneTimeKeys> for OneTimeKeysPickle {
-    fn from(keys: OneTimeKeys) -> Self {
+impl<const N: usize> From<OneTimeKeys<N>> for OneTimeKeysPickle {
+    fn from(keys: OneTimeKeys<N>) -> Self {
         OneTimeKeysPickle {
             next_key_id: keys.next_key_id,
             public_keys: keys.unpublished_public_keys.iter().map(|(&k, &v)| (k, v)).collect(),
@@ -187,19 +201,20 @@ mod test {
 
     #[test]
     fn store_limit() {
-        let mut store = OneTimeKeys::new();
+        const MAX_ONE_TIME_KEYS: usize = 50;
+        let mut store: OneTimeKeys<MAX_ONE_TIME_KEYS> = OneTimeKeys::new();
 
         assert!(store.private_keys.is_empty());
 
-        store.generate(OneTimeKeys::MAX_ONE_TIME_KEYS);
-        assert_eq!(store.private_keys.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
-        assert_eq!(store.unpublished_public_keys.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
-        assert_eq!(store.key_ids_by_key.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
+        store.generate(MAX_ONE_TIME_KEYS);
+        assert_eq!(store.private_keys.len(), MAX_ONE_TIME_KEYS);
+        assert_eq!(store.unpublished_public_keys.len(), MAX_ONE_TIME_KEYS);
+        assert_eq!(store.key_ids_by_key.len(), MAX_ONE_TIME_KEYS);
 
         store.mark_as_published();
         assert!(store.unpublished_public_keys.is_empty());
-        assert_eq!(store.private_keys.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
-        assert_eq!(store.key_ids_by_key.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
+        assert_eq!(store.private_keys.len(), MAX_ONE_TIME_KEYS);
+        assert_eq!(store.key_ids_by_key.len(), MAX_ONE_TIME_KEYS);
 
         let oldest_key_id =
             store.private_keys.keys().next().copied().expect("Couldn't get the first key ID");
@@ -207,8 +222,8 @@ mod test {
 
         store.generate(10);
         assert_eq!(store.unpublished_public_keys.len(), 10);
-        assert_eq!(store.private_keys.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
-        assert_eq!(store.key_ids_by_key.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
+        assert_eq!(store.private_keys.len(), MAX_ONE_TIME_KEYS);
+        assert_eq!(store.key_ids_by_key.len(), MAX_ONE_TIME_KEYS);
 
         let oldest_key_id =
             store.private_keys.keys().next().copied().expect("Couldn't get the first key ID");

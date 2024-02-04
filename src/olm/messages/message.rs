@@ -17,8 +17,9 @@ use std::fmt::Debug;
 use prost::Message as ProstMessage;
 use serde::{Deserialize, Serialize};
 
+use super::AnyNormalMessage;
 use crate::{
-    cipher::{Mac, MessageMac},
+    cipher::{InterolmMessageMac, Mac, MessageMac},
     utilities::{base64_decode, base64_encode, extract_mac, VarInt},
     Curve25519PublicKey, DecodeError,
 };
@@ -167,6 +168,12 @@ impl Message {
     }
 }
 
+impl<'a> From<&'a Message> for AnyNormalMessage<'a> {
+    fn from(m: &'a Message) -> Self {
+        Self::Native(m)
+    }
+}
+
 impl Serialize for Message {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -254,6 +261,124 @@ impl Debug for Message {
     }
 }
 
+#[cfg(feature = "interolm")]
+#[derive(Clone, PartialEq, Eq)]
+pub struct InterolmMessage {
+    pub(crate) version: u8,
+    pub(crate) ratchet_key: Curve25519PublicKey,
+    pub(crate) counter: u32,
+    pub(crate) previous_counter: u32,
+    pub(crate) ciphertext: Vec<u8>,
+    pub(crate) mac: InterolmMessageMac,
+}
+
+#[cfg(feature = "interolm")]
+impl InterolmMessage {
+    const VERSION: u8 = 51;
+
+    pub(crate) fn new(
+        ratchet_key: Curve25519PublicKey,
+        counter: u32,
+        previous_counter: u32,
+        ciphertext: Vec<u8>,
+    ) -> Self {
+        Self {
+            version: Self::VERSION,
+            ratchet_key,
+            counter,
+            previous_counter,
+            ciphertext,
+            mac: InterolmMessageMac([0u8; Mac::TRUNCATED_LEN]),
+        }
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, DecodeError> {
+        let version = *bytes.first().ok_or(DecodeError::MissingVersion)?;
+
+        if version != Self::VERSION {
+            Err(DecodeError::InvalidVersion(Self::VERSION, version))
+        } else if bytes.len() < Mac::TRUNCATED_LEN + 2 {
+            Err(DecodeError::MessageTooShort(bytes.len()))
+        } else {
+            let decoded = InterolmProtoBufMessage::decode(
+                bytes
+                    .get(1..bytes.len() - Mac::TRUNCATED_LEN)
+                    .ok_or_else(|| DecodeError::MessageTooShort(bytes.len()))?,
+            )?;
+
+            let mac_slice = &bytes[bytes.len() - Mac::TRUNCATED_LEN..];
+
+            if mac_slice.len() != Mac::TRUNCATED_LEN {
+                Err(DecodeError::InvalidMacLength(Mac::TRUNCATED_LEN, mac_slice.len()))
+            } else {
+                let mac = InterolmMessageMac(mac_slice.try_into().expect("Can never happen"));
+                let ratchet_key = Curve25519PublicKey::from_slice(&decoded.ratchet_key)?;
+                let counter = decoded.counter;
+                let previous_counter = decoded.previous_counter;
+                let ciphertext = decoded.ciphertext;
+
+                Ok(InterolmMessage {
+                    version,
+                    ratchet_key,
+                    counter,
+                    previous_counter,
+                    ciphertext,
+                    mac,
+                })
+            }
+        }
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut message = self.to_mac_bytes();
+        message.extend(self.mac.as_bytes());
+
+        message
+    }
+
+    pub fn from_base64(message: &str) -> Result<Self, DecodeError> {
+        let decoded = base64_decode(message)?;
+        Self::from_bytes(&decoded)
+    }
+
+    pub fn to_base64(&self) -> String {
+        base64_encode(self.to_bytes())
+    }
+
+    pub fn to_mac_bytes(&self) -> Vec<u8> {
+        InterolmProtoBufMessage {
+            ratchet_key: self.ratchet_key.to_interolm_bytes().to_vec(),
+            counter: self.counter,
+            previous_counter: self.previous_counter,
+            ciphertext: self.ciphertext.clone(),
+        }
+        .encode_manual()
+    }
+
+    pub(crate) fn set_mac(&mut self, mac: Mac) {
+        self.mac.0 = mac.truncate();
+    }
+}
+
+impl<'a> From<&'a InterolmMessage> for AnyNormalMessage<'a> {
+    fn from(m: &'a InterolmMessage) -> Self {
+        Self::Interolm(m)
+    }
+}
+
+impl Debug for InterolmMessage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Self { version, ratchet_key, counter, previous_counter, ciphertext: _, mac: _ } = self;
+
+        f.debug_struct("InterolmMessage")
+            .field("version", version)
+            .field("ratchet_key", ratchet_key)
+            .field("counter", counter)
+            .field("previous_counter", previous_counter)
+            .finish()
+    }
+}
+
 #[derive(ProstMessage, PartialEq, Eq)]
 struct ProtoBufMessage {
     #[prost(bytes, tag = "1")]
@@ -262,6 +387,49 @@ struct ProtoBufMessage {
     chain_index: u64,
     #[prost(bytes, tag = "4")]
     ciphertext: Vec<u8>,
+}
+
+#[cfg(feature = "interolm")]
+#[derive(PartialEq, Eq, ProstMessage)]
+struct InterolmProtoBufMessage {
+    #[prost(bytes, tag = "1")]
+    ratchet_key: Vec<u8>,
+    #[prost(uint32, tag = "2")]
+    counter: u32,
+    #[prost(uint32, tag = "3")]
+    previous_counter: u32,
+    #[prost(bytes, tag = "4")]
+    ciphertext: Vec<u8>,
+}
+
+#[cfg(feature = "interolm")]
+impl InterolmProtoBufMessage {
+    const RATCHET_TAG: &'static [u8; 1] = b"\x0A";
+    const INDEX_TAG: &'static [u8; 1] = b"\x10";
+    const PREVIOUS_INDEX_TAG: &'static [u8; 1] = b"\x18";
+    const CIPHER_TAG: &'static [u8; 1] = b"\x22";
+
+    fn encode_manual(&self) -> Vec<u8> {
+        let counter = self.counter.to_var_int();
+        let previous_counter = self.previous_counter.to_var_int();
+        let ratchet_len = self.ratchet_key.len().to_var_int();
+        let ciphertext_len = self.ciphertext.len().to_var_int();
+
+        [
+            [InterolmMessage::VERSION].as_ref(),
+            Self::RATCHET_TAG.as_ref(),
+            &ratchet_len,
+            &self.ratchet_key,
+            Self::INDEX_TAG.as_ref(),
+            &counter,
+            Self::PREVIOUS_INDEX_TAG.as_ref(),
+            &previous_counter,
+            Self::CIPHER_TAG.as_ref(),
+            &ciphertext_len,
+            &self.ciphertext,
+        ]
+        .concat()
+    }
 }
 
 impl ProtoBufMessage {
@@ -292,7 +460,7 @@ impl ProtoBufMessage {
 #[cfg(test)]
 mod test {
     use super::Message;
-    use crate::Curve25519PublicKey;
+    use crate::{olm::InterolmMessage, Curve25519PublicKey};
 
     #[test]
     fn encode() {
@@ -308,5 +476,33 @@ mod test {
 
         assert_eq!(encoded.to_mac_bytes(), message.as_ref());
         assert_eq!(encoded.to_bytes(), message_mac.as_ref());
+    }
+
+    #[test]
+    fn interolm_re_encode() {
+        let message = &[
+            51, 10, 33, 5, 190, 36, 85, 201, 27, 92, 134, 42, 25, 250, 119, 63, 8, 146, 237, 196,
+            47, 189, 116, 179, 143, 41, 171, 119, 96, 182, 250, 30, 175, 30, 104, 26, 16, 2, 24, 0,
+            34, 64, 186, 87, 78, 176, 178, 217, 29, 185, 227, 41, 209, 55, 212, 24, 24, 96, 51,
+            126, 53, 57, 42, 104, 132, 165, 184, 183, 167, 231, 84, 9, 117, 73, 131, 95, 7, 215,
+            133, 34, 111, 40, 21, 115, 74, 154, 253, 184, 187, 237, 133, 32, 231, 2, 74, 56, 216,
+            17, 200, 91, 74, 55, 33, 193, 89, 193, 35, 196, 248, 166, 3, 98, 194, 158,
+        ];
+
+        let decoded = InterolmMessage::from_bytes(message)
+            .expect("We should be able to decode the Interolm message");
+
+        let encoded = decoded.to_bytes();
+
+        assert_eq!(
+            message.as_slice(),
+            &encoded,
+            "Re-encoding the message should yield the same bytes"
+        );
+
+        let expected_mac_bytes = &message[0..message.len() - 8];
+        let mac_bytes = decoded.to_mac_bytes();
+
+        assert_eq!(expected_mac_bytes, mac_bytes, "The MAC bytes should be correctly gathered");
     }
 }

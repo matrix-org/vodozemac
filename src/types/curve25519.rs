@@ -22,7 +22,11 @@ use x25519_dalek::{EphemeralSecret, PublicKey, ReusableSecret, SharedSecret, Sta
 use zeroize::Zeroize;
 
 use super::KeyError;
-use crate::utilities::{base64_decode, base64_encode};
+use crate::{
+    utilities::{base64_decode, base64_encode},
+    xeddsa,
+    xeddsa::XEdDsaSignature,
+};
 
 /// Struct representing a Curve25519 secret key.
 #[derive(Clone, Deserialize, Serialize)]
@@ -62,6 +66,12 @@ impl Curve25519SecretKey {
         bytes.zeroize();
 
         key
+    }
+
+    /// Produce a XEdDSA signature for some message.
+    #[cfg(feature = "interolm")]
+    pub fn sign(&self, message: &[u8]) -> XEdDsaSignature {
+        xeddsa::sign(&self.0.to_bytes(), message)
     }
 }
 
@@ -120,8 +130,12 @@ impl Decode for Curve25519PublicKey {
 }
 
 impl Curve25519PublicKey {
-    /// The number of bytes a Curve25519 public key has.
+    /// Raw Curve25519 key length.
     pub const LENGTH: usize = 32;
+
+    /// Length of the alternative Curve25519 key format with a leading type byte
+    /// (such as used by Signal).
+    pub const ALTERNATIVE_LENGTH: usize = 33;
 
     const BASE64_LENGTH: usize = 43;
     const PADDED_BASE64_LENGTH: usize = 44;
@@ -144,8 +158,27 @@ impl Curve25519PublicKey {
     }
 
     /// Create a `Curve25519PublicKey` from a byte array.
-    pub fn from_bytes(bytes: [u8; 32]) -> Self {
+    pub fn from_bytes(bytes: [u8; Self::LENGTH]) -> Self {
         Self { inner: PublicKey::from(bytes) }
+    }
+
+    /// Create a `Curve25519PublicKey` from a byte array representation which
+    /// includes a type byte marker (0x5) at the beginning.
+    pub fn from_bytes_interolm(bytes: [u8; Self::ALTERNATIVE_LENGTH]) -> Result<Self, KeyError> {
+        if bytes[0] != 0x5 {
+            Err(KeyError::InvalidKeyFormat(bytes[0]))
+        } else {
+            Ok(Self::from_bytes(bytes[1..].try_into().expect("Must succeed as 33 - 1 is 32")))
+        }
+    }
+
+    pub fn to_interolm_bytes(&self) -> [u8; Self::ALTERNATIVE_LENGTH] {
+        let mut ret = [0u8; Self::ALTERNATIVE_LENGTH];
+
+        ret[0] = 0x5;
+        ret[1..].copy_from_slice(self.as_bytes());
+
+        ret
     }
 
     /// Instantiate a Curve25519 public key from an unpadded base64
@@ -172,6 +205,11 @@ impl Curve25519PublicKey {
             key.copy_from_slice(slice);
 
             Ok(Self::from(key))
+        } else if key_len == Self::ALTERNATIVE_LENGTH {
+            let mut key = [0u8; Self::ALTERNATIVE_LENGTH];
+            key.copy_from_slice(slice);
+
+            Ok(Self::try_from(key)?)
         } else {
             Err(KeyError::InvalidKeyLength {
                 key_type: "Curve25519",
@@ -184,6 +222,16 @@ impl Curve25519PublicKey {
     /// Serialize a Curve25519 public key to an unpadded base64 representation.
     pub fn to_base64(&self) -> String {
         base64_encode(self.inner.as_bytes())
+    }
+
+    /// Verify XEdDSA signature.
+    #[cfg(feature = "interolm")]
+    pub fn verify_signature(
+        &self,
+        message: &[u8],
+        signature: XEdDsaSignature,
+    ) -> Result<(), xeddsa::SignatureError> {
+        xeddsa::verify(self.inner.as_bytes(), message, signature)
     }
 }
 
@@ -203,6 +251,14 @@ impl std::fmt::Debug for Curve25519PublicKey {
 impl From<[u8; Self::LENGTH]> for Curve25519PublicKey {
     fn from(bytes: [u8; Self::LENGTH]) -> Curve25519PublicKey {
         Curve25519PublicKey { inner: PublicKey::from(bytes) }
+    }
+}
+
+impl TryFrom<[u8; Self::ALTERNATIVE_LENGTH]> for Curve25519PublicKey {
+    type Error = KeyError;
+
+    fn try_from(bytes: [u8; Self::ALTERNATIVE_LENGTH]) -> Result<Curve25519PublicKey, KeyError> {
+        Self::from_bytes_interolm(bytes)
     }
 }
 
@@ -282,5 +338,20 @@ mod tests {
     fn decoding_of_correct_num_of_bytes_succeeds() {
         let base64_payload = "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA";
         assert!(matches!(Curve25519PublicKey::from_base64(base64_payload), Ok(..)));
+    }
+
+    #[test]
+    fn decoding_of_interolm_key_format_succeeds() {
+        let base64_payload = "BXMZxbCdQkXdjzdzcTtX8HWx0B087QiBqXkjZqTjHD18";
+        assert!(matches!(Curve25519PublicKey::from_base64(base64_payload), Ok(..)));
+    }
+
+    #[test]
+    fn decoding_of_interolm_key_format_with_wrong_marker_byte_fails() {
+        let base64_payload = "CXMZxbCdQkXdjzdzcTtX8HWx0B087QiBqXkjZqTjHD18";
+        assert!(matches!(
+            Curve25519PublicKey::from_base64(base64_payload),
+            Err(KeyError::InvalidKeyFormat(..))
+        ));
     }
 }
