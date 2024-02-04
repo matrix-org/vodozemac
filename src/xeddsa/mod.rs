@@ -124,8 +124,8 @@ mod test {
         verify(key_pair.public_key().as_bytes(), corrupted_message.as_bytes(), signature)
             .expect_err("The signature should be invalid");
 
-        let mut corrupted_signature = signature.clone();
-        corrupted_signature.0[0] = signature.0[0] + 1;
+        let mut corrupted_signature = signature;
+        corrupted_signature.0[0] += 1;
         verify(key_pair.public_key().as_bytes(), message.as_bytes(), corrupted_signature)
             .expect_err("The signature should be invalid");
     }

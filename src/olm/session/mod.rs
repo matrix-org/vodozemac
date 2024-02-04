@@ -308,19 +308,11 @@ impl Session {
         let initial_ratchet_key = RemoteRatchetKey(self.session_keys().signed_pre_key);
 
         // Interolm immediately initializes a receiving chain, using the signed prekey
-        // as the initial (remote) ratchet key, even though it never received a
+        // as the initial (remote) ratchet key, even though it's never received a
         // message from the other side. Therefore we need to filter that chain
         // out when trying to determine whether we've ever received a message
         // from the other side.
-        let is_empty = self
-            .receiving_chains
-            .inner
-            .iter()
-            .filter(|c| !c.belongs_to(&initial_ratchet_key))
-            .next()
-            .is_none();
-
-        !is_empty
+        self.receiving_chains.inner.iter().any(|c| !c.belongs_to(&initial_ratchet_key))
     }
 
     pub fn is_message_for_this_session(&self, message: &AnyMessage) -> Option<bool> {
@@ -612,6 +604,7 @@ impl Session {
         impl TryFrom<Pickle> for Session {
             type Error = crate::LibolmPickleError;
 
+            #[allow(unreachable_code, clippy::diverging_sub_expression)]
             fn try_from(pickle: Pickle) -> Result<Self, Self::Error> {
                 let mut receiving_chains = ChainStore::new();
 
@@ -628,13 +621,16 @@ impl Session {
                     }
                 }
 
-                let session_keys = SessionKeys {
+                let _session_keys = SessionKeys {
                     identity_key: pickle.session_keys.identity_key,
                     base_key: pickle.session_keys.base_key,
                     signed_pre_key: pickle.session_keys.one_time_key,
                     one_time_key: None,
-                    other_identity_key: todo!("libolm session pickles don't contain this information, \
-                                              so there's not enough information to reconstruct a `Session`"),
+                    // TODO: Figure out what to do with libolm session pickles
+                    other_identity_key: unimplemented!(
+                        "libolm session pickles don't contain this information, \
+                        so there's not enough information to reconstruct a `Session`"
+                    ),
                 };
 
                 if let Some(chain) = pickle.sender_chains.first() {
@@ -654,7 +650,7 @@ impl Session {
                         DoubleRatchet::from_ratchet_and_chain_key(ratchet, chain_key);
 
                     Ok(Self {
-                        session_keys,
+                        session_keys: _session_keys,
                         sending_ratchet,
                         receiving_chains,
                         config: SessionConfig::version_1(),
@@ -668,7 +664,7 @@ impl Session {
                     );
 
                     Ok(Self {
-                        session_keys,
+                        session_keys: _session_keys,
                         sending_ratchet,
                         receiving_chains,
                         config: SessionConfig::version_1(),
@@ -794,7 +790,7 @@ mod test {
         bob.generate_one_time_keys(2);
 
         let mut bob_prekeys: Vec<(KeyId, Curve25519PublicKey)> =
-            bob.one_time_keys().iter().map(|(t1, t2)| (t1.clone(), t2.clone())).take(2).collect();
+            bob.one_time_keys().iter().map(|(t1, t2)| (*t1, *t2)).take(2).collect();
         let (otk_id, otk) =
             bob_prekeys.pop().expect("Bob should have an OTK because we just generated it");
         let (skey_id, skey) = bob_prekeys
@@ -817,10 +813,8 @@ mod test {
         let ciphertext = alice_session.encrypt_interolm(message);
 
         if let AnyMessage::Interolm(AnyInterolmMessage::PreKey(m)) = ciphertext.into() {
-            let InboundCreationResult { session, .. } = bob.create_inbound_session(
-                alice.identity_keys().curve25519,
-                &m.try_into().expect("We should be able to establish the session"),
-            )?;
+            let InboundCreationResult { session, .. } =
+                bob.create_inbound_session(alice.identity_keys().curve25519, &m.into())?;
 
             Ok((alice, bob, alice_session, session))
         } else {
