@@ -70,13 +70,13 @@ impl DoubleRatchet {
         config: &SessionConfig,
         session_creator: SessionCreator,
         session_keys: &SessionKeys,
-        previous_counter: u32,
+        previous_index: u32,
         plaintext: &[u8],
     ) -> InterolmMessage {
         self.next_message_key(config).encrypt_interolm(
             session_keys,
             session_creator,
-            previous_counter,
+            previous_index,
             plaintext,
         )
     }

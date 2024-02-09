@@ -124,13 +124,13 @@ impl ChainStore {
     }
 
     #[cfg(feature = "interolm")]
-    fn previous_counter(&self) -> u32 {
+    fn previous_index(&self) -> u32 {
         match self.previous_chain() {
             Some(chain) => {
                 if chain.hkdf_ratchet.chain_index() > 0 {
                     (chain.hkdf_ratchet.chain_index() - 1)
                         .try_into()
-                        .expect("Interolm counter should fit into u32")
+                        .expect("Interolm chain index should fit into u32")
                 } else {
                     0
                 }
@@ -388,7 +388,7 @@ impl Session {
                     &self.config,
                     self.session_creator,
                     &self.session_keys,
-                    self.receiving_chains.previous_counter(),
+                    self.receiving_chains.previous_index(),
                     plaintext.as_ref(),
                 ),
             ),

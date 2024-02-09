@@ -67,7 +67,7 @@ impl AnyNormalMessage<'_> {
     pub(crate) fn chain_index(&self) -> u64 {
         match self {
             AnyNormalMessage::Native(m) => m.chain_index,
-            AnyNormalMessage::Interolm(m) => m.counter.into(),
+            AnyNormalMessage::Interolm(m) => m.index.into(),
         }
     }
 }

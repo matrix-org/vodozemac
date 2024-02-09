@@ -266,8 +266,11 @@ impl Debug for Message {
 pub struct InterolmMessage {
     pub(crate) version: u8,
     pub(crate) ratchet_key: Curve25519PublicKey,
-    pub(crate) counter: u32,
-    pub(crate) previous_counter: u32,
+    /// The current chain index
+    pub(crate) index: u32,
+    /// The chain index at the point in time when the DH ratchet was previously
+    /// ratcheted
+    pub(crate) previous_index: u32,
     pub(crate) ciphertext: Vec<u8>,
     pub(crate) mac: InterolmMessageMac,
 }
@@ -278,15 +281,15 @@ impl InterolmMessage {
 
     pub(crate) fn new(
         ratchet_key: Curve25519PublicKey,
-        counter: u32,
-        previous_counter: u32,
+        index: u32,
+        previous_index: u32,
         ciphertext: Vec<u8>,
     ) -> Self {
         Self {
             version: Self::VERSION,
             ratchet_key,
-            counter,
-            previous_counter,
+            index,
+            previous_index,
             ciphertext,
             mac: InterolmMessageMac([0u8; Mac::TRUNCATED_LEN]),
         }
@@ -313,18 +316,11 @@ impl InterolmMessage {
             } else {
                 let mac = InterolmMessageMac(mac_slice.try_into().expect("Can never happen"));
                 let ratchet_key = Curve25519PublicKey::from_slice(&decoded.ratchet_key)?;
-                let counter = decoded.counter;
-                let previous_counter = decoded.previous_counter;
+                let index = decoded.index;
+                let previous_index = decoded.previous_index;
                 let ciphertext = decoded.ciphertext;
 
-                Ok(InterolmMessage {
-                    version,
-                    ratchet_key,
-                    counter,
-                    previous_counter,
-                    ciphertext,
-                    mac,
-                })
+                Ok(InterolmMessage { version, ratchet_key, index, previous_index, ciphertext, mac })
             }
         }
     }
@@ -348,8 +344,8 @@ impl InterolmMessage {
     pub fn to_mac_bytes(&self) -> Vec<u8> {
         InterolmProtoBufMessage {
             ratchet_key: self.ratchet_key.to_interolm_bytes().to_vec(),
-            counter: self.counter,
-            previous_counter: self.previous_counter,
+            index: self.index,
+            previous_index: self.previous_index,
             ciphertext: self.ciphertext.clone(),
         }
         .encode_manual()
@@ -368,13 +364,13 @@ impl<'a> From<&'a InterolmMessage> for AnyNormalMessage<'a> {
 
 impl Debug for InterolmMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let Self { version, ratchet_key, counter, previous_counter, ciphertext: _, mac: _ } = self;
+        let Self { version, ratchet_key, index, previous_index, ciphertext: _, mac: _ } = self;
 
         f.debug_struct("InterolmMessage")
             .field("version", version)
             .field("ratchet_key", ratchet_key)
-            .field("counter", counter)
-            .field("previous_counter", previous_counter)
+            .field("index", index)
+            .field("previous_index", previous_index)
             .finish()
     }
 }
@@ -395,9 +391,9 @@ struct InterolmProtoBufMessage {
     #[prost(bytes, tag = "1")]
     ratchet_key: Vec<u8>,
     #[prost(uint32, tag = "2")]
-    counter: u32,
+    index: u32,
     #[prost(uint32, tag = "3")]
-    previous_counter: u32,
+    previous_index: u32,
     #[prost(bytes, tag = "4")]
     ciphertext: Vec<u8>,
 }
@@ -410,8 +406,8 @@ impl InterolmProtoBufMessage {
     const CIPHER_TAG: &'static [u8; 1] = b"\x22";
 
     fn encode_manual(&self) -> Vec<u8> {
-        let counter = self.counter.to_var_int();
-        let previous_counter = self.previous_counter.to_var_int();
+        let index = self.index.to_var_int();
+        let previous_index = self.previous_index.to_var_int();
         let ratchet_len = self.ratchet_key.len().to_var_int();
         let ciphertext_len = self.ciphertext.len().to_var_int();
 
@@ -421,9 +417,9 @@ impl InterolmProtoBufMessage {
             &ratchet_len,
             &self.ratchet_key,
             Self::INDEX_TAG.as_ref(),
-            &counter,
+            &index,
             Self::PREVIOUS_INDEX_TAG.as_ref(),
-            &previous_counter,
+            &previous_index,
             Self::CIPHER_TAG.as_ref(),
             &ciphertext_len,
             &self.ciphertext,

@@ -92,7 +92,7 @@ impl MessageKey {
         self,
         session_keys: &SessionKeys,
         session_creator: SessionCreator,
-        previous_counter: u32,
+        previous_index: u32,
         plaintext: &[u8],
     ) -> InterolmMessage {
         let cipher = Cipher::new_interolm(&self.key);
@@ -102,7 +102,7 @@ impl MessageKey {
         let mut message = InterolmMessage::new(
             *self.ratchet_key.as_ref(),
             self.index.try_into().expect("Interolm doesn't support encrypting more than 2^32 messages with a single sender chain"),
-            previous_counter,
+            previous_index,
             ciphertext,
         );
 
