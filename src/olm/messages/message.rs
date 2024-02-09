@@ -375,7 +375,7 @@ impl Debug for InterolmMessage {
     }
 }
 
-#[derive(ProstMessage, PartialEq, Eq)]
+#[derive(Eq, PartialEq, ProstMessage)]
 struct ProtoBufMessage {
     #[prost(bytes, tag = "1")]
     ratchet_key: Vec<u8>,
@@ -385,8 +385,33 @@ struct ProtoBufMessage {
     ciphertext: Vec<u8>,
 }
 
+impl ProtoBufMessage {
+    const RATCHET_TAG: &'static [u8; 1] = b"\x0A";
+    const INDEX_TAG: &'static [u8; 1] = b"\x10";
+    const CIPHER_TAG: &'static [u8; 1] = b"\x22";
+
+    fn encode_manual(&self, version: u8) -> Vec<u8> {
+        let index = self.chain_index.to_var_int();
+        let ratchet_len = self.ratchet_key.len().to_var_int();
+        let ciphertext_len = self.ciphertext.len().to_var_int();
+
+        [
+            [version].as_ref(),
+            Self::RATCHET_TAG.as_ref(),
+            &ratchet_len,
+            &self.ratchet_key,
+            Self::INDEX_TAG.as_ref(),
+            &index,
+            Self::CIPHER_TAG.as_ref(),
+            &ciphertext_len,
+            &self.ciphertext,
+        ]
+        .concat()
+    }
+}
+
 #[cfg(feature = "interolm")]
-#[derive(PartialEq, Eq, ProstMessage)]
+#[derive(Eq, PartialEq, ProstMessage)]
 struct InterolmProtoBufMessage {
     #[prost(bytes, tag = "1")]
     ratchet_key: Vec<u8>,
@@ -420,31 +445,6 @@ impl InterolmProtoBufMessage {
             &index,
             Self::PREVIOUS_INDEX_TAG.as_ref(),
             &previous_index,
-            Self::CIPHER_TAG.as_ref(),
-            &ciphertext_len,
-            &self.ciphertext,
-        ]
-        .concat()
-    }
-}
-
-impl ProtoBufMessage {
-    const RATCHET_TAG: &'static [u8; 1] = b"\x0A";
-    const INDEX_TAG: &'static [u8; 1] = b"\x10";
-    const CIPHER_TAG: &'static [u8; 1] = b"\x22";
-
-    fn encode_manual(&self, version: u8) -> Vec<u8> {
-        let index = self.chain_index.to_var_int();
-        let ratchet_len = self.ratchet_key.len().to_var_int();
-        let ciphertext_len = self.ciphertext.len().to_var_int();
-
-        [
-            [version].as_ref(),
-            Self::RATCHET_TAG.as_ref(),
-            &ratchet_len,
-            &self.ratchet_key,
-            Self::INDEX_TAG.as_ref(),
-            &index,
             Self::CIPHER_TAG.as_ref(),
             &ciphertext_len,
             &self.ciphertext,
