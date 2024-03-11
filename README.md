@@ -37,12 +37,12 @@ Matrix clients, such as [SAS][sas].
 ## Unsupported
 
 - Creating asymmetric [server-side message key
-  backups][legacy-message-key-backup], since they are slated to be replaced
-  with symmetric backups.
+  backups][legacy-message-key-backup], since they are slated to be enhanced
+  with authentication.
 
 ## Planned
 
-- Symmetric [server-side message key backups][symmetric-message-key-backup]
+- Asymmetric authenticated [server-side message key backups][authenticated-message-key-backup].
 - Importing asymmetric [server-side message key
   backups][legacy-message-key-backup], for compatibility with existing backups
   created by libolm.
@@ -50,5 +50,5 @@ Matrix clients, such as [SAS][sas].
 [legacy-message-key-backup]:
 <https://spec.matrix.org/v1.2/client-server-api/#server-side-key-backups>
 
-[symmetric-message-key-backup]:
-https://github.com/uhoreg/matrix-doc/blob/symmetric-backups/proposals/3270-symmetric-megolm-backup.md
+[authenticated-message-key-backup]:
+<https://github.com/matrix-org/matrix-spec-proposals/pull/4048>
