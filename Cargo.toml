@@ -30,6 +30,7 @@ aes = "0.8.4"
 arrayvec = { version = "0.7.4", features = ["serde"] }
 base64 = "0.22.1"
 cbc = { version = "0.1.2", features = ["std"] }
+chacha20poly1305 = "0.10.1"
 curve25519-dalek = { version = "4.1.2", default-features = false, features = ["zeroize"] }
 ed25519-dalek = { version = "2.1.1", default-features = false, features = ["rand_core", "std", "serde", "hazmat", "zeroize"] }
 getrandom = "0.2.14"
@@ -51,6 +52,7 @@ zeroize = "1.7.0"
 [dev-dependencies]
 anyhow = "1.0.82"
 assert_matches = "1.5.0"
+assert_matches2 = "0.1.2"
 olm-rs = "2.2.0"
 proptest = "1.4.0"
 
