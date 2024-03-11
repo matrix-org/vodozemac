@@ -234,7 +234,7 @@ pub enum PickleError {
     Base64(#[from] base64::DecodeError),
     /// The encrypted pickle could not have been decrypted.
     #[error("The pickle couldn't be decrypted: {0}")]
-    Decryption(#[from] crate::cipher::DecryptionError),
+    Decryption(#[from] cipher::DecryptionError),
     /// The serialized Vodozemac object couldn't be deserialized.
     #[error("The pickle couldn't be deserialized: {0}")]
     Serialization(#[from] serde_json::Error),
@@ -256,7 +256,7 @@ pub enum LibolmPickleError {
     Base64(#[from] Base64DecodeError),
     /// The pickle could not have been decrypted.
     #[error("The pickle couldn't be decrypted: {0}")]
-    Decryption(#[from] crate::cipher::DecryptionError),
+    Decryption(#[from] cipher::DecryptionError),
     /// The pickle contains an invalid public key.
     #[error("The pickle contained an invalid ed25519 public key {0}")]
     PublicKey(#[from] KeyError),
