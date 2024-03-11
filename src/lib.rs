@@ -213,6 +213,7 @@ mod cipher;
 mod types;
 mod utilities;
 
+pub mod ecies;
 pub mod hazmat;
 pub mod megolm;
 pub mod olm;
