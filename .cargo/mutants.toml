@@ -1,0 +1,6 @@
+exclude_re = [
+  # Coverage of debug functions is not relevant
+  "impl Debug",
+  # Replacing + with * makes no logical difference here
+  "src/olm/messages/message\\.rs.*replace \\+ with \\* in <impl TryFrom for Message>::try_from",
+]

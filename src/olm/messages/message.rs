@@ -291,22 +291,35 @@ impl ProtoBufMessage {
 
 #[cfg(test)]
 mod test {
+    use assert_matches::assert_matches;
+
     use super::Message;
-    use crate::Curve25519PublicKey;
+    use crate::{olm::messages::message::MAC_TRUNCATED_VERSION, Curve25519PublicKey, DecodeError};
 
     #[test]
     fn encode() {
-        let message = b"\x03\n\x20ratchetkeyhereprettyplease123456\x10\x01\"\nciphertext";
+        let message = b"\x03\n\x20ratchetkeyhereprettyplease123456\x10\x02\"\nciphertext";
         let message_mac =
-            b"\x03\n\x20ratchetkeyhereprettyplease123456\x10\x01\"\nciphertextMACHEREE";
+            b"\x03\n\x20ratchetkeyhereprettyplease123456\x10\x02\"\nciphertextMACHEREE";
 
         let ratchet_key = Curve25519PublicKey::from(*b"ratchetkeyhereprettyplease123456");
         let ciphertext = b"ciphertext";
+        let chain_index = 2;
 
-        let mut encoded = Message::new_truncated_mac(ratchet_key, 1, ciphertext.to_vec());
+        let mut encoded = Message::new_truncated_mac(ratchet_key, chain_index, ciphertext.to_vec());
         encoded.mac = (*b"MACHEREE").into();
 
         assert_eq!(encoded.to_mac_bytes(), message.as_ref());
         assert_eq!(encoded.to_bytes(), message_mac.as_ref());
+        assert_eq!(encoded.ciphertext(), ciphertext.to_vec());
+        assert_eq!(encoded.chain_index(), chain_index);
+        assert_eq!(encoded.version(), MAC_TRUNCATED_VERSION);
+    }
+
+    #[test]
+    fn from_bytes_too_short() {
+        let bytes = vec![MAC_TRUNCATED_VERSION, 0, 0, 0, 0, 0, 0, 0, 0];
+        let result = Message::try_from(bytes);
+        assert_matches!(result, Err(DecodeError::MessageTooShort(9)));
     }
 }
