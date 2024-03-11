@@ -216,6 +216,7 @@ pub mod hazmat;
 pub mod megolm;
 pub mod olm;
 pub mod sas;
+pub mod secure_channel;
 
 pub use base64::DecodeError as Base64DecodeError;
 pub use prost::DecodeError as ProtoBufDecodeError;
