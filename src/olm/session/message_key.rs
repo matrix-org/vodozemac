@@ -137,3 +137,21 @@ impl RemoteMessageKey {
         }
     }
 }
+
+#[cfg(test)]
+#[cfg(feature = "low-level-api")]
+mod test {
+    use super::MessageKey;
+    use crate::olm::RatchetPublicKey;
+
+    #[test]
+    fn low_level_getters() {
+        let key = b"11111111111111111111111111111111";
+        let ratchet_key = RatchetPublicKey::from(*b"22222222222222222222222222222222");
+        let index: u64 = 3;
+        let message_key = MessageKey::new(Box::new(*key), ratchet_key, index);
+        assert_eq!(message_key.key(), key);
+        assert_eq!(message_key.ratchet_key(), ratchet_key);
+        assert_eq!(message_key.index(), index);
+    }
+}
