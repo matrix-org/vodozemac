@@ -145,6 +145,10 @@ impl EstablishedSecureChannel {
         Self { key, encryption_nonce, decryption_nonce, our_public_key, their_public_key }
     }
 
+    pub fn public_key(&self) -> Curve25519PublicKey {
+        self.our_public_key
+    }
+
     fn key(&self) -> &Chacha20Key {
         Chacha20Key::from_slice(self.key.as_slice())
     }
