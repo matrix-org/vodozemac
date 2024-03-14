@@ -23,6 +23,21 @@ use super::{
 };
 use crate::olm::{messages::Message, shared_secret::Shared3DHSecret};
 
+/// The sender side of a double-ratchet implementation.
+///
+/// While we are encrypting messages, we are in the "active" state. Here we need
+/// to keep track of the latest chain key `C`<sub>`i`,`j`</sub> (so that we can
+/// advance to the next one), and also the current root key `R`<sub>`i`</sub>
+/// and our most recent ratchet key `T`<sub>`i`</sub> (so that we can calculate
+/// the *next* root key).
+///
+/// Once we receive a message, we transition to the "inactive" state. Since we
+/// don't handle decryption here (that's done in [`ReceiverChain`]), we don't
+/// need to keep track of the sender's chain key. All we need is enough state so
+/// that we can calculate the next root key once we start encrypting again:
+/// specifically, the public part of the other side's ratchet key
+/// `T`<sub>`i`</sub> which was sent to us in the message, and the remote root
+/// key `R`<sub>`i`</sub>.
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(transparent)]
 pub(super) struct DoubleRatchet {
@@ -59,6 +74,8 @@ impl DoubleRatchet {
         self.next_message_key().encrypt_truncated_mac(plaintext)
     }
 
+    /// Create a new `DoubleRatchet` instance, based on a newly-calculated
+    /// shared secret.
     pub fn active(shared_secret: Shared3DHSecret) -> Self {
         let (root_key, chain_key) = shared_secret.expand();
 
@@ -133,6 +150,10 @@ impl From<ActiveDoubleRatchet> for DoubleRatchetState {
     }
 }
 
+/// State of the sender-side ratchet when we have received a new chain from the
+/// other side, and have not yet created a new chain of our own.
+///
+/// See [`DoubleRatchet`] for more explanation.
 #[derive(Serialize, Deserialize, Clone)]
 struct InactiveDoubleRatchet {
     root_key: RemoteRootKey,
@@ -148,6 +169,11 @@ impl InactiveDoubleRatchet {
     }
 }
 
+/// State of the sender-side ratchet while we are in "encryption" mode: we are
+/// encrypting our own messages and have not yet received any messages which
+/// were created since we started this chain.
+///
+/// See [`DoubleRatchet`] for more explanation.
 #[derive(Serialize, Deserialize, Clone)]
 struct ActiveDoubleRatchet {
     active_ratchet: Ratchet,

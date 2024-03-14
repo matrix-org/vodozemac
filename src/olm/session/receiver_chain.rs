@@ -88,10 +88,28 @@ impl FoundMessageKey<'_> {
     }
 }
 
+/// The receiver side data on a single chain in the double ratchet.
+///
+/// Contains the data needed to decrypt a message sent to a given chain.
 #[derive(Serialize, Deserialize, Clone)]
 pub(super) struct ReceiverChain {
+    /// The sender's ratchet key `T`<sub>`i`</sub> for this chain.
+    ///
+    /// We store this mostly so that we can identify which chain to use to
+    /// decrypt a given message.
     ratchet_key: RemoteRatchetKey,
+
+    /// The chain key `C`<sub>`i`,`j`</sub>.
+    ///
+    /// As we receive more messages on the chain, this is ratcheted forward,
+    /// producing a new chain key `C`<sub>`i`,`j+1`</sub>, from which we can
+    /// derive a new message key `M`<sub>`i`,`j+1`</sub>.
     hkdf_ratchet: RemoteChainKey,
+
+    /// A stash of message keys which have not yet been used to decrypt a
+    /// message.
+    ///
+    /// This allows us to handle out-of-order messages.
     skipped_message_keys: MessageKeyStore,
 }
 
