@@ -26,12 +26,12 @@ libolm-compat = []
 low-level-api = []
 
 [dependencies]
-aes = "0.8.3"
+aes = "0.8.4"
 arrayvec = { version = "0.7.4", features = ["serde"] }
-base64 = "0.21.7"
+base64 = "0.22.0"
 cbc = { version = "0.1.2", features = ["std"] }
-curve25519-dalek = { version = "4.1.1", default-features = false }
-ed25519-dalek = { version = "2.1.0", default-features = false, features = ["rand_core", "std", "serde", "hazmat"] }
+curve25519-dalek = { version = "4.1.2", default-features = false, features = ["zeroize"] }
+ed25519-dalek = { version = "2.1.1", default-features = false, features = ["rand_core", "std", "serde", "hazmat", "zeroize"] }
 getrandom = "0.2.12"
 hkdf = "0.12.4"
 hmac = "0.12.1"
@@ -39,17 +39,17 @@ matrix-pickle = { version = "0.1.1" }
 pkcs7 = "0.4.1"
 prost = "0.12.3"
 rand = "0.8.5"
-serde = { version = "1.0.196", features = ["derive"] }
+serde = { version = "1.0.197", features = ["derive"] }
 serde_bytes = "0.11.14"
-serde_json = "1.0.113"
+serde_json = "1.0.114"
 sha2 = "0.10.8"
 subtle = "2.5.0"
-thiserror = "1.0.56"
-x25519-dalek = { version = "2.0.0", features = ["serde", "reusable_secrets", "static_secrets"] }
+thiserror = "1.0.58"
+x25519-dalek = { version = "2.0.1", features = ["serde", "reusable_secrets", "static_secrets", "zeroize"] }
 zeroize = "1.7.0"
 
 [dev-dependencies]
-anyhow = "1.0.79"
+anyhow = "1.0.81"
 assert_matches = "1.5.0"
 olm-rs = "2.2.0"
 proptest = "1.4.0"
