@@ -780,6 +780,7 @@ mod test {
 
         if let OlmMessage::PreKey(m) = olm_message {
             assert_eq!(m.session_keys(), alice_session.session_keys());
+            assert_eq!(m.session_id(), alice_session.session_id());
 
             let InboundCreationResult { session: mut bob_session, plaintext } =
                 bob.create_inbound_session(alice.curve25519_key(), &m)?;
