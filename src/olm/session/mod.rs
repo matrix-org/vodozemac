@@ -512,14 +512,19 @@ impl From<SessionPickle> for Session {
 #[cfg(test)]
 mod test {
     use anyhow::{bail, Result};
+    use assert_matches::assert_matches;
     use olm_rs::{
         account::OlmAccount,
         session::{OlmMessage, OlmSession},
     };
 
-    use super::Session;
+    use super::{DecryptionError, Session};
     use crate::{
-        olm::{Account, SessionConfig, SessionPickle},
+        olm::{
+            messages,
+            session::receiver_chain::{MAX_MESSAGE_GAP, MAX_MESSAGE_KEYS},
+            Account, SessionConfig, SessionPickle,
+        },
         Curve25519PublicKey,
     };
 
@@ -595,6 +600,53 @@ mod test {
         assert_eq!("Message 2".as_bytes(), alice_session.decrypt(&message_2)?);
 
         assert_eq!(alice_session.receiving_chains.len(), 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn max_keys_out_of_order_decryption() -> Result<()> {
+        let (_, _, mut alice_session, bob_session) = sessions()?;
+
+        let mut messages: Vec<messages::OlmMessage> = Vec::new();
+        for i in 0..(MAX_MESSAGE_KEYS + 2) {
+            messages.push(bob_session.encrypt(format!("Message {}", i).as_str()).into());
+        }
+
+        // Decrypt last message
+        assert_eq!(
+            format!("Message {}", MAX_MESSAGE_KEYS + 1).as_bytes(),
+            alice_session.decrypt(&messages[MAX_MESSAGE_KEYS + 1])?
+        );
+
+        // Cannot decrypt first message because it is more than MAX_MESSAGE_KEYS ago
+        assert_matches!(
+            alice_session.decrypt(&messages[0]),
+            Err(DecryptionError::MissingMessageKey(_))
+        );
+
+        // Can decrypt all other messages
+        #[allow(clippy::needless_range_loop)]
+        for i in 1..(MAX_MESSAGE_KEYS + 1) {
+            assert_eq!(format!("Message {}", i).as_bytes(), alice_session.decrypt(&messages[i])?);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn max_gap_out_of_order_decryption() -> Result<()> {
+        let (_, _, mut alice_session, bob_session) = sessions()?;
+
+        for i in 0..(MAX_MESSAGE_GAP + 1) {
+            bob_session.encrypt(format!("Message {}", i).as_str());
+        }
+
+        let message = bob_session.encrypt("Message").into();
+        assert_matches!(
+            alice_session.decrypt(&message),
+            Err(DecryptionError::TooBigMessageGap(_, _))
+        );
 
         Ok(())
     }

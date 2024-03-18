@@ -23,8 +23,8 @@ use super::{
 };
 use crate::olm::{messages::Message, session_config::Version, SessionConfig};
 
-const MAX_MESSAGE_GAP: u64 = 2000;
-const MAX_MESSAGE_KEYS: usize = 40;
+pub(crate) const MAX_MESSAGE_GAP: u64 = 2000;
+pub(crate) const MAX_MESSAGE_KEYS: usize = 40;
 
 #[derive(Serialize, Deserialize, Clone)]
 struct MessageKeyStore {
@@ -185,5 +185,51 @@ impl ReceiverChain {
 
     pub fn belongs_to(&self, ratchet_key: &RemoteRatchetKey) -> bool {
         &self.ratchet_key == ratchet_key
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use assert_matches::assert_matches;
+
+    use super::MessageKeyStore;
+    use crate::olm::session::message_key::RemoteMessageKey;
+
+    #[test]
+    fn push_and_remove() {
+        let mut store = MessageKeyStore::new();
+        let key_bytes = *b"11111111111111111111111111111111";
+        let chain_index: u64 = 1;
+        let key = RemoteMessageKey::new(Box::new(key_bytes), chain_index);
+        assert_matches!(store.get_message_key(chain_index), None);
+        store.push(key);
+        assert_matches!(store.get_message_key(chain_index), Some(key) if *(key.key) == key_bytes && key.index == chain_index);
+        store.remove_message_key(chain_index);
+        assert_matches!(store.get_message_key(chain_index), None);
+    }
+
+    #[test]
+    fn merge() {
+        let mut store1 = MessageKeyStore::new();
+        let key_bytes1 = *b"11111111111111111111111111111111";
+        let chain_index1: u64 = 1;
+        let key1 = RemoteMessageKey::new(Box::new(key_bytes1), chain_index1);
+        store1.push(key1);
+
+        let mut store2 = MessageKeyStore::new();
+        let key_bytes2 = *b"22222222222222222222222222222222";
+        let chain_index2: u64 = 2;
+        let key2 = RemoteMessageKey::new(Box::new(key_bytes2), chain_index2);
+        store2.push(key2);
+
+        assert_matches!(store1.get_message_key(chain_index1), Some(_));
+        assert_matches!(store1.get_message_key(chain_index2), None);
+        assert_matches!(store2.get_message_key(chain_index1), None);
+        assert_matches!(store2.get_message_key(chain_index2), Some(_));
+
+        store1.merge(store2);
+
+        assert_matches!(store1.get_message_key(chain_index1), Some(_));
+        assert_matches!(store1.get_message_key(chain_index2), Some(_));
     }
 }
