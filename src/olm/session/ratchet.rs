@@ -24,13 +24,30 @@ use super::{
 };
 use crate::{types::Curve25519SecretKey, Curve25519PublicKey};
 
+/// A ratchet key which we created ourselves.
+///
+/// A new ratchet key is created each time the conversation changes direction,
+/// and used to calculate the [root key](RootKey) for the new sender chain.
+/// The public part of the sender's ratchet key is sent to the recipient in each
+/// message.
+///
+/// Since this is *our own* key, we have both the secret and public parts of the
+/// key.
+///
+/// The [Olm spec](https://gitlab.matrix.org/matrix-org/olm/blob/master/docs/olm.md) refers to
+/// ratchet keys as `T`<sub>`i`</sub>.
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(transparent)]
 pub(super) struct RatchetKey(Curve25519SecretKey);
 
+/// The public part of a [`RatchetKey`].
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct RatchetPublicKey(Curve25519PublicKey);
 
+/// A ratchet key which was created by the other side.
+///
+/// See [`RatchetKey`] for explanation about ratchet keys in general. Since this
+/// is the other side's key, we have only the public part of the key.
 #[derive(Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, Decode)]
 #[serde(transparent)]
 pub struct RemoteRatchetKey(Curve25519PublicKey);
@@ -93,6 +110,12 @@ impl From<&RatchetKey> for RatchetPublicKey {
     }
 }
 
+/// Information about the root key ratchet, while our sender chain is active.
+///
+/// We only have one of these while the double ratchet is "active" - ie, while
+/// we are encrypting messages. It stores the information necessary to calculate
+/// the *next* root key; in particular, the root key of our active chain
+/// `R`<sub>`i`</sub>, and our own ratchet key `T`<sub>`i`</sub>.
 #[derive(Serialize, Deserialize, Clone)]
 pub(super) struct Ratchet {
     root_key: RootKey,

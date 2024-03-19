@@ -24,6 +24,16 @@ use super::{
 
 const ADVANCEMENT_SEED: &[u8; 11] = b"OLM_RATCHET";
 
+/// A root key for one of our own sender chains.
+///
+/// A new root key `R`<sub>`i`</sub> is calculated each time the conversation
+/// changes direction, based on the previous root key `R`<sub>`i-1`</sub> and
+/// the previous and new [ratchet keys](RatchetKey) `T`<sub>`i-1`</sub>,
+/// `T`<sub>`i`</sub>. It is used only to calculate the *next* root key
+/// `R`<sub>`i+1`</sub> and [chain key](ChainKey) `C`<sub>`i+1`</sub>.
+///
+/// This struct holds the root key corresponding to chains where we are the
+/// sender. See also [`RemoteRootKey`].
 #[derive(Serialize, Deserialize, Clone, Zeroize)]
 #[serde(transparent)]
 #[zeroize(drop)]
@@ -31,6 +41,10 @@ pub(crate) struct RootKey {
     pub key: Box<[u8; 32]>,
 }
 
+/// A root key for one of the other side's sender chains.
+///
+/// See [`RootKey`] for information on root keys. This struct holds the root key
+/// corresponding to chains where the other side is the sender.
 #[derive(Serialize, Deserialize, Clone, Zeroize)]
 #[zeroize(drop)]
 pub(crate) struct RemoteRootKey {

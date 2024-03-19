@@ -158,7 +158,7 @@ impl Debug for Session {
 
         f.debug_struct("Session")
             .field("session_id", &self.session_id())
-            .field("sending_chain_index", &sending_ratchet.chain_index())
+            .field("sending_ratchet", &sending_ratchet)
             .field("receiving_chains", &receiving_chains.inner)
             .field("config", config)
             .finish_non_exhaustive()
