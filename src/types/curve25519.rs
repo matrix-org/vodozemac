@@ -246,7 +246,7 @@ impl From<Curve25519Keypair> for Curve25519KeypairPickle {
 #[cfg(test)]
 mod tests {
     use super::Curve25519PublicKey;
-    use crate::{utilities::DecodeError, KeyError};
+    use crate::{utilities::DecodeError, Curve25519SecretKey, KeyError};
 
     #[test]
     fn decoding_invalid_base64_fails() {
@@ -282,5 +282,21 @@ mod tests {
     fn decoding_of_correct_num_of_bytes_succeeds() {
         let base64_payload = "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA";
         assert!(matches!(Curve25519PublicKey::from_base64(base64_payload), Ok(..)));
+    }
+
+    #[test]
+    fn byte_decoding_roundtrip_succeeds_for_public_key() {
+        let bytes = *b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        let key = Curve25519PublicKey::from_bytes(bytes);
+        assert_eq!(key.to_bytes(), bytes);
+        assert_eq!(key.as_bytes(), &bytes);
+        assert_eq!(key.to_vec(), bytes.to_vec());
+    }
+
+    #[test]
+    fn byte_decoding_roundtrip_succeeds_for_secret_key() {
+        let bytes = *b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        let key = Curve25519SecretKey::from_slice(&bytes);
+        assert_eq!(*(key.to_bytes()), bytes);
     }
 }
