@@ -83,6 +83,7 @@ impl DoubleRatchet {
         let chain_key = ChainKey::new(chain_key);
 
         let ratchet = ActiveDoubleRatchet {
+            parent_ratchet_key: None, // First chain in a session lacks parent ratchet key
             active_ratchet: Ratchet::new(root_key),
             symmetric_key_ratchet: chain_key,
         };
@@ -94,6 +95,7 @@ impl DoubleRatchet {
     pub fn from_ratchet_and_chain_key(ratchet: Ratchet, chain_key: ChainKey) -> Self {
         Self {
             inner: ActiveDoubleRatchet {
+                parent_ratchet_key: None, // libolm pickle did not record parent ratchet key
                 active_ratchet: ratchet,
                 symmetric_key_ratchet: chain_key,
             }
@@ -165,7 +167,11 @@ impl InactiveDoubleRatchet {
         let (root_key, chain_key, ratchet_key) = self.root_key.advance(&self.ratchet_key);
         let active_ratchet = Ratchet::new_with_ratchet_key(root_key, ratchet_key);
 
-        ActiveDoubleRatchet { active_ratchet, symmetric_key_ratchet: chain_key }
+        ActiveDoubleRatchet {
+            parent_ratchet_key: Some(self.ratchet_key),
+            active_ratchet,
+            symmetric_key_ratchet: chain_key,
+        }
     }
 }
 
@@ -176,6 +182,22 @@ impl InactiveDoubleRatchet {
 /// See [`DoubleRatchet`] for more explanation.
 #[derive(Serialize, Deserialize, Clone)]
 struct ActiveDoubleRatchet {
+    /// The other side's most recent ratchet key, which was used to calculate
+    /// the root key in `active_ratchet` and the chain key in
+    /// `symmetric_key_ratchet`.
+    ///
+    /// If `active_ratchet` contains root key `R`<sub>`i`</sub> and our own
+    /// ratchet key `T`<sub>`i`</sub>, this is `T`<sub>`i-1`</sub>.
+    ///
+    /// `None` means "unknown", either because this session has been restored
+    /// from a pickle which did not record the parent session key, or because
+    /// this is the first chain in the session.
+    ///
+    /// This is not required to implement the algorithm: it is maintained solely
+    /// for diagnostic output.
+    #[serde(default)]
+    parent_ratchet_key: Option<RemoteRatchetKey>,
+
     active_ratchet: Ratchet,
     symmetric_key_ratchet: ChainKey,
 }
