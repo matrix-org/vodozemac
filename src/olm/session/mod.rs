@@ -605,8 +605,8 @@ mod test {
     }
 
     #[test]
-    fn max_keys_out_of_order_decryption() -> Result<()> {
-        let (_, _, mut alice_session, bob_session) = sessions()?;
+    fn max_keys_out_of_order_decryption() {
+        let (_, _, mut alice_session, bob_session) = sessions().unwrap();
 
         let mut messages: Vec<messages::OlmMessage> = Vec::new();
         for i in 0..(MAX_MESSAGE_KEYS + 2) {
@@ -616,7 +616,9 @@ mod test {
         // Decrypt last message
         assert_eq!(
             format!("Message {}", MAX_MESSAGE_KEYS + 1).as_bytes(),
-            alice_session.decrypt(&messages[MAX_MESSAGE_KEYS + 1])?
+            alice_session
+                .decrypt(&messages[MAX_MESSAGE_KEYS + 1])
+                .expect("Should be able to decrypt last message")
         );
 
         // Cannot decrypt first message because it is more than MAX_MESSAGE_KEYS ago
@@ -627,15 +629,18 @@ mod test {
 
         // Can decrypt all other messages
         for (i, message) in messages.iter().enumerate().skip(1).take(MAX_MESSAGE_KEYS) {
-            assert_eq!(format!("Message {}", i).as_bytes(), alice_session.decrypt(message)?);
+            assert_eq!(
+                format!("Message {}", i).as_bytes(),
+                alice_session
+                    .decrypt(message)
+                    .expect("Should be able to decrypt remaining messages")
+            );
         }
-
-        Ok(())
     }
 
     #[test]
-    fn max_gap_out_of_order_decryption() -> Result<()> {
-        let (_, _, mut alice_session, bob_session) = sessions()?;
+    fn max_gap_out_of_order_decryption() {
+        let (_, _, mut alice_session, bob_session) = sessions().unwrap();
 
         for i in 0..(MAX_MESSAGE_GAP + 1) {
             bob_session.encrypt(format!("Message {}", i).as_str());
@@ -646,8 +651,6 @@ mod test {
             alice_session.decrypt(&message),
             Err(DecryptionError::TooBigMessageGap(_, _))
         );
-
-        Ok(())
     }
 
     #[test]
