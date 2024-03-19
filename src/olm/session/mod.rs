@@ -626,9 +626,8 @@ mod test {
         );
 
         // Can decrypt all other messages
-        #[allow(clippy::needless_range_loop)]
-        for i in 1..(MAX_MESSAGE_KEYS + 1) {
-            assert_eq!(format!("Message {}", i).as_bytes(), alice_session.decrypt(&messages[i])?);
+        for (i, message) in messages.iter().enumerate().skip(1).take(MAX_MESSAGE_KEYS) {
+            assert_eq!(format!("Message {}", i).as_bytes(), alice_session.decrypt(message)?);
         }
 
         Ok(())
