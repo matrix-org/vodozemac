@@ -79,6 +79,7 @@ impl DoubleRatchet {
 
         let ratchet = ActiveDoubleRatchet {
             parent_ratchet_key: None, // First chain in a session lacks parent ratchet key
+            ratchet_count: RatchetCount::new(),
             active_ratchet: Ratchet::new(root_key),
             symmetric_key_ratchet: chain_key,
         };
@@ -91,6 +92,7 @@ impl DoubleRatchet {
         Self {
             inner: ActiveDoubleRatchet {
                 parent_ratchet_key: None, // libolm pickle did not record parent ratchet key
+                ratchet_count: RatchetCount::unknown(), // nor the ratchet count
                 active_ratchet: ratchet,
                 symmetric_key_ratchet: chain_key,
             }
@@ -98,8 +100,23 @@ impl DoubleRatchet {
         }
     }
 
-    pub fn inactive(root_key: RemoteRootKey, ratchet_key: RemoteRatchetKey) -> Self {
-        let ratchet = InactiveDoubleRatchet { root_key, ratchet_key };
+    pub fn inactive_from_prekey_data(
+        root_key: RemoteRootKey,
+        ratchet_key: RemoteRatchetKey,
+    ) -> Self {
+        let ratchet_count = RatchetCount::new();
+        let ratchet = InactiveDoubleRatchet { root_key, ratchet_key, ratchet_count };
+
+        Self { inner: ratchet.into() }
+    }
+
+    #[cfg(feature = "libolm-compat")]
+    pub fn inactive_from_libolm_pickle(
+        root_key: RemoteRootKey,
+        ratchet_key: RemoteRatchetKey,
+    ) -> Self {
+        let ratchet_count = RatchetCount::unknown();
+        let ratchet = InactiveDoubleRatchet { root_key, ratchet_key, ratchet_count };
 
         Self { inner: ratchet.into() }
     }
@@ -166,6 +183,15 @@ impl From<ActiveDoubleRatchet> for DoubleRatchetState {
 struct InactiveDoubleRatchet {
     root_key: RemoteRootKey,
     ratchet_key: RemoteRatchetKey,
+
+    /// The number of times the ratchet has been advanced.
+    ///
+    /// If `root_key` contains root key `R`<sub>`i`</sub>, this is `i`.
+    ///
+    /// This is not required to implement the algorithm: it is maintained solely
+    /// for diagnostic output.
+    #[serde(default = "RatchetCount::unknown")]
+    ratchet_count: RatchetCount,
 }
 
 impl InactiveDoubleRatchet {
@@ -175,6 +201,7 @@ impl InactiveDoubleRatchet {
 
         ActiveDoubleRatchet {
             parent_ratchet_key: Some(self.ratchet_key),
+            ratchet_count: self.ratchet_count.advance(),
             active_ratchet,
             symmetric_key_ratchet: chain_key,
         }
@@ -184,6 +211,7 @@ impl InactiveDoubleRatchet {
 impl Debug for InactiveDoubleRatchet {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("InactiveDoubleRatchet")
+            .field("ratchet_count", &self.ratchet_count)
             .field("ratchet_key", &self.ratchet_key)
             .finish_non_exhaustive()
     }
@@ -212,6 +240,12 @@ struct ActiveDoubleRatchet {
     #[serde(default)]
     parent_ratchet_key: Option<RemoteRatchetKey>,
 
+    /// The number of times the ratchet has been advanced.
+    ///
+    /// If `active_ratchet` contains root key `R`<sub>`i`</sub>, this is `i`.
+    #[serde(default = "RatchetCount::unknown")]
+    ratchet_count: RatchetCount,
+
     active_ratchet: Ratchet,
     symmetric_key_ratchet: ChainKey,
 }
@@ -220,8 +254,13 @@ impl ActiveDoubleRatchet {
     fn advance(&self, ratchet_key: RemoteRatchetKey) -> (InactiveDoubleRatchet, ReceiverChain) {
         let (root_key, remote_chain) = self.active_ratchet.advance(ratchet_key);
 
-        let ratchet = InactiveDoubleRatchet { root_key, ratchet_key };
-        let receiver_chain = ReceiverChain::new(ratchet_key, remote_chain);
+        let new_ratchet_count = self.ratchet_count.advance();
+        let ratchet = InactiveDoubleRatchet {
+            root_key,
+            ratchet_key,
+            ratchet_count: new_ratchet_count.clone(),
+        };
+        let receiver_chain = ReceiverChain::new(ratchet_key, remote_chain, new_ratchet_count);
 
         (ratchet, receiver_chain)
     }
@@ -239,9 +278,50 @@ impl Debug for ActiveDoubleRatchet {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let active_ratchet_public_key: RatchetPublicKey = self.active_ratchet.ratchet_key().into();
         f.debug_struct("ActiveDoubleRatchet")
+            .field("ratchet_count", &self.ratchet_count)
             .field("parent_ratchet_key", &self.parent_ratchet_key)
             .field("ratchet_key", &active_ratchet_public_key)
             .field("chain_index", &self.symmetric_key_ratchet.index())
             .finish_non_exhaustive()
+    }
+}
+
+/// The number of times the ratchet has been advanced, `i`.
+///
+/// This starts at 0 for the first prekey messages from Alice to Bob,
+/// increments to 1 when Bob replies, and then increments each time the
+/// conversation changes direction.
+///
+/// It may be unknown, if the ratchet was restored from a pickle
+/// which didn't track it.
+#[derive(Serialize, Deserialize, Clone)]
+pub enum RatchetCount {
+    Known(u64),
+    Unknown(()),
+}
+
+impl RatchetCount {
+    pub fn new() -> RatchetCount {
+        RatchetCount::Known(0)
+    }
+
+    pub fn unknown() -> RatchetCount {
+        RatchetCount::Unknown(())
+    }
+
+    pub fn advance(&self) -> RatchetCount {
+        match self {
+            RatchetCount::Known(count) => RatchetCount::Known(count + 1),
+            RatchetCount::Unknown(_) => RatchetCount::Unknown(()),
+        }
+    }
+}
+
+impl Debug for RatchetCount {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RatchetCount::Known(count) => write!(f, "{count}"),
+            RatchetCount::Unknown(_) => write!(f, "<unknown>"),
+        }
     }
 }

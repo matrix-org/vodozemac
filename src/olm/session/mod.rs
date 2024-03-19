@@ -43,7 +43,10 @@ use super::{
 #[cfg(feature = "low-level-api")]
 use crate::hazmat::olm::MessageKey;
 use crate::{
-    olm::messages::{Message, OlmMessage, PreKeyMessage},
+    olm::{
+        messages::{Message, OlmMessage, PreKeyMessage},
+        session::double_ratchet::RatchetCount,
+    },
     utilities::{pickle, unpickle},
     Curve25519PublicKey, PickleError,
 };
@@ -193,8 +196,9 @@ impl Session {
         let root_key = RemoteRootKey::new(root_key);
         let remote_chain_key = RemoteChainKey::new(remote_chain_key);
 
-        let local_ratchet = DoubleRatchet::inactive(root_key, remote_ratchet_key);
-        let remote_ratchet = ReceiverChain::new(remote_ratchet_key, remote_chain_key);
+        let local_ratchet = DoubleRatchet::inactive_from_prekey_data(root_key, remote_ratchet_key);
+        let remote_ratchet =
+            ReceiverChain::new(remote_ratchet_key, remote_chain_key, RatchetCount::new());
 
         let mut ratchet_store = ChainStore::new();
         ratchet_store.push(remote_ratchet);
@@ -360,7 +364,7 @@ impl Session {
                     chain.chain_key_index,
                 );
 
-                ReceiverChain::new(ratchet_key, chain_key)
+                ReceiverChain::new(ratchet_key, chain_key, RatchetCount::unknown())
             }
         }
 
@@ -444,7 +448,7 @@ impl Session {
                         config: SessionConfig::version_1(),
                     })
                 } else if let Some(chain) = receiving_chains.get(0) {
-                    let sending_ratchet = DoubleRatchet::inactive(
+                    let sending_ratchet = DoubleRatchet::inactive_from_libolm_pickle(
                         RemoteRootKey::new(pickle.root_key.clone()),
                         chain.ratchet_key(),
                     );

@@ -21,7 +21,10 @@ use super::{
     chain_key::RemoteChainKey, message_key::RemoteMessageKey, ratchet::RemoteRatchetKey,
     DecryptionError,
 };
-use crate::olm::{messages::Message, session_config::Version, SessionConfig};
+use crate::olm::{
+    messages::Message, session::double_ratchet::RatchetCount, session_config::Version,
+    SessionConfig,
+};
 
 pub(crate) const MAX_MESSAGE_GAP: u64 = 2000;
 pub(crate) const MAX_MESSAGE_KEYS: usize = 40;
@@ -111,13 +114,21 @@ pub(super) struct ReceiverChain {
     ///
     /// This allows us to handle out-of-order messages.
     skipped_message_keys: MessageKeyStore,
+
+    /// The number of times `i` the ratchet was advanced before this chain.
+    ///
+    /// This is not required to implement the algorithm: it is maintained solely
+    /// for diagnostic output.
+    #[serde(default = "RatchetCount::unknown")]
+    ratchet_count: RatchetCount,
 }
 
 impl Debug for ReceiverChain {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let Self { ratchet_key, hkdf_ratchet, skipped_message_keys } = self;
+        let Self { ratchet_count, ratchet_key, hkdf_ratchet, skipped_message_keys } = self;
 
         f.debug_struct("ReceiverChain")
+            .field("ratchet_count", &ratchet_count)
             .field("ratchet_key", &ratchet_key)
             .field("chain_index", &hkdf_ratchet.chain_index())
             .field("skipped_message_keys", &skipped_message_keys.inner)
@@ -126,11 +137,16 @@ impl Debug for ReceiverChain {
 }
 
 impl ReceiverChain {
-    pub fn new(ratchet_key: RemoteRatchetKey, chain_key: RemoteChainKey) -> Self {
+    pub fn new(
+        ratchet_key: RemoteRatchetKey,
+        chain_key: RemoteChainKey,
+        ratchet_count: RatchetCount,
+    ) -> Self {
         ReceiverChain {
             ratchet_key,
             hkdf_ratchet: chain_key,
             skipped_message_keys: Default::default(),
+            ratchet_count,
         }
     }
 
