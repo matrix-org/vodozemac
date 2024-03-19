@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::fmt::{Debug, Formatter};
+
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -45,13 +47,6 @@ pub(super) struct DoubleRatchet {
 }
 
 impl DoubleRatchet {
-    pub fn chain_index(&self) -> Option<u64> {
-        match &self.inner {
-            DoubleRatchetState::Inactive(_) => None,
-            DoubleRatchetState::Active(r) => Some(r.symmetric_key_ratchet.index()),
-        }
-    }
-
     pub fn next_message_key(&mut self) -> MessageKey {
         match &mut self.inner {
             DoubleRatchetState::Inactive(ratchet) => {
@@ -132,6 +127,17 @@ impl DoubleRatchet {
     }
 }
 
+impl Debug for DoubleRatchet {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut dbg = f.debug_tuple("DoubleRatchet");
+        match &self.inner {
+            DoubleRatchetState::Inactive(r) => dbg.field(r),
+            DoubleRatchetState::Active(r) => dbg.field(r),
+        };
+        dbg.finish()
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "type")]
@@ -172,6 +178,14 @@ impl InactiveDoubleRatchet {
             active_ratchet,
             symmetric_key_ratchet: chain_key,
         }
+    }
+}
+
+impl Debug for InactiveDoubleRatchet {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("InactiveDoubleRatchet")
+            .field("ratchet_key", &self.ratchet_key)
+            .finish_non_exhaustive()
     }
 }
 
@@ -218,5 +232,16 @@ impl ActiveDoubleRatchet {
 
     fn next_message_key(&mut self) -> MessageKey {
         self.symmetric_key_ratchet.create_message_key(self.ratchet_key())
+    }
+}
+
+impl Debug for ActiveDoubleRatchet {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let active_ratchet_public_key: RatchetPublicKey = self.active_ratchet.ratchet_key().into();
+        f.debug_struct("ActiveDoubleRatchet")
+            .field("parent_ratchet_key", &self.parent_ratchet_key)
+            .field("ratchet_key", &active_ratchet_public_key)
+            .field("chain_index", &self.symmetric_key_ratchet.index())
+            .finish_non_exhaustive()
     }
 }
