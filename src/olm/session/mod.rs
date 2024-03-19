@@ -565,43 +565,63 @@ mod test {
     }
 
     #[test]
-    fn out_of_order_decryption() -> Result<()> {
-        let (_, _, mut alice_session, bob_session) = sessions()?;
+    fn out_of_order_decryption() {
+        let (_, _, mut alice_session, bob_session) = sessions().unwrap();
 
         let message_1 = bob_session.encrypt("Message 1").into();
         let message_2 = bob_session.encrypt("Message 2").into();
         let message_3 = bob_session.encrypt("Message 3").into();
 
-        assert_eq!("Message 3".as_bytes(), alice_session.decrypt(&message_3)?);
-        assert_eq!("Message 2".as_bytes(), alice_session.decrypt(&message_2)?);
-        assert_eq!("Message 1".as_bytes(), alice_session.decrypt(&message_1)?);
-
-        Ok(())
+        assert_eq!(
+            "Message 3".as_bytes(),
+            alice_session.decrypt(&message_3).expect("Should be able to decrypt message 3")
+        );
+        assert_eq!(
+            "Message 2".as_bytes(),
+            alice_session.decrypt(&message_2).expect("Should be able to decrypt message 2")
+        );
+        assert_eq!(
+            "Message 1".as_bytes(),
+            alice_session.decrypt(&message_1).expect("Should be able to decrypt message 1")
+        );
     }
 
     #[test]
-    fn more_out_of_order_decryption() -> Result<()> {
-        let (_, _, mut alice_session, bob_session) = sessions()?;
+    fn more_out_of_order_decryption() {
+        let (_, _, mut alice_session, bob_session) = sessions().unwrap();
 
         let message_1 = bob_session.encrypt("Message 1").into();
         let message_2 = bob_session.encrypt("Message 2").into();
         let message_3 = bob_session.encrypt("Message 3").into();
 
-        assert_eq!("Message 1".as_bytes(), alice_session.decrypt(&message_1)?);
+        assert_eq!(
+            "Message 1".as_bytes(),
+            alice_session.decrypt(&message_1).expect("Should be able to decrypt message 1")
+        );
 
         assert_eq!(alice_session.receiving_chains.len(), 1);
 
         let message_4 = alice_session.encrypt("Message 4").into();
-        assert_eq!("Message 4", bob_session.decrypt(message_4)?);
+        assert_eq!(
+            "Message 4",
+            bob_session.decrypt(message_4).expect("Should be able to decrypt message 4")
+        );
 
         let message_5 = bob_session.encrypt("Message 5").into();
-        assert_eq!("Message 5".as_bytes(), alice_session.decrypt(&message_5)?);
-        assert_eq!("Message 3".as_bytes(), alice_session.decrypt(&message_3)?);
-        assert_eq!("Message 2".as_bytes(), alice_session.decrypt(&message_2)?);
+        assert_eq!(
+            "Message 5".as_bytes(),
+            alice_session.decrypt(&message_5).expect("Should be able to decrypt message 5")
+        );
+        assert_eq!(
+            "Message 3".as_bytes(),
+            alice_session.decrypt(&message_3).expect("Should be able to decrypt message 3")
+        );
+        assert_eq!(
+            "Message 2".as_bytes(),
+            alice_session.decrypt(&message_2).expect("Should be able to decrypt message 2")
+        );
 
         assert_eq!(alice_session.receiving_chains.len(), 2);
-
-        Ok(())
     }
 
     #[test]
@@ -655,8 +675,8 @@ mod test {
 
     #[test]
     #[cfg(feature = "libolm-compat")]
-    fn libolm_unpickling() -> Result<()> {
-        let (_, _, mut session, olm) = sessions()?;
+    fn libolm_unpickling() {
+        let (_, _, mut session, olm) = sessions().unwrap();
 
         let plaintext = "It's a secret to everybody";
         let old_message = session.encrypt(plaintext);
@@ -666,42 +686,49 @@ mod test {
         }
 
         let message = session.encrypt("Hello");
-        olm.decrypt(message.into())?;
+        olm.decrypt(message.into()).expect("Should be able to decrypt message");
 
         let key = b"DEFAULT_PICKLE_KEY";
         let pickle = olm.pickle(olm_rs::PicklingMode::Encrypted { key: key.to_vec() });
 
-        let mut unpickled = Session::from_libolm_pickle(&pickle, key)?;
+        let mut unpickled =
+            Session::from_libolm_pickle(&pickle, key).expect("Should be able to unpickle session");
 
         assert_eq!(olm.session_id(), unpickled.session_id());
 
-        assert_eq!(unpickled.decrypt(&old_message)?, plaintext.as_bytes());
+        assert_eq!(
+            unpickled
+                .decrypt(&old_message)
+                .expect("Should be able to decrypt old message with unpickled session"),
+            plaintext.as_bytes()
+        );
 
         let message = unpickled.encrypt(plaintext);
 
-        assert_eq!(session.decrypt(&message)?, plaintext.as_bytes());
-
-        Ok(())
+        assert_eq!(
+            session.decrypt(&message).expect("Should be able to decrypt re-encrypted message"),
+            plaintext.as_bytes()
+        );
     }
 
     #[test]
-    fn session_pickling_roundtrip_is_identity() -> Result<()> {
-        let (_, _, session, _) = sessions()?;
+    fn session_pickling_roundtrip_is_identity() {
+        let (_, _, session, _) = sessions().unwrap();
 
         let pickle = session.pickle().encrypt(&PICKLE_KEY);
 
-        let decrypted_pickle = SessionPickle::from_encrypted(&pickle, &PICKLE_KEY)?;
+        let decrypted_pickle = SessionPickle::from_encrypted(&pickle, &PICKLE_KEY)
+            .expect("Should be able to decrypt encrypted pickle");
         let unpickled_group_session = Session::from_pickle(decrypted_pickle);
         let repickle = unpickled_group_session.pickle();
 
         assert_eq!(session.session_id(), unpickled_group_session.session_id());
 
-        let decrypted_pickle = SessionPickle::from_encrypted(&pickle, &PICKLE_KEY)?;
-        let pickle = serde_json::to_value(decrypted_pickle)?;
-        let repickle = serde_json::to_value(repickle)?;
+        let decrypted_pickle = SessionPickle::from_encrypted(&pickle, &PICKLE_KEY)
+            .expect("Should be able to decrypt encrypted pickle");
+        let pickle = serde_json::to_value(decrypted_pickle).unwrap();
+        let repickle = serde_json::to_value(repickle).unwrap();
 
         assert_eq!(pickle, repickle);
-
-        Ok(())
     }
 }
