@@ -205,6 +205,9 @@ impl Ed25519SecretKey {
     }
 
     /// Get the byte representation of the secret key.
+    ///
+    /// **Warning**: This creates a copy of the key which won't be zeroized, the
+    /// caller of the method needs to make sure to zeroize the returned array.
     pub fn to_bytes(&self) -> Box<[u8; 32]> {
         Box::new(self.0.to_bytes())
     }
@@ -495,5 +498,119 @@ impl From<Ed25519KeypairPickle> for Ed25519Keypair {
         let public_key = secret_key.public_key();
 
         Self { secret_key, public_key }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ExpandedSecretKey;
+    use crate::{
+        types::ed25519::SecretKeys, Ed25519Keypair, Ed25519PublicKey, Ed25519SecretKey, KeyError,
+    };
+
+    #[test]
+    fn byte_decoding_roundtrip_succeeds_for_secret_key() {
+        let bytes = *b"oooooooooooooooooooooooooooooooo";
+        let key = Ed25519SecretKey::from_slice(&bytes);
+        assert_eq!(*(key.to_bytes()), bytes);
+    }
+
+    #[test]
+    fn base64_decoding_incorrect_num_of_bytes_fails_for_secret_key() {
+        assert!(matches!(
+            Ed25519SecretKey::from_base64("foo"),
+            Err(KeyError::InvalidKeyLength { .. })
+        ));
+    }
+
+    #[test]
+    fn unpadded_base64_decoding_roundtrip_succeeds_for_secret_key() {
+        let base64 = "MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE";
+        let key = Ed25519SecretKey::from_base64(base64).expect("Should decode key from base64");
+        assert_eq!(key.to_base64(), base64);
+    }
+
+    #[test]
+    fn padded_base64_decoding_roundtrip_succeeds_for_secret_key() {
+        let base64 = "MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE=";
+        let key = Ed25519SecretKey::from_base64(base64).expect("Should decode key from base64");
+        assert_eq!(key.to_base64(), base64.trim_end_matches('='));
+    }
+
+    #[test]
+    fn byte_decoding_roundtrip_succeeds_for_public_key() {
+        let bytes = *b"oooooooooooooooooooooooooooooooo";
+        let key = Ed25519PublicKey::from_slice(&bytes).expect("Should decode key from bytes");
+        assert_eq!(key.as_bytes(), &bytes);
+    }
+
+    #[test]
+    fn base64_decoding_incorrect_num_of_bytes_fails_for_public_key() {
+        assert!(matches!(
+            Ed25519PublicKey::from_base64("foo"),
+            Err(KeyError::InvalidKeyLength { .. })
+        ));
+    }
+
+    #[test]
+    fn unpadded_base64_decoding_roundtrip_succeeds_for_public_key() {
+        let base64 = "b29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb28";
+        let key = Ed25519PublicKey::from_base64(base64).expect("Should decode key from base64");
+        assert_eq!(key.to_base64(), base64);
+    }
+
+    #[test]
+    fn padded_base64_decoding_roundtrip_succeeds_for_public_key() {
+        let base64 = "b29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb28=";
+        let key = Ed25519PublicKey::from_base64(base64).expect("Should decode key from base64");
+        assert_eq!(key.to_base64(), base64.trim_end_matches('='));
+    }
+
+    #[test]
+    fn verifying_valid_signature_succeeds() {
+        let key_pair = Ed25519Keypair::new();
+        let signature = key_pair.secret_key.sign(b"foo");
+        key_pair.public_key().verify(b"foo", &signature).expect("Should verify valid signature");
+    }
+
+    #[test]
+    fn verifying_invalid_signature_fails() {
+        let key_pair = Ed25519Keypair::new();
+        let signature = key_pair.secret_key.sign(b"foo");
+        key_pair
+            .public_key()
+            .verify(b"bar", &signature)
+            .expect_err("Should reject invalid signature");
+    }
+
+    #[test]
+    fn can_only_expand_secret_key_once() {
+        let key_pair = Ed25519Keypair::new();
+        assert!(matches!(key_pair.secret_key, SecretKeys::Normal(_)));
+
+        let expanded_key = key_pair.expanded_secret_key();
+        let expanded_key_pair = Ed25519Keypair::from_expanded_key(&expanded_key).unwrap();
+        assert!(matches!(expanded_key_pair.secret_key, SecretKeys::Expanded(_)));
+        assert_eq!(expanded_key_pair.public_key(), key_pair.public_key());
+
+        let reexpanded_key = expanded_key_pair.expanded_secret_key();
+        assert_eq!(reexpanded_key, expanded_key);
+    }
+
+    #[test]
+    fn serialization_roundtrip_succeeds() {
+        let bytes = b"9999999999999999999999999999999999999999999999999999999999999999";
+        let key = ExpandedSecretKey::from_bytes(bytes).unwrap();
+        let serialized = serde_json::to_value(key).expect("Should serialize key");
+        let deserialized = serde_json::from_value::<ExpandedSecretKey>(serialized)
+            .expect("Should deserialize key");
+        assert_eq!(deserialized.as_bytes(), bytes);
+    }
+
+    #[test]
+    fn deserializing_from_invalid_length_fails() {
+        let serialized = serde_json::to_value(b"foo").expect("Should serialize key");
+        let deserialized = serde_json::from_value::<ExpandedSecretKey>(serialized);
+        assert!(deserialized.is_err());
     }
 }
