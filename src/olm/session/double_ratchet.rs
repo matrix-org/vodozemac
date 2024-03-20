@@ -294,7 +294,7 @@ impl Debug for ActiveDoubleRatchet {
 ///
 /// It may be unknown, if the ratchet was restored from a pickle
 /// which didn't track it.
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub enum RatchetCount {
     Known(u64),
     Unknown(()),
@@ -323,5 +323,132 @@ impl Debug for RatchetCount {
             RatchetCount::Known(count) => write!(f, "{count}"),
             RatchetCount::Unknown(_) => write!(f, "<unknown>"),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use assert_matches::assert_matches;
+
+    use super::{
+        ActiveDoubleRatchet, DoubleRatchet, DoubleRatchetState, InactiveDoubleRatchet, RatchetCount,
+    };
+    use crate::olm::{
+        session::test::session_and_libolm_pair, Account, OlmMessage, Session, SessionConfig,
+    };
+
+    fn create_session_pair(alice: &Account, bob: &mut Account) -> (Session, Session) {
+        let bob_otks = bob.generate_one_time_keys(1);
+        let bob_otk = bob_otks.created.first().expect("Couldn't get a one-time-key for bob");
+        let bob_identity_key = bob.identity_keys().curve25519;
+        let mut alice_session =
+            alice.create_outbound_session(SessionConfig::version_1(), bob_identity_key, *bob_otk);
+
+        let message = "It's a secret to everybody";
+        let olm_message = alice_session.encrypt(message);
+        let prekey_message = assert_matches!(olm_message, OlmMessage::PreKey(m) => m);
+
+        let alice_identity_key = alice.identity_keys().curve25519;
+        let bob_session_creation_result = bob
+            .create_inbound_session(alice_identity_key, &prekey_message)
+            .expect("Unable to create inbound session");
+        assert_eq!(bob_session_creation_result.plaintext, message.as_bytes());
+        (alice_session, bob_session_creation_result.session)
+    }
+
+    fn assert_active_ratchet(sending_ratchet: &DoubleRatchet) -> &ActiveDoubleRatchet {
+        match &sending_ratchet.inner {
+            DoubleRatchetState::Inactive(_) => panic!("Not an active ratchet"),
+            DoubleRatchetState::Active(s) => s,
+        }
+    }
+
+    fn assert_inactive_ratchet(sending_ratchet: &DoubleRatchet) -> &InactiveDoubleRatchet {
+        match &sending_ratchet.inner {
+            DoubleRatchetState::Active(_) => panic!("Not an inactive ratchet"),
+            DoubleRatchetState::Inactive(s) => s,
+        }
+    }
+
+    #[test]
+    fn ratchet_counts() {
+        let (mut alice_session, mut bob_session) =
+            create_session_pair(&Account::new(), &mut Account::new());
+
+        // Both ratchets should start with count 0.
+        assert_eq!(
+            assert_active_ratchet(&alice_session.sending_ratchet).ratchet_count,
+            RatchetCount::Known(0)
+        );
+        assert_eq!(
+            assert_inactive_ratchet(&bob_session.sending_ratchet).ratchet_count,
+            RatchetCount::Known(0)
+        );
+
+        // Once Bob replies, the ratchets should bump to 1.
+        let olm_message = bob_session.encrypt("sssh");
+        alice_session.decrypt(&olm_message).expect("Alice could not decrypt message from Bob");
+        assert_eq!(
+            assert_inactive_ratchet(&alice_session.sending_ratchet).ratchet_count,
+            RatchetCount::Known(1)
+        );
+        assert_eq!(
+            assert_active_ratchet(&bob_session.sending_ratchet).ratchet_count,
+            RatchetCount::Known(1)
+        );
+
+        // Now Alice replies again.
+        let olm_message = alice_session.encrypt("sssh");
+        bob_session.decrypt(&olm_message).expect("Bob could not decrypt message from Alice");
+        assert_eq!(
+            assert_active_ratchet(&alice_session.sending_ratchet).ratchet_count,
+            RatchetCount::Known(2)
+        );
+        assert_eq!(
+            assert_inactive_ratchet(&bob_session.sending_ratchet).ratchet_count,
+            RatchetCount::Known(2)
+        );
+    }
+
+    #[test]
+    fn ratchet_counts_for_imported_session() {
+        let (_, _, mut alice_session, bob_libolm_session) =
+            session_and_libolm_pair().expect("unable to create sessions");
+
+        // Import the libolm session into a proper Vodozmac session.
+        let key = b"DEFAULT_PICKLE_KEY";
+        let pickle =
+            bob_libolm_session.pickle(olm_rs::PicklingMode::Encrypted { key: key.to_vec() });
+        let mut bob_session =
+            Session::from_libolm_pickle(&pickle, key).expect("Should be able to unpickle session");
+
+        assert_eq!(
+            assert_inactive_ratchet(&bob_session.sending_ratchet).ratchet_count,
+            RatchetCount::Unknown(())
+        );
+
+        // Once Bob replies, Alice's count bumps to 1, but Bob's remains unknown.
+        let olm_message = bob_session.encrypt("sssh");
+        alice_session.decrypt(&olm_message).expect("Alice could not decrypt message from Bob");
+        assert_eq!(
+            assert_inactive_ratchet(&alice_session.sending_ratchet).ratchet_count,
+            RatchetCount::Known(1)
+        );
+        assert_eq!(
+            assert_active_ratchet(&bob_session.sending_ratchet).ratchet_count,
+            RatchetCount::Unknown(())
+        );
+
+        // Now Alice replies again.
+        let olm_message = alice_session.encrypt("sssh");
+        bob_session.decrypt(&olm_message).expect("Bob could not decrypt message from Alice");
+        assert_eq!(
+            assert_active_ratchet(&alice_session.sending_ratchet).ratchet_count,
+            RatchetCount::Known(2)
+        );
+        assert_eq!(
+            assert_inactive_ratchet(&bob_session.sending_ratchet).ratchet_count,
+            RatchetCount::Unknown(())
+        );
     }
 }
