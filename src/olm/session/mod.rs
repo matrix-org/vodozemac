@@ -43,7 +43,10 @@ use super::{
 #[cfg(feature = "low-level-api")]
 use crate::hazmat::olm::MessageKey;
 use crate::{
-    olm::messages::{Message, OlmMessage, PreKeyMessage},
+    olm::{
+        messages::{Message, OlmMessage, PreKeyMessage},
+        session::double_ratchet::RatchetCount,
+    },
     utilities::{pickle, unpickle},
     Curve25519PublicKey, PickleError,
 };
@@ -193,8 +196,9 @@ impl Session {
         let root_key = RemoteRootKey::new(root_key);
         let remote_chain_key = RemoteChainKey::new(remote_chain_key);
 
-        let local_ratchet = DoubleRatchet::inactive(root_key, remote_ratchet_key);
-        let remote_ratchet = ReceiverChain::new(remote_ratchet_key, remote_chain_key);
+        let local_ratchet = DoubleRatchet::inactive_from_prekey_data(root_key, remote_ratchet_key);
+        let remote_ratchet =
+            ReceiverChain::new(remote_ratchet_key, remote_chain_key, RatchetCount::new());
 
         let mut ratchet_store = ChainStore::new();
         ratchet_store.push(remote_ratchet);
@@ -360,7 +364,7 @@ impl Session {
                     chain.chain_key_index,
                 );
 
-                ReceiverChain::new(ratchet_key, chain_key)
+                ReceiverChain::new(ratchet_key, chain_key, RatchetCount::unknown())
             }
         }
 
@@ -444,7 +448,7 @@ impl Session {
                         config: SessionConfig::version_1(),
                     })
                 } else if let Some(chain) = receiving_chains.get(0) {
-                    let sending_ratchet = DoubleRatchet::inactive(
+                    let sending_ratchet = DoubleRatchet::inactive_from_libolm_pickle(
                         RemoteRootKey::new(pickle.root_key.clone()),
                         chain.ratchet_key(),
                     );
@@ -530,7 +534,10 @@ mod test {
 
     const PICKLE_KEY: [u8; 32] = [0u8; 32];
 
-    fn sessions() -> Result<(Account, OlmAccount, Session, OlmSession)> {
+    /// Create a pair of accounts, one using vodozemac and one libolm.
+    ///
+    /// Then, create a pair of sessions between the two.
+    pub fn session_and_libolm_pair() -> Result<(Account, OlmAccount, Session, OlmSession)> {
         let alice = Account::new();
         let bob = OlmAccount::new();
         bob.generate_one_time_keys(1);
@@ -566,7 +573,7 @@ mod test {
 
     #[test]
     fn out_of_order_decryption() {
-        let (_, _, mut alice_session, bob_session) = sessions().unwrap();
+        let (_, _, mut alice_session, bob_session) = session_and_libolm_pair().unwrap();
 
         let message_1 = bob_session.encrypt("Message 1").into();
         let message_2 = bob_session.encrypt("Message 2").into();
@@ -588,7 +595,7 @@ mod test {
 
     #[test]
     fn more_out_of_order_decryption() {
-        let (_, _, mut alice_session, bob_session) = sessions().unwrap();
+        let (_, _, mut alice_session, bob_session) = session_and_libolm_pair().unwrap();
 
         let message_1 = bob_session.encrypt("Message 1").into();
         let message_2 = bob_session.encrypt("Message 2").into();
@@ -626,7 +633,7 @@ mod test {
 
     #[test]
     fn max_keys_out_of_order_decryption() {
-        let (_, _, mut alice_session, bob_session) = sessions().unwrap();
+        let (_, _, mut alice_session, bob_session) = session_and_libolm_pair().unwrap();
 
         let mut messages: Vec<messages::OlmMessage> = Vec::new();
         for i in 0..(MAX_MESSAGE_KEYS + 2) {
@@ -660,7 +667,7 @@ mod test {
 
     #[test]
     fn max_gap_out_of_order_decryption() {
-        let (_, _, mut alice_session, bob_session) = sessions().unwrap();
+        let (_, _, mut alice_session, bob_session) = session_and_libolm_pair().unwrap();
 
         for i in 0..(MAX_MESSAGE_GAP + 1) {
             bob_session.encrypt(format!("Message {}", i).as_str());
@@ -676,7 +683,7 @@ mod test {
     #[test]
     #[cfg(feature = "libolm-compat")]
     fn libolm_unpickling() {
-        let (_, _, mut session, olm) = sessions().unwrap();
+        let (_, _, mut session, olm) = session_and_libolm_pair().unwrap();
 
         let plaintext = "It's a secret to everybody";
         let old_message = session.encrypt(plaintext);
@@ -713,7 +720,7 @@ mod test {
 
     #[test]
     fn session_pickling_roundtrip_is_identity() {
-        let (_, _, session, _) = sessions().unwrap();
+        let (_, _, session, _) = session_and_libolm_pair().unwrap();
 
         let pickle = session.pickle().encrypt(&PICKLE_KEY);
 
