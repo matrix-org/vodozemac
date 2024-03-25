@@ -676,12 +676,16 @@ mod libolm {
 #[cfg(test)]
 mod test {
     use anyhow::{bail, Context, Result};
+    use matrix_pickle::Encode;
     use olm_rs::{account::OlmAccount, session::OlmMessage as LibolmOlmMessage};
 
-    use super::{Account, InboundCreationResult, SessionConfig, SessionCreationError};
+    use super::{
+        libolm::Pickle, Account, InboundCreationResult, SessionConfig, SessionCreationError,
+    };
     use crate::{
         cipher::Mac,
         olm::{
+            account::PUBLIC_MAX_ONE_TIME_KEYS,
             messages::{OlmMessage, PreKeyMessage},
             AccountPickle,
         },
@@ -689,6 +693,49 @@ mod test {
     };
 
     const PICKLE_KEY: [u8; 32] = [0u8; 32];
+
+    #[test]
+    fn max_number_of_one_time_keys_matches_global_constant() {
+        assert_eq!(Account::new().max_number_of_one_time_keys(), PUBLIC_MAX_ONE_TIME_KEYS);
+    }
+
+    #[test]
+    #[cfg(feature = "low-level-api")]
+    fn generate_and_remove_one_time_key() {
+        let mut alice = Account::new();
+        assert_eq!(alice.stored_one_time_key_count(), 0);
+
+        alice.generate_one_time_keys(1);
+        assert_eq!(alice.stored_one_time_key_count(), 1);
+
+        let public_key = alice
+            .one_time_keys()
+            .values()
+            .next()
+            .copied()
+            .expect("Should have an unpublished one-time key");
+        let secret_key_bytes = alice
+            .find_one_time_key(&public_key)
+            .expect("Should find secret key for public one-time key")
+            .to_bytes();
+        let removed_key_bytes = alice
+            .remove_one_time_key(public_key)
+            .expect("Should be able to remove one-time key")
+            .to_bytes();
+
+        assert_eq!(removed_key_bytes, secret_key_bytes);
+        assert_eq!(alice.stored_one_time_key_count(), 0);
+    }
+
+    #[test]
+    fn generate_and_forget_fallback_keys() {
+        let mut alice = Account::default();
+        assert!(!alice.forget_fallback_key());
+        alice.generate_fallback_key();
+        assert!(!alice.forget_fallback_key());
+        alice.generate_fallback_key();
+        assert!(alice.forget_fallback_key());
+    }
 
     #[test]
     fn vodozemac_libolm_communication() -> Result<()> {
@@ -773,7 +820,9 @@ mod test {
                 .1,
         );
 
+        assert!(!bob.one_time_keys().is_empty());
         bob.mark_keys_as_published();
+        assert!(bob.one_time_keys().is_empty());
 
         let message = "It's a secret to everybody";
         let olm_message = alice_session.encrypt(message);
@@ -955,6 +1004,63 @@ mod test {
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn pickle_cycle_with_one_fallback_key() {
+        let mut alice = Account::new();
+        alice.generate_fallback_key();
+
+        let mut encoded = Vec::<u8>::new();
+        let pickle = Pickle::from(&alice);
+        let size = pickle.encode(&mut encoded).expect("Should encode pickle");
+        assert_eq!(size, encoded.len());
+
+        let account =
+            Account::from_decrypted_libolm_pickle(&encoded).expect("Should unpickle account");
+
+        let key_bytes = alice
+            .fallback_key()
+            .values()
+            .next()
+            .expect("Should have a fallback key before encoding")
+            .to_bytes();
+        let decoded_key_bytes = account
+            .fallback_key()
+            .values()
+            .next()
+            .expect("Should have a fallback key after decoding")
+            .to_bytes();
+        assert_eq!(key_bytes, decoded_key_bytes);
+    }
+
+    #[test]
+    fn pickle_cycle_with_two_fallback_keys() {
+        let mut alice = Account::new();
+        alice.generate_fallback_key();
+        alice.generate_fallback_key();
+
+        let mut encoded = Vec::<u8>::new();
+        let pickle = Pickle::from(&alice);
+        let size = pickle.encode(&mut encoded).expect("Should encode pickle");
+        assert_eq!(size, encoded.len());
+
+        let account =
+            Account::from_decrypted_libolm_pickle(&encoded).expect("Should unpickle account");
+
+        let key_bytes = alice
+            .fallback_key()
+            .values()
+            .next()
+            .expect("Should have a fallback key before encoding")
+            .to_bytes();
+        let decoded_key_bytes = account
+            .fallback_key()
+            .values()
+            .next()
+            .expect("Should have a fallback key after decoding")
+            .to_bytes();
+        assert_eq!(key_bytes, decoded_key_bytes);
     }
 
     #[test]
