@@ -35,7 +35,7 @@ ed25519-dalek = { version = "2.1.1", default-features = false, features = ["rand
 getrandom = "0.2.12"
 hkdf = "0.12.4"
 hmac = "0.12.1"
-matrix-pickle = { version = "0.1.1" }
+matrix-pickle = { version = "0.2.0" }
 pkcs7 = "0.4.1"
 prost = "0.12.3"
 rand = "0.8.5"
