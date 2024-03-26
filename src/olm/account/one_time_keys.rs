@@ -192,14 +192,21 @@ mod test {
         assert!(store.private_keys.is_empty());
 
         store.generate(OneTimeKeys::MAX_ONE_TIME_KEYS);
-        assert_eq!(store.private_keys.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
         assert_eq!(store.unpublished_public_keys.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
+        assert_eq!(store.private_keys.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
         assert_eq!(store.key_ids_by_key.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
+
+        store
+            .private_keys
+            .keys()
+            .for_each(|key_id| assert!(!store.is_secret_key_published(key_id)));
 
         store.mark_as_published();
         assert!(store.unpublished_public_keys.is_empty());
         assert_eq!(store.private_keys.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
         assert_eq!(store.key_ids_by_key.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
+
+        store.private_keys.keys().for_each(|key_id| assert!(store.is_secret_key_published(key_id)));
 
         let oldest_key_id =
             store.private_keys.keys().next().copied().expect("Couldn't get the first key ID");
@@ -209,6 +216,17 @@ mod test {
         assert_eq!(store.unpublished_public_keys.len(), 10);
         assert_eq!(store.private_keys.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
         assert_eq!(store.key_ids_by_key.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
+
+        store
+            .private_keys
+            .keys()
+            .take(OneTimeKeys::MAX_ONE_TIME_KEYS - 10)
+            .for_each(|key_id| assert!(store.is_secret_key_published(key_id)));
+        store
+            .private_keys
+            .keys()
+            .skip(OneTimeKeys::MAX_ONE_TIME_KEYS - 10)
+            .for_each(|key_id| assert!(!store.is_secret_key_published(key_id)));
 
         let oldest_key_id =
             store.private_keys.keys().next().copied().expect("Couldn't get the first key ID");

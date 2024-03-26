@@ -133,4 +133,17 @@ mod test {
 
         assert_eq!(secret_bytes, fetched_key.to_bytes());
     }
+
+    #[test]
+    fn fallback_key_publishing() {
+        let mut fallback_keys = FallbackKeys::new();
+        assert_eq!(fallback_keys.key_id, 0);
+
+        fallback_keys.generate_fallback_key();
+        assert_eq!(fallback_keys.key_id, 1);
+        assert!(fallback_keys.unpublished_fallback_key().is_some());
+
+        fallback_keys.mark_as_published();
+        assert!(fallback_keys.unpublished_fallback_key().is_none());
+    }
 }
