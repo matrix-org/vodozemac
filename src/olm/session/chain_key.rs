@@ -121,3 +121,25 @@ impl ChainKey {
         message_key
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::ChainKey;
+    use crate::olm::session::chain_key::RemoteChainKey;
+
+    #[test]
+    fn advancing_chain_key_increments_index() {
+        let mut key = ChainKey::new(Box::new(*b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+        assert_eq!(key.index(), 0);
+        key.advance();
+        assert_eq!(key.index(), 1);
+    }
+
+    #[test]
+    fn advancing_remote_chain_key_increments_index() {
+        let mut key = RemoteChainKey::new(Box::new(*b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+        assert_eq!(key.chain_index(), 0);
+        key.advance();
+        assert_eq!(key.chain_index(), 1);
+    }
+}
