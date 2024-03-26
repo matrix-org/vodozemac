@@ -144,3 +144,23 @@ impl Ratchet {
         &self.ratchet_key
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::RatchetKey;
+    use crate::{olm::RatchetPublicKey, Curve25519SecretKey};
+
+    #[test]
+    fn ratchet_key_from_curve_25519_secret_key() {
+        let bytes = b"aaaaaaaaaaaaaaawaaaaaaaaaaaaaaaa";
+        let key = RatchetKey::from(Curve25519SecretKey::from_slice(bytes));
+        assert_eq!(key.0.to_bytes().as_ref(), bytes);
+    }
+
+    #[test]
+    fn ratchet_public_key_from_bytes() {
+        let bytes = b"aaaaaaaaaaaaaaawaaaaaaaaaaaaaaaa";
+        let key = RatchetPublicKey::from(*bytes);
+        assert_eq!(key.0.to_bytes().as_ref(), bytes);
+    }
+}
