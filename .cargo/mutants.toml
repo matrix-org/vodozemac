@@ -5,6 +5,8 @@ exclude_re = [
   "impl Display",
   # Replacing + with * makes no logical difference here
   "src/olm/messages/message\\.rs.*replace \\+ with \\* in <impl TryFrom for Message>::try_from",
+  # Due to the bit shifting | and ^ are equivalent here
+  "replace \\| with \\^ in SasBytes::bytes_to_decimal",
   # Drop implementations perform zeroisation which cannot be tested in Rust
   "impl Drop",
 ]
