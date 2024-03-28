@@ -102,6 +102,24 @@ impl SecureChannel {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckCode {
+    bytes: [u8; 2],
+}
+
+impl CheckCode {
+    pub fn as_bytes(&self) -> &[u8; 2] {
+        &self.bytes
+    }
+
+    pub fn to_digit(&self) -> u8 {
+        let first = (self.bytes[0] % 10) * 10;
+        let second = self.bytes[1] % 10;
+
+        first + second
+    }
+}
+
 #[derive(Zeroize, ZeroizeOnDrop)]
 pub struct EstablishedSecureChannel {
     #[zeroize(skip)]
@@ -113,15 +131,40 @@ pub struct EstablishedSecureChannel {
     #[zeroize(skip)]
     decryption_nonce: SecureChannelNonce,
     key: Box<[u8; 32]>,
+    #[zeroize(skip)]
+    check_code: CheckCode,
 }
 
 impl EstablishedSecureChannel {
-    fn new(
+    fn create_check_code(
         shared_secret: &SharedSecret,
         our_public_key: Curve25519PublicKey,
         their_public_key: Curve25519PublicKey,
         initiator: bool,
-    ) -> Self {
+    ) -> CheckCode {
+        const INFO_STRING: &str = "MATRIX_QR_CODE_LOGIN";
+
+        let mut bytes = [0u8; 2];
+        let kdf: Hkdf<Sha512> = Hkdf::new(None, shared_secret.as_bytes());
+
+        let info = if initiator {
+            format!("{INFO_STRING}|{}|{}", our_public_key.to_base64(), their_public_key.to_base64(),)
+        } else {
+            format!("{INFO_STRING}|{}|{}", their_public_key.to_base64(), our_public_key.to_base64(),)
+        };
+
+        kdf.expand(info.as_bytes(), bytes.as_mut_slice())
+            .expect("We should be able to expand the shared secret into a 32 byte key.");
+
+        CheckCode { bytes }
+    }
+
+    fn create_key(
+        shared_secret: &SharedSecret,
+        our_public_key: Curve25519PublicKey,
+        their_public_key: Curve25519PublicKey,
+        initiator: bool,
+    ) -> Box<[u8; 32]> {
         const INFO_STRING: &str = "MATRIX_QR_CODE_LOGIN";
 
         let mut key = Box::new([0u8; 32]);
@@ -136,17 +179,41 @@ impl EstablishedSecureChannel {
         kdf.expand(info.as_bytes(), key.as_mut_slice())
             .expect("We should be able to expand the shared secret into a 32 byte key.");
 
+        key
+    }
+
+    fn new(
+        shared_secret: &SharedSecret,
+        our_public_key: Curve25519PublicKey,
+        their_public_key: Curve25519PublicKey,
+        initiator: bool,
+    ) -> Self {
         let (encryption_nonce, decryption_nonce) = if initiator {
             (SecureChannelNonce::even(), SecureChannelNonce::odd())
         } else {
             (SecureChannelNonce::odd(), SecureChannelNonce::even())
         };
 
-        Self { key, encryption_nonce, decryption_nonce, our_public_key, their_public_key }
+        let key = Self::create_key(shared_secret, our_public_key, their_public_key, initiator);
+        let check_code =
+            Self::create_check_code(shared_secret, our_public_key, their_public_key, initiator);
+
+        Self {
+            key,
+            encryption_nonce,
+            decryption_nonce,
+            our_public_key,
+            their_public_key,
+            check_code,
+        }
     }
 
     pub fn public_key(&self) -> Curve25519PublicKey {
         self.our_public_key
+    }
+
+    pub fn check_code(&self) -> &CheckCode {
+        &self.check_code
     }
 
     fn key(&self) -> &Chacha20Key {
@@ -242,6 +309,8 @@ mod test {
             message, plaintext,
             "The decrypted plaintext should match our initial plaintext"
         );
+        assert_eq!(alice.check_code(), secure_channel.check_code());
+        assert_eq!(alice.check_code().to_digit(), secure_channel.check_code().to_digit());
 
         let message = secure_channel.encrypt(b"Another plaintext");
 
