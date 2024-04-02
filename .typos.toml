@@ -5,4 +5,4 @@ singed = "signed"
 singing = "signing"
 
 [files]
-extend-exclude = ["vendor/*"]
+extend-exclude = ["afl/*/in/*"]
