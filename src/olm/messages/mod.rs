@@ -189,8 +189,16 @@ mod tests {
                                    eUppqmWqug4QASIgRhZ2cgZcIWQbIa23R7U4y1Mo1R/t\
                                    LCaMU+xjzRV5smGsCrJ6AHwktg";
 
+    const PRE_KEY_MESSAGE_CIPHERTEXT: [u8; 32] = [
+        70, 22, 118, 114, 6, 92, 33, 100, 27, 33, 173, 183, 71, 181, 56, 203, 83, 40, 213, 31, 237,
+        44, 38, 140, 83, 236, 99, 205, 21, 121, 178, 97,
+    ];
+
     const MESSAGE: &str = "AwogI7JhE/UsMZqXKb3xV6kUZWoJc6jTm2+AIgWYmaETIR0QASIQ\
                            +X2zb7kEX/3JvoLspcNBcLWOFXYpV0nS";
+
+    const MESSAGE_CIPHERTEXT: [u8; 16] =
+        [249, 125, 179, 111, 185, 4, 95, 253, 201, 190, 130, 236, 165, 195, 65, 112];
 
     #[test]
     fn message_type_from_usize() {
@@ -246,15 +254,17 @@ mod tests {
             MessageType::PreKey,
             "Expected message to be recognized as a pre-key Olm message."
         );
-
+        assert_eq!(message.message(), PRE_KEY_MESSAGE_CIPHERTEXT);
         assert_eq!(message.to_parts(), (0, PRE_KEY_MESSAGE.to_string()), "Roundtrip not identity.");
 
         let message = OlmMessage::from_parts(1, MESSAGE)?;
+        assert_matches!(message, OlmMessage::Normal(_));
         assert_eq!(
             message.message_type(),
             MessageType::Normal,
             "Expected message to be recognized as a normal Olm message."
         );
+        assert_eq!(message.message(), MESSAGE_CIPHERTEXT);
         assert_eq!(message.to_parts(), (1, MESSAGE.to_string()), "Roundtrip not identity.");
 
         OlmMessage::from_parts(3, PRE_KEY_MESSAGE)

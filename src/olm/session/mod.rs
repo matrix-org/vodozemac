@@ -572,6 +572,26 @@ mod test {
     }
 
     #[test]
+    fn session_config() {
+        let (_, _, alice_session, _) = session_and_libolm_pair().unwrap();
+        assert_eq!(alice_session.session_config(), SessionConfig::version_1());
+    }
+
+    #[test]
+    fn has_received_message() {
+        let (_, _, mut alice_session, bob_session) = session_and_libolm_pair().unwrap();
+        assert!(!alice_session.has_received_message());
+        assert!(!bob_session.has_received_message());
+        let message = bob_session.encrypt("Message").into();
+        assert_eq!(
+            "Message".as_bytes(),
+            alice_session.decrypt(&message).expect("Should be able to decrypt message")
+        );
+        assert!(alice_session.has_received_message());
+        assert!(!bob_session.has_received_message());
+    }
+
+    #[test]
     fn out_of_order_decryption() {
         let (_, _, mut alice_session, bob_session) = session_and_libolm_pair().unwrap();
 
@@ -678,6 +698,40 @@ mod test {
             alice_session.decrypt(&message),
             Err(DecryptionError::TooBigMessageGap(_, _))
         );
+    }
+
+    #[test]
+    fn pickle_default_config() {
+        let json = r#"
+            {
+                "receiving_chains": {
+                    "inner": []
+                },
+                "sending_ratchet": {
+                    "active_ratchet": {
+                        "ratchet_key": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                        "root_key": [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+                    },
+                    "parent_ratchet_key": null,
+                    "ratchet_count": {
+                        "Known": 1
+                    },
+                    "symmetric_key_ratchet": {
+                        "index": 1,
+                        "key": [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
+                    },
+                    "type": "active"
+                },
+                "session_keys": {
+                    "base_key": [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+                    "identity_key": [5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
+                    "one_time_key": [6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6]
+                }
+            }
+        "#;
+        let pickle: SessionPickle =
+            serde_json::from_str(json).expect("Should be able to deserialize JSON");
+        assert_eq!(pickle.config, SessionConfig::version_1());
     }
 
     #[test]
