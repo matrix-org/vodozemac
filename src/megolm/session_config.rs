@@ -53,3 +53,14 @@ impl Default for SessionConfig {
         Self::version_2()
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::megolm::{session_config::Version, SessionConfig};
+
+    #[test]
+    fn version() {
+        assert_eq!(SessionConfig::version_1().version(), Version::V1 as u8);
+        assert_eq!(SessionConfig::version_2().version(), Version::V2 as u8);
+    }
+}

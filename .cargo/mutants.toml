@@ -7,11 +7,18 @@ exclude_re = [
   "src/olm/messages/message\\.rs.*replace \\+ with \\* in <impl TryFrom for Message>::try_from",
   # Due to the bit shifting | and ^ are equivalent here
   "replace \\| with \\^ in SasBytes::bytes_to_decimal",
-  # Drop implementations perform zeroisation which cannot be tested in Rust
-  "impl Drop",
+  # Drop & Zeroize implementations perform zeroisation which cannot be tested in Rust
+  "impl (Drop|Zeroize)",
   # These cause olm/account tests to hang
   "RemoteChainKey::chain_index",
   "RemoteChainKey::advance",
   # The constant value can't really be tested
   "src/olm/account/one_time_keys\\.rs.*replace \\* with \\+$",
+  # Not testable because the latest ratchet is cloned from the initial one when it's past the requested index
+  "replace < with == in InboundGroupSession::find_ratchet",
+  # Causes an infinite loop
+  "replace -= with \\+= in Ratchet::advance_to",
+  # Causes an infinite loop
+  "replace -= with /= in Ratchet::advance_to",
+
 ]

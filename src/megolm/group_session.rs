@@ -215,3 +215,20 @@ impl From<GroupSessionPickle> for GroupSession {
         Self { ratchet: pickle.ratchet, signing_key: pickle.signing_key, config: pickle.config }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::megolm::{GroupSession, SessionConfig};
+
+    #[test]
+    fn create_with_session_config() {
+        assert_eq!(
+            GroupSession::new(SessionConfig::version_1()).session_config(),
+            SessionConfig::version_1()
+        );
+        assert_eq!(
+            GroupSession::new(SessionConfig::version_2()).session_config(),
+            SessionConfig::version_2()
+        );
+    }
+}
