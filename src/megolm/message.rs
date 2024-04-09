@@ -49,7 +49,6 @@ const MESSAGE_TRUNCATED_SUFFIX_LENGTH: usize = Mac::TRUNCATED_LEN + Ed25519Signa
 const MESSAGE_SUFFIX_LENGTH: usize = Mac::LENGTH + Ed25519Signature::LENGTH;
 
 impl MegolmMessage {
-
     /// The actual ciphertext of the message.
     pub fn ciphertext(&self) -> &[u8] {
         &self.ciphertext
@@ -350,11 +349,20 @@ impl ProtobufMegolmMessage {
 
 #[cfg(test)]
 mod test {
-    use crate::{cipher::Mac, megolm::{message::{MAC_TRUNCATED_VERSION, MESSAGE_SUFFIX_LENGTH, MESSAGE_TRUNCATED_SUFFIX_LENGTH, VERSION}, MegolmMessage}, DecodeError, Ed25519Signature};
-
     #[cfg(feature = "low-level-api")]
     use std::vec;
 
+    use crate::{
+        cipher::Mac,
+        megolm::{
+            message::{
+                MAC_TRUNCATED_VERSION, MESSAGE_SUFFIX_LENGTH, MESSAGE_TRUNCATED_SUFFIX_LENGTH,
+                VERSION,
+            },
+            MegolmMessage,
+        },
+        DecodeError, Ed25519Signature,
+    };
     #[cfg(feature = "low-level-api")]
     use crate::{Ed25519Keypair, Ed25519PublicKey};
 
@@ -368,14 +376,20 @@ mod test {
     fn message_to_short() {
         let mut bytes = [1u8; 97];
         bytes[0] = VERSION;
-        assert!(matches!(MegolmMessage::try_from(bytes.as_ref()), Err(DecodeError::MessageTooShort(_))));
+        assert!(matches!(
+            MegolmMessage::try_from(bytes.as_ref()),
+            Err(DecodeError::MessageTooShort(_))
+        ));
     }
 
     #[test]
     fn truncated_message_to_short() {
         let mut bytes = [1u8; 73];
         bytes[0] = MAC_TRUNCATED_VERSION;
-        assert!(matches!(MegolmMessage::try_from(bytes.as_ref()), Err(DecodeError::MessageTooShort(_))));
+        assert!(matches!(
+            MegolmMessage::try_from(bytes.as_ref()),
+            Err(DecodeError::MessageTooShort(_))
+        ));
     }
 
     #[cfg(feature = "low-level-api")]
@@ -393,7 +407,9 @@ mod test {
         let signature = signing_key.sign(&message.to_signature_bytes());
 
         println!("{:?}", signature.to_bytes());
-        message.add_signature(signature, signing_key.public_key()).expect("Should be able to add valid signature");
+        message
+            .add_signature(signature, signing_key.public_key())
+            .expect("Should be able to add valid signature");
         assert_eq!(message.signature, signature);
     }
 
@@ -411,7 +427,9 @@ mod test {
         let public_key = Ed25519PublicKey::from_slice(&[0; 32]).unwrap();
         let signature = Ed25519Signature::from_slice(&[1; Ed25519Signature::LENGTH]).unwrap();
 
-        message.add_signature(signature, public_key).expect_err("Should not be able to add invalid signature");
+        message
+            .add_signature(signature, public_key)
+            .expect_err("Should not be able to add invalid signature");
         assert_ne!(message.signature, signature);
     }
 }
