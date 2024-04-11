@@ -142,7 +142,7 @@ impl EstablishedSecureChannel {
         their_public_key: Curve25519PublicKey,
         initiator: bool,
     ) -> CheckCode {
-        const INFO_STRING: &str = "MATRIX_QR_CODE_LOGIN";
+        const INFO_STRING: &str = "MATRIX_QR_CODE_LOGIN_CHECKCODE";
 
         let mut bytes = [0u8; 2];
         let kdf: Hkdf<Sha512> = Hkdf::new(None, shared_secret.as_bytes());
