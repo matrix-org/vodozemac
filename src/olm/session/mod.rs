@@ -317,6 +317,22 @@ impl Session {
     pub fn from_pickle(pickle: SessionPickle) -> Self {
         pickle.into()
     }
+
+    /// Create a [`Session`] object by unpickling a session pickle in libolm
+    /// legacy pickle format.
+    ///
+    /// Such pickles are encrypted and need to first be decrypted using
+    /// `pickle_key`.
+    #[cfg(feature = "libolm-compat")]
+    pub fn from_libolm_pickle(
+        pickle: &str,
+        pickle_key: &[u8],
+    ) -> Result<Self, crate::LibolmPickleError> {
+        use crate::{olm::session::libolm_compat::Pickle, utilities::unpickle_libolm};
+
+        const PICKLE_VERSION: u32 = 1;
+        unpickle_libolm::<Pickle, _>(pickle, pickle_key, PICKLE_VERSION)
+    }
 }
 
 #[cfg(feature = "libolm-compat")]
@@ -336,7 +352,6 @@ mod libolm_compat {
     use crate::{
         olm::{SessionConfig, SessionKeys},
         types::Curve25519SecretKey,
-        utilities::unpickle_libolm,
         Curve25519PublicKey,
     };
 
@@ -387,7 +402,7 @@ mod libolm_compat {
     }
 
     #[derive(Decode)]
-    struct Pickle {
+    pub(super) struct Pickle {
         #[allow(dead_code)]
         version: u32,
         #[allow(dead_code)]
@@ -462,21 +477,6 @@ mod libolm_compat {
             } else {
                 Err(crate::LibolmPickleError::InvalidSession)
             }
-        }
-    }
-
-    impl Session {
-        /// Create a [`Session`] object by unpickling a session pickle in libolm
-        /// legacy pickle format.
-        ///
-        /// Such pickles are encrypted and need to first be decrypted using
-        /// `pickle_key`.
-        pub fn from_libolm_pickle(
-            pickle: &str,
-            pickle_key: &[u8],
-        ) -> Result<Self, crate::LibolmPickleError> {
-            const PICKLE_VERSION: u32 = 1;
-            unpickle_libolm::<Pickle, _>(pickle, pickle_key, PICKLE_VERSION)
         }
     }
 }

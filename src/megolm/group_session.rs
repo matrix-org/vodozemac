@@ -140,6 +140,17 @@ impl GroupSession {
     pub fn from_pickle(pickle: GroupSessionPickle) -> Self {
         pickle.into()
     }
+
+    #[cfg(feature = "libolm-compat")]
+    pub fn from_libolm_pickle(
+        pickle: &str,
+        pickle_key: &[u8],
+    ) -> Result<Self, crate::LibolmPickleError> {
+        use crate::{megolm::group_session::libolm_compat::Pickle, utilities::unpickle_libolm};
+
+        const PICKLE_VERSION: u32 = 1;
+        unpickle_libolm::<Pickle, _>(pickle, pickle_key, PICKLE_VERSION)
+    }
 }
 
 #[cfg(feature = "libolm-compat")]
@@ -150,13 +161,13 @@ mod libolm_compat {
     use super::GroupSession;
     use crate::{
         megolm::{libolm::LibolmRatchetPickle, SessionConfig},
-        utilities::{unpickle_libolm, LibolmEd25519Keypair},
+        utilities::LibolmEd25519Keypair,
         Ed25519Keypair,
     };
 
     #[derive(Zeroize, Decode)]
     #[zeroize(drop)]
-    struct Pickle {
+    pub(super) struct Pickle {
         version: u32,
         ratchet: LibolmRatchetPickle,
         ed25519_keypair: LibolmEd25519Keypair,
@@ -174,16 +185,6 @@ mod libolm_compat {
                 Ed25519Keypair::from_expanded_key(&pickle.ed25519_keypair.private_key)?;
 
             Ok(Self { ratchet, signing_key, config: SessionConfig::version_1() })
-        }
-    }
-
-    impl GroupSession {
-        pub fn from_libolm_pickle(
-            pickle: &str,
-            pickle_key: &[u8],
-        ) -> Result<Self, crate::LibolmPickleError> {
-            const PICKLE_VERSION: u32 = 1;
-            unpickle_libolm::<Pickle, _>(pickle, pickle_key, PICKLE_VERSION)
         }
     }
 }
