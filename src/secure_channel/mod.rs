@@ -130,10 +130,19 @@ pub struct EstablishedSecureChannel {
     encryption_nonce: SecureChannelNonce,
     #[zeroize(skip)]
     decryption_nonce: SecureChannelNonce,
-    key: Box<[u8; 32]>,
+    /// The key that we will use to encrypt messages
+    encryption_key: Box<[u8; 32]>,
+    /// The key that the other party will use to encrypt messages
+    decryption_key: Box<[u8; 32]>,
     #[zeroize(skip)]
     check_code: CheckCode,
+    /// Whether we initiated the secure channel or not. i.e. are we Device G?
+    initiator: bool,
 }
+
+const CHECKCODE_INFO_STRING: &str = "MATRIX_QR_CODE_LOGIN_CHECKCODE";
+const ENCKEY_S_INFO_STRING: &str = "MATRIX_QR_CODE_LOGIN_ENCKEY_S";
+const ENCKEY_G_INFO_STRING: &str = "MATRIX_QR_CODE_LOGIN_ENCKEY_G";
 
 impl EstablishedSecureChannel {
     fn create_check_code(
@@ -142,15 +151,15 @@ impl EstablishedSecureChannel {
         their_public_key: Curve25519PublicKey,
         initiator: bool,
     ) -> CheckCode {
-        const INFO_STRING: &str = "MATRIX_QR_CODE_LOGIN_CHECKCODE";
-
         let mut bytes = [0u8; 2];
         let kdf: Hkdf<Sha512> = Hkdf::new(None, shared_secret.as_bytes());
 
         let info = if initiator {
-            format!("{INFO_STRING}|{}|{}", our_public_key.to_base64(), their_public_key.to_base64(),)
+            // we are Device G. Gp = our_public_key, Sp = their_public_key
+            format!("{CHECKCODE_INFO_STRING}|{}|{}", our_public_key.to_base64(), their_public_key.to_base64(),)
         } else {
-            format!("{INFO_STRING}|{}|{}", their_public_key.to_base64(), our_public_key.to_base64(),)
+            // we are Device S. Gp = their_public_key, Sp = our_public_key
+            format!("{CHECKCODE_INFO_STRING}|{}|{}", their_public_key.to_base64(), our_public_key.to_base64(),)
         };
 
         kdf.expand(info.as_bytes(), bytes.as_mut_slice())
@@ -160,20 +169,21 @@ impl EstablishedSecureChannel {
     }
 
     fn create_key(
+        info: &str,
         shared_secret: &SharedSecret,
         our_public_key: Curve25519PublicKey,
         their_public_key: Curve25519PublicKey,
         initiator: bool,
     ) -> Box<[u8; 32]> {
-        const INFO_STRING: &str = "MATRIX_QR_CODE_LOGIN";
-
         let mut key = Box::new([0u8; 32]);
         let kdf: Hkdf<Sha512> = Hkdf::new(None, shared_secret.as_bytes());
 
         let info = if initiator {
-            format!("{INFO_STRING}|{}|{}", our_public_key.to_base64(), their_public_key.to_base64(),)
+            // we are Device G. Gp = our_public_key, Sp = their_public_key
+            format!("{info}|{}|{}", our_public_key.to_base64(), their_public_key.to_base64(),)
         } else {
-            format!("{INFO_STRING}|{}|{}", their_public_key.to_base64(), our_public_key.to_base64(),)
+            // we are Device S. Gp = their_public_key, Sp = our_public_key
+            format!("{info}|{}|{}", their_public_key.to_base64(), our_public_key.to_base64(),)
         };
 
         kdf.expand(info.as_bytes(), key.as_mut_slice())
@@ -182,29 +192,62 @@ impl EstablishedSecureChannel {
         key
     }
 
+    fn create_encryption_key(
+        shared_secret: &SharedSecret,
+        our_public_key: Curve25519PublicKey,
+        their_public_key: Curve25519PublicKey,
+        initiator: bool,
+    ) -> Box<[u8; 32]> {
+        let info: &str = if initiator {
+            // we are Device G
+            ENCKEY_G_INFO_STRING
+        } else {
+            // we are Device S
+            ENCKEY_S_INFO_STRING
+        };
+
+        Self::create_key(info, shared_secret, our_public_key, their_public_key, initiator)
+    }
+
+    fn create_decryption_key(
+        shared_secret: &SharedSecret,
+        our_public_key: Curve25519PublicKey,
+        their_public_key: Curve25519PublicKey,
+        initiator: bool,
+    ) -> Box<[u8; 32]> {
+        let info: &str = if initiator {
+            // we are Device G, they are Device S
+            ENCKEY_S_INFO_STRING
+        } else {
+            // we are Device S, they are Device G
+            ENCKEY_G_INFO_STRING
+        };
+
+        Self::create_key(info, shared_secret, our_public_key, their_public_key, initiator)
+    }
+
     fn new(
         shared_secret: &SharedSecret,
         our_public_key: Curve25519PublicKey,
         their_public_key: Curve25519PublicKey,
         initiator: bool,
     ) -> Self {
-        let (encryption_nonce, decryption_nonce) = if initiator {
-            (SecureChannelNonce::even(), SecureChannelNonce::odd())
-        } else {
-            (SecureChannelNonce::odd(), SecureChannelNonce::even())
-        };
+        let (encryption_nonce, decryption_nonce) = (SecureChannelNonce::zero(), SecureChannelNonce::zero());
 
-        let key = Self::create_key(shared_secret, our_public_key, their_public_key, initiator);
+        let encryption_key = Self::create_encryption_key(shared_secret, our_public_key, their_public_key, initiator);
+        let decryption_key = Self::create_decryption_key(shared_secret, our_public_key, their_public_key, initiator);
         let check_code =
             Self::create_check_code(shared_secret, our_public_key, their_public_key, initiator);
 
         Self {
-            key,
+            encryption_key,
+            decryption_key,
             encryption_nonce,
             decryption_nonce,
             our_public_key,
             their_public_key,
             check_code,
+            initiator,
         }
     }
 
@@ -216,19 +259,24 @@ impl EstablishedSecureChannel {
         &self.check_code
     }
 
-    fn key(&self) -> &Chacha20Key {
-        Chacha20Key::from_slice(self.key.as_slice())
+    fn encryption_key(&self) -> &Chacha20Key {
+        Chacha20Key::from_slice(self.encryption_key.as_slice())
+    }
+
+    fn decryption_key(&self) -> &Chacha20Key {
+        Chacha20Key::from_slice(self.decryption_key.as_slice())
     }
 
     pub fn encrypt(&mut self, plaintext: &[u8]) -> SecureChannelMessage {
         let nonce = self.encryption_nonce.get();
 
-        let cipher = ChaCha20Poly1305::new(self.key());
+        let cipher = ChaCha20Poly1305::new(self.encryption_key());
         let ciphertext = cipher.encrypt(&nonce, plaintext).expect(
             "We should always be able to encrypt a message since we provide the correct nonce",
         );
 
-        if nonce.as_slice() == &[0u8; 12] {
+        if self.initiator && nonce.as_slice() == &[0u8; 12] {
+            // we are Device G, we send the LoginInitiateMessage
             InitialMessage { ciphertext, public_key: self.our_public_key }.into()
         } else {
             Message { ciphertext }.into()
@@ -245,7 +293,7 @@ impl EstablishedSecureChannel {
         nonce: &Nonce,
         ciphertext: &[u8],
     ) -> Result<Vec<u8>, SecureChannelError> {
-        let cipher = ChaCha20Poly1305::new(self.key());
+        let cipher = ChaCha20Poly1305::new(self.decryption_key());
         let nonce = nonce.into();
 
         let plaintext =
@@ -260,17 +308,13 @@ struct SecureChannelNonce {
 }
 
 impl SecureChannelNonce {
-    fn even() -> Self {
+    fn zero() -> Self {
         Self { inner: 0 }
-    }
-
-    fn odd() -> Self {
-        Self { inner: 1 }
     }
 
     fn get(&mut self) -> Nonce {
         let current = self.inner;
-        self.inner += 2;
+        self.inner += 1;
 
         let mut nonce = [0u8; 12];
         nonce.copy_from_slice(&current.to_le_bytes()[..12]);
@@ -288,7 +332,7 @@ mod test {
 
     #[test]
     fn channel_creation() {
-        let plaintext = b"I'ts a secret to everybody";
+        let plaintext = b"It's a secret to everybody";
 
         let alice = SecureChannel::new();
         let bob = SecureChannel::new();
