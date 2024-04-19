@@ -28,12 +28,12 @@ pub enum MessageDecodeError {
 }
 
 #[derive(Debug)]
-pub struct InitialMessage {
+pub struct LoginInitiateMessage {
     pub public_key: Curve25519PublicKey,
     pub ciphertext: Vec<u8>,
 }
 
-impl InitialMessage {
+impl LoginInitiateMessage {
     pub fn encode(&self) -> String {
         let ciphertext = base64_encode(&self.ciphertext);
         let key = self.public_key.to_base64();
@@ -72,7 +72,7 @@ impl Message {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SecureChannelMessage {
-    Initial(InitialMessage),
+    Initial(LoginInitiateMessage),
     Normal(Message),
 }
 
@@ -85,7 +85,7 @@ impl SecureChannelMessage {
     }
 
     pub fn decode(foo: &str) -> Result<Self, MessageDecodeError> {
-        if let Ok(message) = InitialMessage::decode(foo) {
+        if let Ok(message) = LoginInitiateMessage::decode(foo) {
             Ok(message.into())
         } else {
             Message::decode(foo).map(Into::into)
@@ -99,13 +99,13 @@ impl From<Message> for SecureChannelMessage {
     }
 }
 
-impl From<InitialMessage> for SecureChannelMessage {
-    fn from(value: InitialMessage) -> Self {
+impl From<LoginInitiateMessage> for SecureChannelMessage {
+    fn from(value: LoginInitiateMessage) -> Self {
         Self::Initial(value)
     }
 }
 
-impl Serialize for InitialMessage {
+impl Serialize for LoginInitiateMessage {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -116,7 +116,7 @@ impl Serialize for InitialMessage {
     }
 }
 
-impl<'de> Deserialize<'de> for InitialMessage {
+impl<'de> Deserialize<'de> for LoginInitiateMessage {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,

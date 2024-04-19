@@ -20,7 +20,7 @@ use thiserror::Error;
 use x25519_dalek::{EphemeralSecret, SharedSecret};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-pub use self::messages::{InitialMessage, Message, SecureChannelMessage};
+pub use self::messages::{LoginInitiateMessage, Message, SecureChannelMessage};
 use crate::Curve25519PublicKey;
 
 mod messages;
@@ -74,7 +74,7 @@ impl SecureChannel {
 
     pub fn create_inbound_channel(
         self,
-        message: &InitialMessage,
+        message: &LoginInitiateMessage,
     ) -> Result<ChannelCreationResult, SecureChannelError> {
         let our_public_key = self.public_key();
 
@@ -277,7 +277,7 @@ impl EstablishedSecureChannel {
 
         if self.initiator && nonce.as_slice() == &[0u8; 12] {
             // we are Device G, we send the LoginInitiateMessage
-            InitialMessage { ciphertext, public_key: self.our_public_key }.into()
+            LoginInitiateMessage { ciphertext, public_key: self.our_public_key }.into()
         } else {
             Message { ciphertext }.into()
         }
