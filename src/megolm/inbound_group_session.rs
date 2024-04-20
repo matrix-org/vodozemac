@@ -19,7 +19,6 @@ use hmac::digest::MacError;
 use serde::{Deserialize, Serialize};
 use subtle::ConstantTimeEq;
 use thiserror::Error;
-use zeroize::Zeroize;
 
 use super::{
     default_config,
@@ -371,47 +370,57 @@ impl InboundGroupSession {
         pickle: &str,
         pickle_key: &[u8],
     ) -> Result<Self, crate::LibolmPickleError> {
-        use matrix_pickle::Decode;
-
-        use super::libolm::LibolmRatchetPickle;
-        use crate::utilities::unpickle_libolm;
-
-        #[derive(Zeroize, Decode)]
-        #[zeroize(drop)]
-        struct Pickle {
-            version: u32,
-            initial_ratchet: LibolmRatchetPickle,
-            latest_ratchet: LibolmRatchetPickle,
-            signing_key: [u8; 32],
-            signing_key_verified: bool,
-        }
-
-        impl TryFrom<Pickle> for InboundGroupSession {
-            type Error = crate::LibolmPickleError;
-
-            fn try_from(pickle: Pickle) -> Result<Self, Self::Error> {
-                // Removing the borrow doesn't work and clippy complains about
-                // this on nightly.
-                #[allow(clippy::needless_borrow)]
-                let initial_ratchet = (&pickle.initial_ratchet).into();
-                #[allow(clippy::needless_borrow)]
-                let latest_ratchet = (&pickle.latest_ratchet).into();
-                let signing_key = Ed25519PublicKey::from_slice(&pickle.signing_key)?;
-                let signing_key_verified = pickle.signing_key_verified;
-
-                Ok(Self {
-                    initial_ratchet,
-                    latest_ratchet,
-                    signing_key,
-                    signing_key_verified,
-                    config: SessionConfig::version_1(),
-                })
-            }
-        }
+        use crate::{
+            megolm::inbound_group_session::libolm_compat::Pickle, utilities::unpickle_libolm,
+        };
 
         const PICKLE_VERSION: u32 = 2;
-
         unpickle_libolm::<Pickle, _>(pickle, pickle_key, PICKLE_VERSION)
+    }
+}
+
+#[cfg(feature = "libolm-compat")]
+mod libolm_compat {
+    use matrix_pickle::Decode;
+    use zeroize::Zeroize;
+
+    use super::InboundGroupSession;
+    use crate::{
+        megolm::{libolm::LibolmRatchetPickle, SessionConfig},
+        Ed25519PublicKey,
+    };
+
+    #[derive(Zeroize, Decode)]
+    #[zeroize(drop)]
+    pub(super) struct Pickle {
+        version: u32,
+        initial_ratchet: LibolmRatchetPickle,
+        latest_ratchet: LibolmRatchetPickle,
+        signing_key: [u8; 32],
+        signing_key_verified: bool,
+    }
+
+    impl TryFrom<Pickle> for InboundGroupSession {
+        type Error = crate::LibolmPickleError;
+
+        fn try_from(pickle: Pickle) -> Result<Self, Self::Error> {
+            // Removing the borrow doesn't work and clippy complains about
+            // this on nightly.
+            #[allow(clippy::needless_borrow)]
+            let initial_ratchet = (&pickle.initial_ratchet).into();
+            #[allow(clippy::needless_borrow)]
+            let latest_ratchet = (&pickle.latest_ratchet).into();
+            let signing_key = Ed25519PublicKey::from_slice(&pickle.signing_key)?;
+            let signing_key_verified = pickle.signing_key_verified;
+
+            Ok(Self {
+                initial_ratchet,
+                latest_ratchet,
+                signing_key,
+                signing_key_verified,
+                config: SessionConfig::version_1(),
+            })
+        }
     }
 }
 
