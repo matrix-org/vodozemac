@@ -192,3 +192,18 @@ impl Cipher {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::{Cipher, Mac};
+    use crate::cipher::DecryptionError;
+
+    #[test]
+    fn decrypt_pickle_mac_missing() {
+        let cipher = Cipher::new(&[1u8; 32]);
+        assert!(matches!(
+            cipher.decrypt_pickle(&[2u8; Mac::TRUNCATED_LEN]),
+            Err(DecryptionError::MacMissing)
+        ));
+    }
+}
