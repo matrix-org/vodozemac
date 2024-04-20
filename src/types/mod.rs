@@ -58,3 +58,20 @@ pub enum KeyError {
     #[error("At least one of the keys did not have contributory behaviour")]
     NonContributoryKey,
 }
+
+#[cfg(test)]
+mod test {
+    use crate::KeyId;
+
+    #[test]
+    fn key_id_to_base64() {
+        assert_eq!(KeyId(0).to_base64(), "AAAAAAAAAAA");
+        assert_eq!(KeyId(7).to_base64(), "AAAAAAAAAAc");
+    }
+
+    #[test]
+    fn key_id_to_string() {
+        assert_eq!(String::from(KeyId(0)), "AAAAAAAAAAA");
+        assert_eq!(String::from(KeyId(7)), "AAAAAAAAAAc");
+    }
+}
