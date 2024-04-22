@@ -12,6 +12,8 @@ exclude_re = [
   # These cause olm/account tests to hang
   "RemoteChainKey::chain_index",
   "RemoteChainKey::advance",
+  # Intentionally returns Ok(()) in all cases
+  "replace Cipher::verify_truncated_mac -> Result<\\(\\), MacError> with Ok\\(\\(\\)\\)",
   # The constant value can't really be tested
   "src/olm/account/one_time_keys\\.rs.*replace \\* with \\+$",
   # Not testable because the latest ratchet is cloned from the initial one when it's past the requested index
