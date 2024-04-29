@@ -66,11 +66,20 @@ mod test {
 
     use super::{ExportedSessionKey, GroupSession, InboundGroupSession, MegolmMessage};
     use crate::{
-        megolm::{GroupSessionPickle, InboundGroupSessionPickle, SessionConfig, SessionKey},
+        megolm::{
+            default_config, GroupSessionPickle, InboundGroupSessionPickle, SessionConfig,
+            SessionKey,
+        },
         run_corpus,
     };
 
     const PICKLE_KEY: [u8; 32] = [0u8; 32];
+
+    #[test]
+    fn default_config_is_v1() {
+        assert_eq!(default_config(), SessionConfig::version_1());
+        assert_ne!(default_config(), SessionConfig::default());
+    }
 
     #[test]
     fn encrypting() -> Result<()> {
@@ -290,6 +299,21 @@ mod test {
         assert_eq!(decrypted.message_index, 0);
 
         Ok(())
+    }
+
+    #[test]
+    fn message_getters() {
+        let mut session = GroupSession::new(SessionConfig::version_1());
+
+        // Get message with index 2
+        session.encrypt("foo bar 1");
+        session.encrypt("foo bar 2");
+        let message = session.encrypt("foo bar 3");
+
+        assert_eq!(message.ciphertext(), message.ciphertext);
+        assert_eq!(message.message_index(), message.message_index);
+        assert_eq!(message.mac(), message.mac.as_bytes());
+        assert_eq!(message.signature(), &message.signature);
     }
 
     #[test]

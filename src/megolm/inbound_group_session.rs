@@ -480,8 +480,13 @@ impl From<&GroupSession> for InboundGroupSession {
 
 #[cfg(test)]
 mod test {
+    use olm_rs::outbound_group_session::OlmOutboundGroupSession;
+
     use super::InboundGroupSession;
-    use crate::megolm::{GroupSession, SessionConfig, SessionOrdering};
+    use crate::{
+        cipher::Cipher,
+        megolm::{GroupSession, SessionConfig, SessionKey, SessionOrdering},
+    };
 
     #[test]
     fn advance_inbound_session() {
@@ -577,6 +582,32 @@ mod test {
         assert!(merged.signing_key_verified);
         assert_eq!(merged.compare(&mut second_session), SessionOrdering::Better);
         assert_eq!(merged.compare(&mut first_session), SessionOrdering::Equal);
+    }
+
+    #[test]
+    fn verify_mac() {
+        let olm_session = OlmOutboundGroupSession::new();
+        let session_key = SessionKey::from_base64(&olm_session.session_key()).unwrap();
+        let message = olm_session.encrypt("Hello").as_str().try_into().unwrap();
+
+        let mut session = InboundGroupSession::new(&session_key, SessionConfig::version_1());
+        let ratchet = session.find_ratchet(0).unwrap();
+        let cipher = Cipher::new_megolm(ratchet.as_bytes());
+
+        session
+            .verify_mac(&cipher, &message)
+            .expect("Should verify MAC from matching outbound session");
+
+        let olm_session = OlmOutboundGroupSession::new();
+        let session_key = SessionKey::from_base64(&olm_session.session_key()).unwrap();
+
+        let mut session = InboundGroupSession::new(&session_key, SessionConfig::version_1());
+        let ratchet = session.find_ratchet(0).unwrap();
+        let cipher = Cipher::new_megolm(ratchet.as_bytes());
+
+        session
+            .verify_mac(&cipher, &message)
+            .expect_err("Should not verify MAC from different outbound session");
     }
 
     /// Test that [`InboundGroupSession::get_cipher_at`] correctly handles the

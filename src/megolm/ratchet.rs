@@ -270,4 +270,16 @@ mod tests {
         ratchet.counter = (1 << 24) - 1;
         ratchet.advance_to(1 << 24);
     }
+
+    #[test]
+    fn advance_forward_and_back() {
+        let mut ratchet = Ratchet::new();
+        assert_eq!(ratchet.counter, 0);
+        ratchet.advance();
+        assert_eq!(ratchet.counter, 1);
+        ratchet.advance();
+        assert_eq!(ratchet.counter, 2);
+        ratchet.advance_to(1);
+        assert_eq!(ratchet.counter, 1);
+    }
 }
