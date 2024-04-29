@@ -406,7 +406,6 @@ mod test {
         let signing_key = Ed25519Keypair::new();
         let signature = signing_key.sign(&message.to_signature_bytes());
 
-        println!("{:?}", signature.to_bytes());
         message
             .add_signature(signature, signing_key.public_key())
             .expect("Should be able to add valid signature");
