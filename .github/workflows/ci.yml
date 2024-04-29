@@ -58,7 +58,7 @@ jobs:
       run: cargo clippy --all-targets -- -D warnings
 
   test:
-    name: ${{ matrix.target.name }}
+    name: ${{ matrix.target.name }} ${{ matrix.channel }}
     needs: [clippy]
 
     runs-on: ${{ matrix.target.os }}
@@ -66,8 +66,8 @@ jobs:
       matrix:
         target: [
           { "os": "ubuntu-latest",  "toolchain": "x86_64-unknown-linux-gnu", "name": "Linux GNU" },
-          { "os": "macos-13",       "toolchain": "x86_64-apple-darwin ",     "name": "macOS (x86)" },
-          { "os": "macos-latest",   "toolchain": "aarch64-apple-darwin",     "name": "macOS (ARM)" },
+          { "os": "macos-13",       "toolchain": "x86_64-apple-darwin ",     "name": "macOS x86" },
+          { "os": "macos-latest",   "toolchain": "aarch64-apple-darwin",     "name": "macOS arm" },
           { "os": "windows-latest", "toolchain": "x86_64-pc-windows-msvc",   "name": "Windows MSVC" },
         ]
         channel: [stable, beta, nightly]
