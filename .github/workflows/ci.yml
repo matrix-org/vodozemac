@@ -66,7 +66,8 @@ jobs:
       matrix:
         target: [
           { "os": "ubuntu-latest",  "toolchain": "x86_64-unknown-linux-gnu", "name": "Linux GNU" },
-          { "os": "macOS-latest",   "toolchain": "x86_64-apple-darwin",      "name": "macOS" },
+          { "os": "macos-13",       "toolchain": "x86_64-apple-darwin ",     "name": "macOS (x86)" },
+          { "os": "macos-latest",   "toolchain": "aarch64-apple-darwin",     "name": "macOS (ARM)" },
           { "os": "windows-latest", "toolchain": "x86_64-pc-windows-msvc",   "name": "Windows MSVC" },
         ]
         channel: [stable, beta, nightly]
