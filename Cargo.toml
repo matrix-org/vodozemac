@@ -6,9 +6,9 @@ authors = [
 name = "vodozemac"
 description = "A Rust implementation of Olm and Megolm"
 repository = "https://github.com/matrix-org/vodozemac"
-version = "0.5.1"
+version = "0.6.0"
 edition = "2021"
-keywords = ["matrix", "chat", "messaging", "olm"]
+keywords = ["matrix", "chat", "messaging", "olm", "end-to-end-encryption"]
 license = "Apache-2.0"
 rust-version = "1.65"
 
@@ -28,28 +28,28 @@ low-level-api = []
 [dependencies]
 aes = "0.8.4"
 arrayvec = { version = "0.7.4", features = ["serde"] }
-base64 = "0.22.0"
+base64 = "0.22.1"
 cbc = { version = "0.1.2", features = ["std"] }
 curve25519-dalek = { version = "4.1.2", default-features = false, features = ["zeroize"] }
 ed25519-dalek = { version = "2.1.1", default-features = false, features = ["rand_core", "std", "serde", "hazmat", "zeroize"] }
-getrandom = "0.2.12"
+getrandom = "0.2.14"
 hkdf = "0.12.4"
 hmac = "0.12.1"
 matrix-pickle = { version = "0.2.0" }
 pkcs7 = "0.4.1"
-prost = "0.12.3"
+prost = "0.12.4"
 rand = "0.8.5"
-serde = { version = "1.0.197", features = ["derive"] }
+serde = { version = "1.0.200", features = ["derive"] }
 serde_bytes = "0.11.14"
-serde_json = "1.0.114"
+serde_json = "1.0.116"
 sha2 = "0.10.8"
 subtle = "2.5.0"
-thiserror = "1.0.58"
+thiserror = "1.0.59"
 x25519-dalek = { version = "2.0.1", features = ["serde", "reusable_secrets", "static_secrets", "zeroize"] }
 zeroize = "1.7.0"
 
 [dev-dependencies]
-anyhow = "1.0.81"
+anyhow = "1.0.82"
 assert_matches = "1.5.0"
 olm-rs = "2.2.0"
 proptest = "1.4.0"
