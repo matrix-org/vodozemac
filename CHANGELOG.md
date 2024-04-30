@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0] - 2024-05-03
+
+### Security Fixes
+
+- Re-enable zeroization in the Dalek crates ([#130](https://github.com/matrix-org/vodozemac/pull/130)) (Low, [CVE-2024-34063](https://www.cve.org/CVERecord?id=CVE-2024-34063), [GHSA-c3hm-hxwf-g5c6](https://github.com/matrix-org/vodozemac/security/advisories/GHSA-c3hm-hxwf-g5c6))
+
+
+### Features
+
+- Track the number of Diffie-Hellman ratchet advances in the Olm Session.
+  This number is useful only for debugging purposes and will be included in the
+  Debug output of the Olm `Session` ([#134](https://github.com/matrix-org/vodozemac/pull/134)).
+
+### Testing
+
+- Add mutation tests ([#136](https://github.com/matrix-org/vodozemac/pull/136)) ([#138](https://github.com/matrix-org/vodozemac/pull/138)) ([#140](https://github.com/matrix-org/vodozemac/pull/140)) ([#139](https://github.com/matrix-org/vodozemac/pull/139)) ([#144](https://github.com/matrix-org/vodozemac/pull/144)) ([#143](https://github.com/matrix-org/vodozemac/pull/143)),
+  special thanks to [Johannes Marbach](https://github.com/Johennes) for that.
+- Enable mutation tests on CI ([#147](https://github.com/matrix-org/vodozemac/pull/147)).
+
 ## [0.5.1] - 2024-02-05
 
 ### Features
