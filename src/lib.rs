@@ -206,6 +206,7 @@
     unused_qualifications,
     rust_2018_idioms
 )]
+#![allow(unexpected_cfgs)]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 mod cipher;
