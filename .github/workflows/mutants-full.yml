@@ -1,0 +1,36 @@
+name: Mutation tests (full)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  cargo-mutants:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-mutants
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants
+
+      - name: Run mutant tests
+        run: cargo mutants -vV --no-shuffle --in-place
+
+      - name: Archive mutants.out
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutants-full.out
+          path: mutants.out
