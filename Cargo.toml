@@ -8,7 +8,7 @@ description = "A Rust implementation of Olm and Megolm"
 repository = "https://github.com/matrix-org/vodozemac"
 version = "0.6.0"
 edition = "2021"
-keywords = ["matrix", "chat", "messaging", "olm"]
+keywords = ["matrix", "chat", "messaging", "olm", "megolm", "double ratchet", "encryption", "E2EE", "cryptography"]
 license = "Apache-2.0"
 rust-version = "1.65"
 
