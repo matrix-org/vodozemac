@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.6.0] - 2024-05-03
+## [0.6.0] - 2024-05-06
 
 ### Security Fixes
 
