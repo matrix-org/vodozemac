@@ -86,7 +86,7 @@ use thiserror::Error;
 use x25519_dalek::{EphemeralSecret, SharedSecret};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-pub use self::messages::{InitialMessage, Message};
+pub use self::messages::{InitialMessage, Message, MessageDecodeError};
 use crate::Curve25519PublicKey;
 
 mod messages;
