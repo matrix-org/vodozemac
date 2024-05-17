@@ -45,3 +45,10 @@ Matrix clients, such as [SAS][sas].
 
 [matrix-sdk-crypto]:
 <https://github.com/matrix-org/matrix-rust-sdk/tree/main/crates/matrix-sdk-crypto/src/backups>
+
+## Planned
+
+- Primitives for the asymmetric authenticated [server-side message key backups][authenticated-message-key-backup].
+
+[authenticated-message-key-backup]:
+<https://github.com/matrix-org/matrix-spec-proposals/pull/4048>
