@@ -37,18 +37,18 @@ Matrix clients, such as [SAS][sas].
 ## Unsupported
 
 - Creating asymmetric [server-side message key
-  backups][legacy-message-key-backup], since they are slated to be enhanced
-  with authentication.
-
-## Planned
-
-- Asymmetric authenticated [server-side message key backups][authenticated-message-key-backup].
-- Importing asymmetric [server-side message key
-  backups][legacy-message-key-backup], for compatibility with existing backups
-  created by libolm.
+  backups][legacy-message-key-backup], since these have been implemented in
+  [matrix-sdk-crypto].
 
 [legacy-message-key-backup]:
 <https://spec.matrix.org/v1.2/client-server-api/#server-side-key-backups>
+
+[matrix-sdk-crypto]:
+<https://github.com/matrix-org/matrix-rust-sdk/tree/main/crates/matrix-sdk-crypto/src/backups>
+
+## Planned
+
+- Primitives for the asymmetric authenticated [server-side message key backups][authenticated-message-key-backup].
 
 [authenticated-message-key-backup]:
 <https://github.com/matrix-org/matrix-spec-proposals/pull/4048>
