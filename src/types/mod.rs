@@ -46,6 +46,8 @@ impl KeyId {
 pub enum KeyError {
     #[error("Failed decoding a public key from base64: {}", .0)]
     Base64Error(#[from] base64::DecodeError),
+    #[error("Failed to decode a private key from base64: {}", .0)]
+    Base64PrivateKey(#[from] base64ct::Error),
     #[error(
         "Failed decoding {key_type} key from base64: \
         Invalid number of bytes for {key_type}, expected {expected_length}, got {length}."

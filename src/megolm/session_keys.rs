@@ -14,15 +14,13 @@
 
 use std::io::{Cursor, Read};
 
+use base64ct::Encoding;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use zeroize::Zeroize;
 
 use super::ratchet::Ratchet;
-use crate::{
-    utilities::{base64_decode, base64_encode},
-    Ed25519PublicKey, Ed25519Signature, SignatureError,
-};
+use crate::{Ed25519PublicKey, Ed25519Signature, SignatureError};
 
 /// Error type describing failure modes for the `SessionKey` and
 /// `ExportedSessionKey` decoding.
@@ -36,7 +34,7 @@ pub enum SessionKeyDecodeError {
     Read(#[from] std::io::Error),
     /// The encoded session key wasn't valid base64.
     #[error("The session key wasn't valid base64: {0}")]
-    Base64(#[from] base64::DecodeError),
+    Base64(#[from] base64ct::Error),
     /// The signature on the session key was invalid.
     #[error("The signature on the session key was invalid: {0}")]
     Signature(#[from] SignatureError),
@@ -93,7 +91,7 @@ impl ExportedSessionKey {
     pub fn to_base64(&self) -> String {
         let mut bytes = self.to_bytes();
 
-        let ret = base64_encode(&bytes);
+        let ret = base64ct::Base64Unpadded::encode_string(&bytes);
 
         bytes.zeroize();
 
@@ -102,7 +100,7 @@ impl ExportedSessionKey {
 
     /// Deserialize the `ExportedSessionKey` from base64 encoded string.
     pub fn from_base64(key: &str) -> Result<Self, SessionKeyDecodeError> {
-        let mut bytes = base64_decode(key)?;
+        let mut bytes = base64ct::Base64Unpadded::decode_vec(key)?;
         let ret = Self::from_bytes(&bytes);
 
         bytes.zeroize();
@@ -268,7 +266,7 @@ impl SessionKey {
     /// to a string using unpadded base64 as the encoding.
     pub fn to_base64(&self) -> String {
         let mut bytes = self.to_bytes();
-        let ret = base64_encode(&bytes);
+        let ret = base64ct::Base64Unpadded::encode_string(&bytes);
 
         bytes.zeroize();
 
@@ -277,7 +275,7 @@ impl SessionKey {
 
     /// Deserialize the `SessionKey` from base64 encoded string.
     pub fn from_base64(key: &str) -> Result<Self, SessionKeyDecodeError> {
-        let mut bytes = base64_decode(key)?;
+        let mut bytes = base64ct::Base64Unpadded::decode_vec(key)?;
         let ret = Self::from_bytes(&bytes);
 
         bytes.zeroize();

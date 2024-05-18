@@ -29,6 +29,7 @@ low-level-api = []
 aes = "0.8.4"
 arrayvec = { version = "0.7.4", features = ["serde"] }
 base64 = "0.22.1"
+base64ct = { version = "1.6.0", features = ["std", "alloc"] }
 cbc = { version = "0.1.2", features = ["std"] }
 curve25519-dalek = { version = "4.1.2", default-features = false, features = ["zeroize"] }
 ed25519-dalek = { version = "2.1.1", default-features = false, features = ["rand_core", "std", "serde", "hazmat", "zeroize"] }
