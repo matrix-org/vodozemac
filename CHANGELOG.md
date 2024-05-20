@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.1] - 2024-05-20
+
+### Security
+
+- Use a constant-time Base64 encoder to encode and decode secret key material.
+  This patch fixes a potential side-channel vulnerability[[1](https://arxiv.org/abs/2108.04600)] ([#156](https://github.com/matrix-org/vodozemac/pull/156)).
+
 ## [0.6.0] - 2024-05-06
 
 ### Security Fixes
