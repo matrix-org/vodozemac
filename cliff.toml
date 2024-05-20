@@ -39,6 +39,7 @@ commit_preprocessors = [
 ]
 # regex for parsing and grouping commits
 commit_parsers = [
+    { message = ".*[sS]ecurity", group = "Security"},
     { message = "^feat", group = "Features"},
     { message = "^fix", group = "Bug Fixes"},
     { message = "^doc", group = "Documentation"},
@@ -49,7 +50,6 @@ commit_parsers = [
     { message = "^chore\\(release\\): prepare for", skip = true},
     { message = "^chore", skip = true},
     { message = "^ci", skip = true},
-    { body = ".*[sS]ecurity", group = "Security"},
 ]
 # filter out the commits that are not matched by commit parsers
 filter_commits = true
