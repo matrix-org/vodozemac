@@ -15,6 +15,7 @@
 use std::fmt::Display;
 
 use base64::decoded_len_estimate;
+use base64ct::Encoding;
 use curve25519_dalek::EdwardsPoint;
 #[cfg(not(fuzzing))]
 use ed25519_dalek::Verifier;
@@ -226,7 +227,7 @@ impl Ed25519SecretKey {
     /// otherwise an unintentional copy of the key might exist in memory.
     pub fn to_base64(&self) -> String {
         let mut bytes = self.to_bytes();
-        let ret = base64_encode(bytes.as_ref());
+        let ret = base64ct::Base64Unpadded::encode_string(bytes.as_ref());
 
         bytes.zeroize();
 
@@ -242,9 +243,16 @@ impl Ed25519SecretKey {
                 length: decoded_len_estimate(input.len()),
             })
         } else {
-            let mut bytes = base64_decode(input)?;
-            let mut key_bytes = [0u8; 32];
+            // Ed25519 secret keys can sometimes be encoded with padding, don't ask me why.
+            // This means that if the unpadded decoding fails, we have to attempt the padded
+            // one.
+            let mut bytes = if let Ok(bytes) = base64ct::Base64Unpadded::decode_vec(input) {
+                bytes
+            } else {
+                base64ct::Base64::decode_vec(input)?
+            };
 
+            let mut key_bytes = [0u8; 32];
             key_bytes.copy_from_slice(&bytes);
             let key = Self::from_slice(&key_bytes);
 
