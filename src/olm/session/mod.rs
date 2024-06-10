@@ -127,22 +127,20 @@ impl Default for ChainStore {
 /// Olm sessions have two important properties:
 ///
 /// 1. They are based on a double ratchet algorithm which continuously
-/// introduces new entropy into    the channel as messages are sent and
-/// received. This imbues the channel with *self-healing*    properties,
-/// allowing it to recover from a momentary loss of confidentiality in the event
-/// of    a key compromise.
+///    introduces new entropy into the channel as messages are sent and
+///    received. This imbues the channel with *self-healing* properties,
+///    allowing it to recover from a momentary loss of confidentiality in the
+///    event of a key compromise.
 /// 2. They are *asynchronous*, allowing the participant to start sending
-/// messages to the other    side even if the other participant is not online at
-/// the moment.
+///    messages to the other side even if the other participant is not online at
+///    the moment.
 ///
 /// An Olm [`Session`] is acquired from an [`Account`], by calling either
 ///
 /// - [`Account::create_outbound_session`], if you are the first participant to
-///   send a message in
-/// this channel, or
+///   send a message in this channel, or
 /// - [`Account::create_inbound_session`], if the other participant initiated
-///   the channel by
-/// sending you a message.
+///   the channel by sending you a message.
 ///
 /// [`Account`]: crate::olm::Account
 /// [`Account::create_outbound_session`]: crate::olm::Account::create_outbound_session
