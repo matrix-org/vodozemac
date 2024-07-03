@@ -382,7 +382,7 @@ impl InboundGroupSession {
 #[cfg(feature = "libolm-compat")]
 mod libolm_compat {
     use matrix_pickle::Decode;
-    use zeroize::Zeroize;
+    use zeroize::{Zeroize, ZeroizeOnDrop};
 
     use super::InboundGroupSession;
     use crate::{
@@ -390,8 +390,7 @@ mod libolm_compat {
         Ed25519PublicKey,
     };
 
-    #[derive(Zeroize, Decode)]
-    #[zeroize(drop)]
+    #[derive(Zeroize, ZeroizeOnDrop, Decode)]
     pub(super) struct Pickle {
         version: u32,
         initial_ratchet: LibolmRatchetPickle,

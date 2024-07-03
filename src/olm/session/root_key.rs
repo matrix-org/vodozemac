@@ -15,7 +15,7 @@
 use hkdf::Hkdf;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
-use zeroize::Zeroize;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use super::{
     chain_key::{ChainKey, RemoteChainKey},
@@ -34,9 +34,8 @@ const ADVANCEMENT_SEED: &[u8; 11] = b"OLM_RATCHET";
 ///
 /// This struct holds the root key corresponding to chains where we are the
 /// sender. See also [`RemoteRootKey`].
-#[derive(Serialize, Deserialize, Clone, Zeroize)]
+#[derive(Clone, Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 #[serde(transparent)]
-#[zeroize(drop)]
 pub(crate) struct RootKey {
     pub key: Box<[u8; 32]>,
 }
@@ -45,8 +44,7 @@ pub(crate) struct RootKey {
 ///
 /// See [`RootKey`] for information on root keys. This struct holds the root key
 /// corresponding to chains where the other side is the sender.
-#[derive(Serialize, Deserialize, Clone, Zeroize)]
-#[zeroize(drop)]
+#[derive(Clone, Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 pub(crate) struct RemoteRootKey {
     pub key: Box<[u8; 32]>,
 }

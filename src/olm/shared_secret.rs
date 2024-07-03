@@ -34,16 +34,14 @@
 use hkdf::Hkdf;
 use sha2::Sha256;
 use x25519_dalek::{ReusableSecret, SharedSecret};
-use zeroize::Zeroize;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::{types::Curve25519SecretKey as StaticSecret, Curve25519PublicKey as PublicKey};
 
-#[derive(Zeroize)]
-#[zeroize(drop)]
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct Shared3DHSecret(Box<[u8; 96]>);
 
-#[derive(Zeroize)]
-#[zeroize(drop)]
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct RemoteShared3DHSecret(Box<[u8; 96]>);
 
 fn expand(shared_secret: &[u8; 96]) -> (Box<[u8; 32]>, Box<[u8; 32]>) {

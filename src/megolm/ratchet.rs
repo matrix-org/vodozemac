@@ -19,13 +19,12 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{digest::CtOutput, Sha256};
 use subtle::{Choice, ConstantTimeEq};
 use thiserror::Error;
-use zeroize::Zeroize;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 const ADVANCEMENT_SEEDS: [&[u8; 1]; Ratchet::RATCHET_PART_COUNT] =
     [b"\x00", b"\x01", b"\x02", b"\x03"];
 
-#[derive(Serialize, Deserialize, Zeroize, Clone)]
-#[zeroize(drop)]
+#[derive(Clone, Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 pub(super) struct Ratchet {
     inner: RatchetBytes,
     counter: u32,
@@ -42,8 +41,7 @@ impl ConstantTimeEq for Ratchet {
     }
 }
 
-#[derive(Zeroize, Clone)]
-#[zeroize(drop)]
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
 struct RatchetBytes(Box<[u8; Ratchet::RATCHET_LENGTH]>);
 
 impl RatchetBytes {

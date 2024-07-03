@@ -15,7 +15,7 @@
 use std::io::Cursor;
 
 use matrix_pickle::{Decode, Encode};
-use zeroize::Zeroize;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use super::{base64_decode, base64_encode};
 use crate::{cipher::Cipher, LibolmPickleError};
@@ -78,8 +78,7 @@ where
     Ok(base64_encode(encrypted))
 }
 
-#[derive(Zeroize, Encode, Decode)]
-#[zeroize(drop)]
+#[derive(Encode, Decode, Zeroize, ZeroizeOnDrop)]
 pub(crate) struct LibolmEd25519Keypair {
     pub public_key: [u8; 32],
     #[secret]
