@@ -19,7 +19,7 @@ use aes::{
 };
 use hkdf::Hkdf;
 use sha2::Sha256;
-use zeroize::Zeroize;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use super::Aes256CbcEnc;
 
@@ -27,8 +27,7 @@ type Aes256Key = GenericArray<u8, <Aes256 as KeySizeUser>::KeySize>;
 type Aes256Iv = GenericArray<u8, <Aes256CbcEnc as IvSizeUser>::IvSize>;
 type HmacSha256Key = [u8; 32];
 
-#[derive(Zeroize)]
-#[zeroize(drop)]
+#[derive(Zeroize, ZeroizeOnDrop)]
 struct ExpandedKeys(Box<[u8; 80]>);
 
 impl ExpandedKeys {
@@ -59,8 +58,7 @@ impl ExpandedKeys {
     }
 }
 
-#[derive(Zeroize)]
-#[zeroize(drop)]
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub(super) struct CipherKeys {
     aes_key: Box<[u8; 32]>,
     aes_iv: Box<[u8; 16]>,

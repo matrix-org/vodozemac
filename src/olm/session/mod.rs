@@ -336,7 +336,7 @@ impl Session {
 #[cfg(feature = "libolm-compat")]
 mod libolm_compat {
     use matrix_pickle::Decode;
-    use zeroize::Zeroize;
+    use zeroize::{Zeroize, ZeroizeOnDrop};
 
     use super::{
         chain_key::{ChainKey, RemoteChainKey},
@@ -353,8 +353,7 @@ mod libolm_compat {
         Curve25519PublicKey,
     };
 
-    #[derive(Debug, Decode, Zeroize)]
-    #[zeroize(drop)]
+    #[derive(Debug, Decode, Zeroize, ZeroizeOnDrop)]
     struct SenderChain {
         public_ratchet_key: [u8; 32],
         #[secret]
@@ -363,8 +362,7 @@ mod libolm_compat {
         chain_key_index: u32,
     }
 
-    #[derive(Debug, Decode, Zeroize)]
-    #[zeroize(drop)]
+    #[derive(Debug, Decode, Zeroize, ZeroizeOnDrop)]
     struct ReceivingChain {
         public_ratchet_key: [u8; 32],
         #[secret]
@@ -384,8 +382,7 @@ mod libolm_compat {
         }
     }
 
-    #[derive(Debug, Decode, Zeroize)]
-    #[zeroize(drop)]
+    #[derive(Debug, Decode, Zeroize, ZeroizeOnDrop)]
     struct MessageKey {
         ratchet_key: [u8; 32],
         #[secret]

@@ -478,7 +478,7 @@ impl From<AccountPickle> for Account {
 #[cfg(feature = "libolm-compat")]
 mod libolm {
     use matrix_pickle::{Decode, DecodeError, Encode, EncodeError};
-    use zeroize::Zeroize;
+    use zeroize::{Zeroize, ZeroizeOnDrop};
 
     use super::{
         fallback_keys::{FallbackKey, FallbackKeys},
@@ -491,8 +491,7 @@ mod libolm {
         Curve25519PublicKey, Ed25519Keypair, KeyId,
     };
 
-    #[derive(Debug, Zeroize, Encode, Decode)]
-    #[zeroize(drop)]
+    #[derive(Debug, Encode, Decode, Zeroize, ZeroizeOnDrop)]
     struct OneTimeKey {
         key_id: u32,
         published: bool,
@@ -510,8 +509,7 @@ mod libolm {
         }
     }
 
-    #[derive(Debug, Zeroize)]
-    #[zeroize(drop)]
+    #[derive(Debug, Zeroize, ZeroizeOnDrop)]
     struct FallbackKeysArray {
         fallback_key: Option<OneTimeKey>,
         previous_fallback_key: Option<OneTimeKey>,
@@ -559,8 +557,7 @@ mod libolm {
         }
     }
 
-    #[derive(Zeroize, Encode, Decode)]
-    #[zeroize(drop)]
+    #[derive(Encode, Decode, Zeroize, ZeroizeOnDrop)]
     pub(super) struct Pickle {
         version: u32,
         ed25519_keypair: LibolmEd25519Keypair,
