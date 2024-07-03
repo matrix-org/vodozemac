@@ -179,7 +179,7 @@
 //! instead call the `.pickle()` method to obtain a special serializable struct.
 //! This struct *does* implement `Serialize` and can therefore be serialized
 //! into any format supported by `serde`. To get back to the original struct
-//! from such as serializeable struct, just call `.unpickle()`.
+//! from such as serializable struct, just call `.unpickle()`.
 //!
 //! ```rust
 //! use anyhow::Result;
