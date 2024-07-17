@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.7.0 - 2024-07-17
+
+### Features
+
+- Add an [Elliptic Curve Integrated Encryption
+  Scheme](https://en.wikipedia.org/wiki/Integrated_Encryption_Scheme). This
+  scheme can be used to establish a secure *ephemeral* encrypted channel, in
+  situations for which Olm may be unsuitable due to complexity or the
+  unavailability of long-term identity keys. There is also support for
+  out-of-band authentication of the receiver side. The scheme was designed
+  primarily for purposes of implementing Matrix QR code login.
+  ([#151](https://github.com/matrix-org/vodozemac/pull/151)).
+
+### Security
+
+- Use a constant-time Base64 encoder for secret key material to mitigate
+  side-channel attacks leaking secret key material ([#156](https://github.com/matrix-org/vodozemac/pull/156)).
+
 ## [0.6.0] - 2024-05-06
 
 ### Security Fixes
