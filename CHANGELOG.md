@@ -18,7 +18,7 @@ All notable changes to this project will be documented in this file.
 ### Security
 
 - Use a constant-time Base64 encoder for secret key material to mitigate
-  side-channel attacks leaking secret key material ([#156](https://github.com/matrix-org/vodozemac/pull/156)).
+  side-channel attacks leaking secret key material ([#156](https://github.com/matrix-org/vodozemac/pull/156)) (Low, [CVE-2024-40640](https://www.cve.org/CVERecord?id=CVE-2024-40640), [GHSA-j8cm-g7r6-hfpq](https://github.com/matrix-org/vodozemac/security/advisories/GHSA-j8cm-g7r6-hfpq)).
 
 ## [0.6.0] - 2024-05-06
 
