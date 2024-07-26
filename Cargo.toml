@@ -41,7 +41,6 @@ getrandom = "0.2.15"
 hkdf = "0.12.4"
 hmac = "0.12.1"
 matrix-pickle = { version = "0.2.0" }
-pkcs7 = "0.4.1"
 prost = "0.13.1"
 rand = "0.8.5"
 serde = { version = "1.0.204", features = ["derive"] }
