@@ -17,7 +17,27 @@ body = """
 {% for group, commits in commits | group_by(attribute="group") %}
     ### {{ group | upper_first }}
     {% for commit in commits %}
-        - {% if commit.breaking %}[**breaking**] {% endif %}{{ commit.message | upper_first }}\
+        {% set_global commit_message = commit.message -%}
+        {% set_global breaking = commit.breaking -%}
+        {% for footer in commit.footers -%}
+            {% if footer.token | lower  == "changelog" -%}
+                {% set_global commit_message = footer.value -%}
+            {% elif footer.token | lower == "security-impact" -%}
+                {% set_global security_impact = footer.value -%}
+            {% elif footer.token | lower == "cve" -%}
+                {% set_global cve = footer.value -%}
+            {% elif footer.token | lower == "github-advisory" -%}
+                {% set_global github_advisory = footer.value -%}
+            {% endif -%}
+        {% endfor -%}
+        - {% if breaking %}[**breaking**] {% endif %}{{ commit_message | upper_first }}
+          {% if security_impact -%}
+              (\
+              *{{ security_impact | upper_first }}*\
+              {% if cve -%}, [{{ cve | upper }}](https://www.cve.org/CVERecord?id={{ cve }}){% endif -%}\
+              {% if github_advisory -%}, [{{ github_advisory | upper }}](https://github.com/matrix-org/vodozemac/security/advisories/{{ github_advisory }}){% endif -%}
+              )
+          {% endif -%}
     {% endfor %}
 {% endfor %}\n
 """
@@ -39,16 +59,18 @@ commit_preprocessors = [
 ]
 # regex for parsing and grouping commits
 commit_parsers = [
-    { message = ".*[sS]ecurity", group = "Security"},
+    { footer = "Security-Impact:", group = "Security" },
+    { footer = "CVE:", group = "Security" },
+    { footer = "GitHub-Advisory:", group = "Security" },
     { message = "^feat", group = "Features"},
     { message = "^fix", group = "Bug Fixes"},
     { message = "^doc", group = "Documentation"},
     { message = "^perf", group = "Performance"},
     { message = "^refactor", group = "Refactor"},
-    { message = "^style", group = "Styling"},
-    { message = "^test", group = "Testing"},
     { message = "^chore\\(release\\): prepare for", skip = true},
     { message = "^chore", skip = true},
+    { message = "^style", group = "Styling", skip = true},
+    { message = "^test", skip = true},
     { message = "^ci", skip = true},
 ]
 # filter out the commits that are not matched by commit parsers
