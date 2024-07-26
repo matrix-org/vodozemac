@@ -4,6 +4,95 @@ Thank you for taking the time to contribute to Matrix!
 
 This is the repository for Vodozemac, a Rust implementation of Olm and Megolm.
 
+# Writing changelog entries
+
+We aim to maintain clear and informative changelogs that accurately reflect the
+changes in our project. This guide will help you write useful changelog entries
+using git-cliff, which fetches changelog entries from commit messages. 
+
+## Commit Message Format
+
+We support the default Conventional Commits format, along with a specific git
+trailer for the changelog message.
+
+### Conventional Commits
+
+Conventional Commits are structured as follows:
+
+```
+<type>(<scope>): <short summary>
+```
+
+The type of changes which will be included in changelogs is one of the following:
+
+    feat: A new feature
+    fix: A bug fix
+    doc: Documentation changes
+    refactor: Code refactoring
+    perf: Performance improvements
+    ci: Changes to CI configuration files and scripts
+
+The scope is optional and can specify the area of the codebase affected (e.g.,
+olm, cipher).
+
+### Changelog Trailer
+
+In addition to the conventional commit format, you can use a git trailer to
+specify the changelog message explicitly. When the `Changelog` trailer is defined,
+the value from the trailer will be used in the changelog instead of the commit's
+first line.
+
+
+#### Example Commit Message
+```
+feat: Add a method to encode Ed25519 public keys to Base64
+
+This patch adds the Ed25519PublicKey::to_base64() method, which allows us to
+stringify Ed25519 and thus present them to users. It's also commonly used when
+Ed25519 keys need to be inserted into JSON.  
+
+Changelog: Added the Ed25519PublicKey::to_base64() method which can be used to
+stringify the Ed25519 public key.
+```
+
+In this commit message, the content specified in the Changelog trailer will be
+used for the changelog entry. If the Changelog trailer is absent, the first line
+of the commit message (after the colon) will be used instead.
+
+### Security fixes
+
+Please use the Git trailer style exclusively for changelog entries related to
+security issues, as this allows for a detailed description of the impact. Please
+
+Security issues have some additional git-trailers:
+
+    Security-impact: The magnitude of harm that can be expected, i.e. low/moderate/high.
+    CVE: The CVE that was assigned to this issue.
+    GitHub-Advisory: The GitHub advisory identifier.
+
+Example:
+
+```
+fix: Use a constant-time Base64 encoder for secret key material
+
+This patch fixes a security issue around a side-channel vulnerability[1]
+when decoding secret key material using Base64.
+
+In some circumstances an attacker can obtain information about secret
+secret key material via a controlled-channel and side-channel attack.
+
+This patch avoids the side-channel by switching to the base64ct crate
+for the encoding, and more importantly, the decoding of secret key
+material.
+
+Security-Impact: Low
+CVE: CVE-2024-40640
+GitHub-Advisory: GHSA-j8cm-g7r6-hfpq
+
+Changelog: Use a constant-time Base64 encoder for secret key material
+to mitigate side-channel attacks leaking secret key material.
+```
+
 ## Sign off
 
 We ask that everybody who contributes to this project signs off their
