@@ -15,7 +15,7 @@ After that afl-rs needs to be installed, the complete setup guide can be found
 with cargo:
 
 ```bash
-$ cargo install afl
+$ cargo install cargo-afl
 ```
 
 # Fuzzing
