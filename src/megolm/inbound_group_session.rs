@@ -240,7 +240,7 @@ impl InboundGroupSession {
         })
     }
 
-    pub fn first_known_index(&self) -> u32 {
+    pub const fn first_known_index(&self) -> u32 {
         self.initial_ratchet.index()
     }
 

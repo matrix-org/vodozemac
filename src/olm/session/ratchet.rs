@@ -129,7 +129,7 @@ impl Ratchet {
         Self { root_key, ratchet_key }
     }
 
-    pub fn new_with_ratchet_key(root_key: RootKey, ratchet_key: RatchetKey) -> Self {
+    pub const fn new_with_ratchet_key(root_key: RootKey, ratchet_key: RatchetKey) -> Self {
         Self { root_key, ratchet_key }
     }
 
@@ -140,7 +140,7 @@ impl Ratchet {
         (remote_root_key, remote_chain_key)
     }
 
-    pub fn ratchet_key(&self) -> &RatchetKey {
+    pub const fn ratchet_key(&self) -> &RatchetKey {
         &self.ratchet_key
     }
 }

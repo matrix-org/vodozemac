@@ -55,7 +55,7 @@ impl MegolmMessage {
     }
 
     /// The index of the message that was used when the message was encrypted.
-    pub fn message_index(&self) -> u32 {
+    pub const fn message_index(&self) -> u32 {
         self.message_index
     }
 
@@ -65,7 +65,7 @@ impl MegolmMessage {
     }
 
     /// Get a reference to the megolm message's signature.
-    pub fn signature(&self) -> &Ed25519Signature {
+    pub const fn signature(&self) -> &Ed25519Signature {
         &self.signature
     }
 

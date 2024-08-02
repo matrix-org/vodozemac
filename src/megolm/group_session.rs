@@ -72,11 +72,11 @@ impl GroupSession {
     ///
     /// The message index is incremented each time a message is encrypted with
     /// the group session.
-    pub fn message_index(&self) -> u32 {
+    pub const fn message_index(&self) -> u32 {
         self.ratchet.index()
     }
 
-    pub fn session_config(&self) -> SessionConfig {
+    pub const fn session_config(&self) -> SessionConfig {
         self.config
     }
 

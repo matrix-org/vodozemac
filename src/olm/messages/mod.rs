@@ -103,7 +103,7 @@ impl OlmMessage {
     }
 
     /// Get the type of the message.
-    pub fn message_type(&self) -> MessageType {
+    pub const fn message_type(&self) -> MessageType {
         match self {
             OlmMessage::Normal(_) => MessageType::Normal,
             OlmMessage::PreKey(_) => MessageType::PreKey,

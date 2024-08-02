@@ -67,7 +67,7 @@ impl ExpandedSecretKey {
         })
     }
 
-    fn as_bytes(&self) -> &[u8; 64] {
+    const fn as_bytes(&self) -> &[u8; 64] {
         &self.source
     }
 
@@ -168,7 +168,7 @@ impl Ed25519Keypair {
     }
 
     /// Get the public Ed25519 key of this keypair.
-    pub fn public_key(&self) -> Ed25519PublicKey {
+    pub const fn public_key(&self) -> Ed25519PublicKey {
         self.public_key
     }
 

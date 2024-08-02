@@ -61,11 +61,11 @@ pub(super) struct RemoteChainKey {
 }
 
 impl RemoteChainKey {
-    pub fn new(bytes: Box<[u8; 32]>) -> Self {
+    pub const fn new(bytes: Box<[u8; 32]>) -> Self {
         Self { key: bytes, index: 0 }
     }
 
-    pub fn chain_index(&self) -> u64 {
+    pub const fn chain_index(&self) -> u64 {
         self.index
     }
 
@@ -91,7 +91,7 @@ impl RemoteChainKey {
 }
 
 impl ChainKey {
-    pub fn new(bytes: Box<[u8; 32]>) -> Self {
+    pub const fn new(bytes: Box<[u8; 32]>) -> Self {
         Self { key: bytes, index: 0 }
     }
 
@@ -106,7 +106,7 @@ impl ChainKey {
         self.index += 1;
     }
 
-    pub fn index(&self) -> u64 {
+    pub const fn index(&self) -> u64 {
         self.index
     }
 

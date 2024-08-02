@@ -30,7 +30,7 @@ pub use message::MegolmMessage;
 pub use session_config::SessionConfig;
 pub use session_keys::{ExportedSessionKey, SessionKey, SessionKeyDecodeError};
 
-fn default_config() -> SessionConfig {
+const fn default_config() -> SessionConfig {
     SessionConfig::version_1()
 }
 

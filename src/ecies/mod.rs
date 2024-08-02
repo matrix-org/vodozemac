@@ -116,7 +116,7 @@ struct EciesNonce {
 
 impl EciesNonce {
     /// Create a new [`EciesNonce`], starting the count from 0.
-    fn new() -> Self {
+    const fn new() -> Self {
         Self { inner: 0 }
     }
 
@@ -161,7 +161,7 @@ impl CheckCode {
     ///
     /// The bytes can be converted to a more user-friendly representation. The
     /// [`CheckCode::to_digit`] converts the bytes to a two-digit number.
-    pub fn as_bytes(&self) -> &[u8; 2] {
+    pub const fn as_bytes(&self) -> &[u8; 2] {
         &self.bytes
     }
 
@@ -179,7 +179,7 @@ impl CheckCode {
     ///
     /// println!("The check code of the IECS channel is: {check_code:02}");
     /// ```
-    pub fn to_digit(&self) -> u8 {
+    pub const fn to_digit(&self) -> u8 {
         let first = (self.bytes[0] % 10) * 10;
         let second = self.bytes[1] % 10;
 
@@ -472,7 +472,7 @@ impl EstablishedEcies {
     ///
     /// This public key needs to be sent to the other side so that it can
     /// complete the ECIES channel establishment.
-    pub fn public_key(&self) -> Curve25519PublicKey {
+    pub const fn public_key(&self) -> Curve25519PublicKey {
         self.our_public_key
     }
 
@@ -481,7 +481,7 @@ impl EstablishedEcies {
     ///
     /// This check code can be used to check that both sides of the session are
     /// indeed using the same shared secret.
-    pub fn check_code(&self) -> &CheckCode {
+    pub const fn check_code(&self) -> &CheckCode {
         &self.check_code
     }
 

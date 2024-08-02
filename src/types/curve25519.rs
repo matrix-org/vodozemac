@@ -95,11 +95,11 @@ impl Curve25519Keypair {
         Curve25519Keypair { secret_key, public_key }
     }
 
-    pub fn secret_key(&self) -> &Curve25519SecretKey {
+    pub const fn secret_key(&self) -> &Curve25519SecretKey {
         &self.secret_key
     }
 
-    pub fn public_key(&self) -> Curve25519PublicKey {
+    pub const fn public_key(&self) -> Curve25519PublicKey {
         self.public_key
     }
 }

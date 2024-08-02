@@ -208,7 +208,7 @@ impl ReceiverChain {
     }
 
     #[cfg(feature = "libolm-compat")]
-    pub fn ratchet_key(&self) -> RemoteRatchetKey {
+    pub const fn ratchet_key(&self) -> RemoteRatchetKey {
         self.ratchet_key
     }
 

@@ -29,21 +29,21 @@ pub(super) enum Version {
 
 impl SessionConfig {
     /// Get the numeric version of this `SessionConfig`.
-    pub fn version(&self) -> u8 {
+    pub const fn version(&self) -> u8 {
         self.version as u8
     }
 
     /// Create a `SessionConfig` for the Megolm version 1. This version of
     /// Megolm uses AES-256 and HMAC with a truncated MAC to encrypt individual
     /// messages. The MAC will be truncated to 8 bytes.
-    pub fn version_1() -> Self {
+    pub const fn version_1() -> Self {
         SessionConfig { version: Version::V1 }
     }
 
     /// Create a `SessionConfig` for the Megolm version 2. This version of
     /// Megolm uses AES-256 and HMAC to encrypt individual messages. The MAC
     /// won't be truncated.
-    pub fn version_2() -> Self {
+    pub const fn version_2() -> Self {
         SessionConfig { version: Version::V2 }
     }
 }

@@ -118,7 +118,7 @@ impl OneTimeKeys {
         self.insert_secret_key(key_id, key, false)
     }
 
-    pub(crate) fn secret_keys(&self) -> &BTreeMap<KeyId, Curve25519SecretKey> {
+    pub(crate) const fn secret_keys(&self) -> &BTreeMap<KeyId, Curve25519SecretKey> {
         &self.private_keys
     }
 
