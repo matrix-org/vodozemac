@@ -98,7 +98,7 @@ impl ChainStore {
     }
 
     #[cfg(test)]
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.inner.len()
     }
 
