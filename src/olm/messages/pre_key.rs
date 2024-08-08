@@ -43,7 +43,7 @@ impl PreKeyMessage {
     /// receiver of the message. Should be used to establish a [`Session`].
     ///
     /// [`Session`]: crate::olm::Session
-    pub fn one_time_key(&self) -> Curve25519PublicKey {
+    pub const fn one_time_key(&self) -> Curve25519PublicKey {
         self.session_keys.one_time_key
     }
 
@@ -51,7 +51,7 @@ impl PreKeyMessage {
     /// sender of the message. Should be used to establish a [`Session`].
     ///
     /// [`Session`]: crate::olm::Session
-    pub fn base_key(&self) -> Curve25519PublicKey {
+    pub const fn base_key(&self) -> Curve25519PublicKey {
         self.session_keys.base_key
     }
 
@@ -59,7 +59,7 @@ impl PreKeyMessage {
     /// to establish a [`Session`]
     ///
     /// [`Session`]: crate::olm::Session
-    pub fn identity_key(&self) -> Curve25519PublicKey {
+    pub const fn identity_key(&self) -> Curve25519PublicKey {
         self.session_keys.identity_key
     }
 
@@ -70,7 +70,7 @@ impl PreKeyMessage {
     /// can be used to retrieve individual keys from this collection.
     ///
     /// [`Session`]: crate::olm::Session
-    pub fn session_keys(&self) -> SessionKeys {
+    pub const fn session_keys(&self) -> SessionKeys {
         self.session_keys
     }
 
@@ -82,7 +82,7 @@ impl PreKeyMessage {
     }
 
     /// The actual message that contains the ciphertext.
-    pub fn message(&self) -> &Message {
+    pub const fn message(&self) -> &Message {
         &self.message
     }
 
@@ -157,7 +157,7 @@ impl PreKeyMessage {
         PreKeyMessage::new(session_keys, message)
     }
 
-    pub(crate) fn new(session_keys: SessionKeys, message: Message) -> Self {
+    pub(crate) const fn new(session_keys: SessionKeys, message: Message) -> Self {
         Self { session_keys, message }
     }
 }

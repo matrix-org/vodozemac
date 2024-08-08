@@ -108,7 +108,7 @@ const MSB: u8 = 0b1000_0000;
 
 /// How many bytes an integer uses when being encoded as a VarInt.
 #[inline]
-fn required_encoded_space_unsigned(mut v: u64) -> usize {
+const fn required_encoded_space_unsigned(mut v: u64) -> usize {
     if v == 0 {
         return 1;
     }

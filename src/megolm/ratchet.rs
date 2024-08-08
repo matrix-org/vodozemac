@@ -145,15 +145,15 @@ impl Ratchet {
         ratchet
     }
 
-    pub fn from_bytes(bytes: Box<[u8; Self::RATCHET_LENGTH]>, counter: u32) -> Self {
+    pub const fn from_bytes(bytes: Box<[u8; Self::RATCHET_LENGTH]>, counter: u32) -> Self {
         Self { inner: RatchetBytes(bytes), counter }
     }
 
-    pub fn index(&self) -> u32 {
+    pub const fn index(&self) -> u32 {
         self.counter
     }
 
-    pub fn as_bytes(&self) -> &[u8; Self::RATCHET_LENGTH] {
+    pub const fn as_bytes(&self) -> &[u8; Self::RATCHET_LENGTH] {
         &self.inner.0
     }
 

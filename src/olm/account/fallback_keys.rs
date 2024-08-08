@@ -37,11 +37,11 @@ impl FallbackKey {
         Curve25519PublicKey::from(&self.key)
     }
 
-    pub fn secret_key(&self) -> &Curve25519SecretKey {
+    pub const fn secret_key(&self) -> &Curve25519SecretKey {
         &self.key
     }
 
-    pub fn key_id(&self) -> KeyId {
+    pub const fn key_id(&self) -> KeyId {
         self.key_id
     }
 
@@ -49,7 +49,7 @@ impl FallbackKey {
         self.published = true;
     }
 
-    pub fn published(&self) -> bool {
+    pub const fn published(&self) -> bool {
         self.published
     }
 }
@@ -62,7 +62,7 @@ pub(super) struct FallbackKeys {
 }
 
 impl FallbackKeys {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self { key_id: 0, fallback_key: None, previous_fallback_key: None }
     }
 

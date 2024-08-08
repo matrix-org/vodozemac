@@ -56,7 +56,7 @@ impl Drop for RemoteMessageKey {
 }
 
 impl MessageKey {
-    pub fn new(key: Box<[u8; 32]>, ratchet_key: RatchetPublicKey, index: u64) -> Self {
+    pub const fn new(key: Box<[u8; 32]>, ratchet_key: RatchetPublicKey, index: u64) -> Self {
         Self { key, ratchet_key, index }
     }
 
@@ -107,11 +107,11 @@ impl MessageKey {
 }
 
 impl RemoteMessageKey {
-    pub fn new(key: Box<[u8; 32]>, index: u64) -> Self {
+    pub const fn new(key: Box<[u8; 32]>, index: u64) -> Self {
         Self { key, index }
     }
 
-    pub fn chain_index(&self) -> u64 {
+    pub const fn chain_index(&self) -> u64 {
         self.index
     }
 

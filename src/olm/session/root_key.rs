@@ -64,7 +64,7 @@ fn kdf(
 }
 
 impl RemoteRootKey {
-    pub(super) fn new(bytes: Box<[u8; 32]>) -> Self {
+    pub(super) const fn new(bytes: Box<[u8; 32]>) -> Self {
         Self { key: bytes }
     }
 
@@ -89,7 +89,7 @@ impl RemoteRootKey {
 }
 
 impl RootKey {
-    pub(super) fn new(bytes: Box<[u8; 32]>) -> Self {
+    pub(super) const fn new(bytes: Box<[u8; 32]>) -> Self {
         Self { key: bytes }
     }
 

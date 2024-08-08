@@ -206,6 +206,7 @@
     unused_qualifications,
     rust_2018_idioms
 )]
+#![warn(clippy::missing_const_for_fn)]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 mod cipher;

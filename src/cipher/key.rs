@@ -101,7 +101,7 @@ impl CipherKeys {
         Aes256Key::from_slice(self.aes_key.as_slice())
     }
 
-    pub fn mac_key(&self) -> &HmacSha256Key {
+    pub const fn mac_key(&self) -> &HmacSha256Key {
         &self.mac_key
     }
 

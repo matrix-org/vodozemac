@@ -114,17 +114,17 @@ impl Account {
     }
 
     /// Get the IdentityKeys of this Account
-    pub fn identity_keys(&self) -> IdentityKeys {
+    pub const fn identity_keys(&self) -> IdentityKeys {
         IdentityKeys { ed25519: self.ed25519_key(), curve25519: self.curve25519_key() }
     }
 
     /// Get a reference to the account's public Ed25519 key
-    pub fn ed25519_key(&self) -> Ed25519PublicKey {
+    pub const fn ed25519_key(&self) -> Ed25519PublicKey {
         self.signing_key.public_key()
     }
 
     /// Get a reference to the account's public Curve25519 key
-    pub fn curve25519_key(&self) -> Curve25519PublicKey {
+    pub const fn curve25519_key(&self) -> Curve25519PublicKey {
         self.diffie_hellman_key.public_key()
     }
 
@@ -139,7 +139,7 @@ impl Account {
     /// **Note**: this differs from the libolm method of the same name, the
     /// libolm method returned the maximum amount of one-time keys the `Account`
     /// could hold and only half of those should be uploaded.
-    pub fn max_number_of_one_time_keys(&self) -> usize {
+    pub const fn max_number_of_one_time_keys(&self) -> usize {
         // We tell clients to upload a limited amount of one-time keys, this
         // amount is smaller than what we can store.
         //

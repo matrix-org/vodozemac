@@ -44,12 +44,12 @@ pub struct Message {
 impl Message {
     /// The public part of the ratchet key, that was used when the message was
     /// encrypted.
-    pub fn ratchet_key(&self) -> Curve25519PublicKey {
+    pub const fn ratchet_key(&self) -> Curve25519PublicKey {
         self.ratchet_key
     }
 
     /// The index of the chain that was used when the message was encrypted.
-    pub fn chain_index(&self) -> u64 {
+    pub const fn chain_index(&self) -> u64 {
         self.chain_index
     }
 
@@ -59,12 +59,12 @@ impl Message {
     }
 
     /// The version of the Olm message.
-    pub fn version(&self) -> u8 {
+    pub const fn version(&self) -> u8 {
         self.version
     }
 
     /// Has the MAC been truncated in this Olm message.
-    pub fn mac_truncated(&self) -> bool {
+    pub const fn mac_truncated(&self) -> bool {
         self.version == MAC_TRUNCATED_VERSION
     }
 

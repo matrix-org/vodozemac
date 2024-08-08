@@ -93,12 +93,12 @@ impl ChainStore {
         self.inner.push(ratchet)
     }
 
-    fn is_empty(&self) -> bool {
+    const fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }
 
     #[cfg(test)]
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.inner.len()
     }
 
@@ -219,7 +219,7 @@ impl Session {
     ///
     /// Used to decide if outgoing messages should be sent as normal or pre-key
     /// messages.
-    pub fn has_received_message(&self) -> bool {
+    pub const fn has_received_message(&self) -> bool {
         !self.receiving_chains.is_empty()
     }
 
@@ -245,11 +245,11 @@ impl Session {
     }
 
     /// Get the keys associated with this session.
-    pub fn session_keys(&self) -> SessionKeys {
+    pub const fn session_keys(&self) -> SessionKeys {
         self.session_keys
     }
 
-    pub fn session_config(&self) -> SessionConfig {
+    pub const fn session_config(&self) -> SessionConfig {
         self.config
     }
 
@@ -487,7 +487,7 @@ pub struct SessionPickle {
     config: SessionConfig,
 }
 
-fn default_config() -> SessionConfig {
+const fn default_config() -> SessionConfig {
     SessionConfig::version_1()
 }
 

@@ -162,7 +162,7 @@ impl SasBytes {
 
     /// Get the raw bytes of the short auth string that can be converted to an
     /// emoji, or decimal representation.
-    pub fn as_bytes(&self) -> &[u8; 6] {
+    pub const fn as_bytes(&self) -> &[u8; 6] {
         &self.bytes
     }
 
@@ -230,7 +230,7 @@ impl Sas {
     }
 
     /// Get the public key that can be used to establish a shared secret.
-    pub fn public_key(&self) -> Curve25519PublicKey {
+    pub const fn public_key(&self) -> Curve25519PublicKey {
         self.public_key
     }
 
@@ -389,13 +389,13 @@ impl EstablishedSas {
 
     /// Get the public key that was created by us, that was used to establish
     /// the shared secret.
-    pub fn our_public_key(&self) -> Curve25519PublicKey {
+    pub const fn our_public_key(&self) -> Curve25519PublicKey {
         self.our_public_key
     }
 
     /// Get the public key that was created by the other party, that was used to
     /// establish the shared secret.
-    pub fn their_public_key(&self) -> Curve25519PublicKey {
+    pub const fn their_public_key(&self) -> Curve25519PublicKey {
         self.their_public_key
     }
 

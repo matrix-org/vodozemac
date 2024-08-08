@@ -301,11 +301,11 @@ pub enum RatchetCount {
 }
 
 impl RatchetCount {
-    pub fn new() -> RatchetCount {
+    pub const fn new() -> RatchetCount {
         RatchetCount::Known(0)
     }
 
-    pub fn unknown() -> RatchetCount {
+    pub const fn unknown() -> RatchetCount {
         RatchetCount::Unknown(())
     }
 
