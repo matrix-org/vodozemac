@@ -1,0 +1,57 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="This module implements ECIES, the elliptic curve variant of the Integrated Encryption Scheme. This is a hybrid encryption scheme, using elliptic curve Diffie-Hellman for shared secret establishment and a symmetric algorithm for encryption of individual messages. It is instantiated with X25519 (Curve25519-based Diffie-Hellman), HMAC-SHA256 as the KDF and ChaCha20-Poly1305 for symmetric encryption."><title>vodozemac::ecies - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-d10b2a06af903387.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="vodozemac" data-themes="" data-resource-suffix="" data-rustdoc-version="1.82.0-nightly (8b3870784 2024-08-07)" data-channel="nightly" data-search-js="search-ef54e092fea9c776.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-04a29ac50d05d0b1.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle" title="show sidebar"></button></nav><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../vodozemac/index.html">vodozemac</a><span class="version">0.7.0</span></h2></div><h2 class="location"><a href="#">Module ecies</a></h2><div class="sidebar-elems"><section><ul class="block"><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li></ul></section><h2><a href="../index.html">In crate vodozemac</a></h2></div></nav><div class="sidebar-resizer"></div><main><div class="width-limiter"><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1>Module <a href="../index.html">vodozemac</a>::<wbr><a class="mod" href="#">ecies</a><button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><span class="out-of-band"><a class="src" href="../../src/vodozemac/ecies/mod.rs.html#15-740">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>This module implements
+<a href="https://en.wikipedia.org/wiki/Integrated_Encryption_Scheme">ECIES</a>, the
+elliptic curve variant of the Integrated Encryption Scheme. This is a hybrid
+encryption scheme, using elliptic curve Diffie-Hellman for shared secret
+establishment and a symmetric algorithm for encryption of individual
+messages. It is instantiated with X25519 (Curve25519-based Diffie-Hellman),
+HMAC-SHA256 as the KDF and ChaCha20-Poly1305 for symmetric encryption.</p>
+<p>ECIES allows a party (the initiator) to establish a communication channel
+toward another party (the recipient) given knowledge of only its public key.
+We assume that this key was obtained in a secure way. This implies that the
+initiator side is able to tell for sure whether there is an active MITM
+attack in progress once the channel is established.</p>
+<p>On the other hand, the initiator’s key pair is ephemeral and generated anew
+for each new channel. This implies the initiator must send their ephemeral
+public key to the recipient <em>unauthenticated</em> so that the recipient can
+complete the channel establishment on its end. From this it follows that the
+recipient has no way of knowing who is contacting them, allowing for active
+MITM attacks on the recipient side.</p>
+<p>In order to close this vector, an out-of-band confirmation is required to be
+sent from the initiator device to the recipient device, after which the
+channel is considered <em>secure</em>. The module provides the <a href="struct.CheckCode.html" title="struct vodozemac::ecies::CheckCode"><code>CheckCode</code></a>
+facility which can be used for this purpose.</p>
+<p>Throughout this document, we use a naming convention which designates the
+device initiating an ECIES channel as device S, while the device on the
+other side (towards which the channel is opened) is designated device G.</p>
+<h2 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h2>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>vodozemac::ecies::{Ecies, InboundCreationResult, OutboundCreationResult};
+
+<span class="kw">let </span>plaintext = <span class="string">b"It's a secret to everybody"</span>;
+
+<span class="kw">let </span>alice = Ecies::new();
+<span class="kw">let </span>bob = Ecies::new();
+
+<span class="kw">let </span>OutboundCreationResult { ecies: <span class="kw-2">mut </span>alice, message } = alice
+    .establish_outbound_channel(bob.public_key(), plaintext)<span class="question-mark">?</span>;
+
+<span class="kw">let </span>InboundCreationResult { <span class="kw-2">mut </span>ecies, message } = bob
+    .establish_inbound_channel(<span class="kw-2">&amp;</span>message)
+    .expect(<span class="string">"We should be able to create an inbound channel"</span>);
+
+<span class="macro">assert_eq!</span>(
+    message, plaintext,
+    <span class="string">"The decrypted plaintext should match our initial plaintext"
+</span>);
+
+<span class="comment">// We now exchange the check code out-of-band and compare it.
+</span><span class="kw">if </span>alice.check_code() != ecies.check_code() {
+    <span class="macro">panic!</span>(<span class="string">"The check code must match; possible active MITM attack in progress"</span>);
+}
+
+<span class="kw">let </span>message = ecies.encrypt(<span class="string">b"Another plaintext"</span>);
+<span class="kw">let </span>decrypted = alice.decrypt(<span class="kw-2">&amp;</span>message)<span class="question-mark">?</span>;
+
+<span class="macro">assert_eq!</span>(decrypted, <span class="string">b"Another plaintext"</span>);</code></pre></div>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="struct" href="struct.CheckCode.html" title="struct vodozemac::ecies::CheckCode">Check<wbr>Code</a></div><div class="desc docblock-short">A check code that can be used to confirm that two <a href="struct.EstablishedEcies.html" title="struct vodozemac::ecies::EstablishedEcies"><code>EstablishedEcies</code></a>
+objects share the same secret. This is supposed to be shared out-of-band to
+protect against active MITM attacks.</div></li><li><div class="item-name"><a class="struct" href="struct.Ecies.html" title="struct vodozemac::ecies::Ecies">Ecies</a></div><div class="desc docblock-short">An unestablished ECIES session.</div></li><li><div class="item-name"><a class="struct" href="struct.EstablishedEcies.html" title="struct vodozemac::ecies::EstablishedEcies">Established<wbr>Ecies</a></div><div class="desc docblock-short">An established ECIES session.</div></li><li><div class="item-name"><a class="struct" href="struct.InboundCreationResult.html" title="struct vodozemac::ecies::InboundCreationResult">Inbound<wbr>Creation<wbr>Result</a></div><div class="desc docblock-short">The result of an inbound ECIES channel establishment.</div></li><li><div class="item-name"><a class="struct" href="struct.InitialMessage.html" title="struct vodozemac::ecies::InitialMessage">Initial<wbr>Message</a></div><div class="desc docblock-short">The initial message, sent by the ECIES channel establisher.</div></li><li><div class="item-name"><a class="struct" href="struct.Message.html" title="struct vodozemac::ecies::Message">Message</a></div><div class="desc docblock-short">An encrypted message a <a href="struct.EstablishedEcies.html" title="struct vodozemac::ecies::EstablishedEcies"><code>EstablishedEcies</code></a> channel has sent.</div></li><li><div class="item-name"><a class="struct" href="struct.OutboundCreationResult.html" title="struct vodozemac::ecies::OutboundCreationResult">Outbound<wbr>Creation<wbr>Result</a></div><div class="desc docblock-short">The result of an outbound ECIES channel establishment.</div></li></ul><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><ul class="item-table"><li><div class="item-name"><a class="enum" href="enum.Error.html" title="enum vodozemac::ecies::Error">Error</a></div><div class="desc docblock-short">The Error type for the ECIES submodule.</div></li><li><div class="item-name"><a class="enum" href="enum.MessageDecodeError.html" title="enum vodozemac::ecies::MessageDecodeError">Message<wbr>Decode<wbr>Error</a></div><div class="desc docblock-short">The error type for the ECIES message decoding failures.</div></li></ul></section></div></main></body></html>
