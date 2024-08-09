@@ -1,28 +1,41 @@
-![Build Status](https://img.shields.io/github/actions/workflow/status/matrix-org/vodozemac/ci.yml?style=flat-square)
-[![codecov](https://img.shields.io/codecov/c/github/matrix-org/vodozemac/main.svg?style=flat-square)](https://codecov.io/gh/matrix-org/vodozemac)
-[![License](https://img.shields.io/badge/License-Apache%202.0-yellowgreen.svg?style=flat-square)](https://opensource.org/licenses/Apache-2.0)
-[![Docs - Main](https://img.shields.io/badge/docs-main-blue.svg?style=flat-square)](https://matrix-org.github.io/vodozemac/vodozemac/index.html)
-[![Docs - Stable](https://img.shields.io/crates/v/vodozemac?color=blue&label=docs&style=flat-square)](https://docs.rs/vodozemac)
+<p align="center">
+    <a href="https://git-cliff.org">
+        <img src="contrib/mascot.webp" width="300"></a>
+    <br>
+    <a href="https://github.com/matrix-org/vodozemac/releases">
+        <img src="https://img.shields.io/github/v/release/matrix-org/vodozemac?style=flat&labelColor=1C2E27&color=66845F&logo=GitHub&logoColor=white">
+    </a>
+    <a href="https://crates.io/crates/vodozemac/">
+        <img src="https://img.shields.io/crates/v/vodozemac?style=flat&labelColor=1C2E27&color=66845F&logo=Rust&logoColor=white">
+    </a>
+    <a href="https://codecov.io/gh/matrix-org/vodozemac">
+        <img src="https://img.shields.io/codecov/c/gh/matrix-org/vodozemac?style=flat&labelColor=1C2E27&color=66845F&logo=Codecov&logoColor=white">
+    </a>
+    <br>
+    <a href="https://docs.rs/vodozemac/">
+        <img src="https://img.shields.io/docsrs/vodozemac?style=flat&labelColor=1C2E27&color=66845F&logo=Rust&logoColor=white">
+    </a>
+    <a href="https://github.com/matrix-org/vodozemac/actions/workflows/ci.yml">
+        <img src="https://img.shields.io/github/actions/workflow/status/matrix-org/vodozemac/ci.yml?style=flat&labelColor=1C2E27&color=66845F&logo=GitHub%20Actions&logoColor=white">
+    </a>
+    <br>
+</p>
 
-A Rust implementation of Olm and Megolm
+A Rust implementation of [Olm][olm-docs] and [Megolm][megolm-docs].
 
-vodozemac is a Rust reimplementation of
-[libolm](https://gitlab.matrix.org/matrix-org/olm), a cryptographic library
-used for end-to-end encryption in [Matrix](https://matrix.org). At its core, it
-is an implementation of the [Olm][olm-docs] and [Megolm][megolm-docs] cryptographic ratchets,
-along with a high-level API to easily establish cryptographic communication
-channels employing those ratchets with other parties. It also implements some
-other miscellaneous cryptographic functionality which is useful for building
-Matrix clients, such as [SAS][sas].
+[vodozemac] is a Rust reimplementation of
+[libolm](https://gitlab.matrix.org/matrix-org/olm), a cryptographic library used
+for end-to-end encryption in [Matrix](https://matrix.org). At its core, it is an
+implementation of the [Olm][olm-docs] and [Megolm][megolm-docs] cryptographic
+ratchets, along with a high-level API to easily establish cryptographic
+communication channels employing those ratchets with other parties. It also
+implements some other miscellaneous cryptographic functionality which is useful
+for building Matrix clients, such as [SAS][sas].
 
-[olm-docs]:
-<https://gitlab.matrix.org/matrix-org/olm/-/blob/master/docs/olm.md>
-
-[megolm-docs]:
-<https://gitlab.matrix.org/matrix-org/olm/-/blob/master/docs/megolm.md>
-
-[sas]:
-<https://spec.matrix.org/v1.2/client-server-api/#short-authentication-string-sas-verification>
+[vodozemac]: https://hjp.znanje.hr/index.php?show=search_by_id&id=f19vXxZ%2F
+[olm-docs]: <https://gitlab.matrix.org/matrix-org/olm/-/blob/master/docs/olm.md>
+[megolm-docs]: <https://gitlab.matrix.org/matrix-org/olm/-/blob/master/docs/megolm.md>
+[sas]: <https://spec.matrix.org/v1.2/client-server-api/#short-authentication-string-sas-verification>
 
 # Features
 
