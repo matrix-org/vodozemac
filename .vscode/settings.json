@@ -1,0 +1,6 @@
+{
+    "rust-analyzer.checkOnSave.command": "clippy",
+    "rust-analyzer.rustfmt": {
+        "extraArgs": ["+nightly"]
+    }
+}
