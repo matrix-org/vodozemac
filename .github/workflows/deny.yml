@@ -1,0 +1,13 @@
+name: Check for banned licenses
+on:
+  pull_request:
+    paths:
+      - '**/Cargo.toml'
+jobs:
+  cargo-deny:
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v3
+    - uses: EmbarkStudios/cargo-deny-action@v1
+      with:
+        command: check bans licenses sources
