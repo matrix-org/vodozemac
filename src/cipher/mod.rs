@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod key;
+pub(crate) mod key;
 
 use aes::{
     cipher::{
@@ -27,9 +27,9 @@ use key::CipherKeys;
 use sha2::Sha256;
 use thiserror::Error;
 
-type Aes256CbcEnc = cbc::Encryptor<Aes256>;
-type Aes256CbcDec = cbc::Decryptor<Aes256>;
-type HmacSha256 = Hmac<Sha256>;
+pub(crate) type Aes256CbcEnc = cbc::Encryptor<Aes256>;
+pub(crate) type Aes256CbcDec = cbc::Decryptor<Aes256>;
+pub(crate) type HmacSha256 = Hmac<Sha256>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Mac(pub(crate) [u8; Self::LENGTH]);
