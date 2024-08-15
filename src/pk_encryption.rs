@@ -13,11 +13,6 @@
 // limitations under the License.
 
 //! ☣️  Compat support for Olm's PkEncryption and PkDecryption
-use crate::{
-    base64_decode,
-    cipher::key::{CipherKeys, ExpandedKeys},
-    Curve25519PublicKey, Curve25519SecretKey, KeyError,
-};
 use aes::{
     cipher::{
         block_padding::{Pkcs7, UnpadError},
@@ -28,6 +23,12 @@ use aes::{
 use hmac::{digest::MacError, Hmac, Mac as MacT};
 use sha2::Sha256;
 use thiserror::Error;
+
+use crate::{
+    base64_decode,
+    cipher::key::{CipherKeys, ExpandedKeys},
+    Curve25519PublicKey, Curve25519SecretKey, KeyError,
+};
 
 type Aes256CbcEnc = cbc::Encryptor<Aes256>;
 type Aes256CbcDec = cbc::Decryptor<Aes256>;
@@ -175,10 +176,10 @@ pub enum Error {
 
 #[cfg(test)]
 mod tests {
-    use crate::{base64_encode, Curve25519PublicKey};
     use olm_rs::pk::{OlmPkDecryption, OlmPkEncryption, PkMessage};
 
     use super::{Message, MessageDecodeError, PkDecryption, PkEncryption};
+    use crate::{base64_encode, Curve25519PublicKey};
 
     impl TryFrom<PkMessage> for Message {
         type Error = MessageDecodeError;
