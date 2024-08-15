@@ -217,6 +217,8 @@ pub mod ecies;
 pub mod hazmat;
 pub mod megolm;
 pub mod olm;
+#[cfg(feature = "insecure-pk-encryption")]
+pub mod pk_encryption;
 pub mod sas;
 
 pub use base64::DecodeError as Base64DecodeError;

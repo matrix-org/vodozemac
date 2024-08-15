@@ -28,7 +28,7 @@ type Aes256Iv = GenericArray<u8, <Aes256CbcEnc as IvSizeUser>::IvSize>;
 type HmacSha256Key = [u8; 32];
 
 #[derive(Zeroize, ZeroizeOnDrop)]
-struct ExpandedKeys(Box<[u8; 80]>);
+pub(crate) struct ExpandedKeys(Box<[u8; 80]>);
 
 impl ExpandedKeys {
     const OLM_HKDF_INFO: &'static [u8] = b"OLM_KEYS";
@@ -47,7 +47,7 @@ impl ExpandedKeys {
         Self::new_helper(pickle_key, b"Pickle")
     }
 
-    fn new_helper(message_key: &[u8], info: &[u8]) -> Self {
+    pub(crate) fn new_helper(message_key: &[u8], info: &[u8]) -> Self {
         let mut expanded_keys = [0u8; 80];
 
         let hkdf: Hkdf<Sha256> = Hkdf::new(Some(&[0]), message_key);
@@ -59,7 +59,7 @@ impl ExpandedKeys {
 }
 
 #[derive(Zeroize, ZeroizeOnDrop)]
-pub(super) struct CipherKeys {
+pub(crate) struct CipherKeys {
     aes_key: Box<[u8; 32]>,
     aes_iv: Box<[u8; 16]>,
     mac_key: Box<[u8; 32]>,
@@ -85,7 +85,7 @@ impl CipherKeys {
         Self::from_expanded_keys(expanded_keys)
     }
 
-    fn from_expanded_keys(expanded_keys: ExpandedKeys) -> Self {
+    pub(crate) fn from_expanded_keys(expanded_keys: ExpandedKeys) -> Self {
         let mut aes_key = Box::new([0u8; 32]);
         let mut mac_key = Box::new([0u8; 32]);
         let mut aes_iv = Box::new([0u8; 16]);
