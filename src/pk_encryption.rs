@@ -13,26 +13,21 @@
 // limitations under the License.
 
 //! ☣️  Compat support for Olm's PkEncryption and PkDecryption
-use aes::{
-    cipher::{
-        block_padding::{Pkcs7, UnpadError},
-        BlockDecryptMut, BlockEncryptMut, KeyIvInit,
-    },
-    Aes256,
+use aes::cipher::{
+    block_padding::{Pkcs7, UnpadError},
+    BlockDecryptMut as _, BlockEncryptMut as _, KeyIvInit as _,
 };
-use hmac::{digest::MacError, Hmac, Mac as MacT};
-use sha2::Sha256;
+use hmac::{digest::MacError, Mac as _};
 use thiserror::Error;
 
 use crate::{
     base64_decode,
-    cipher::key::{CipherKeys, ExpandedKeys},
+    cipher::{
+        key::{CipherKeys, ExpandedKeys},
+        Aes256CbcDec, Aes256CbcEnc, HmacSha256,
+    },
     Curve25519PublicKey, Curve25519SecretKey, KeyError,
 };
-
-type Aes256CbcEnc = cbc::Encryptor<Aes256>;
-type Aes256CbcDec = cbc::Decryptor<Aes256>;
-type HmacSha256 = Hmac<Sha256>;
 
 const MAC_LENGTH: usize = 8;
 
@@ -42,6 +37,10 @@ pub struct PkDecryption {
 }
 
 impl PkDecryption {
+    /// Create a new random [`PkDecryption`] object.
+    ///
+    /// This will create a new random [`Curve25519SecretKey`] which is used as
+    /// the long-term
     pub fn new() -> Self {
         let key = Curve25519SecretKey::new();
         let public_key = Curve25519PublicKey::from(&key);
@@ -49,10 +48,13 @@ impl PkDecryption {
         Self { key, public_key }
     }
 
-    pub fn public_key(&self) -> Curve25519PublicKey {
+    /// Get the [`Curve25519PublicKey`] which is
+    pub const fn public_key(&self) -> Curve25519PublicKey {
         self.public_key
     }
 
+    /// Decrypt a [`Message`] which was encrypted for this [`PkDecryption`]
+    /// object.
     pub fn decrypt(&self, message: &Message) -> Result<Vec<u8>, Error> {
         let shared_secret = self.key.diffie_hellman(&message.ephemeral_key);
 
@@ -62,6 +64,8 @@ impl PkDecryption {
         let hmac = HmacSha256::new_from_slice(cipher_keys.mac_key())
             .expect("We should be able to create a Hmac object from a 32 byte key");
 
+        // This is a know issue, we check the MAC of an empty message instead of
+        // updating the `hmac` object with the ciphertext bytes.
         hmac.verify_truncated_left(&message.mac)?;
 
         let cipher = Aes256CbcDec::new(cipher_keys.aes_key(), cipher_keys.iv());
@@ -70,11 +74,17 @@ impl PkDecryption {
         Ok(decrypted)
     }
 
+    /// Create a [`PkDecryption`] object from a slice of bytes.
     pub fn from_bytes(bytes: &[u8; 32]) -> Self {
         let key = Curve25519SecretKey::from_slice(bytes);
         let public_key = Curve25519PublicKey::from(&key);
 
         Self { key, public_key }
+    }
+
+    /// Export this [`PkDecryption`] object to a slice of bytes.
+    pub fn to_bytes(&self) -> Box<[u8; 32]> {
+        self.key.to_bytes()
     }
 }
 
@@ -89,7 +99,7 @@ pub struct PkEncryption {
 }
 
 impl PkEncryption {
-    pub fn from_key(public_key: Curve25519PublicKey) -> Self {
+    pub const fn from_key(public_key: Curve25519PublicKey) -> Self {
         Self { public_key }
     }
 
@@ -105,6 +115,9 @@ impl PkEncryption {
 
         let hmac = HmacSha256::new_from_slice(cipher_keys.mac_key())
             .expect("We should be able to create a Hmac object from a 32 byte key");
+
+        // This is a know issue, we create a MAC of an empty message instead of
+        // updating the `hmac` object with the ciphertext bytes.
         let mut mac = hmac.finalize().into_bytes().to_vec();
         mac.truncate(MAC_LENGTH);
 
@@ -162,9 +175,6 @@ pub enum Error {
     /// The message failed to be authenticated.
     #[error("The MAC of the ciphertext didn't pass validation {0}")]
     Mac(#[from] MacError),
-    /// The message failed to be decoded.
-    #[error("The message could not been decoded: {0}")]
-    Decoding(#[from] MessageDecodeError),
     /// The message's Curve25519 key failed to be decoded.
     #[error("The message's ephemeral Curve25519 key could not been decoded: {0}")]
     InvalidCurveKey(#[from] KeyError),
@@ -181,6 +191,8 @@ mod tests {
     use super::{Message, MessageDecodeError, PkDecryption, PkEncryption};
     use crate::{base64_encode, Curve25519PublicKey};
 
+    // Conversion from the libolm type to the vodozemac type. To make some tests
+    // easier on the eyes.
     impl TryFrom<PkMessage> for Message {
         type Error = MessageDecodeError;
 
@@ -200,7 +212,7 @@ mod tests {
     }
 
     #[test]
-    fn decrypt() {
+    fn decrypt_libolm_encrypted_message() {
         let decryptor = PkDecryption::new();
         let public_key = decryptor.public_key();
         let encryptor = OlmPkEncryption::new(&public_key.to_base64());
@@ -216,7 +228,7 @@ mod tests {
     }
 
     #[test]
-    fn encrypt() {
+    fn encrypt_for_libolm_pk_decryption() {
         let decryptor = OlmPkDecryption::new();
         let public_key = Curve25519PublicKey::from_base64(decryptor.public_key()).unwrap();
         let encryptor = PkEncryption::from_key(public_key);
@@ -232,7 +244,7 @@ mod tests {
     }
 
     #[test]
-    fn encrypt_native() {
+    fn encryption_roundtrip() {
         let decryptor = PkDecryption::new();
         let public_key = decryptor.public_key();
         let encryptor = PkEncryption::from_key(public_key);
@@ -243,5 +255,19 @@ mod tests {
         let decrypted = decryptor.decrypt(&encrypted).unwrap();
 
         assert_eq!(message.as_ref(), decrypted);
+    }
+
+    #[test]
+    fn from_bytes() {
+        let decryption = PkDecryption::default();
+        let bytes = decryption.to_bytes();
+
+        let restored = PkDecryption::from_bytes(&bytes);
+
+        assert_eq!(
+            decryption.public_key(),
+            restored.public_key(),
+            "The public keys of the restored and original PK decryption should match"
+        );
     }
 }
