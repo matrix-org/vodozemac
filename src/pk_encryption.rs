@@ -18,7 +18,9 @@ use aes::cipher::{
     BlockDecryptMut as _, BlockEncryptMut as _, KeyIvInit as _,
 };
 use hmac::{digest::MacError, Mac as _};
+use matrix_pickle::{Decode, Encode};
 use thiserror::Error;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::{
     base64_decode,
@@ -30,6 +32,7 @@ use crate::{
 };
 
 const MAC_LENGTH: usize = 8;
+const PICKLE_VERSION: u32 = 1;
 
 pub struct PkDecryption {
     key: Curve25519SecretKey,
@@ -86,11 +89,89 @@ impl PkDecryption {
     pub fn to_bytes(&self) -> Box<[u8; 32]> {
         self.key.to_bytes()
     }
+
+    /// Create a [`PkDecryption`] object by unpickling a PkDecryption pickle in libolm
+    /// legacy pickle format.
+    ///
+    /// Such pickles are encrypted and need to first be decrypted using
+    /// `pickle_key`.
+    pub fn from_libolm_pickle(
+        pickle: &str,
+        pickle_key: &[u8],
+    ) -> Result<Self, crate::LibolmPickleError> {
+        use crate::utilities::unpickle_libolm;
+
+        unpickle_libolm::<PkDecryptionPickle, _>(pickle, pickle_key, PICKLE_VERSION)
+    }
+
+    /// Pickle a [`PkDecryption`] into a libolm pickle format.
+    ///
+    /// This pickle can be restored using the `[PkDecryption::from_libolm_pickle]`
+    /// method, or can be used in the [`libolm`] C library.
+    ///
+    /// The pickle will be encrypted using the pickle key.
+    ///
+    /// ⚠️  ***Security Warning***: The pickle key will get expanded into both
+    /// an AES key and an IV in a deterministic manner. If the same pickle
+    /// key is reused, this will lead to IV reuse. To prevent this, users
+    /// have to ensure that they always use a globally (probabilistically)
+    /// unique pickle key.
+    ///
+    /// [`libolm`]: https://gitlab.matrix.org/matrix-org/olm/
+    ///
+    /// # Examples
+    /// ```
+    /// use vodozemac::pk_encryption::PkDecryption;
+    /// use olm_rs::{pk::OlmPkDecryption, PicklingMode};
+    ///
+    /// let decrypt = PkDecryption::new();
+    ///
+    /// let pickle = decrypt
+    ///     .to_libolm_pickle(&[0u8; 32])
+    ///     .expect("We should be able to pickle a freshly created PkDecryption");
+    ///
+    /// let unpickled = OlmPkDecryption::unpickle(
+    ///     pickle,
+    ///     PicklingMode::Encrypted { key: [0u8; 32].to_vec() },
+    /// ).expect("We should be able to unpickle our exported PkDecryption");
+    /// ```
+    pub fn to_libolm_pickle(&self, pickle_key: &[u8]) -> Result<String, crate::LibolmPickleError> {
+        use crate::utilities::pickle_libolm;
+        pickle_libolm::<PkDecryptionPickle>(self.into(), pickle_key)
+    }
 }
 
 impl Default for PkDecryption {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl TryFrom<PkDecryptionPickle> for PkDecryption {
+    type Error = crate::LibolmPickleError;
+
+    fn try_from(pickle: PkDecryptionPickle) -> Result<Self, Self::Error> {
+        Ok(Self {
+            key: Curve25519SecretKey::from_slice(&pickle.private_curve25519_key),
+            public_key: Curve25519PublicKey::from_slice(&pickle.public_curve25519_key)?,
+        })
+    }
+}
+
+#[derive(Encode, Decode, Zeroize, ZeroizeOnDrop)]
+struct PkDecryptionPickle {
+    version: u32,
+    public_curve25519_key: [u8; 32],
+    private_curve25519_key: Box<[u8; 32]>,
+}
+
+impl From<&PkDecryption> for PkDecryptionPickle {
+    fn from(decrypt: &PkDecryption) -> Self {
+        Self {
+            version: PICKLE_VERSION,
+            public_curve25519_key: decrypt.public_key.to_bytes(),
+            private_curve25519_key: decrypt.key.to_bytes(),
+        }
     }
 }
 
@@ -269,5 +350,41 @@ mod tests {
             restored.public_key(),
             "The public keys of the restored and original PK decryption should match"
         );
+    }
+
+    #[test]
+    fn libolm_unpickling() -> anyhow::Result<()> {
+        let olm = OlmPkDecryption::new();
+
+        let key = b"DEFAULT_PICKLE_KEY";
+        let pickle = olm.pickle(olm_rs::PicklingMode::Encrypted { key: key.to_vec() });
+
+        let unpickled = PkDecryption::from_libolm_pickle(&pickle, key)?;
+
+        assert_eq!(olm.public_key(), unpickled.public_key().to_base64());
+
+        Ok(())
+    }
+
+    #[test]
+    fn libolm_pickle_cycle() -> anyhow::Result<()> {
+        let olm = OlmPkDecryption::new();
+
+        let key = b"DEFAULT_PICKLE_KEY";
+        let pickle = olm.pickle(olm_rs::PicklingMode::Encrypted { key: key.to_vec() });
+
+        let decrypt = PkDecryption::from_libolm_pickle(&pickle, key).unwrap();
+        let vodozemac_pickle = decrypt.to_libolm_pickle(key).unwrap();
+        let _ = PkDecryption::from_libolm_pickle(&vodozemac_pickle, key).unwrap();
+
+        let unpickled = OlmPkDecryption::unpickle(
+            vodozemac_pickle,
+            olm_rs::PicklingMode::Encrypted { key: key.to_vec() },
+        )
+        .unwrap();
+
+        assert_eq!(olm.public_key(), unpickled.public_key());
+
+        Ok(())
     }
 }
