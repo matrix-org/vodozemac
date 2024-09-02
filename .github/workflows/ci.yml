@@ -55,7 +55,7 @@ jobs:
     - uses: Swatinem/rust-cache@v2
 
     - name: Clippy
-      run: cargo clippy --all-targets -- -D warnings
+      run: cargo clippy --all-targets --all-features -- -D warnings
 
   test:
     name: ${{ matrix.target.name }} ${{ matrix.channel }}
