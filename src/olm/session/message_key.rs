@@ -95,13 +95,13 @@ impl MessageKey {
 
     /// Get the message key's ratchet key.
     #[cfg(feature = "low-level-api")]
-    pub fn ratchet_key(&self) -> RatchetPublicKey {
+    pub const fn ratchet_key(&self) -> RatchetPublicKey {
         self.ratchet_key
     }
 
     /// Get the message key's index.
     #[cfg(feature = "low-level-api")]
-    pub fn index(&self) -> u64 {
+    pub const fn index(&self) -> u64 {
         self.index
     }
 }

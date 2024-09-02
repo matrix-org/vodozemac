@@ -153,7 +153,7 @@ impl PreKeyMessage {
 
     /// Create a new pre-key message from the session keys and standard message.
     #[cfg(feature = "low-level-api")]
-    pub fn wrap(session_keys: SessionKeys, message: Message) -> Self {
+    pub const fn wrap(session_keys: SessionKeys, message: Message) -> Self {
         PreKeyMessage::new(session_keys, message)
     }
 
