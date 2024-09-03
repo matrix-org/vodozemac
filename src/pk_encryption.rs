@@ -418,38 +418,46 @@ mod tests {
     }
 
     #[test]
-    fn libolm_unpickling() -> anyhow::Result<()> {
+    fn libolm_unpickling() {
         let olm = OlmPkDecryption::new();
 
         let key = b"DEFAULT_PICKLE_KEY";
         let pickle = olm.pickle(olm_rs::PicklingMode::Encrypted { key: key.to_vec() });
 
-        let unpickled = PkDecryption::from_libolm_pickle(&pickle, key)?;
+        let unpickled = PkDecryption::from_libolm_pickle(&pickle, key)
+            .expect("We should be able to unpickle a key pickled by libolm");
 
-        assert_eq!(olm.public_key(), unpickled.public_key().to_base64());
-
-        Ok(())
+        assert_eq!(
+            olm.public_key(),
+            unpickled.public_key().to_base64(),
+            "The public keys of libolm and vodozemac should match"
+        );
     }
 
     #[test]
-    fn libolm_pickle_cycle() -> anyhow::Result<()> {
+    fn libolm_pickle_cycle() {
         let olm = OlmPkDecryption::new();
 
         let key = b"DEFAULT_PICKLE_KEY";
         let pickle = olm.pickle(olm_rs::PicklingMode::Encrypted { key: key.to_vec() });
 
-        let decrypt = PkDecryption::from_libolm_pickle(&pickle, key).unwrap();
-        let vodozemac_pickle = decrypt.to_libolm_pickle(key).unwrap();
-        let _ = PkDecryption::from_libolm_pickle(&vodozemac_pickle, key).unwrap();
+        let decrypt = PkDecryption::from_libolm_pickle(&pickle, key)
+            .expect("We should be able to unpickle a key pickled by libolm");
+        let vodozemac_pickle =
+            decrypt.to_libolm_pickle(key).expect("We should be able to pickle a key");
+        let _ = PkDecryption::from_libolm_pickle(&vodozemac_pickle, key)
+            .expect("We should be able to unpickle a key pickled by vodozemac");
 
         let unpickled = OlmPkDecryption::unpickle(
             vodozemac_pickle,
             olm_rs::PicklingMode::Encrypted { key: key.to_vec() },
         )
-        .unwrap();
+        .expect("Libolm should be able to unpickle a key pickled by vodozemac");
 
-        assert_eq!(olm.public_key(), unpickled.public_key());
-
-        Ok(())
+        assert_eq!(
+            olm.public_key(),
+            unpickled.public_key(),
+            "The public keys of the restored and original libolm PK decryption should match"
+        );
     }
 }
