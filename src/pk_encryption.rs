@@ -178,8 +178,8 @@ impl PkDecryption {
         self.key.to_bytes()
     }
 
-    /// Create a [`PkDecryption`] object by unpickling a PkDecryption pickle in libolm
-    /// legacy pickle format.
+    /// Create a [`PkDecryption`] object by unpickling a PkDecryption pickle in
+    /// libolm legacy pickle format.
     ///
     /// Such pickles are encrypted and need to first be decrypted using
     /// `pickle_key`.
@@ -194,8 +194,9 @@ impl PkDecryption {
 
     /// Pickle a [`PkDecryption`] into a libolm pickle format.
     ///
-    /// This pickle can be restored using the `[PkDecryption::from_libolm_pickle]`
-    /// method, or can be used in the [`libolm`] C library.
+    /// This pickle can be restored using the
+    /// `[PkDecryption::from_libolm_pickle]` method, or can be used in the
+    /// [`libolm`] C library.
     ///
     /// The pickle will be encrypted using the pickle key.
     ///
