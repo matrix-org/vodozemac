@@ -14,6 +14,8 @@
 
 #![deny(missing_docs)]
 
+//! Implementation of an integrated encryption scheme.
+//!
 //! This module implements
 //! [ECIES](https://en.wikipedia.org/wiki/Integrated_Encryption_Scheme), the
 //! elliptic curve variant of the Integrated Encryption Scheme. This is a hybrid
