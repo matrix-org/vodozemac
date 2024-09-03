@@ -236,7 +236,6 @@ impl Default for PkDecryption {
     }
 }
 
-/// Attempt to decode a [`PkDecryption`] object from a [`PkDecryptionPickle`] object.
 impl TryFrom<PkDecryptionPickle> for PkDecryption {
     type Error = crate::LibolmPickleError;
 
@@ -257,7 +256,6 @@ struct PkDecryptionPickle {
 }
 
 impl From<&PkDecryption> for PkDecryptionPickle {
-    /// Create a new [`PkDecryptionPickle`] object from a [`PkDecryption`] object.
     fn from(decrypt: &PkDecryption) -> Self {
         Self {
             version: PICKLE_VERSION,
