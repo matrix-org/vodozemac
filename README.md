@@ -2,26 +2,20 @@
 <div align="center">
     <i>vodozemac is an implementation of Olm (Double Ratchet) and Megolm</i>
     <br/><br/>
-    <a href="https://git-cliff.org">
-        <img src="contrib/zemi.png" width="200"></a>
+    <img src="contrib/zemi.png" width="200">
     <br>
     <hr>
     <a href="https://github.com/matrix-org/vodozemac/releases">
-        <img src="https://img.shields.io/github/v/release/matrix-org/vodozemac?style=flat&labelColor=1C2E27&color=66845F&logo=GitHub&logoColor=white">
-    </a>
+        <img src="https://img.shields.io/github/v/release/matrix-org/vodozemac?style=flat&labelColor=1C2E27&color=66845F&logo=GitHub&logoColor=white"></a>
     <a href="https://crates.io/crates/vodozemac/">
-        <img src="https://img.shields.io/crates/v/vodozemac?style=flat&labelColor=1C2E27&color=66845F&logo=Rust&logoColor=white">
-    </a>
+        <img src="https://img.shields.io/crates/v/vodozemac?style=flat&labelColor=1C2E27&color=66845F&logo=Rust&logoColor=white"></a>
     <a href="https://codecov.io/gh/matrix-org/vodozemac">
-        <img src="https://img.shields.io/codecov/c/gh/matrix-org/vodozemac?style=flat&labelColor=1C2E27&color=66845F&logo=Codecov&logoColor=white">
-    </a>
+        <img src="https://img.shields.io/codecov/c/gh/matrix-org/vodozemac?style=flat&labelColor=1C2E27&color=66845F&logo=Codecov&logoColor=white"></a>
     <br>
     <a href="https://docs.rs/vodozemac/">
-        <img src="https://img.shields.io/docsrs/vodozemac?style=flat&labelColor=1C2E27&color=66845F&logo=Rust&logoColor=white">
-    </a>
+        <img src="https://img.shields.io/docsrs/vodozemac?style=flat&labelColor=1C2E27&color=66845F&logo=Rust&logoColor=white"></a>
     <a href="https://github.com/matrix-org/vodozemac/actions/workflows/ci.yml">
-        <img src="https://img.shields.io/github/actions/workflow/status/matrix-org/vodozemac/ci.yml?style=flat&labelColor=1C2E27&color=66845F&logo=GitHub%20Actions&logoColor=white">
-    </a>
+        <img src="https://img.shields.io/github/actions/workflow/status/matrix-org/vodozemac/ci.yml?style=flat&labelColor=1C2E27&color=66845F&logo=GitHub%20Actions&logoColor=white"></a>
     <br>
     <br>
 </div>
