@@ -240,10 +240,10 @@ impl TryFrom<PkDecryptionPickle> for PkDecryption {
     type Error = crate::LibolmPickleError;
 
     fn try_from(pickle: PkDecryptionPickle) -> Result<Self, Self::Error> {
-        Ok(Self {
-            key: Curve25519SecretKey::from_slice(&pickle.private_curve25519_key),
-            public_key: Curve25519PublicKey::from_slice(&pickle.public_curve25519_key)?,
-        })
+        let key = Curve25519SecretKey::from_slice(&pickle.private_curve25519_key);
+        let public_key = Curve25519PublicKey::from(&key);
+
+        Ok(Self { key, public_key })
     }
 }
 
