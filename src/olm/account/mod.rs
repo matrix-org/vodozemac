@@ -129,8 +129,8 @@ impl Account {
     }
 
     /// Sign the given message using our Ed25519 fingerprint key.
-    pub fn sign(&self, message: &str) -> Ed25519Signature {
-        self.signing_key.sign(message.as_bytes())
+    pub fn sign(&self, message: impl AsRef<[u8]>) -> Ed25519Signature {
+        self.signing_key.sign(message.as_ref())
     }
 
     /// Get the maximum number of one-time keys the client should keep on the
@@ -1076,7 +1076,7 @@ mod test {
         #[allow(clippy::redundant_clone)]
         let signing_key_clone = account_with_expanded_key.signing_key.clone();
         signing_key_clone.sign("You met with a terrible fate, haven’t you?".as_bytes());
-        account_with_expanded_key.sign("You met with a terrible fate, haven’t you?");
+        account_with_expanded_key.sign("You met with a terrible fate, haven’t you?".as_bytes());
 
         Ok(())
     }
@@ -1146,7 +1146,7 @@ mod test {
         let vodozemac_pickle = account.to_libolm_pickle(key).unwrap();
         let _ = Account::from_libolm_pickle(&vodozemac_pickle, key).unwrap();
 
-        let vodozemac_signature = account.sign(message);
+        let vodozemac_signature = account.sign(message.as_bytes());
         let olm_signature = Ed25519Signature::from_base64(&olm_signature)
             .expect("We should be able to parse a signature produced by libolm");
         account

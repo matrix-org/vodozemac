@@ -19,7 +19,7 @@ pub use message::Message;
 pub use pre_key::PreKeyMessage;
 use serde::{Deserialize, Serialize};
 
-use crate::DecodeError;
+use crate::{base64_decode, base64_encode, DecodeError};
 
 /// Enum over the different Olm message types.
 ///
@@ -67,9 +67,8 @@ impl Serialize for OlmMessage {
     where
         S: serde::Serializer,
     {
-        let (message_type, ciphertext) = self.clone().to_parts();
-
-        let message = MessageSerdeHelper { message_type, ciphertext };
+        let (message_type, ciphertext) = self.to_parts();
+        let message = MessageSerdeHelper { message_type, ciphertext: base64_encode(ciphertext) };
 
         message.serialize(serializer)
     }
@@ -78,18 +77,19 @@ impl Serialize for OlmMessage {
 impl<'de> Deserialize<'de> for OlmMessage {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let value = MessageSerdeHelper::deserialize(d)?;
+        let ciphertext_bytes = base64_decode(value.ciphertext).map_err(serde::de::Error::custom)?;
 
-        OlmMessage::from_parts(value.message_type, &value.ciphertext)
+        OlmMessage::from_parts(value.message_type, ciphertext_bytes.as_slice())
             .map_err(serde::de::Error::custom)
     }
 }
 
 impl OlmMessage {
     /// Create a `OlmMessage` from a message type and a ciphertext.
-    pub fn from_parts(message_type: usize, ciphertext: &str) -> Result<Self, DecodeError> {
+    pub fn from_parts(message_type: usize, ciphertext: &[u8]) -> Result<Self, DecodeError> {
         match message_type {
-            0 => Ok(Self::PreKey(PreKeyMessage::try_from(ciphertext)?)),
-            1 => Ok(Self::Normal(Message::try_from(ciphertext)?)),
+            0 => Ok(Self::PreKey(PreKeyMessage::from_bytes(ciphertext)?)),
+            1 => Ok(Self::Normal(Message::from_bytes(ciphertext)?)),
             m => Err(DecodeError::MessageType(m)),
         }
     }
@@ -110,14 +110,13 @@ impl OlmMessage {
         }
     }
 
-    /// Convert the `OlmMessage` into a message type, and base64 encoded message
-    /// tuple.
-    pub fn to_parts(self) -> (usize, String) {
+    /// Convert the `OlmMessage` into a message type, and message bytes tuple.
+    pub fn to_parts(&self) -> (usize, Vec<u8>) {
         let message_type = self.message_type();
 
         match self {
-            OlmMessage::Normal(m) => (message_type.into(), m.to_base64()),
-            OlmMessage::PreKey(m) => (message_type.into(), m.to_base64()),
+            OlmMessage::Normal(m) => (message_type.into(), m.to_bytes()),
+            OlmMessage::PreKey(m) => (message_type.into(), m.to_bytes()),
         }
     }
 }
@@ -156,8 +155,10 @@ use olm_rs::session::OlmMessage as LibolmMessage;
 impl From<LibolmMessage> for OlmMessage {
     fn from(other: LibolmMessage) -> Self {
         let (message_type, ciphertext) = other.to_tuple();
+        let ciphertext_bytes = base64_decode(ciphertext).expect("Can't decode base64");
 
-        Self::from_parts(message_type.into(), &ciphertext).expect("Can't decode a libolm message")
+        Self::from_parts(message_type.into(), ciphertext_bytes.as_slice())
+            .expect("Can't decode a libolm message")
     }
 }
 
@@ -247,7 +248,7 @@ mod tests {
 
     #[test]
     fn from_parts() -> Result<()> {
-        let message = OlmMessage::from_parts(0, PRE_KEY_MESSAGE)?;
+        let message = OlmMessage::from_parts(0, base64_decode(PRE_KEY_MESSAGE)?.as_slice())?;
         assert_matches!(message, OlmMessage::PreKey(_));
         assert_eq!(
             message.message_type(),
@@ -255,9 +256,13 @@ mod tests {
             "Expected message to be recognized as a pre-key Olm message."
         );
         assert_eq!(message.message(), PRE_KEY_MESSAGE_CIPHERTEXT);
-        assert_eq!(message.to_parts(), (0, PRE_KEY_MESSAGE.to_string()), "Roundtrip not identity.");
+        assert_eq!(
+            message.to_parts(),
+            (0, base64_decode(PRE_KEY_MESSAGE)?),
+            "Roundtrip not identity."
+        );
 
-        let message = OlmMessage::from_parts(1, MESSAGE)?;
+        let message = OlmMessage::from_parts(1, base64_decode(MESSAGE)?.as_slice())?;
         assert_matches!(message, OlmMessage::Normal(_));
         assert_eq!(
             message.message_type(),
@@ -265,9 +270,9 @@ mod tests {
             "Expected message to be recognized as a normal Olm message."
         );
         assert_eq!(message.message(), MESSAGE_CIPHERTEXT);
-        assert_eq!(message.to_parts(), (1, MESSAGE.to_string()), "Roundtrip not identity.");
+        assert_eq!(message.to_parts(), (1, base64_decode(MESSAGE)?), "Roundtrip not identity.");
 
-        OlmMessage::from_parts(3, PRE_KEY_MESSAGE)
+        OlmMessage::from_parts(3, base64_decode(PRE_KEY_MESSAGE)?.as_slice())
             .expect_err("Unknown message types can't be parsed");
 
         Ok(())
