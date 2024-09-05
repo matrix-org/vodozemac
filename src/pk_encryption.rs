@@ -252,6 +252,7 @@ impl TryFrom<PkDecryptionPickle> for PkDecryption {
 struct PkDecryptionPickle {
     version: u32,
     public_curve25519_key: [u8; 32],
+    #[secret]
     private_curve25519_key: Box<[u8; 32]>,
 }
 
