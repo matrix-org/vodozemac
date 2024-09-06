@@ -181,7 +181,7 @@ impl PkDecryption {
     /// Create a [`PkDecryption`] object by unpickling a PkDecryption pickle in
     /// libolm legacy pickle format.
     ///
-    /// Such pickles are encrypted and need to first be decrypted using
+    /// Such pickles are encrypted and need to first be decrypted using a
     /// `pickle_key`.
     pub fn from_libolm_pickle(
         pickle: &str,
