@@ -1,0 +1,33 @@
+# https://embarkstudios.github.io/cargo-deny/checks/cfg.html
+[graph]
+all-features = true
+exclude = [
+    # dev only dependency
+    "criterion"
+]
+
+[advisories]
+version = 2
+
+[licenses]
+version = 2
+allow = [
+    "Apache-2.0",
+    "BSD-3-Clause",
+    "MIT",
+]
+exceptions = [
+    { allow = ["Unicode-DFS-2016"], crate = "unicode-ident" },
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+
+allow-git = [
+    "https://github.com/poljar/olm-rs",
+]
