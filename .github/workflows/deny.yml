@@ -1,4 +1,4 @@
-name: Check for banned licenses
+name: Lint dependencies (for licences, allowed sources, banned dependencies)
 on:
   pull_request:
     paths:
