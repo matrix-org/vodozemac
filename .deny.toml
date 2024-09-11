@@ -8,6 +8,9 @@ exclude = [
 
 [advisories]
 version = 2
+ignore = [
+    { id = "RUSTSEC-2024-0368", reason = "We're only using olm-sys for unit tests" },
+]
 
 [licenses]
 version = 2
