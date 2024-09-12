@@ -149,35 +149,10 @@ impl From<MessageType> for usize {
 }
 
 #[cfg(test)]
-use olm_rs::session::OlmMessage as LibolmMessage;
-
-#[cfg(test)]
-impl From<LibolmMessage> for OlmMessage {
-    fn from(other: LibolmMessage) -> Self {
-        let (message_type, ciphertext) = other.to_tuple();
-        let ciphertext_bytes = base64_decode(ciphertext).expect("Can't decode base64");
-
-        Self::from_parts(message_type.into(), ciphertext_bytes.as_slice())
-            .expect("Can't decode a libolm message")
-    }
-}
-
-#[cfg(test)]
-impl From<OlmMessage> for LibolmMessage {
-    fn from(value: OlmMessage) -> LibolmMessage {
-        match value {
-            OlmMessage::Normal(m) => LibolmMessage::from_type_and_ciphertext(1, m.to_base64())
-                .expect("Can't create a valid libolm message"),
-            OlmMessage::PreKey(m) => LibolmMessage::from_type_and_ciphertext(0, m.to_base64())
-                .expect("Can't create a valid libolm pre-key message"),
-        }
-    }
-}
-
-#[cfg(test)]
 mod tests {
     use anyhow::Result;
     use assert_matches::assert_matches;
+    use olm_rs::session::OlmMessage as LibolmMessage;
     use serde_json::json;
 
     use super::*;
@@ -200,6 +175,27 @@ mod tests {
 
     const MESSAGE_CIPHERTEXT: [u8; 16] =
         [249, 125, 179, 111, 185, 4, 95, 253, 201, 190, 130, 236, 165, 195, 65, 112];
+
+    impl From<OlmMessage> for LibolmMessage {
+        fn from(value: OlmMessage) -> LibolmMessage {
+            match value {
+                OlmMessage::Normal(m) => LibolmMessage::from_type_and_ciphertext(1, m.to_base64())
+                    .expect("Can't create a valid libolm message"),
+                OlmMessage::PreKey(m) => LibolmMessage::from_type_and_ciphertext(0, m.to_base64())
+                    .expect("Can't create a valid libolm pre-key message"),
+            }
+        }
+    }
+
+    impl From<LibolmMessage> for OlmMessage {
+        fn from(other: LibolmMessage) -> Self {
+            let (message_type, ciphertext) = other.to_tuple();
+            let ciphertext_bytes = base64_decode(ciphertext).expect("Can't decode base64");
+
+            Self::from_parts(message_type.into(), ciphertext_bytes.as_slice())
+                .expect("Can't decode a libolm message")
+        }
+    }
 
     #[test]
     fn message_type_from_usize() {
