@@ -17,7 +17,21 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)'] }
+unexpected_cfgs = { level = "deny", check-cfg = ['cfg(fuzzing)'] }
+unsafe_code = "deny"
+dead_code = "deny"
+trivial_casts = "deny"
+trivial_numeric_casts = "deny"
+unsafe_op_in_unsafe_fn = "deny"
+unused_extern_crates = "deny"
+unused_import_braces = "deny"
+unused_qualifications = "deny"
+rust_2018_idioms = "deny"
+
+[lints.clippy]
+unwrap_used = "deny"
+mem_forget = "deny"
+missing_const_for_fn = "warn"
 
 [features]
 default = ["libolm-compat"]

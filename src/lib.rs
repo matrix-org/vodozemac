@@ -193,20 +193,6 @@
 //! }
 //! ```
 
-#![deny(
-    clippy::mem_forget,
-    clippy::unwrap_used,
-    dead_code,
-    trivial_casts,
-    trivial_numeric_casts,
-    unsafe_code,
-    unsafe_op_in_unsafe_fn,
-    unused_extern_crates,
-    unused_import_braces,
-    unused_qualifications,
-    rust_2018_idioms
-)]
-#![warn(clippy::missing_const_for_fn)]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 mod cipher;
