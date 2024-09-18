@@ -353,7 +353,7 @@ mod libolm_compat {
         Curve25519PublicKey,
     };
 
-    #[derive(Debug, Decode, Zeroize, ZeroizeOnDrop)]
+    #[derive(Decode, Zeroize, ZeroizeOnDrop)]
     struct SenderChain {
         public_ratchet_key: [u8; 32],
         #[secret]
@@ -362,7 +362,7 @@ mod libolm_compat {
         chain_key_index: u32,
     }
 
-    #[derive(Debug, Decode, Zeroize, ZeroizeOnDrop)]
+    #[derive(Decode, Zeroize, ZeroizeOnDrop)]
     struct ReceivingChain {
         public_ratchet_key: [u8; 32],
         #[secret]
@@ -382,7 +382,7 @@ mod libolm_compat {
         }
     }
 
-    #[derive(Debug, Decode, Zeroize, ZeroizeOnDrop)]
+    #[derive(Decode, Zeroize, ZeroizeOnDrop)]
     struct MessageKey {
         ratchet_key: [u8; 32],
         #[secret]

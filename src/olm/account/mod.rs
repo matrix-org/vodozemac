@@ -491,7 +491,7 @@ mod libolm {
         Curve25519PublicKey, Ed25519Keypair, KeyId,
     };
 
-    #[derive(Debug, Encode, Decode, Zeroize, ZeroizeOnDrop)]
+    #[derive(Encode, Decode, Zeroize, ZeroizeOnDrop)]
     struct OneTimeKey {
         key_id: u32,
         published: bool,
@@ -509,7 +509,7 @@ mod libolm {
         }
     }
 
-    #[derive(Debug, Zeroize, ZeroizeOnDrop)]
+    #[derive(Zeroize, ZeroizeOnDrop)]
     struct FallbackKeysArray {
         fallback_key: Option<OneTimeKey>,
         previous_fallback_key: Option<OneTimeKey>,
