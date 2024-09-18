@@ -19,6 +19,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 [lints.rust]
 unexpected_cfgs = { level = "deny", check-cfg = ['cfg(fuzzing)'] }
 unsafe_code = "deny"
+missing_docs = "deny"
 dead_code = "deny"
 trivial_casts = "deny"
 trivial_numeric_casts = "deny"
