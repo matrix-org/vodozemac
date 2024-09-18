@@ -81,6 +81,11 @@ pub enum DecryptionError {
     UnknownMessageIndex(u32, u32),
 }
 
+/// A Megolm inbound group session represents a single receiving participant in
+/// an encrypted group communication involving multiple recipients.
+///
+/// The session includes a ratchet for decryption and an Ed25519 public key for
+/// ensuring authenticity.
 #[derive(Deserialize)]
 #[serde(try_from = "InboundGroupSessionPickle")]
 pub struct InboundGroupSession {
@@ -91,13 +96,22 @@ pub struct InboundGroupSession {
     config: SessionConfig,
 }
 
+/// A message successfully decrypted by an [`InboundGroupSession`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DecryptedMessage {
+    /// The decrypted plaintext of the message.
     pub plaintext: Vec<u8>,
+    /// The message index, used to detect replay attacks. Each plaintext message
+    /// should be encrypted with a unique message index per session.
     pub message_index: u32,
 }
 
 impl InboundGroupSession {
+    /// Creates a new [`InboundGroupSession`] from a [`SessionKey`] received
+    /// over an authenticated channel.
+    ///
+    /// A [`SessionKey`] can be obtained from the sender's [`GroupSession`]
+    /// using the [`GroupSession::session_key()`] method.
     pub fn new(key: &SessionKey, session_config: SessionConfig) -> Self {
         let initial_ratchet =
             Ratchet::from_bytes(key.session_key.ratchet.clone(), key.session_key.ratchet_index);
@@ -112,6 +126,16 @@ impl InboundGroupSession {
         }
     }
 
+    /// Creates a new [`InboundGroupSession`] from an [`ExportedSessionKey`]
+    /// received over an authenticated channel.
+    ///
+    /// An [`ExportedSessionKey`] can be obtained from another recipient's
+    /// [`InboundGroupSession`] using the [`InboundGroupSession::export_at()`]
+    /// method.
+    ///
+    /// **Warning**: Extra care is required to ensure the authenticity of the
+    /// [`InboundGroupSession`] because an [`ExportedSessionKey`] does not
+    /// include the signature of the original [`GroupSession`] creator.
     pub fn import(session_key: &ExportedSessionKey, session_config: SessionConfig) -> Self {
         let initial_ratchet =
             Ratchet::from_bytes(session_key.ratchet.clone(), session_key.ratchet_index);
@@ -126,21 +150,24 @@ impl InboundGroupSession {
         }
     }
 
+    /// Retrieves the unique ID of this session.
+    ///
+    /// This ID is the [`Ed25519PublicKey`] encoded in Base64 format.
     pub fn session_id(&self) -> String {
         base64_encode(self.signing_key.as_bytes())
     }
 
-    /// Check if two `InboundGroupSession`s are the same.
+    /// Check if two [`InboundGroupSession`]s are the same.
     ///
-    /// An `InboundGroupSession` could be received multiple times with varying
+    /// An [`InboundGroupSession`] could be received multiple times with varying
     /// degrees of trust and first known message indices.
     ///
     /// This method checks if the underlying ratchets of the two
-    /// `InboundGroupSession`s are actually the same ratchet, potentially at
+    /// [`InboundGroupSession`]s are actually the same ratchet, potentially at
     /// a different ratcheting index. That is, if the sessions are *connected*,
     /// then ratcheting one of the ratchets to the index of the other should
     /// yield the same ratchet value, byte-for-byte. This will only be the case
-    /// if the `InboundGroupSession`s were created from the same
+    /// if the [`InboundGroupSession`]s were created from the same
     /// [`GroupSession`].
     ///
     /// If the sessions are connected, the session with the lower message index
@@ -168,10 +195,10 @@ impl InboundGroupSession {
         }
     }
 
-    /// Compare the `InboundGroupSession` with the given other
-    /// `InboundGroupSession`.
+    /// Compare the [`InboundGroupSession`] with the given other
+    /// [`InboundGroupSession`].
     ///
-    /// Returns a `SessionOrdering` describing how the two sessions relate to
+    /// Returns a [`SessionOrdering`] describing how the two sessions relate to
     /// each other.
     pub fn compare(&mut self, other: &mut InboundGroupSession) -> SessionOrdering {
         if self.connected(other) {
@@ -240,17 +267,25 @@ impl InboundGroupSession {
         })
     }
 
+    /// Retrieves the first known message index for this
+    /// [`InboundGroupSession`].
+    ///
+    /// The message index reflects how many times the ratchet has advanced,
+    /// determining which messages the [`InboundGroupSession`] can decrypt.
+    /// For example, if the first known index is zero, the session
+    /// can decrypt all messages encrypted by the [`GroupSession`]. If the index
+    /// is one, it can decrypt all messages except the first (zeroth) one.
     pub const fn first_known_index(&self) -> u32 {
         self.initial_ratchet.index()
     }
 
-    /// Permanently advance the session to the given index.
+    /// Permanently advances the session to the specified message index.
     ///
-    /// This will remove the ability to decrypt messages that were encrypted
-    /// with a lower message index than what is given as the argument.
+    /// Advancing the [`InboundGroupSession`] will remove the ability to decrypt
+    /// messages encrypted with a lower index than the provided one.
     ///
-    /// Returns true if the ratchet has been advanced, false if the ratchet was
-    /// already advanced past the given index.
+    /// Returns `true` if the ratchet was successfully advanced, or `false` if
+    /// the ratchet was already advanced beyond the given index.
     pub fn advance_to(&mut self, index: u32) -> bool {
         if self.first_known_index() < index {
             self.initial_ratchet.advance_to(index);
@@ -316,6 +351,12 @@ impl InboundGroupSession {
         }
     }
 
+    /// Decrypts the provided [`MegolmMessage`] using this
+    /// [`InboundGroupSession`].
+    ///
+    /// Returns a [`DecryptedMessage`] containing the plaintext and the message
+    /// index, which indicates the ratchet position at which the message was
+    /// encrypted.
     pub fn decrypt(
         &mut self,
         message: &MegolmMessage,
@@ -338,12 +379,31 @@ impl InboundGroupSession {
         }
     }
 
+    /// Export the [`InboundGroupSession`] at the specified message index.
+    ///
+    /// The message index indicates how many times the ratchet has advanced,
+    /// which determines the messages the [`InboundGroupSession`] can
+    /// decrypt. For example, if the first known index is zero, the session
+    /// can decrypt all messages encrypted by the [`GroupSession`]. If the index
+    /// is one, it can decrypt all messages except the first (zeroth) one.
+    ///
+    /// Returns `None` if the [`InboundGroupSession`] has been ratcheted beyond
+    /// the given index, otherwise `None`.
+    ///
+    /// This method can be used to forget a certain amount of message keys to
+    /// remove the ability to decrypt those messages.
     pub fn export_at(&mut self, index: u32) -> Option<ExportedSessionKey> {
         let signing_key = self.signing_key;
 
         self.find_ratchet(index).map(|ratchet| ExportedSessionKey::new(ratchet, signing_key))
     }
 
+    /// Exports the [`InboundGroupSession`] at its first known message index.
+    ///
+    /// This is equivalent to passing the message index from
+    /// [`InboundGroupSession::first_known_index()`] to the
+    /// [`InboundGroupSession::export_at()`] method. Since exporting at the
+    /// first known index is always possible, this function cannot fail.
     pub fn export_at_first_known_index(&self) -> ExportedSessionKey {
         ExportedSessionKey::new(&self.initial_ratchet, self.signing_key)
     }
@@ -365,6 +425,11 @@ impl InboundGroupSession {
         Self::from(pickle)
     }
 
+    /// Creates a [`InboundGroupSession`] object by unpickling a session in the
+    /// legacy libolm pickle format.
+    ///
+    /// These pickles are encrypted and must be decrypted using the provided
+    /// `pickle_key`.
     #[cfg(feature = "libolm-compat")]
     pub fn from_libolm_pickle(
         pickle: &str,

@@ -76,11 +76,13 @@ impl GroupSession {
         self.ratchet.index()
     }
 
+    /// Get the [`SessionConfig`] that this [`GroupSession`] is configured
+    /// to use.
     pub const fn session_config(&self) -> SessionConfig {
         self.config
     }
 
-    /// Encrypt the `plaintext` with the group session.
+    /// Encrypt the given `plaintext` with the group session.
     ///
     /// The resulting ciphertext is MAC-ed, then signed with the group session's
     /// Ed25519 key pair and finally base64-encoded.
@@ -141,6 +143,11 @@ impl GroupSession {
         pickle.into()
     }
 
+    /// Creates a [`GroupSession`] object by unpickling a session in the legacy
+    /// libolm pickle format.
+    ///
+    /// These pickles are encrypted and must be decrypted using the provided
+    /// `pickle_key`.
     #[cfg(feature = "libolm-compat")]
     pub fn from_libolm_pickle(
         pickle: &str,
