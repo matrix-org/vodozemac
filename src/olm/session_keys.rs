@@ -22,8 +22,14 @@ use crate::{utilities::base64_encode, Curve25519PublicKey};
 /// The set of keys that were used to establish the Olm Session,
 #[derive(Clone, Copy, Deserialize, Serialize, PartialEq, Eq, Decode)]
 pub struct SessionKeys {
+    /// The long-term [`Curve25519PublicKey`] of the session initiator.
     pub identity_key: Curve25519PublicKey,
+    /// The ephemeral [`Curve25519PublicKey`] created by the session initiator
+    /// to establish the session.
     pub base_key: Curve25519PublicKey,
+    /// The one-time [`Curve25519PublicKey`] that the initiator downloaded from
+    /// a key server, which was previously created and published by the
+    /// recipient.
     pub one_time_key: Curve25519PublicKey,
 }
 

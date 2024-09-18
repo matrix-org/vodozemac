@@ -45,8 +45,8 @@ use crate::{
 
 const PUBLIC_MAX_ONE_TIME_KEYS: usize = 50;
 
-/// Error describing failure modes when creating a Olm Session from an incoming
-/// Olm message.
+/// Error describing failure modes when creating a Olm [`Session`] from an
+/// incoming Olm message.
 #[derive(Error, Debug)]
 pub enum SessionCreationError {
     /// The pre-key message contained an unknown one-time key. This happens
@@ -54,16 +54,17 @@ pub enum SessionCreationError {
     /// already been used up.
     #[error("The pre-key message contained an unknown one-time key: {0}")]
     MissingOneTimeKey(Curve25519PublicKey),
-    /// The pre-key message contains a curve25519 identity key that doesn't
+    /// The pre-key message contains a Curve25519 identity key that doesn't
     /// match to the identity key that was given.
     #[error(
         "The given identity key doesn't match the one in the pre-key message: \
         expected {0}, got {1}"
     )]
     MismatchedIdentityKey(Curve25519PublicKey, Curve25519PublicKey),
-    /// The pre-key message that was used to establish the Session couldn't be
-    /// decrypted. The message needs to be decryptable, otherwise we will have
-    /// created a Session that wasn't used to encrypt the pre-key message.
+    /// The pre-key message that was used to establish the [`Session`] couldn't
+    /// be decrypted. The message needs to be decryptable, otherwise we will
+    /// have created a Session that wasn't used to encrypt the pre-key
+    /// message.
     #[error("The message that was used to establish the Session couldn't be decrypted")]
     Decryption(#[from] DecryptionError),
 }
@@ -71,9 +72,9 @@ pub enum SessionCreationError {
 /// Struct holding the two public identity keys of an [`Account`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IdentityKeys {
-    /// The ed25519 key, used for signing.
+    /// The Ed25519 key, used for signing.
     pub ed25519: Ed25519PublicKey,
-    /// The curve25519 key, used for to establish shared secrets.
+    /// The Curve25519 key, used for to establish shared secrets.
     pub curve25519: Curve25519PublicKey,
 }
 
@@ -86,15 +87,16 @@ pub struct InboundCreationResult {
     pub plaintext: Vec<u8>,
 }
 
-/// An Olm account manages all cryptographic keys used on a device.
+/// An Olm [`Account`] manages all cryptographic keys used on a device.
 pub struct Account {
     /// A permanent Ed25519 key used for signing. Also known as the fingerprint
     /// key.
     signing_key: Ed25519Keypair,
-    /// The permanent Curve25519 key used for 3DH. Also known as the sender key
-    /// or the identity key.
+    /// The permanent Curve25519 key used for triple Diffie-Hellman (3DH). Also
+    /// known as the sender key or the identity key.
     diffie_hellman_key: Curve25519Keypair,
-    /// The ephemeral (one-time) Curve25519 keys used as part of the 3DH.
+    /// The ephemeral (one-time) Curve25519 keys used as part of the triple
+    /// Diffie-Hellman (3DH).
     one_time_keys: OneTimeKeys,
     /// The ephemeral Curve25519 keys used in lieu of a one-time key as part of
     /// the 3DH, in case we run out of those. We keep track of both the current
@@ -103,7 +105,7 @@ pub struct Account {
 }
 
 impl Account {
-    /// Create a new Account with new random identity keys.
+    /// Create a new [`Account`] with new random identity keys.
     pub fn new() -> Self {
         Self {
             signing_key: Ed25519Keypair::new(),
@@ -113,17 +115,17 @@ impl Account {
         }
     }
 
-    /// Get the IdentityKeys of this Account
+    /// Get the [`IdentityKeys`] of this Account
     pub const fn identity_keys(&self) -> IdentityKeys {
         IdentityKeys { ed25519: self.ed25519_key(), curve25519: self.curve25519_key() }
     }
 
-    /// Get a reference to the account's public Ed25519 key
+    /// Get a copy of the account's public Ed25519 key
     pub const fn ed25519_key(&self) -> Ed25519PublicKey {
         self.signing_key.public_key()
     }
 
-    /// Get a reference to the account's public Curve25519 key
+    /// Get a copy of the account's public Curve25519 key
     pub const fn curve25519_key(&self) -> Curve25519PublicKey {
         self.diffie_hellman_key.public_key()
     }
@@ -137,8 +139,8 @@ impl Account {
     /// server.
     ///
     /// **Note**: this differs from the libolm method of the same name, the
-    /// libolm method returned the maximum amount of one-time keys the `Account`
-    /// could hold and only half of those should be uploaded.
+    /// libolm method returned the maximum amount of one-time keys the
+    /// [`Account`] could hold and only half of those should be uploaded.
     pub const fn max_number_of_one_time_keys(&self) -> usize {
         // We tell clients to upload a limited amount of one-time keys, this
         // amount is smaller than what we can store.
@@ -152,7 +154,7 @@ impl Account {
         PUBLIC_MAX_ONE_TIME_KEYS
     }
 
-    /// Create a `Session` with the given identity key and one-time key.
+    /// Create a [`Session`] with the given identity key and one-time key.
     pub fn create_outbound_session(
         &self,
         session_config: SessionConfig,
@@ -180,6 +182,8 @@ impl Account {
         Session::new(session_config, shared_secret, session_keys)
     }
 
+    /// Try to find a [`Curve25519SecretKey`] that forms a pair with the given
+    /// [`Curve25519PublicKey`].
     fn find_one_time_key(&self, public_key: &Curve25519PublicKey) -> Option<&Curve25519SecretKey> {
         self.one_time_keys
             .get_secret_key(public_key)
@@ -208,7 +212,8 @@ impl Account {
         self.one_time_keys.remove_secret_key(&public_key)
     }
 
-    /// Create a [`Session`] from the given pre-key message and identity key
+    /// Create a [`Session`] from the given [`PreKeyMessage`] message and
+    /// identity key
     pub fn create_inbound_session(
         &mut self,
         their_identity_key: Curve25519PublicKey,
@@ -285,6 +290,12 @@ impl Account {
         self.one_time_keys.generate(count)
     }
 
+    /// Get the number of one-time keys we have stored locally.
+    ///
+    /// This will be equal or greater to the number of one-time keys we have
+    /// published. Each time a new [`Session`] is created using the
+    /// [`Account::create_inbound_session()`] a one-time key will be used up
+    /// and removed.
     pub fn stored_one_time_key_count(&self) -> usize {
         self.one_time_keys.private_keys.len()
     }
@@ -303,8 +314,8 @@ impl Account {
 
     /// Generate a single new fallback key.
     ///
-    /// The fallback key will be used by other users to establish a `Session` if
-    /// all the one-time keys on the server have been used up.
+    /// The fallback key will be used by other users to establish a [`Session`]
+    /// if all the one-time keys on the server have been used up.
     ///
     /// Returns the public Curve25519 key of the *previous* fallback key, that
     /// is, the one that will get removed from the [`Account`] when this method
@@ -328,8 +339,8 @@ impl Account {
         }
     }
 
-    /// The `Account` stores at most two private parts of the fallback key. This
-    /// method lets us forget the previously used fallback key.
+    /// The [`Account`] stores at most two private parts of the fallback key.
+    /// This method lets us forget the previously used fallback key.
     pub fn forget_fallback_key(&mut self) -> bool {
         self.fallback_keys.forget_previous_fallback_key().is_some()
     }
@@ -375,7 +386,7 @@ impl Account {
 
     /// Pickle an [`Account`] into a libolm pickle format.
     ///
-    /// This pickle can be restored using the `[Account::from_libolm_pickle]`
+    /// This pickle can be restored using the [`Account::from_libolm_pickle()`]
     /// method, or can be used in the [`libolm`] C library.
     ///
     /// The pickle will be encrypted using the pickle key.
@@ -415,6 +426,7 @@ impl Account {
     }
 
     #[cfg(all(any(fuzzing, test), feature = "libolm-compat"))]
+    #[doc(hidden)]
     pub fn from_decrypted_libolm_pickle(pickle: &[u8]) -> Result<Self, crate::LibolmPickleError> {
         use std::io::Cursor;
 
