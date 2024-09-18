@@ -57,14 +57,11 @@ struct ExpandedSecretKey {
 }
 
 impl ExpandedSecretKey {
-    fn from_bytes(bytes: &[u8; 64]) -> Result<Self, ed25519_dalek::SignatureError> {
+    fn from_bytes(bytes: &[u8; 64]) -> Self {
         let mut source = Box::new([0u8; 64]);
         source.copy_from_slice(bytes);
 
-        Ok(Self {
-            source,
-            inner: ed25519_dalek::hazmat::ExpandedSecretKey::from_bytes(bytes).into(),
-        })
+        Self { source, inner: ed25519_dalek::hazmat::ExpandedSecretKey::from_bytes(bytes).into() }
     }
 
     const fn as_bytes(&self) -> &[u8; 64] {
@@ -124,7 +121,7 @@ impl<'d> Deserialize<'d> for ExpandedSecretKey {
             slice.zeroize();
             bytes.zeroize();
 
-            ret.map_err(serde::de::Error::custom)
+            Ok(ret)
         }
     }
 }
@@ -143,7 +140,7 @@ impl Ed25519Keypair {
 
     #[cfg(feature = "libolm-compat")]
     pub(crate) fn from_expanded_key(secret_key: &[u8; 64]) -> Result<Self, crate::KeyError> {
-        let secret_key = ExpandedSecretKey::from_bytes(secret_key).map_err(SignatureError::from)?;
+        let secret_key = ExpandedSecretKey::from_bytes(secret_key);
         let public_key = secret_key.public_key();
 
         Ok(Self { secret_key: secret_key.into(), public_key })
@@ -608,7 +605,7 @@ mod tests {
     #[test]
     fn serialization_roundtrip_succeeds() {
         let bytes = b"9999999999999999999999999999999999999999999999999999999999999999";
-        let key = ExpandedSecretKey::from_bytes(bytes).unwrap();
+        let key = ExpandedSecretKey::from_bytes(bytes);
         let serialized = serde_json::to_value(key).expect("Should serialize key");
         let deserialized = serde_json::from_value::<ExpandedSecretKey>(serialized)
             .expect("Should deserialize key");
