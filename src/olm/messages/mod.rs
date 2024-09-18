@@ -85,7 +85,7 @@ impl<'de> Deserialize<'de> for OlmMessage {
 }
 
 impl OlmMessage {
-    /// Create a `OlmMessage` from a message type and a ciphertext.
+    /// Create an [`OlmMessage`] from a message type and a ciphertext.
     pub fn from_parts(message_type: usize, ciphertext: &[u8]) -> Result<Self, DecodeError> {
         match message_type {
             0 => Ok(Self::PreKey(PreKeyMessage::from_bytes(ciphertext)?)),
@@ -94,7 +94,7 @@ impl OlmMessage {
         }
     }
 
-    /// Get the message as a byte array.
+    /// Get the message's ciphertext as a byte array.
     pub fn message(&self) -> &[u8] {
         match self {
             OlmMessage::Normal(m) => &m.ciphertext,
@@ -110,7 +110,8 @@ impl OlmMessage {
         }
     }
 
-    /// Convert the `OlmMessage` into a message type, and message bytes tuple.
+    /// Convert the [`OlmMessage`] into a message type, and ciphertext bytes
+    /// tuple.
     pub fn to_parts(&self) -> (usize, Vec<u8>) {
         let message_type = self.message_type();
 

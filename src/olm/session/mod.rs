@@ -226,7 +226,7 @@ impl Session {
     /// Encrypt the `plaintext` and construct an [`OlmMessage`].
     ///
     /// The message will either be a pre-key message or a normal message,
-    /// depending on whether the session is fully established. A session is
+    /// depending on whether the session is fully established. A [`Session`] is
     /// fully established once you receive (and decrypt) at least one
     /// message from the other side.
     pub fn encrypt(&mut self, plaintext: impl AsRef<[u8]>) -> OlmMessage {
@@ -249,6 +249,7 @@ impl Session {
         self.session_keys
     }
 
+    /// Get the [`SessionConfig`] that this [`Session`] is configured to use.
     pub const fn session_config(&self) -> SessionConfig {
         self.config
     }
@@ -269,8 +270,6 @@ impl Session {
 
     /// Try to decrypt an Olm message, which will either return the plaintext or
     /// result in a [`DecryptionError`].
-    ///
-    /// [`DecryptionError`]: self::DecryptionError
     pub fn decrypt(&mut self, message: &OlmMessage) -> Result<Vec<u8>, DecryptionError> {
         let decrypted = match message {
             OlmMessage::Normal(m) => self.decrypt_decoded(m)?,

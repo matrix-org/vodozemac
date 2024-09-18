@@ -17,9 +17,9 @@
 //!
 //! ## Overview
 //!
-//! The core component of the crate is the `Account`, representing a single Olm
-//! participant. An Olm `Account` consists of a collection of key pairs, though
-//! often documentation will shorten this to just "keys". These are:
+//! The core component of the crate is the [`Account`], representing a single
+//! Olm participant. An Olm [`Account`] consists of a collection of key pairs,
+//! though often documentation will shorten this to just "keys". These are:
 //!
 //! 1. An Ed25519 *signing key pair* representing the stable cryptographic
 //!    identity of the participant (the participant's "fingerprint").
@@ -34,21 +34,21 @@
 //! communication channel. Ultimately, this session is used for deriving the
 //! concrete encryption keys for a particular message.
 //!
-//! Olm sessions are represented by the `Session` struct. Such a session is
-//! created by calling `Account::create_outbound_session` on one of the
+//! Olm sessions are represented by the [`Session`] struct. Such a session is
+//! created by calling [`Account::create_outbound_session`] on one of the
 //! participating accounts, passing it the Curve25519 sender key and one
 //! Curve25519 one-time key of the other side. The protocol is asynchronous, so
 //! the participant can start sending messages to the other side even before the
 //! other side has created a session, producing so-called pre-key messages (see
-//! `PreKeyMessage`).
+//! [`PreKeyMessage`]).
 //!
 //! Once the other participant receives such a pre-key message, they can create
-//! their own matching session by calling `Account::create_inbound_session` and
-//! passing it the pre-key message they received and the Curve25519 sender key
-//! of the other side. This completes the establishment of the Olm communication
-//! channel.
+//! their own matching session by calling [`Account::create_inbound_session`]
+//! and passing it the pre-key message they received and the Curve25519 sender
+//! key of the other side. This completes the establishment of the Olm
+//! communication channel.
 //!
-//! ```rust
+//! ```
 //! use anyhow::Result;
 //! use vodozemac::olm::{Account, InboundCreationResult, OlmMessage, SessionConfig};
 //!
@@ -91,8 +91,8 @@
 //!
 //! ## Sending messages
 //!
-//! To encrypt a message, just call `Session::encrypt(msg_content)`. This will
-//! either produce an `OlmMessage::PreKey(..)` or `OlmMessage::Normal(..)`
+//! To encrypt a message, just call [`Session::encrypt()`]. This will
+//! either produce an [`OlmMessage::PreKey`] or [`OlmMessage::Normal`]
 //! depending on whether the session is fully established. A session is fully
 //! established once you receive (and decrypt) at least one message from the
 //! other side.
