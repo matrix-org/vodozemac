@@ -31,13 +31,18 @@ pub(crate) type Aes256CbcEnc = cbc::Encryptor<Aes256>;
 pub(crate) type Aes256CbcDec = cbc::Decryptor<Aes256>;
 pub(crate) type HmacSha256 = Hmac<Sha256>;
 
+/// The message authentication code of a ciphertext.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Mac(pub(crate) [u8; Self::LENGTH]);
 
 impl Mac {
+    /// The expected length of the message authentication code (MAC).
     pub const LENGTH: usize = 32;
+    /// The expected length of the message authentication code (MAC) if
+    /// truncation is applied.
     pub const TRUNCATED_LEN: usize = 8;
 
+    /// Truncates and converts the [`Mac`] into a byte array.
     pub fn truncate(&self) -> [u8; Self::TRUNCATED_LEN] {
         let mut truncated = [0u8; Self::TRUNCATED_LEN];
         truncated.copy_from_slice(&self.0[0..Self::TRUNCATED_LEN]);
@@ -45,6 +50,7 @@ impl Mac {
         truncated
     }
 
+    /// Return the [`Mac`] as a byte slice.
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_ref()
     }
@@ -83,28 +89,55 @@ pub enum DecryptionError {
     InvalidPadding(#[from] UnpadError),
     #[error("The MAC of the ciphertext didn't pass validation {0}")]
     Mac(#[from] MacError),
-    #[allow(dead_code)]
     #[error("The ciphertext didn't contain a valid MAC")]
     MacMissing,
 }
 
+/// A cipher used for encrypting and decrypting messages.
 pub struct Cipher {
     keys: CipherKeys,
 }
 
 impl Cipher {
+    /// Creates a new [`Cipher`] from the given 32-byte raw key.
+    ///
+    /// The key is deterministically expanded into a 32-byte AES key, a 32-byte
+    /// MAC key, and a 16-byte initialization vector (IV) using HKDF, with the
+    /// byte string "OLM_KEYS" used as the info during key derivation.
+    ///
+    /// This key derivation format is typically used for generating individual
+    /// message keys in the Olm double ratchet.
     pub fn new(key: &[u8; 32]) -> Self {
         let keys = CipherKeys::new(key);
 
         Self { keys }
     }
 
+    /// Creates a new [`Cipher`] from the given 128-byte raw key.
+    ///
+    /// The key is deterministically expanded into a 32-byte AES key, a 32-byte
+    /// MAC key, and a 16-byte initialization vector (IV) using HKDF, with
+    /// the byte string "MEGOLM_KEYS" used as the info during key
+    /// derivation.
+    ///
+    /// This key derivation format is typically used for generating individual
+    /// message keys in the Megolm ratchet.
     pub fn new_megolm(&key: &[u8; 128]) -> Self {
         let keys = CipherKeys::new_megolm(&key);
 
         Self { keys }
     }
 
+    /// Creates a new [`Cipher`] from the given raw key. The key is expected to
+    /// be 32 bytes in length, but we expect an unsized slice for
+    /// compatibility with the libolm API.
+    ///
+    /// The key is deterministically expanded into a 32-byte AES key, a 32-byte
+    /// MAC key, and a 16-byte initialization vector (IV) using HKDF, with
+    /// the byte string "Pickle" used as the info during key derivation.
+    ///
+    /// This key derivation format is typically used for libolm-compatible
+    /// encrypted pickle formats.
     #[cfg(feature = "libolm-compat")]
     pub fn new_pickle(key: &[u8]) -> Self {
         let keys = CipherKeys::new_pickle(key);
@@ -120,11 +153,22 @@ impl Cipher {
         HmacSha256::new_from_slice(self.keys.mac_key()).expect("Invalid HMAC key size")
     }
 
+    /// Encrypts the given plaintext using this [`Cipher`] and returns the
+    /// ciphertext.
+    ///
+    /// **Warning**: This is a low-level function and does not provide
+    /// authentication for the ciphertext. You must call [`Cipher::mac()`]
+    /// separately to generate the message authentication code (MAC).
     pub fn encrypt(&self, plaintext: &[u8]) -> Vec<u8> {
         let cipher = Aes256CbcEnc::new(self.keys.aes_key(), self.keys.iv());
         cipher.encrypt_padded_vec_mut::<Pkcs7>(plaintext)
     }
 
+    /// Generates a message authentication code (MAC) for the given ciphertext.
+    ///
+    /// **Warning**: This is a low-level function and must be called after the
+    /// [`Cipher::encrypt`] method. The ciphertext produced by
+    /// [`Cipher::encrypt`] must be passed as the argument to this method.
     pub fn mac(&self, message: &[u8]) -> Mac {
         let mut hmac = self.get_hmac();
         hmac.update(message);
@@ -137,22 +181,75 @@ impl Cipher {
         Mac(mac)
     }
 
+    /// Decrypts the provided `ciphertext` using this [`Cipher`].
+    ///
+    /// **Warning**: This is a low-level function. Before calling this, you must
+    /// call [`Cipher::verify_mac()`] or [`Cipher::verify_truncated_mac()`]
+    /// to ensure the integrity of the ciphertext.
     pub fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>, UnpadError> {
         let cipher = Aes256CbcDec::new(self.keys.aes_key(), self.keys.iv());
         cipher.decrypt_padded_vec_mut::<Pkcs7>(ciphertext)
     }
 
-    pub fn decrypt_pickle(&self, ciphertext: &[u8]) -> Result<Vec<u8>, DecryptionError> {
-        if ciphertext.len() < Mac::TRUNCATED_LEN + 1 {
-            Err(DecryptionError::MacMissing)
-        } else {
-            let (ciphertext, mac) = ciphertext.split_at(ciphertext.len() - Mac::TRUNCATED_LEN);
-            self.verify_truncated_mac(ciphertext, mac)?;
+    /// Verifies that the provided message authentication code (MAC) correctly
+    /// authenticates the given message.
+    ///
+    /// **Warning**: This is a low-level function and must be called before
+    /// invoking the [`Cipher::decrypt()`] method.
+    #[cfg(not(fuzzing))]
+    pub fn verify_mac(&self, message: &[u8], tag: &Mac) -> Result<(), MacError> {
+        let mut hmac = self.get_hmac();
 
-            Ok(self.decrypt(ciphertext)?)
-        }
+        hmac.update(message);
+        hmac.verify_slice(tag.as_bytes())
     }
 
+    /// Verifies that the provided truncated message authentication code (MAC)
+    /// correctly authenticates the given message.
+    ///
+    /// **Warning**: This is a low-level function and must be called before
+    /// invoking the [`Cipher::decrypt()`] method.
+    #[cfg(not(fuzzing))]
+    pub fn verify_truncated_mac(&self, message: &[u8], tag: &[u8]) -> Result<(), MacError> {
+        let mut hmac = self.get_hmac();
+
+        hmac.update(message);
+        hmac.verify_truncated_left(tag)
+    }
+
+    /// A [`Cipher::verify_mac()`] method that always succeeds.
+    ///
+    /// **Warning**: If you're seeing this comment and are not fuzzing the
+    /// library, the library is operating with an insecure build-time
+    /// configuration.
+    ///
+    /// This mode is intended only for fuzzing vodozemac, as MAC verification
+    /// typically filters out many inputs early in the process.
+    #[cfg(fuzzing)]
+    pub fn verify_mac(&self, _: &[u8], _: &Mac) -> Result<(), MacError> {
+        Ok(())
+    }
+
+    /// A [`Cipher::verify_truncated_mac()`] method that always succeeds.
+    ///
+    /// **Warning**: If you're seeing this comment and are not fuzzing the
+    /// library, the library is operating with an insecure build-time
+    /// configuration.
+    ///
+    /// This mode is intended only for fuzzing vodozemac, as MAC verification
+    /// typically filters out many inputs early in the process.
+    #[cfg(fuzzing)]
+    pub fn verify_truncated_mac(&self, _: &[u8], _: &[u8]) -> Result<(), MacError> {
+        Ok(())
+    }
+
+    /// Encrypts the given plaintext using this [`Cipher`] and returns the
+    /// ciphertext.
+    ///
+    /// This method authenticates the ciphertext and appends the truncated
+    /// message authentication tag to it.
+    ///
+    /// This follows the encryption method used by the libolm pickle format.
     pub fn encrypt_pickle(&self, plaintext: &[u8]) -> Vec<u8> {
         let mut ciphertext = self.encrypt(plaintext);
         let mac = self.mac(&ciphertext);
@@ -162,34 +259,22 @@ impl Cipher {
         ciphertext
     }
 
-    #[cfg(not(fuzzing))]
-    pub fn verify_mac(&self, message: &[u8], tag: &Mac) -> Result<(), MacError> {
-        let mut hmac = self.get_hmac();
-
-        hmac.update(message);
-        hmac.verify_slice(tag.as_bytes())
-    }
-
-    #[cfg(not(fuzzing))]
-    pub fn verify_truncated_mac(&self, message: &[u8], tag: &[u8]) -> Result<(), MacError> {
-        let mut hmac = self.get_hmac();
-
-        hmac.update(message);
-        hmac.verify_truncated_left(tag)
-    }
-
-    /// A verify_mac method that always succeeds.
+    /// Decrypts the provided `ciphertext` using this [`Cipher`].
     ///
-    /// Useful if we're fuzzing vodozemac, since MAC verification discards a lot
-    /// of inputs right away.
-    #[cfg(fuzzing)]
-    pub fn verify_mac(&self, _: &[u8], _: &Mac) -> Result<(), MacError> {
-        Ok(())
-    }
+    /// This function expects the message authentication code (MAC), truncated
+    /// to 8 bytes, to be concatenated with the ciphertext. It verifies the
+    /// MAC before decrypting the ciphertext.
+    ///
+    /// This follows the encryption method used by the libolm pickle format.
+    pub fn decrypt_pickle(&self, ciphertext: &[u8]) -> Result<Vec<u8>, DecryptionError> {
+        if ciphertext.len() < Mac::TRUNCATED_LEN + 1 {
+            Err(DecryptionError::MacMissing)
+        } else {
+            let (ciphertext, mac) = ciphertext.split_at(ciphertext.len() - Mac::TRUNCATED_LEN);
+            self.verify_truncated_mac(ciphertext, mac)?;
 
-    #[cfg(fuzzing)]
-    pub fn verify_truncated_mac(&self, _: &[u8], _: &[u8]) -> Result<(), MacError> {
-        Ok(())
+            Ok(self.decrypt(ciphertext)?)
+        }
     }
 }
 
