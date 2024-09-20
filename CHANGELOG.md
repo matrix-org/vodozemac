@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.8.0 - 2024-09-20
+
+### Features
+
+- Apply const keyword to many methods ([#167](https://github.com/matrix-org/vodozemac/pull/167)).
+
+- [**BREAKING**] The `Account::sign()` method now accepts an `impl AsRef<[u8]>`
+for the message instead of a `&str`. This has been streamlined to be like
+most of our other methods accepting a message to be encrypted. This
+change is mostly backwards compatible as the method will continue to
+accept a string.
+
+The `OlmMessage::from_parts()` and `OlmMessage::to_parts()` methods now
+accept and return an `&[u8]` and `Vec<u8>` exclusively for the
+ciphertext. The `base64_encode()` and `base64_decode()` methods can be
+used to achieve the previous behavior ([#176](https://github.com/matrix-org/vodozemac/pull/176)).
+
+- Add support for the libolm PkEncryption feature. This allows
+Matrix clients to implement the [m.megolm_backup.v1.curve25519-aes-sha2](https://spec.matrix.org/v1.11/client-server-api/#backup-algorithm-mmegolm_backupv1curve25519-aes-sha2)
+room key backup algorithm. Please note that this algorithm contains a
+critical flaw and should only be used for compatibility reasons ([171](https://github.com/matrix-org/vodozemac/pull/171)) ([#180](https://github.com/matrix-org/vodozemac/pull/180)).
+
+### Refactor
+
+- Remove the pkcs7 crate from the list of dependencies ([#164](https://github.com/matrix-org/vodozemac/pull/164)).
+
+- Remove Debug implementations for the libolm compat structs ([#184](https://github.com/matrix-org/vodozemac/pull/184)).
+
 ## 0.7.0 - 2024-07-17
 
 ### Features

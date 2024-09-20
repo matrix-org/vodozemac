@@ -6,7 +6,7 @@ authors = [
 name = "vodozemac"
 description = "A Rust implementation of Olm and Megolm"
 repository = "https://github.com/matrix-org/vodozemac"
-version = "0.7.0"
+version = "0.8.0"
 edition = "2021"
 keywords = ["matrix", "chat", "messaging", "olm", "cryptography"]
 license = "Apache-2.0"
@@ -46,7 +46,7 @@ low-level-api = []
 
 [dependencies]
 aes = "0.8.4"
-arrayvec = { version = "0.7.4", features = ["serde"] }
+arrayvec = { version = "0.7.6", features = ["serde"] }
 base64 = "0.22.1"
 base64ct = { version = "1.6.0", features = ["std", "alloc"] }
 cbc = { version = "0.1.2", features = ["std"] }
@@ -56,20 +56,20 @@ ed25519-dalek = { version = "2.1.1", default-features = false, features = ["rand
 getrandom = "0.2.15"
 hkdf = "0.12.4"
 hmac = "0.12.1"
-matrix-pickle = { version = "0.2.0" }
-prost = "0.13.1"
+matrix-pickle = { version = "0.2.1" }
+prost = "0.13.2"
 rand = "0.8.5"
-serde = { version = "1.0.204", features = ["derive"] }
+serde = { version = "1.0.210", features = ["derive"] }
 serde_bytes = "0.11.15"
-serde_json = "1.0.120"
+serde_json = "1.0.128"
 sha2 = "0.10.8"
-subtle = "2.6.0"
-thiserror = "1.0.62"
+subtle = "2.6.1"
+thiserror = "1.0.63"
 x25519-dalek = { version = "2.0.1", features = ["serde", "reusable_secrets", "static_secrets", "zeroize"] }
 zeroize = "1.8.1"
 
 [dev-dependencies]
-anyhow = "1.0.86"
+anyhow = "1.0.89"
 assert_matches = "1.5.0"
 assert_matches2 = "0.1.2"
 olm-rs = "2.2.0"
