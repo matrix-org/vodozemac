@@ -23,6 +23,9 @@ use crate::{
     olm::messages::Message,
 };
 
+/// A single-use encryption key for per-message encryption.
+///
+/// This key is used to encrypt a single message in an Olm session.
 pub struct MessageKey {
     key: Box<[u8; 32]>,
     ratchet_key: RatchetPublicKey,
@@ -56,10 +59,39 @@ impl Drop for RemoteMessageKey {
 }
 
 impl MessageKey {
+    /// Creates a new [`MessageKey`] from the provided raw 32 bytes, along with
+    /// a public ratchet key and index.
+    ///
+    /// The ratchet key and index will be included in the created [`Message`],
+    /// allowing the message recipient to derive the same [`MessageKey`].
     pub const fn new(key: Box<[u8; 32]>, ratchet_key: RatchetPublicKey, index: u64) -> Self {
         Self { key, ratchet_key, index }
     }
 
+    /// Encrypt the given plaintext using this [`MessageKey`].
+    ///
+    /// This method will authenticate the ciphertext using a 32-byte message
+    /// authentication code (MAC). If you need the message authentication code
+    /// to be truncated, please take a look at the
+    /// [`MessageKey::encrypt_truncated_mac()`] method instead.
+    pub fn encrypt(self, plaintext: &[u8]) -> Message {
+        let cipher = Cipher::new(&self.key);
+
+        let ciphertext = cipher.encrypt(plaintext);
+
+        let mut message = Message::new(*self.ratchet_key.as_ref(), self.index, ciphertext);
+
+        let mac = cipher.mac(&message.to_mac_bytes());
+        message.set_mac(mac);
+
+        message
+    }
+
+    /// Encrypts the provided plaintext using this [`MessageKey`].
+    ///
+    /// This method authenticates the ciphertext with an 8-byte message
+    /// authentication code (MAC). If you require the full, non-truncated
+    /// MAC, refer to the [`MessageKey::encrypt()`] method.
     pub fn encrypt_truncated_mac(self, plaintext: &[u8]) -> Message {
         let cipher = Cipher::new(&self.key);
 
@@ -74,20 +106,7 @@ impl MessageKey {
         message
     }
 
-    pub fn encrypt(self, plaintext: &[u8]) -> Message {
-        let cipher = Cipher::new(&self.key);
-
-        let ciphertext = cipher.encrypt(plaintext);
-
-        let mut message = Message::new(*self.ratchet_key.as_ref(), self.index, ciphertext);
-
-        let mac = cipher.mac(&message.to_mac_bytes());
-        message.set_mac(mac);
-
-        message
-    }
-
-    /// Get a reference to the message key's key.
+    /// Get a reference to the message key's raw 32-bytes.
     #[cfg(feature = "low-level-api")]
     pub fn key(&self) -> &[u8; 32] {
         self.key.as_ref()
