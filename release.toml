@@ -1,0 +1,13 @@
+owners = ["poljar", "dkasak"]
+
+pre-release-commit-message = "chore: Release {{crate_name}} version {{version}}"
+pre-release-replacements = [
+    {file="README.md", search="vodozemac = .*", replace="{{crate_name}} = \"{{version}}\""},
+]
+pre-release-hook = ["git", "cliff", "--prepend", "CHANGELOG.md", "--unreleased", "--tag", "{{version}}" ]
+
+sign-tag = true
+tag-message = "Release {{crate_name}} version {{version}}"
+tag-name = "{{prefix}}{{version}}"
+
+enable-all-features = true
