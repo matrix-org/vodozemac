@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Features
 
-- Apply const keyword to many methods ([#167](https://github.com/matrix-org/vodozemac/pull/167)).
+- Apply the const keyword to many methods ([#167](https://github.com/matrix-org/vodozemac/pull/167)).
 
 - [**BREAKING**] The `Account::sign()` method now accepts an `impl AsRef<[u8]>`
 for the message instead of a `&str`. This has been streamlined to be like
@@ -22,7 +22,7 @@ used to achieve the previous behavior ([#176](https://github.com/matrix-org/vodo
 - Add support for the libolm PkEncryption feature. This allows
 Matrix clients to implement the [m.megolm_backup.v1.curve25519-aes-sha2](https://spec.matrix.org/v1.11/client-server-api/#backup-algorithm-mmegolm_backupv1curve25519-aes-sha2)
 room key backup algorithm. Please note that this algorithm contains a
-critical flaw and should only be used for compatibility reasons ([171](https://github.com/matrix-org/vodozemac/pull/171)) ([#180](https://github.com/matrix-org/vodozemac/pull/180)).
+critical flaw and should only be used for compatibility reasons ([#171](https://github.com/matrix-org/vodozemac/pull/171)) ([#180](https://github.com/matrix-org/vodozemac/pull/180)).
 
 ### Refactor
 
