@@ -509,9 +509,7 @@ impl From<Ed25519KeypairPickle> for Ed25519Keypair {
 #[cfg(test)]
 mod tests {
     use super::ExpandedSecretKey;
-    use crate::{
-        types::ed25519::SecretKeys, Ed25519Keypair, Ed25519PublicKey, Ed25519SecretKey, KeyError,
-    };
+    use crate::{Ed25519Keypair, Ed25519PublicKey, Ed25519SecretKey, KeyError};
 
     #[test]
     fn byte_decoding_roundtrip_succeeds_for_secret_key() {
@@ -589,13 +587,17 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "libolm-compat")]
     fn can_only_expand_secret_key_once() {
         let key_pair = Ed25519Keypair::new();
-        assert!(matches!(key_pair.secret_key, SecretKeys::Normal(_)));
+        assert!(matches!(key_pair.secret_key, crate::types::ed25519::SecretKeys::Normal(_)));
 
         let expanded_key = key_pair.expanded_secret_key();
         let expanded_key_pair = Ed25519Keypair::from_expanded_key(&expanded_key).unwrap();
-        assert!(matches!(expanded_key_pair.secret_key, SecretKeys::Expanded(_)));
+        assert!(matches!(
+            expanded_key_pair.secret_key,
+            crate::types::ed25519::SecretKeys::Expanded(_)
+        ));
         assert_eq!(expanded_key_pair.public_key(), key_pair.public_key());
 
         let reexpanded_key = expanded_key_pair.expanded_secret_key();

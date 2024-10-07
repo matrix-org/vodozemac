@@ -333,9 +333,7 @@ mod test {
     use super::{
         ActiveDoubleRatchet, DoubleRatchet, DoubleRatchetState, InactiveDoubleRatchet, RatchetCount,
     };
-    use crate::olm::{
-        session::test::session_and_libolm_pair, Account, OlmMessage, Session, SessionConfig,
-    };
+    use crate::olm::{Account, OlmMessage, Session, SessionConfig};
 
     fn create_session_pair(alice: &Account, bob: &mut Account) -> (Session, Session) {
         let bob_otks = bob.generate_one_time_keys(1);
@@ -411,9 +409,11 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "libolm-compat")]
     fn ratchet_counts_for_imported_session() {
         let (_, _, mut alice_session, bob_libolm_session) =
-            session_and_libolm_pair().expect("unable to create sessions");
+            crate::olm::session::test::session_and_libolm_pair()
+                .expect("unable to create sessions");
 
         // Import the libolm session into a proper Vodozmac session.
         let key = b"DEFAULT_PICKLE_KEY";

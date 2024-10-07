@@ -138,7 +138,6 @@ impl Cipher {
     ///
     /// This key derivation format is typically used for libolm-compatible
     /// encrypted pickle formats.
-    #[cfg(feature = "libolm-compat")]
     pub fn new_pickle(key: &[u8]) -> Self {
         let keys = CipherKeys::new_pickle(key);
 

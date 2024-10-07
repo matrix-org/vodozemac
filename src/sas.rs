@@ -590,6 +590,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "libolm-compat")]
     fn calculate_mac_invalid_base64() {
         let mut olm = OlmSas::new();
         let dalek = Sas::new();
