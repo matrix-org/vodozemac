@@ -685,12 +685,13 @@ mod libolm {
 #[cfg(test)]
 mod test {
     use anyhow::{bail, Context, Result};
+    #[cfg(feature = "libolm-compat")]
     use matrix_pickle::Encode;
     use olm_rs::{account::OlmAccount, session::OlmMessage as LibolmOlmMessage};
 
-    use super::{
-        libolm::Pickle, Account, InboundCreationResult, SessionConfig, SessionCreationError,
-    };
+    #[cfg(feature = "libolm-compat")]
+    use super::libolm::Pickle;
+    use super::{Account, InboundCreationResult, SessionConfig, SessionCreationError};
     use crate::{
         cipher::Mac,
         olm::{
@@ -698,7 +699,7 @@ mod test {
             messages::{OlmMessage, PreKeyMessage},
             AccountPickle,
         },
-        run_corpus, Curve25519PublicKey as PublicKey, Ed25519Signature,
+        Curve25519PublicKey as PublicKey,
     };
 
     const PICKLE_KEY: [u8; 32] = [0u8; 32];
@@ -1016,6 +1017,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "libolm-compat")]
     fn pickle_cycle_with_one_fallback_key() {
         let mut alice = Account::new();
         alice.generate_fallback_key();
@@ -1044,6 +1046,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "libolm-compat")]
     fn pickle_cycle_with_two_fallback_keys() {
         let mut alice = Account::new();
         alice.generate_fallback_key();
@@ -1136,12 +1139,13 @@ mod test {
     #[test]
     #[cfg(feature = "libolm-compat")]
     fn fuzz_corpus_unpickling() {
-        run_corpus("olm-account-unpickling", |data| {
+        crate::run_corpus("olm-account-unpickling", |data| {
             let _ = Account::from_decrypted_libolm_pickle(data);
         });
     }
 
     #[test]
+    #[cfg(feature = "libolm-compat")]
     fn libolm_pickle_cycle() -> Result<()> {
         let message = "It's a secret to everybody";
 
@@ -1159,7 +1163,7 @@ mod test {
         let _ = Account::from_libolm_pickle(&vodozemac_pickle, key).unwrap();
 
         let vodozemac_signature = account.sign(message.as_bytes());
-        let olm_signature = Ed25519Signature::from_base64(&olm_signature)
+        let olm_signature = crate::types::Ed25519Signature::from_base64(&olm_signature)
             .expect("We should be able to parse a signature produced by libolm");
         account
             .identity_keys()

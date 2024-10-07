@@ -42,7 +42,6 @@ impl ExpandedKeys {
         Self::new_helper(message_key, Self::MEGOLM_HKDF_INFO)
     }
 
-    #[cfg(feature = "libolm-compat")]
     fn new_pickle(pickle_key: &[u8]) -> Self {
         Self::new_helper(pickle_key, b"Pickle")
     }
@@ -78,7 +77,6 @@ impl CipherKeys {
         Self::from_expanded_keys(expanded_keys)
     }
 
-    #[cfg(feature = "libolm-compat")]
     pub fn new_pickle(pickle_key: &[u8]) -> Self {
         let expanded_keys = ExpandedKeys::new_pickle(pickle_key);
 
