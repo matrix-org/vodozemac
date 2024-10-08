@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.1] - 2024-10-08
+
+### Bug Fixes
+
+- Fix the compilation when the default features are disabled
+
+
 ## 0.8.0 - 2024-09-20
 
 ### Features
