@@ -22,6 +22,8 @@ body = """
         {% for footer in commit.footers -%}
             {% if footer.token | lower  == "changelog" -%}
                 {% set_global commit_message = footer.value -%}
+            {% elif footer.token | lower  == "breaking-change" -%}
+                {% set_global commit_message = footer.value -%}
             {% elif footer.token | lower == "security-impact" -%}
                 {% set_global security_impact = footer.value -%}
             {% elif footer.token | lower == "cve" -%}
