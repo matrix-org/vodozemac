@@ -40,8 +40,8 @@ olm, cipher).
 In addition to the Conventional Commit format, you can use the `Changelog` git
 trailer to specify the changelog message explicitly. When that trailer is
 present, its value will be used as the changelog entry instead of the commit's
-leading line. The `Breaking-Change` git trailer can be used in a similar manner
-if the changelog entry should be marked as a breaking change.
+leading line. For breaking changes, use the `Breaking-Change` trailer instead
+of the `Changelog` trailer to specify the changelog entry.
 
 
 #### Example Commit Message
