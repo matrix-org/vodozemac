@@ -20,7 +20,7 @@ allow = [
     "MIT",
 ]
 exceptions = [
-    { allow = ["Unicode-DFS-2016"], crate = "unicode-ident" },
+    { allow = ["Unicode-3.0"], crate = "unicode-ident" },
 ]
 
 [bans]
