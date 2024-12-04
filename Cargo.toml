@@ -49,7 +49,7 @@ arrayvec = { version = "0.7.6", features = ["serde"] }
 base64 = "0.22.1"
 base64ct = { version = "1.6.0", features = ["std", "alloc"] }
 cbc = { version = "0.1.2", features = ["std"] }
-chacha20poly1305 = "0.10.1"
+chacha20poly1305 = { version = "0.10.1", features = ["std"] }
 curve25519-dalek = { version = "4.1.3", default-features = false, features = ["zeroize"] }
 ed25519-dalek = { version = "2.1.1", default-features = false, features = ["rand_core", "std", "serde", "hazmat", "zeroize"] }
 getrandom = "0.2.15"

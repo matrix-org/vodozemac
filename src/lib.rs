@@ -232,7 +232,6 @@ pub enum PickleError {
 
 /// Error type describing the various ways libolm pickles can fail to be
 /// decoded.
-#[cfg(feature = "libolm-compat")]
 #[derive(Debug, thiserror::Error)]
 pub enum LibolmPickleError {
     /// The pickle is missing a valid version.
@@ -260,6 +259,30 @@ pub enum LibolmPickleError {
     /// The object could not be encoded as a pickle.
     #[error(transparent)]
     Encode(#[from] matrix_pickle::EncodeError),
+}
+
+/// Error type describing the various ways dehydrated devices can fail to be
+/// decoded.
+#[derive(Debug, thiserror::Error)]
+pub enum DehydratedDeviceError {
+    /// The pickle is missing a valid version.
+    #[error("The pickle doesn't contain a version")]
+    MissingVersion,
+    /// The pickle has a unsupported version.
+    #[error("The pickle uses an unsupported version, expected {0}, got {1}")]
+    Version(u32, u32),
+    /// Invalid nonce.
+    #[error("The nonce was invalid")]
+    InvalidNonce,
+    /// The pickle wasn't valid base64.
+    #[error("The pickle wasn't valid base64: {0}")]
+    Base64(#[from] Base64DecodeError),
+    /// The pickle could not have been decrypted.
+    #[error("The pickle couldn't be decrypted: {0}")]
+    Decryption(#[from] chacha20poly1305::aead::Error),
+    /// There was an error with the libolm pickle format
+    #[error(transparent)]
+    LibolmPickle(#[from] LibolmPickleError),
 }
 
 /// Error type describing the different ways message decoding can fail.
