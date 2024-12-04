@@ -232,7 +232,6 @@ pub enum PickleError {
 
 /// Error type describing the various ways libolm pickles can fail to be
 /// decoded.
-#[cfg(feature = "libolm-compat")]
 #[derive(Debug, thiserror::Error)]
 pub enum LibolmPickleError {
     /// The pickle is missing a valid version.
