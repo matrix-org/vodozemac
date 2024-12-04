@@ -12,13 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#[cfg(feature = "libolm-compat")]
 use std::io::Cursor;
 
+#[cfg(feature = "libolm-compat")]
 use matrix_pickle::{Decode, Encode};
+#[cfg(feature = "libolm-compat")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
+#[cfg(feature = "libolm-compat")]
 use super::{base64_decode, base64_encode};
+#[cfg(feature = "libolm-compat")]
 use crate::{cipher::Cipher, LibolmPickleError};
+
+/// Fetch the pickle version from the given pickle source.
+pub(crate) fn get_version(source: &[u8]) -> Option<u32> {
+    // Pickle versions are always u32 encoded as a fixed sized integer in
+    // big endian encoding.
+    let version = source.get(0..4)?;
+    Some(u32::from_be_bytes(version.try_into().ok()?))
+}
 
 /// Decrypt and decode the given pickle with the given pickle key.
 ///
@@ -28,19 +41,12 @@ use crate::{cipher::Cipher, LibolmPickleError};
 /// * pickle_key - The key that was used to encrypt the libolm pickle
 /// * pickle_version - The expected version of the pickle. Unpickling will fail
 ///   if the version in the pickle doesn't match this one.
+#[cfg(feature = "libolm-compat")]
 pub(crate) fn unpickle_libolm<P: Decode, T: TryFrom<P, Error = LibolmPickleError>>(
     pickle: &str,
     pickle_key: &[u8],
     pickle_version: u32,
 ) -> Result<T, LibolmPickleError> {
-    /// Fetch the pickle version from the given pickle source.
-    fn get_version(source: &[u8]) -> Option<u32> {
-        // Pickle versions are always u32 encoded as a fixed sized integer in
-        // big endian encoding.
-        let version = source.get(0..4)?;
-        Some(u32::from_be_bytes(version.try_into().ok()?))
-    }
-
     // libolm pickles are always base64 encoded, so first try to decode.
     let decoded = base64_decode(pickle)?;
 
@@ -65,6 +71,7 @@ pub(crate) fn unpickle_libolm<P: Decode, T: TryFrom<P, Error = LibolmPickleError
     }
 }
 
+#[cfg(feature = "libolm-compat")]
 pub(crate) fn pickle_libolm<P>(pickle: P, pickle_key: &[u8]) -> Result<String, LibolmPickleError>
 where
     P: Encode,
@@ -78,6 +85,7 @@ where
     Ok(base64_encode(encrypted))
 }
 
+#[cfg(feature = "libolm-compat")]
 #[derive(Encode, Decode, Zeroize, ZeroizeOnDrop)]
 pub(crate) struct LibolmEd25519Keypair {
     pub public_key: [u8; 32],
@@ -85,7 +93,7 @@ pub(crate) struct LibolmEd25519Keypair {
     pub private_key: Box<[u8; 64]>,
 }
 
-#[cfg(test)]
+#[cfg(all(feature = "libolm-compat", test))]
 mod test {
     use super::*;
 

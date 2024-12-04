@@ -17,10 +17,15 @@ mod one_time_keys;
 
 use std::collections::HashMap;
 
+use chacha20poly1305::{
+    aead::{Aead, AeadCore, KeyInit},
+    ChaCha20Poly1305,
+};
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use x25519_dalek::ReusableSecret;
+use zeroize::Zeroize;
 
 pub use self::one_time_keys::OneTimeKeyGenerationResult;
 use self::{
@@ -85,6 +90,15 @@ pub struct InboundCreationResult {
     pub session: Session,
     /// The plaintext of the pre-key message.
     pub plaintext: Vec<u8>,
+}
+
+/// Return type for the creation of a dehydrated device.
+#[derive(Debug)]
+pub struct DehydratedDeviceResult {
+    /// The encrypted dehydrated device, as a base64-encoded string.
+    pub ciphertext: String,
+    /// The nonce used for encrypting, as a base64-encoded string.
+    pub nonce: String,
 }
 
 /// An Olm [`Account`] manages all cryptographic keys used on a device.
@@ -439,6 +453,100 @@ impl Account {
 
         pickle.try_into()
     }
+
+    /// Create a dehydrated device from the account.
+    ///
+    /// A dehydrated device is a device that is stored encrypted on the server
+    /// that can receive messages when the user has no other active devices.
+    /// Upon login, the user can rehydrate the device (using
+    /// [`from_dehydrated_device`]) and decrypt the messages sent to the
+    /// dehydrated device.
+    ///
+    /// The account must be a newly-created account that does not have any Olm
+    /// sessions, since the dehydrated device format does not store sessions.
+    ///
+    /// Returns the ciphertext and nonce.  `key` is a 256-bit (32-byte) key for
+    /// encrypting the device.
+    ///
+    /// The format used here is defined in
+    /// [MSC3814](https://github.com/matrix-org/matrix-spec-proposals/pull/3814).
+    pub fn to_dehydrated_device(
+        &self,
+        key: &[u8; 32],
+    ) -> Result<DehydratedDeviceResult, crate::DehydratedDeviceError> {
+        use matrix_pickle::Encode;
+
+        use self::dehydrated_device::Pickle;
+        use crate::{utilities::base64_encode, DehydratedDeviceError, LibolmPickleError};
+
+        let pickle: Pickle = self.into();
+        let mut encoded = pickle
+            .encode_to_vec()
+            .map_err(|e| DehydratedDeviceError::LibolmPickle(LibolmPickleError::Encode(e)))?;
+        let cipher = ChaCha20Poly1305::new(key.into());
+        let rng = thread_rng();
+        let nonce = ChaCha20Poly1305::generate_nonce(rng);
+        let ciphertext = cipher.encrypt(&nonce, encoded.as_slice());
+        encoded.zeroize();
+        let ciphertext = ciphertext?;
+
+        Ok(DehydratedDeviceResult {
+            ciphertext: base64_encode(ciphertext),
+            nonce: base64_encode(nonce),
+        })
+    }
+
+    /// Create an [`Account`] object from a dehydrated device.
+    ///
+    /// `ciphertext` and `nonce` are the ciphertext and nonce returned by
+    /// [`to_dehydrated_device`]. `key` is a 256-bit (32-byte) key for
+    /// decrypting the device, and must be the same key used when
+    /// [`to_dehydrate_device`] was called.
+    pub fn from_dehydrated_device(
+        ciphertext: &str,
+        nonce: &str,
+        key: &[u8; 32],
+    ) -> Result<Self, crate::DehydratedDeviceError> {
+        use self::dehydrated_device::PICKLE_VERSION;
+        use crate::utilities::{base64_decode, get_pickle_version};
+
+        let cipher = ChaCha20Poly1305::new(key.into());
+        let ciphertext = base64_decode(ciphertext)?;
+        let nonce = base64_decode(nonce)?;
+        if nonce.len() != 12 {
+            return Err(crate::DehydratedDeviceError::InvalidNonce);
+        }
+        let mut plaintext = cipher.decrypt(nonce.as_slice().into(), ciphertext.as_slice())?;
+        let version =
+            get_pickle_version(&plaintext).ok_or(crate::DehydratedDeviceError::MissingVersion)?;
+        if version != PICKLE_VERSION {
+            return Err(crate::DehydratedDeviceError::Version(PICKLE_VERSION, version));
+        }
+
+        let pickle = Self::from_decrypted_dehydrated_device(&plaintext);
+        plaintext.zeroize();
+        pickle
+    }
+
+    // This function is public for fuzzing, but should not be used by anything
+    // else
+    #[doc(hidden)]
+    pub fn from_decrypted_dehydrated_device(
+        pickle: &[u8],
+    ) -> Result<Self, crate::DehydratedDeviceError> {
+        use std::io::Cursor;
+
+        use matrix_pickle::Decode;
+
+        use self::dehydrated_device::Pickle;
+        use crate::{DehydratedDeviceError, LibolmPickleError};
+
+        let mut cursor = Cursor::new(&pickle);
+        let pickle = Pickle::decode(&mut cursor)
+            .map_err(|e| DehydratedDeviceError::LibolmPickle(LibolmPickleError::Decode(e)))?;
+
+        pickle.try_into()
+    }
 }
 
 impl Default for Account {
@@ -682,16 +790,171 @@ mod libolm {
     }
 }
 
+mod dehydrated_device {
+    use matrix_pickle::{Decode, DecodeError, Encode, EncodeError};
+    use zeroize::{Zeroize, ZeroizeOnDrop};
+
+    use super::{
+        fallback_keys::{FallbackKey, FallbackKeys},
+        one_time_keys::OneTimeKeys,
+        Account,
+    };
+    use crate::{
+        types::{Curve25519Keypair, Curve25519SecretKey},
+        DehydratedDeviceError, Ed25519Keypair, KeyId,
+    };
+
+    #[derive(Encode, Decode, Zeroize, ZeroizeOnDrop)]
+    pub(crate) struct OneTimeKey {
+        #[secret]
+        pub(crate) private_key: Box<[u8; 32]>,
+    }
+
+    impl From<&OneTimeKey> for FallbackKey {
+        fn from(key: &OneTimeKey) -> Self {
+            FallbackKey {
+                key_id: KeyId(0),
+                key: Curve25519SecretKey::from_slice(&key.private_key),
+                published: true,
+            }
+        }
+    }
+
+    impl TryFrom<&FallbackKey> for OneTimeKey {
+        type Error = ();
+
+        fn try_from(key: &FallbackKey) -> Result<Self, ()> {
+            Ok(OneTimeKey { private_key: key.secret_key().to_bytes() })
+        }
+    }
+
+    #[derive(Zeroize, ZeroizeOnDrop)]
+    pub(crate) struct OptFallbackKey {
+        pub(crate) fallback_key: Option<OneTimeKey>,
+    }
+
+    impl Decode for OptFallbackKey {
+        fn decode(reader: &mut impl std::io::Read) -> Result<Self, DecodeError> {
+            let present = bool::decode(reader)?;
+
+            let fallback_key = if present {
+                let fallback_key = OneTimeKey::decode(reader)?;
+
+                Some(fallback_key)
+            } else {
+                None
+            };
+
+            Ok(Self { fallback_key })
+        }
+    }
+
+    impl Encode for OptFallbackKey {
+        fn encode(&self, writer: &mut impl std::io::Write) -> Result<usize, EncodeError> {
+            let ret = match &self.fallback_key {
+                None => false.encode(writer)?,
+                Some(key) => {
+                    let mut ret = true.encode(writer)?;
+                    ret += key.encode(writer)?;
+
+                    ret
+                }
+            };
+
+            Ok(ret)
+        }
+    }
+
+    #[derive(Encode, Decode, Zeroize, ZeroizeOnDrop)]
+    /// Pickle used for dehydrated devices.
+    ///
+    /// Dehydrated devices are used for receiving encrypted messages when the
+    /// user has no other devices logged in, and are defined in
+    /// [MSC3814](https://github.com/matrix-org/matrix-spec-proposals/pull/3814).
+    pub(super) struct Pickle {
+        version: u32,
+        #[secret]
+        private_curve25519_key: Box<[u8; 32]>,
+        #[secret]
+        private_ed25519_key: Box<[u8; 32]>,
+        one_time_keys: Vec<OneTimeKey>,
+        opt_fallback_key: OptFallbackKey,
+    }
+
+    pub(super) const PICKLE_VERSION: u32 = 1;
+
+    impl From<&Account> for Pickle {
+        fn from(account: &Account) -> Self {
+            let one_time_keys: Vec<_> = account
+                .one_time_keys
+                .secret_keys()
+                .iter()
+                .map(|(_key_id, secret_key)| OneTimeKey { private_key: secret_key.to_bytes() })
+                .collect();
+
+            let fallback_key =
+                account.fallback_keys.fallback_key.as_ref().and_then(|f| f.try_into().ok());
+
+            Self {
+                version: PICKLE_VERSION,
+                private_curve25519_key: account.diffie_hellman_key.secret_key().to_bytes(),
+                private_ed25519_key: account
+                    .signing_key
+                    .unexpanded_secret_key()
+                    .expect("Cannot dehydrate an account created from a libolm pickle"),
+                one_time_keys,
+                opt_fallback_key: OptFallbackKey { fallback_key },
+            }
+        }
+    }
+
+    impl TryFrom<Pickle> for Account {
+        type Error = DehydratedDeviceError;
+
+        fn try_from(pickle: Pickle) -> Result<Self, Self::Error> {
+            use crate::{DehydratedDeviceError, LibolmPickleError};
+            let mut one_time_keys = OneTimeKeys::new();
+
+            for (num, key) in pickle.one_time_keys.iter().enumerate() {
+                let secret_key = Curve25519SecretKey::from_slice(&key.private_key);
+                let key_id = KeyId(num as u64);
+                one_time_keys.insert_secret_key(key_id, secret_key, true);
+            }
+            one_time_keys.next_key_id = pickle.one_time_keys.len().try_into().unwrap_or_default();
+
+            let fallback_keys = FallbackKeys {
+                key_id: 1,
+                fallback_key: pickle.opt_fallback_key.fallback_key.as_ref().map(|otk| otk.into()),
+                previous_fallback_key: None,
+            };
+
+            Ok(Self {
+                signing_key: Ed25519Keypair::from_unexpanded_key(&pickle.private_ed25519_key)
+                    .map_err(|e| {
+                        DehydratedDeviceError::LibolmPickle(LibolmPickleError::PublicKey(e))
+                    })?,
+                diffie_hellman_key: Curve25519Keypair::from_secret_key(
+                    &pickle.private_curve25519_key,
+                ),
+                one_time_keys,
+                fallback_keys,
+            })
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use anyhow::{bail, Context, Result};
-    #[cfg(feature = "libolm-compat")]
-    use matrix_pickle::Encode;
+    use assert_matches::assert_matches;
+    use matrix_pickle::{Decode, Encode};
     use olm_rs::{account::OlmAccount, session::OlmMessage as LibolmOlmMessage};
 
     #[cfg(feature = "libolm-compat")]
     use super::libolm::Pickle;
-    use super::{Account, InboundCreationResult, SessionConfig, SessionCreationError};
+    use super::{
+        dehydrated_device, Account, InboundCreationResult, SessionConfig, SessionCreationError,
+    };
     use crate::{
         cipher::Mac,
         olm::{
@@ -1196,5 +1459,145 @@ mod test {
         assert_eq!(olm.parsed_identity_keys(), unpickled.parsed_identity_keys());
 
         Ok(())
+    }
+
+    #[test]
+    fn decrypt_with_dehydrated_device() {
+        let mut alice = Account::new();
+        let bob = Account::new();
+        let carol = Account::new();
+
+        alice.generate_one_time_keys(alice.max_number_of_one_time_keys());
+        alice.generate_fallback_key();
+
+        let alice_dehydrated_result =
+            alice.to_dehydrated_device(&PICKLE_KEY).expect("Should be able to dehydrate device");
+
+        // encrypt using a one-time key
+        let mut bob_session = bob.create_outbound_session(
+            SessionConfig::version_1(),
+            alice.curve25519_key(),
+            *alice
+                .one_time_keys()
+                .iter()
+                .next()
+                .expect("Failed getting alice's OTK, which should never happen here.")
+                .1,
+        );
+
+        // encrypt using a fallback key
+        let mut carol_session = carol.create_outbound_session(
+            SessionConfig::version_1(),
+            alice.curve25519_key(),
+            *alice
+                .fallback_key()
+                .iter()
+                .next()
+                .expect("Failed getting alice's fallback key, which should never happen here.")
+                .1,
+        );
+
+        let message = "It's a secret to everybody";
+        let bob_olm_message = bob_session.encrypt(message);
+        let carol_olm_message = carol_session.encrypt(message);
+
+        let mut alice_rehydrated = Account::from_dehydrated_device(
+            &alice_dehydrated_result.ciphertext,
+            &alice_dehydrated_result.nonce,
+            &PICKLE_KEY,
+        )
+        .expect("Should be able to rehydrate device");
+
+        // make sure we can decrypt both messages
+        let prekey_message = assert_matches!(bob_olm_message, OlmMessage::PreKey(m) => m);
+        let InboundCreationResult { session: alice_session, plaintext } = alice_rehydrated
+            .create_inbound_session(bob.curve25519_key(), &prekey_message)
+            .expect("Alice should be able to create an inbound session from Bob's pre-key message");
+        assert_eq!(alice_session.session_id(), bob_session.session_id());
+        assert_eq!(message.as_bytes(), plaintext);
+
+        let prekey_message = assert_matches!(carol_olm_message, OlmMessage::PreKey(m) => m);
+        let InboundCreationResult { session: alice_session, plaintext } = alice_rehydrated
+            .create_inbound_session(carol.curve25519_key(), &prekey_message)
+            .expect(
+                "Alice should be able to create an inbound session from Carol's pre-key message",
+            );
+
+        assert_eq!(alice_session.session_id(), carol_session.session_id());
+        assert_eq!(message.as_bytes(), plaintext);
+    }
+
+    #[test]
+    fn fails_to_rehydrate_with_wrong_key() {
+        let mut alice = Account::new();
+
+        alice.generate_one_time_keys(alice.max_number_of_one_time_keys());
+        alice.generate_fallback_key();
+
+        let alice_dehydrated_result =
+            alice.to_dehydrated_device(&PICKLE_KEY).expect("Should be able to dehydrate device");
+
+        assert!(Account::from_dehydrated_device(
+            &alice_dehydrated_result.ciphertext,
+            &alice_dehydrated_result.nonce,
+            &[1; 32],
+        )
+        .is_err());
+
+        assert!(Account::from_dehydrated_device(
+            &alice_dehydrated_result.ciphertext,
+            "WrongNonce123456",
+            &PICKLE_KEY,
+        )
+        .is_err());
+    }
+
+    #[derive(Encode, Decode)]
+    struct OptFallbackPickleTest {
+        fallback1: dehydrated_device::OptFallbackKey,
+        fallback2: dehydrated_device::OptFallbackKey,
+    }
+
+    #[test]
+    fn encodes_optional_fallback_key() {
+        use std::io::Cursor;
+
+        let data_to_pickle = OptFallbackPickleTest {
+            fallback1: dehydrated_device::OptFallbackKey {
+                fallback_key: Some(dehydrated_device::OneTimeKey {
+                    private_key: Box::new([1; 32]),
+                }),
+            },
+            fallback2: dehydrated_device::OptFallbackKey { fallback_key: None },
+        };
+
+        let buffer = Vec::<u8>::new();
+        let mut cursor = Cursor::new(buffer);
+        let pickle_length = data_to_pickle.encode(&mut cursor).expect("Can pickle data");
+        let pickle = cursor.into_inner();
+        assert_eq!(pickle.len(), pickle_length);
+
+        let mut cursor = Cursor::new(&pickle);
+        let unpickled_data = OptFallbackPickleTest::decode(&mut cursor).expect("Can unpickle");
+
+        assert!(unpickled_data.fallback1.fallback_key.is_some());
+        assert!(unpickled_data.fallback2.fallback_key.is_none());
+    }
+
+    #[test]
+    fn decrypted_dehydration_cycle() {
+        use dehydrated_device::Pickle;
+
+        let alice = Account::new();
+
+        let mut encoded = Vec::<u8>::new();
+        let pickle = Pickle::from(&alice);
+        let size = pickle.encode(&mut encoded).expect("Should dehydrate");
+        assert_eq!(size, encoded.len());
+
+        let account =
+            Account::from_decrypted_dehydrated_device(&encoded).expect("Should rehydrate account");
+
+        assert_eq!(alice.identity_keys(), account.identity_keys());
     }
 }

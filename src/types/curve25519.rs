@@ -87,7 +87,6 @@ impl Curve25519Keypair {
         Self { secret_key, public_key }
     }
 
-    #[cfg(feature = "libolm-compat")]
     pub fn from_secret_key(key: &[u8; 32]) -> Self {
         let secret_key = Curve25519SecretKey::from_slice(key);
         let public_key = Curve25519PublicKey::from(&secret_key);

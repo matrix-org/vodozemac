@@ -13,7 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[cfg(feature = "libolm-compat")]
 mod libolm_compat;
 
 pub use base64::DecodeError;
@@ -22,6 +21,7 @@ use base64::{
     engine::{general_purpose, GeneralPurpose},
     Engine,
 };
+pub(crate) use libolm_compat::get_version as get_pickle_version;
 #[cfg(feature = "libolm-compat")]
 pub(crate) use libolm_compat::{pickle_libolm, unpickle_libolm, LibolmEd25519Keypair};
 

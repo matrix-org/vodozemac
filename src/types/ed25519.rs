@@ -138,6 +138,19 @@ impl Ed25519Keypair {
         }
     }
 
+    pub(crate) fn from_unexpanded_key(secret_key: &[u8; 32]) -> Result<Self, crate::KeyError> {
+        let secret_key = SigningKey::from_bytes(secret_key);
+        let public_key = secret_key.verifying_key();
+        Ok(Self { secret_key: secret_key.into(), public_key: Ed25519PublicKey(public_key) })
+    }
+
+    pub(crate) fn unexpanded_secret_key(&self) -> Option<Box<[u8; 32]>> {
+        match &self.secret_key {
+            SecretKeys::Normal(k) => Some(Box::new(k.to_bytes())),
+            SecretKeys::Expanded(_) => None,
+        }
+    }
+
     #[cfg(feature = "libolm-compat")]
     pub(crate) fn from_expanded_key(secret_key: &[u8; 64]) -> Result<Self, crate::KeyError> {
         let secret_key = ExpandedSecretKey::from_bytes(secret_key);
@@ -620,5 +633,16 @@ mod tests {
         let serialized = serde_json::to_value(b"foo").expect("Should serialize key");
         let deserialized = serde_json::from_value::<ExpandedSecretKey>(serialized);
         assert!(deserialized.is_err());
+    }
+
+    #[test]
+    fn unexpanded_key_roundtrip_succeeds() {
+        let key_pair = Ed25519Keypair::new();
+
+        let unexpanded_key = key_pair.unexpanded_secret_key().expect("Should have unexpanded key");
+        let recovered_key_pair = Ed25519Keypair::from_unexpanded_key(unexpanded_key.as_ref())
+            .expect("Should create new keypair");
+
+        assert_eq!(key_pair.public_key().to_base64(), recovered_key_pair.public_key().to_base64());
     }
 }
