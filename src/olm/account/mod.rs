@@ -839,6 +839,7 @@ mod dehydrated_device {
                 let key_id = KeyId(num as u64);
                 one_time_keys.insert_secret_key(key_id, secret_key, true);
             }
+            one_time_keys.next_key_id = pickle.one_time_keys.len() as u64;
 
             let fallback_keys = FallbackKeys {
                 key_id: 1,
