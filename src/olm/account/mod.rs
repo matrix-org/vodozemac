@@ -801,6 +801,7 @@ mod dehydrated_device {
     pub(super) struct Pickle {
         version: u32,
         private_curve25519_key: Box<[u8; 32]>,
+        private_ed25519_key: Box<[u8; 64]>,
         one_time_keys: Vec<OneTimeKey>,
         opt_fallback_key: OptFallbackKey,
     }
@@ -822,6 +823,7 @@ mod dehydrated_device {
             Self {
                 version: PICKLE_VERSION,
                 private_curve25519_key: account.diffie_hellman_key.secret_key().to_bytes(),
+                private_ed25519_key: account.signing_key.expanded_secret_key(),
                 one_time_keys,
                 opt_fallback_key: OptFallbackKey { fallback_key },
             }
@@ -848,7 +850,7 @@ mod dehydrated_device {
             };
 
             Ok(Self {
-                signing_key: Ed25519Keypair::new(), // random key, just to satisfy the contract
+                signing_key: Ed25519Keypair::from_expanded_key(&pickle.private_ed25519_key)?,
                 diffie_hellman_key: Curve25519Keypair::from_secret_key(
                     &pickle.private_curve25519_key,
                 ),
