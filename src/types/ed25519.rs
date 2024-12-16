@@ -138,7 +138,6 @@ impl Ed25519Keypair {
         }
     }
 
-    #[cfg(feature = "libolm-compat")]
     pub(crate) fn from_expanded_key(secret_key: &[u8; 64]) -> Result<Self, crate::KeyError> {
         let secret_key = ExpandedSecretKey::from_bytes(secret_key);
         let public_key = secret_key.public_key();
@@ -146,7 +145,6 @@ impl Ed25519Keypair {
         Ok(Self { secret_key: secret_key.into(), public_key })
     }
 
-    #[cfg(feature = "libolm-compat")]
     pub(crate) fn expanded_secret_key(&self) -> Box<[u8; 64]> {
         use sha2::Digest;
 
