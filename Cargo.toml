@@ -57,23 +57,23 @@ getrandom = "0.2.15"
 hkdf = "0.12.4"
 hmac = "0.12.1"
 matrix-pickle = { version = "0.2.1" }
-prost = "0.13.2"
+prost = "0.13.4"
 rand = "0.8.5"
-serde = { version = "1.0.210", features = ["derive"] }
+serde = { version = "1.0.217", features = ["derive"] }
 serde_bytes = "0.11.15"
-serde_json = "1.0.128"
+serde_json = "1.0.135"
 sha2 = "0.10.8"
 subtle = "2.6.1"
-thiserror = "1.0.63"
+thiserror = "2.0.10"
 x25519-dalek = { version = "2.0.1", features = ["serde", "reusable_secrets", "static_secrets", "zeroize"] }
 zeroize = "1.8.1"
 
 [dev-dependencies]
-anyhow = "1.0.89"
+anyhow = "1.0.95"
 assert_matches = "1.5.0"
 assert_matches2 = "0.1.2"
 olm-rs = "2.2.0"
-proptest = "1.5.0"
+proptest = "1.6.0"
 
 [patch.crates-io]
 olm-rs = { git = "https://github.com/poljar/olm-rs" }
