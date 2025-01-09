@@ -201,9 +201,9 @@ impl SasBytes {
 
         // This bitwise operation is taken from the [spec]
         // [spec]: https://matrix.org/docs/spec/client_server/latest#sas-method-decimal
-        let first = bytes[0] << 5 | bytes[1] >> 3;
-        let second = (bytes[1] & 0x7) << 10 | bytes[2] << 2 | bytes[3] >> 6;
-        let third = (bytes[3] & 0x3F) << 7 | bytes[4] >> 1;
+        let first = (bytes[0] << 5) | (bytes[1] >> 3);
+        let second = ((bytes[1] & 0x7) << 10) | (bytes[2] << 2) | (bytes[3] >> 6);
+        let third = ((bytes[3] & 0x3F) << 7) | (bytes[4] >> 1);
 
         (first + 1000, second + 1000, third + 1000)
     }
