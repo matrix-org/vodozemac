@@ -398,6 +398,7 @@ impl Ed25519PublicKey {
     }
 
     #[cfg(fuzzing)]
+    #[allow(missing_docs)]
     pub fn verify(
         &self,
         _message: &[u8],

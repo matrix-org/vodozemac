@@ -14,3 +14,6 @@ path = "../.."
 # Prevent this from interfering with workspaces
 [workspace]
 members = ["."]
+
+[lints.rust]
+unexpected_cfgs = { level = "deny", check-cfg = ['cfg(fuzzing)'] }
