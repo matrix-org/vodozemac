@@ -86,8 +86,10 @@ impl<'d> Deserialize<'d> for RatchetBytes {
 struct RatchetPart<'a>(&'a mut [u8]);
 
 impl RatchetPart<'_> {
-    fn hash(&self, seed: &[u8]) -> CtOutput<Hmac<Sha256>> {
-        let mut hmac = Hmac::<Sha256>::new_from_slice(self.0).expect("Can't create a HMAC object");
+    fn hash(&self, seed: &[u8; 1]) -> CtOutput<Hmac<Sha256>> {
+        #[allow(clippy::expect_used)]
+        let mut hmac = Hmac::<Sha256>::new_from_slice(self.0)
+            .expect("We should be able to create a HMAC object from a ratchet part");
         hmac.update(seed);
 
         hmac.finalize()

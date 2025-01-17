@@ -226,6 +226,7 @@ impl PkDecryption {
         let expanded_keys = ExpandedKeys::new_helper(shared_secret.as_bytes(), b"");
         let cipher_keys = CipherKeys::from_expanded_keys(expanded_keys);
 
+        #[allow(clippy::expect_used)]
         let hmac = HmacSha256::new_from_slice(cipher_keys.mac_key())
             .expect("We should be able to create a Hmac object from a 32 byte key");
 
@@ -304,6 +305,7 @@ impl PkEncryption {
         let cipher = Aes256CbcEnc::new(cipher_keys.aes_key(), cipher_keys.iv());
         let ciphertext = cipher.encrypt_padded_vec_mut::<Pkcs7>(message);
 
+        #[allow(clippy::expect_used)]
         let hmac = HmacSha256::new_from_slice(cipher_keys.mac_key())
             .expect("We should be able to create a Hmac object from a 32 byte key");
 

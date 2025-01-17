@@ -149,7 +149,9 @@ impl Cipher {
         // large HMAC key while the Olm spec defines a 32-byte one instead.
         //
         // https://gitlab.matrix.org/matrix-org/olm/-/blob/master/docs/olm.md#version-1
-        HmacSha256::new_from_slice(self.keys.mac_key()).expect("Invalid HMAC key size")
+        #[allow(clippy::expect_used)]
+        HmacSha256::new_from_slice(self.keys.mac_key())
+            .expect("We should be able to create a HmacSha256 from a 32 byte key")
     }
 
     /// Encrypts the given plaintext using this [`Cipher`] and returns the

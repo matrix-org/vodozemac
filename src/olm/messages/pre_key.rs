@@ -128,9 +128,10 @@ impl PreKeyMessage {
         let mut output: Vec<u8> = vec![0u8; message.encoded_len() + 1];
         output[0] = Self::VERSION;
 
+        #[allow(clippy::expect_used)]
         message
             .encode(&mut output[1..].as_mut())
-            .expect("Couldn't encode our message into a protobuf");
+            .expect("We should be able to encode a pre-key message into protobuf.");
 
         output
     }

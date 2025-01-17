@@ -179,8 +179,9 @@ impl MegolmMessage {
             ciphertext,
             message_index,
             mac: Mac([0u8; Mac::LENGTH]).into(),
+            #[allow(clippy::expect_used)]
             signature: Ed25519Signature::from_slice(&[0; Ed25519Signature::LENGTH])
-                .expect("Can't create an empty signature"),
+                .expect("We should be able to create a signature from an empty zero slice"),
         };
 
         Self::encrypt_helper(cipher, signing_key, message)
@@ -199,8 +200,9 @@ impl MegolmMessage {
             ciphertext,
             message_index,
             mac: [0u8; Mac::TRUNCATED_LEN].into(),
+            #[allow(clippy::expect_used)]
             signature: Ed25519Signature::from_slice(&[0; Ed25519Signature::LENGTH])
-                .expect("Can't create an empty signature"),
+                .expect("We should be able to create a signature from an empty zero slice"),
         };
 
         Self::encrypt_helper(cipher, signing_key, message)
