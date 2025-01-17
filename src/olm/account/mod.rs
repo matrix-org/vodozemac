@@ -516,19 +516,22 @@ impl Account {
         let cipher = ChaCha20Poly1305::new(key.into());
         let ciphertext = base64_decode(ciphertext)?;
         let nonce = base64_decode(nonce)?;
-        if nonce.len() != 12 {
-            return Err(crate::DehydratedDeviceError::InvalidNonce);
-        }
-        let mut plaintext = cipher.decrypt(nonce.as_slice().into(), ciphertext.as_slice())?;
-        let version =
-            get_pickle_version(&plaintext).ok_or(crate::DehydratedDeviceError::MissingVersion)?;
-        if version != PICKLE_VERSION {
-            return Err(crate::DehydratedDeviceError::Version(PICKLE_VERSION, version));
-        }
 
-        let pickle = Self::from_decrypted_dehydrated_device(&plaintext);
-        plaintext.zeroize();
-        pickle
+        if nonce.len() != 12 {
+            Err(crate::DehydratedDeviceError::InvalidNonce)
+        } else {
+            let mut plaintext = cipher.decrypt(nonce.as_slice().into(), ciphertext.as_slice())?;
+            let version = get_pickle_version(&plaintext)
+                .ok_or(crate::DehydratedDeviceError::MissingVersion)?;
+
+            if version != PICKLE_VERSION {
+                Err(crate::DehydratedDeviceError::Version(PICKLE_VERSION, version))
+            } else {
+                let pickle = Self::from_decrypted_dehydrated_device(&plaintext);
+                plaintext.zeroize();
+                pickle
+            }
+        }
     }
 
     // This function is public for fuzzing, but should not be used by anything
