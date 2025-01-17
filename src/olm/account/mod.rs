@@ -479,15 +479,18 @@ impl Account {
         use self::dehydrated_device::Pickle;
         use crate::{utilities::base64_encode, DehydratedDeviceError, LibolmPickleError};
 
-        let pickle: Pickle = self.into();
+        let pickle: Pickle = self.try_into()?;
         let mut encoded = pickle
             .encode_to_vec()
             .map_err(|e| DehydratedDeviceError::LibolmPickle(LibolmPickleError::Encode(e)))?;
+
         let cipher = ChaCha20Poly1305::new(key.into());
         let rng = thread_rng();
         let nonce = ChaCha20Poly1305::generate_nonce(rng);
         let ciphertext = cipher.encrypt(&nonce, encoded.as_slice());
+
         encoded.zeroize();
+
         let ciphertext = ciphertext?;
 
         Ok(DehydratedDeviceResult {
@@ -883,8 +886,10 @@ mod dehydrated_device {
 
     pub(super) const PICKLE_VERSION: u32 = 1;
 
-    impl From<&Account> for Pickle {
-        fn from(account: &Account) -> Self {
+    impl TryFrom<&Account> for Pickle {
+        type Error = DehydratedDeviceError;
+
+        fn try_from(account: &Account) -> Result<Self, Self::Error> {
             let one_time_keys: Vec<_> = account
                 .one_time_keys
                 .secret_keys()
@@ -895,16 +900,16 @@ mod dehydrated_device {
             let fallback_key =
                 account.fallback_keys.fallback_key.as_ref().and_then(|f| f.try_into().ok());
 
-            Self {
+            Ok(Self {
                 version: PICKLE_VERSION,
                 private_curve25519_key: account.diffie_hellman_key.secret_key().to_bytes(),
                 private_ed25519_key: account
                     .signing_key
                     .unexpanded_secret_key()
-                    .expect("Cannot dehydrate an account created from a libolm pickle"),
+                    .ok_or_else(|| DehydratedDeviceError::InvalidAccount)?,
                 one_time_keys,
                 opt_fallback_key: OptFallbackKey { fallback_key },
-            }
+            })
         }
     }
 
@@ -1591,7 +1596,8 @@ mod test {
         let alice = Account::new();
 
         let mut encoded = Vec::<u8>::new();
-        let pickle = Pickle::from(&alice);
+        let pickle = Pickle::try_from(&alice)
+            .expect("We should be able to create a dehydrated device from the account");
         let size = pickle.encode(&mut encoded).expect("Should dehydrate");
         assert_eq!(size, encoded.len());
 

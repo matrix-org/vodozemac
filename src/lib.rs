@@ -283,6 +283,10 @@ pub enum DehydratedDeviceError {
     /// There was an error with the libolm pickle format
     #[error(transparent)]
     LibolmPickle(#[from] LibolmPickleError),
+    /// The current account was created by libolm and can't be converted into a
+    /// dehydrated device.
+    #[error("The Account can't be turned into a dehydrated device since it was created by libolm")]
+    InvalidAccount,
 }
 
 /// Error type describing the different ways message decoding can fail.
