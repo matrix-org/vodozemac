@@ -32,7 +32,6 @@ rust_2018_idioms = "deny"
 [lints.clippy]
 unwrap_used = "deny"
 mem_forget = "deny"
-missing_const_for_fn = "warn"
 
 [features]
 default = ["libolm-compat"]
