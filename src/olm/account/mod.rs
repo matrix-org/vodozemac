@@ -459,8 +459,8 @@ impl Account {
     /// A dehydrated device is a device that is stored encrypted on the server
     /// that can receive messages when the user has no other active devices.
     /// Upon login, the user can rehydrate the device (using
-    /// [`from_dehydrated_device`]) and decrypt the messages sent to the
-    /// dehydrated device.
+    /// [`Account::from_dehydrated_device`]) and decrypt the messages sent to
+    /// the dehydrated device.
     ///
     /// The account must be a newly-created account that does not have any Olm
     /// sessions, since the dehydrated device format does not store sessions.
@@ -479,15 +479,18 @@ impl Account {
         use self::dehydrated_device::Pickle;
         use crate::{utilities::base64_encode, DehydratedDeviceError, LibolmPickleError};
 
-        let pickle: Pickle = self.into();
+        let pickle: Pickle = self.try_into()?;
         let mut encoded = pickle
             .encode_to_vec()
             .map_err(|e| DehydratedDeviceError::LibolmPickle(LibolmPickleError::Encode(e)))?;
+
         let cipher = ChaCha20Poly1305::new(key.into());
         let rng = thread_rng();
         let nonce = ChaCha20Poly1305::generate_nonce(rng);
         let ciphertext = cipher.encrypt(&nonce, encoded.as_slice());
+
         encoded.zeroize();
+
         let ciphertext = ciphertext?;
 
         Ok(DehydratedDeviceResult {
@@ -499,9 +502,9 @@ impl Account {
     /// Create an [`Account`] object from a dehydrated device.
     ///
     /// `ciphertext` and `nonce` are the ciphertext and nonce returned by
-    /// [`to_dehydrated_device`]. `key` is a 256-bit (32-byte) key for
+    /// [`Account::to_dehydrated_device`]. `key` is a 256-bit (32-byte) key for
     /// decrypting the device, and must be the same key used when
-    /// [`to_dehydrate_device`] was called.
+    /// [`Account::to_dehydrated_device`] was called.
     pub fn from_dehydrated_device(
         ciphertext: &str,
         nonce: &str,
@@ -513,19 +516,22 @@ impl Account {
         let cipher = ChaCha20Poly1305::new(key.into());
         let ciphertext = base64_decode(ciphertext)?;
         let nonce = base64_decode(nonce)?;
-        if nonce.len() != 12 {
-            return Err(crate::DehydratedDeviceError::InvalidNonce);
-        }
-        let mut plaintext = cipher.decrypt(nonce.as_slice().into(), ciphertext.as_slice())?;
-        let version =
-            get_pickle_version(&plaintext).ok_or(crate::DehydratedDeviceError::MissingVersion)?;
-        if version != PICKLE_VERSION {
-            return Err(crate::DehydratedDeviceError::Version(PICKLE_VERSION, version));
-        }
 
-        let pickle = Self::from_decrypted_dehydrated_device(&plaintext);
-        plaintext.zeroize();
-        pickle
+        if nonce.len() != 12 {
+            Err(crate::DehydratedDeviceError::InvalidNonce)
+        } else {
+            let mut plaintext = cipher.decrypt(nonce.as_slice().into(), ciphertext.as_slice())?;
+            let version = get_pickle_version(&plaintext)
+                .ok_or(crate::DehydratedDeviceError::MissingVersion)?;
+
+            if version != PICKLE_VERSION {
+                Err(crate::DehydratedDeviceError::Version(PICKLE_VERSION, version))
+            } else {
+                let pickle = Self::from_decrypted_dehydrated_device(&plaintext);
+                plaintext.zeroize();
+                pickle
+            }
+        }
     }
 
     // This function is public for fuzzing, but should not be used by anything
@@ -883,8 +889,10 @@ mod dehydrated_device {
 
     pub(super) const PICKLE_VERSION: u32 = 1;
 
-    impl From<&Account> for Pickle {
-        fn from(account: &Account) -> Self {
+    impl TryFrom<&Account> for Pickle {
+        type Error = DehydratedDeviceError;
+
+        fn try_from(account: &Account) -> Result<Self, Self::Error> {
             let one_time_keys: Vec<_> = account
                 .one_time_keys
                 .secret_keys()
@@ -895,16 +903,16 @@ mod dehydrated_device {
             let fallback_key =
                 account.fallback_keys.fallback_key.as_ref().and_then(|f| f.try_into().ok());
 
-            Self {
+            Ok(Self {
                 version: PICKLE_VERSION,
                 private_curve25519_key: account.diffie_hellman_key.secret_key().to_bytes(),
                 private_ed25519_key: account
                     .signing_key
                     .unexpanded_secret_key()
-                    .expect("Cannot dehydrate an account created from a libolm pickle"),
+                    .ok_or_else(|| DehydratedDeviceError::InvalidAccocunt)?,
                 one_time_keys,
                 opt_fallback_key: OptFallbackKey { fallback_key },
-            }
+            })
         }
     }
 
@@ -1591,7 +1599,8 @@ mod test {
         let alice = Account::new();
 
         let mut encoded = Vec::<u8>::new();
-        let pickle = Pickle::from(&alice);
+        let pickle = Pickle::try_from(&alice)
+            .expect("We should be able to create a dehydrated device from the account");
         let size = pickle.encode(&mut encoded).expect("Should dehydrate");
         assert_eq!(size, encoded.len());
 
