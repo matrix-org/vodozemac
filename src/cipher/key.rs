@@ -51,7 +51,9 @@ impl ExpandedKeys {
 
         let hkdf: Hkdf<Sha256> = Hkdf::new(Some(&[0]), message_key);
 
-        hkdf.expand(info, &mut expanded_keys).expect("Can't expand message key");
+        #[allow(clippy::expect_used)]
+        hkdf.expand(info, &mut expanded_keys)
+            .expect("HKDF should be able to expand a 32 byte key into 80 bytes");
 
         Self(Box::new(expanded_keys))
     }

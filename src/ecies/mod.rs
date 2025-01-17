@@ -132,6 +132,7 @@ impl EciesNonce {
         let mut nonce = [0u8; 12];
         nonce.copy_from_slice(&current.to_le_bytes()[..12]);
 
+        #[allow(clippy::expect_used)]
         Nonce::from_exact_iter(nonce)
             .expect("We should be able to construct the correct nonce from a 12 byte slice")
     }
@@ -382,8 +383,10 @@ impl EstablishedEcies {
 
         let info = Self::get_check_code_info(info, role, our_public_key, their_public_key);
 
-        kdf.expand(info.as_bytes(), bytes.as_mut_slice())
-            .expect("We should be able to expand the shared secret into a 32 byte key.");
+        #[allow(clippy::expect_used)]
+        kdf.expand(info.as_bytes(), bytes.as_mut_slice()).expect(
+            "We should be able to expand the 32-byte long shared secret into a 32 byte key.",
+        );
 
         CheckCode { bytes }
     }
@@ -392,8 +395,10 @@ impl EstablishedEcies {
         let mut key = Box::new([0u8; 32]);
         let kdf: Hkdf<Sha512> = Hkdf::new(None, shared_secret.as_bytes());
 
-        kdf.expand(info.as_bytes(), key.as_mut_slice())
-            .expect("We should be able to expand the shared secret into a 32 byte key.");
+        #[allow(clippy::expect_used)]
+        kdf.expand(info.as_bytes(), key.as_mut_slice()).expect(
+            "We should be able to expand the 32-byte long shared secret into a 32 byte key.",
+        );
 
         key
     }
@@ -498,6 +503,7 @@ impl EstablishedEcies {
         let nonce = self.encryption_nonce.get();
 
         let cipher = ChaCha20Poly1305::new(self.encryption_key());
+        #[allow(clippy::expect_used)]
         let ciphertext = cipher.encrypt(&nonce, plaintext).expect(
             "We should always be able to encrypt a message since we provide the correct nonce",
         );

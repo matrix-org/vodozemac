@@ -61,7 +61,9 @@ pub(crate) fn unpickle<T: for<'b> serde::Deserialize<'b>>(
 pub(crate) fn pickle<T: serde::Serialize>(thing: &T, pickle_key: &[u8; 32]) -> String {
     use zeroize::Zeroize;
 
-    let mut json = serde_json::to_vec(&thing).expect("Can't serialize a pickled object");
+    #[allow(clippy::expect_used)]
+    let mut json = serde_json::to_vec(&thing)
+        .expect("A pickled object should always be serializable into JSON");
     let cipher = crate::cipher::Cipher::new_pickle(pickle_key);
 
     let ciphertext = cipher.encrypt_pickle(json.as_slice());

@@ -26,8 +26,9 @@ const MESSAGE_KEY_SEED: &[u8; 1] = b"\x01";
 const ADVANCEMENT_SEED: &[u8; 1] = b"\x02";
 
 fn expand_chain_key(key: &[u8; 32]) -> Box<[u8; 32]> {
-    let mut mac =
-        Hmac::<Sha256>::new_from_slice(key).expect("Can't create HmacSha256 from the key");
+    #[allow(clippy::expect_used)]
+    let mut mac = Hmac::<Sha256>::new_from_slice(key)
+        .expect("We should be able to create a HMAC object from a 32-byte key");
     mac.update(MESSAGE_KEY_SEED);
 
     let mut output = mac.finalize().into_bytes();
@@ -41,8 +42,10 @@ fn expand_chain_key(key: &[u8; 32]) -> Box<[u8; 32]> {
 }
 
 fn advance(key: &[u8; 32]) -> CtOutput<Hmac<Sha256>> {
-    let mut mac = Hmac::<Sha256>::new_from_slice(key)
-        .expect("Couldn't create a valid Hmac object to advance the ratchet");
+    #[allow(clippy::expect_used)]
+    let mut mac = Hmac::<Sha256>::new_from_slice(key).expect(
+        "We should be able to create a HMAC object from a 32-byte key to advance the ratchet",
+    );
     mac.update(ADVANCEMENT_SEED);
 
     mac.finalize()

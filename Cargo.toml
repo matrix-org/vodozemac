@@ -30,6 +30,8 @@ unused_qualifications = "deny"
 rust_2018_idioms = "deny"
 
 [lints.clippy]
+panic = "deny"
+expect_used = "deny"
 unwrap_used = "deny"
 mem_forget = "deny"
 
