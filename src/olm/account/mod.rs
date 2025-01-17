@@ -459,8 +459,8 @@ impl Account {
     /// A dehydrated device is a device that is stored encrypted on the server
     /// that can receive messages when the user has no other active devices.
     /// Upon login, the user can rehydrate the device (using
-    /// [`from_dehydrated_device`]) and decrypt the messages sent to the
-    /// dehydrated device.
+    /// [`Account::from_dehydrated_device`]) and decrypt the messages sent to
+    /// the dehydrated device.
     ///
     /// The account must be a newly-created account that does not have any Olm
     /// sessions, since the dehydrated device format does not store sessions.
@@ -499,9 +499,9 @@ impl Account {
     /// Create an [`Account`] object from a dehydrated device.
     ///
     /// `ciphertext` and `nonce` are the ciphertext and nonce returned by
-    /// [`to_dehydrated_device`]. `key` is a 256-bit (32-byte) key for
+    /// [`Account::to_dehydrated_device`]. `key` is a 256-bit (32-byte) key for
     /// decrypting the device, and must be the same key used when
-    /// [`to_dehydrate_device`] was called.
+    /// [`Account::to_dehydrated_device`] was called.
     pub fn from_dehydrated_device(
         ciphertext: &str,
         nonce: &str,
