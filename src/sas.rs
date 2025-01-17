@@ -274,6 +274,7 @@ impl EstablishedSas {
     /// use the same info string.
     pub fn bytes(&self, info: &str) -> SasBytes {
         let mut bytes = [0u8; 6];
+        #[allow(clippy::expect_used)]
         let byte_vec =
             self.bytes_raw(info, 6).expect("HKDF should always be able to generate 6 bytes");
 
@@ -407,14 +408,19 @@ impl EstablishedSas {
         let mut mac_key = Box::new([0u8; 32]);
         let hkdf = self.get_hkdf();
 
-        hkdf.expand(info.as_bytes(), mac_key.as_mut_slice()).expect("Can't expand the MAC key");
+        #[allow(clippy::expect_used)]
+        hkdf.expand(info.as_bytes(), mac_key.as_mut_slice())
+            .expect("We should be able to expand the shared SAS secret into a MAC key");
 
         mac_key
     }
 
     fn get_mac(&self, info: &str) -> Hmac<Sha256> {
         let mac_key = self.get_mac_key(info);
-        Hmac::<Sha256>::new_from_slice(mac_key.as_slice()).expect("Can't create a HMAC object")
+
+        #[allow(clippy::expect_used)]
+        Hmac::<Sha256>::new_from_slice(mac_key.as_slice())
+            .expect("We should be able to create a HMAC object from a 32-byte slice")
     }
 }
 
