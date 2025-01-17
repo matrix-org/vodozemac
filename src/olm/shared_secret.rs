@@ -51,8 +51,9 @@ fn expand(shared_secret: &[u8; 96]) -> (Box<[u8; 32]>, Box<[u8; 32]>) {
 
     let mut expanded_keys = [0u8; 64];
 
+    #[allow(clippy::expect_used)]
     hkdf.expand(b"OLM_ROOT", &mut expanded_keys)
-        .expect("Can't expand the shared 3DH secret into the Olm root");
+        .expect("We should be able to expand the shared 3DH secret into the Olm root");
 
     root_key.copy_from_slice(&expanded_keys[0..32]);
     chain_key.copy_from_slice(&expanded_keys[32..64]);
