@@ -182,6 +182,7 @@ impl InboundGroupSession {
         //
         // After that we compare the raw ratchet bytes in constant time.
 
+        #[allow(clippy::unreachable)]
         if self.config != other.config || self.signing_key != other.signing_key {
             // Short circuit if session configs differ or the signing keys
             // differ. This is comparing public key material.
