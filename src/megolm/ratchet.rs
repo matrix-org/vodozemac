@@ -109,22 +109,24 @@ struct RatchetParts<'a> {
 
 impl<'a> RatchetParts<'a> {
     fn update(&'a mut self, from: usize, to: usize) {
+        #[allow(clippy::unreachable)]
         let from = match from {
             0 => &self.r_0,
             1 => &self.r_1,
             2 => &self.r_2,
             3 => &self.r_3,
-            _ => unreachable!(),
+            _ => unreachable!("We only have 4 ratchet parts"),
         };
 
         let result = from.hash(ADVANCEMENT_SEEDS[to]);
 
+        #[allow(clippy::unreachable)]
         let to = match to {
             0 => &mut self.r_0,
             1 => &mut self.r_1,
             2 => &mut self.r_2,
             3 => &mut self.r_3,
-            _ => unreachable!(),
+            _ => unreachable!("We only have 4 ratchet parts"),
         };
 
         to.update(&result.into_bytes());
