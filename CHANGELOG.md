@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.0] - 2025-01-31
+
+### Features
+
+- Added support for [MSC3814](https://github.com/matrix-org/matrix-spec-proposals/pull/3814/),
+    allowing users to export an Olm Account in a serialized format. The
+    serialized account can be uploaded to a server for safekeeping until
+    needed.
+
+
 ## [0.8.1] - 2024-10-08
 
 ### Bug Fixes
