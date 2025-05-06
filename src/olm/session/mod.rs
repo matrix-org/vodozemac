@@ -662,7 +662,7 @@ mod test {
 
         let mut messages: Vec<messages::OlmMessage> = Vec::new();
         for i in 0..(MAX_MESSAGE_KEYS + 2) {
-            messages.push(bob_session.encrypt(format!("Message {}", i).as_str()).into());
+            messages.push(bob_session.encrypt(format!("Message {i}").as_str()).into());
         }
 
         // Decrypt last message
@@ -682,7 +682,7 @@ mod test {
         // Can decrypt all other messages
         for (i, message) in messages.iter().enumerate().skip(1).take(MAX_MESSAGE_KEYS) {
             assert_eq!(
-                format!("Message {}", i).as_bytes(),
+                format!("Message {i}").as_bytes(),
                 alice_session
                     .decrypt(message)
                     .expect("Should be able to decrypt remaining messages")
@@ -695,7 +695,7 @@ mod test {
         let (_, _, mut alice_session, bob_session) = session_and_libolm_pair().unwrap();
 
         for i in 0..(MAX_MESSAGE_GAP + 1) {
-            bob_session.encrypt(format!("Message {}", i).as_str());
+            bob_session.encrypt(format!("Message {i}").as_str());
         }
 
         let message = bob_session.encrypt("Message").into();
