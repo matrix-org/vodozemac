@@ -896,8 +896,8 @@ mod dehydrated_device {
             let one_time_keys: Vec<_> = account
                 .one_time_keys
                 .secret_keys()
-                .iter()
-                .map(|(_key_id, secret_key)| OneTimeKey { private_key: secret_key.to_bytes() })
+                .values()
+                .map(|secret_key| OneTimeKey { private_key: secret_key.to_bytes() })
                 .collect();
 
             let fallback_key =
