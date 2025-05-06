@@ -33,4 +33,5 @@ unknown-git = "deny"
 
 allow-git = [
     "https://github.com/poljar/olm-rs",
+    "https://github.com/poljar/olm-sys",
 ]
