@@ -426,10 +426,12 @@ impl EstablishedSas {
 
 #[cfg(test)]
 mod test {
+    use insta::assert_debug_snapshot;
     use olm_rs::sas::OlmSas;
     use proptest::prelude::*;
 
     use super::{Mac, Sas, SasBytes};
+    use crate::Curve25519PublicKey;
 
     const ALICE_MXID: &str = "@alice:example.com";
     const ALICE_DEVICE_ID: &str = "AAAAAAAAAA";
@@ -450,6 +452,23 @@ mod test {
             bytes,
             "as_bytes() after from_slice() is not identity"
         );
+    }
+
+    #[test]
+    fn snapshot_debug() {
+        let key = Curve25519PublicKey::from_bytes([0; 32]);
+
+        let alice = Sas::default();
+        let bob = Sas::default();
+
+        let mut established = alice
+            .diffie_hellman(bob.public_key())
+            .expect("We should be able to establish a SAS session");
+
+        established.our_public_key = key;
+        established.their_public_key = key;
+
+        assert_debug_snapshot!(established);
     }
 
     #[test]

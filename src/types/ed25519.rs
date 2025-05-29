@@ -523,7 +523,7 @@ impl From<Ed25519KeypairPickle> for Ed25519Keypair {
 #[cfg(test)]
 mod tests {
     use super::ExpandedSecretKey;
-    use crate::{Ed25519Keypair, Ed25519PublicKey, Ed25519SecretKey, KeyError};
+    use crate::{Ed25519Keypair, Ed25519PublicKey, Ed25519SecretKey, Ed25519Signature, KeyError};
 
     #[test]
     fn byte_decoding_roundtrip_succeeds_for_secret_key() {
@@ -644,5 +644,21 @@ mod tests {
             .expect("Should create new keypair");
 
         assert_eq!(key_pair.public_key().to_base64(), recovered_key_pair.public_key().to_base64());
+    }
+
+    #[test]
+    fn snapshot_public_key_debug() {
+        let public_key = Ed25519PublicKey::from_slice(&[0; 32])
+            .expect("We should be able to create a public key from zero bytes");
+
+        insta::assert_debug_snapshot!(public_key)
+    }
+
+    #[test]
+    fn snapshot_signature_debug() {
+        let signature = Ed25519Signature::from_slice(&[0; 64])
+            .expect("We should be able to create a public key from zero bytes");
+
+        insta::assert_debug_snapshot!(signature)
     }
 }

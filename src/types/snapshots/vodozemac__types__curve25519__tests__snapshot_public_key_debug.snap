@@ -1,0 +1,5 @@
+---
+source: src/types/curve25519.rs
+expression: key
+---
+"curve25519:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
