@@ -590,6 +590,7 @@ impl EstablishedEcies {
 
 #[cfg(test)]
 mod test {
+    use insta::assert_debug_snapshot;
     use proptest::prelude::*;
 
     use super::*;
@@ -726,6 +727,24 @@ mod test {
             check_code_info2,
             format!("foobar_CHECKCODE|{our_public_key}|{their_public_key}")
         );
+    }
+
+    #[test]
+    fn snapshot_debug() {
+        let key = Curve25519PublicKey::from_bytes([0; 32]);
+
+        let alice = Ecies::new();
+        let bob = Ecies::new();
+
+        let OutboundCreationResult { mut ecies, .. } = alice
+            .establish_outbound_channel(bob.public_key(), b"")
+            .expect("We should be able to establish a Ecies channel");
+
+        ecies.our_public_key = key;
+        ecies.their_public_key = key;
+        ecies.check_code = CheckCode { bytes: [0, 1] };
+
+        assert_debug_snapshot!(ecies);
     }
 
     proptest! {

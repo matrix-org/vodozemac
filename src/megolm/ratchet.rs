@@ -326,7 +326,7 @@ mod tests {
 
         {
             let mut parts = ratchet.as_parts();
-            parts.update(3, 2);
+            parts.update(1, 2);
         }
 
         {
@@ -341,22 +341,22 @@ mod tests {
 
         {
             let mut parts = ratchet.as_parts();
-            parts.update(2, 0);
+            parts.update(2, 3);
         }
 
         {
             let parts = ratchet.as_parts();
 
             // Now we advanced the second part and put the result into the zeroth part.
-            assert_ne!(parts.r_0.0, [0; 32]);
+            assert_eq!(parts.r_0.0, [0; 32]);
             assert_ne!(parts.r_1.0, [0; 32]);
             assert_ne!(parts.r_2.0, [0; 32]);
-            assert_eq!(parts.r_3.0, [0; 32]);
+            assert_ne!(parts.r_3.0, [0; 32]);
         }
 
         {
             let mut parts = ratchet.as_parts();
-            parts.update(0, 3);
+            parts.update(3, 0);
         }
 
         {
