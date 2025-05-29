@@ -65,3 +65,20 @@ impl std::fmt::Debug for SessionKeys {
             .finish()
     }
 }
+
+#[cfg(test)]
+mod test {
+    use insta::assert_debug_snapshot;
+
+    use super::SessionKeys;
+    use crate::Curve25519PublicKey;
+
+    #[test]
+    fn snapshot_session_keys_debug() {
+        let key = Curve25519PublicKey::from_bytes([0; 32]);
+
+        let session_keys = SessionKeys { identity_key: key, base_key: key, one_time_key: key };
+
+        assert_debug_snapshot!(session_keys);
+    }
+}
