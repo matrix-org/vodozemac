@@ -284,4 +284,89 @@ mod tests {
         ratchet.advance_to(1);
         assert_eq!(ratchet.counter, 1);
     }
+
+    #[test]
+    #[should_panic]
+    fn only_four_parts_are_available_for_an_update() {
+        let mut ratchet = Ratchet::from_bytes([0; 128].into(), 0);
+        let mut parts = ratchet.as_parts();
+
+        // This panics, because the ratchet has only 4 parts, from 0 to 3.
+        parts.update(0, 4);
+    }
+
+    #[test]
+    fn update_modifies_the_correct_part() {
+        let mut ratchet = Ratchet::from_bytes([0; 128].into(), 0);
+
+        {
+            let parts = ratchet.as_parts();
+
+            // At the beginning we're all zero bytes.
+            assert_eq!(parts.r_0.0, [0; 32]);
+            assert_eq!(parts.r_1.0, [0; 32]);
+            assert_eq!(parts.r_2.0, [0; 32]);
+            assert_eq!(parts.r_3.0, [0; 32]);
+        }
+
+        {
+            let mut parts = ratchet.as_parts();
+            parts.update(0, 1);
+        }
+
+        {
+            let parts = ratchet.as_parts();
+
+            // Now we advanced the zeroth part and put the result into the first part.
+            assert_eq!(parts.r_0.0, [0; 32]);
+            assert_ne!(parts.r_1.0, [0; 32]);
+            assert_eq!(parts.r_2.0, [0; 32]);
+            assert_eq!(parts.r_3.0, [0; 32]);
+        }
+
+        {
+            let mut parts = ratchet.as_parts();
+            parts.update(3, 2);
+        }
+
+        {
+            let parts = ratchet.as_parts();
+
+            // Now we advanced the third part and put the result into the second part.
+            assert_eq!(parts.r_0.0, [0; 32]);
+            assert_ne!(parts.r_1.0, [0; 32]);
+            assert_ne!(parts.r_2.0, [0; 32]);
+            assert_eq!(parts.r_3.0, [0; 32]);
+        }
+
+        {
+            let mut parts = ratchet.as_parts();
+            parts.update(2, 0);
+        }
+
+        {
+            let parts = ratchet.as_parts();
+
+            // Now we advanced the second part and put the result into the zeroth part.
+            assert_ne!(parts.r_0.0, [0; 32]);
+            assert_ne!(parts.r_1.0, [0; 32]);
+            assert_ne!(parts.r_2.0, [0; 32]);
+            assert_eq!(parts.r_3.0, [0; 32]);
+        }
+
+        {
+            let mut parts = ratchet.as_parts();
+            parts.update(0, 3);
+        }
+
+        {
+            let parts = ratchet.as_parts();
+
+            // Now we advanced the second part and put the result into the zeroth part.
+            assert_ne!(parts.r_0.0, [0; 32]);
+            assert_ne!(parts.r_1.0, [0; 32]);
+            assert_ne!(parts.r_2.0, [0; 32]);
+            assert_ne!(parts.r_3.0, [0; 32]);
+        }
+    }
 }
