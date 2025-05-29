@@ -1,0 +1,9 @@
+---
+source: src/olm/session_keys.rs
+expression: session_keys
+---
+SessionKeys {
+    identity_key: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    base_key: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    one_time_key: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+}

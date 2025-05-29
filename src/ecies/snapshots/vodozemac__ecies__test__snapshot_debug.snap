@@ -1,0 +1,15 @@
+---
+source: src/ecies/mod.rs
+expression: ecies
+---
+EstablishedEcies {
+    our_public_key: "curve25519:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    their_public_key: "curve25519:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    check_code: CheckCode {
+        bytes: [
+            0,
+            1,
+        ],
+    },
+    role: Initiator,
+}

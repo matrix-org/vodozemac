@@ -244,6 +244,8 @@ impl From<Curve25519Keypair> for Curve25519KeypairPickle {
 
 #[cfg(test)]
 mod tests {
+    use insta::assert_debug_snapshot;
+
     use super::Curve25519PublicKey;
     use crate::{Curve25519SecretKey, KeyError, utilities::DecodeError};
 
@@ -297,5 +299,11 @@ mod tests {
         let bytes = *b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
         let key = Curve25519SecretKey::from_slice(&bytes);
         assert_eq!(*(key.to_bytes()), bytes);
+    }
+
+    #[test]
+    fn snapshot_public_key_debug() {
+        let key = Curve25519PublicKey::from_bytes([0; 32]);
+        assert_debug_snapshot!(key);
     }
 }
