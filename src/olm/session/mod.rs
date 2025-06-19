@@ -34,20 +34,20 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use super::{
+    SessionConfig,
     session_config::Version,
     session_keys::SessionKeys,
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
-    SessionConfig,
 };
 #[cfg(feature = "low-level-api")]
 use crate::hazmat::olm::MessageKey;
 use crate::{
+    Curve25519PublicKey, PickleError,
     olm::{
         messages::{Message, OlmMessage, PreKeyMessage},
         session::double_ratchet::RatchetCount,
     },
     utilities::{pickle, unpickle},
-    Curve25519PublicKey, PickleError,
 };
 
 const MAX_RECEIVING_CHAINS: usize = 5;
@@ -338,18 +338,18 @@ mod libolm_compat {
     use zeroize::{Zeroize, ZeroizeOnDrop};
 
     use super::{
+        ChainStore, Session,
         chain_key::{ChainKey, RemoteChainKey},
         double_ratchet::{DoubleRatchet, RatchetCount},
         message_key::RemoteMessageKey,
         ratchet::{Ratchet, RatchetKey, RemoteRatchetKey},
         receiver_chain::ReceiverChain,
         root_key::{RemoteRootKey, RootKey},
-        ChainStore, Session,
     };
     use crate::{
+        Curve25519PublicKey,
         olm::{SessionConfig, SessionKeys},
         types::Curve25519SecretKey,
-        Curve25519PublicKey,
     };
 
     #[derive(Decode, Zeroize, ZeroizeOnDrop)]
@@ -520,7 +520,7 @@ impl From<SessionPickle> for Session {
 
 #[cfg(test)]
 mod test {
-    use anyhow::{bail, Result};
+    use anyhow::{Result, bail};
     use assert_matches::assert_matches;
     use olm_rs::{
         account::OlmAccount,
@@ -529,12 +529,11 @@ mod test {
 
     use super::{DecryptionError, Session};
     use crate::{
-        olm::{
-            messages,
-            session::receiver_chain::{MAX_MESSAGE_GAP, MAX_MESSAGE_KEYS},
-            Account, SessionConfig, SessionPickle,
-        },
         Curve25519PublicKey,
+        olm::{
+            Account, SessionConfig, SessionPickle, messages,
+            session::receiver_chain::{MAX_MESSAGE_GAP, MAX_MESSAGE_KEYS},
+        },
     };
 
     const PICKLE_KEY: [u8; 32] = [0u8; 32];

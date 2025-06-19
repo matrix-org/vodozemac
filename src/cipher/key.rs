@@ -14,8 +14,8 @@
 // limitations under the License.
 
 use aes::{
-    cipher::{generic_array::GenericArray, IvSizeUser, KeySizeUser},
     Aes256,
+    cipher::{IvSizeUser, KeySizeUser, generic_array::GenericArray},
 };
 use hkdf::Hkdf;
 use sha2::Sha256;

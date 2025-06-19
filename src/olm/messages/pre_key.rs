@@ -19,9 +19,9 @@ use serde::{Deserialize, Serialize};
 
 use super::Message;
 use crate::{
+    Curve25519PublicKey, DecodeError,
     olm::SessionKeys,
     utilities::{base64_decode, base64_encode},
-    Curve25519PublicKey, DecodeError,
 };
 
 /// An encrypted Olm pre-key message.

@@ -36,7 +36,7 @@ use sha2::Sha256;
 use x25519_dalek::{ReusableSecret, SharedSecret};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::{types::Curve25519SecretKey as StaticSecret, Curve25519PublicKey as PublicKey};
+use crate::{Curve25519PublicKey as PublicKey, types::Curve25519SecretKey as StaticSecret};
 
 #[derive(Zeroize, ZeroizeOnDrop)]
 pub struct Shared3DHSecret(Box<[u8; 96]>);
@@ -121,7 +121,7 @@ mod test {
     use x25519_dalek::ReusableSecret;
 
     use super::{RemoteShared3DHSecret, Shared3DHSecret};
-    use crate::{types::Curve25519SecretKey as StaticSecret, Curve25519PublicKey as PublicKey};
+    use crate::{Curve25519PublicKey as PublicKey, types::Curve25519SecretKey as StaticSecret};
 
     #[test]
     fn triple_diffie_hellman() {

@@ -17,13 +17,12 @@ mod libolm_compat;
 
 pub use base64::DecodeError;
 use base64::{
-    alphabet,
-    engine::{general_purpose, GeneralPurpose},
-    Engine,
+    Engine, alphabet,
+    engine::{GeneralPurpose, general_purpose},
 };
 pub(crate) use libolm_compat::get_version as get_pickle_version;
 #[cfg(feature = "libolm-compat")]
-pub(crate) use libolm_compat::{pickle_libolm, unpickle_libolm, LibolmEd25519Keypair};
+pub(crate) use libolm_compat::{LibolmEd25519Keypair, pickle_libolm, unpickle_libolm};
 
 const STANDARD_NO_PAD: GeneralPurpose = GeneralPurpose::new(
     &alphabet::STANDARD,
@@ -169,8 +168,7 @@ mod test {
             base64_decode(encoded_without_padding).expect("Should decode if there is no padding");
 
         assert_eq!(
-            first,
-            second,
+            first, second,
             "Decoding the same base64 string with and without padding should produce the same result"
         )
     }

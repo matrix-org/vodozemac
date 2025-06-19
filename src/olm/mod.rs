@@ -109,6 +109,6 @@ pub use account::{
     SessionCreationError,
 };
 pub use messages::{Message, MessageType, OlmMessage, PreKeyMessage};
-pub use session::{ratchet::RatchetPublicKey, DecryptionError, Session, SessionPickle};
+pub use session::{DecryptionError, Session, SessionPickle, ratchet::RatchetPublicKey};
 pub use session_config::SessionConfig;
 pub use session_keys::SessionKeys;

@@ -56,7 +56,7 @@ impl Default for SessionConfig {
 
 #[cfg(test)]
 mod test {
-    use crate::megolm::{session_config::Version, SessionConfig};
+    use crate::megolm::{SessionConfig, session_config::Version};
 
     #[test]
     fn version() {
