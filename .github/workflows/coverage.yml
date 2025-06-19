@@ -22,20 +22,31 @@ jobs:
         ref: ${{ github.event.pull_request.head.sha }}
 
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@master
-      with:
-        toolchain: stable
+      uses: dtolnay/rust-toolchain@stable
 
     - name: Load cache
       uses: Swatinem/rust-cache@v2
 
-    - name: Install tarpaulin
-      run: cargo install cargo-tarpaulin
+    - name: Install cargo-llvm-cov
+      uses: taiki-e/install-action@cargo-llvm-cov
 
-    - name: Run tarpaulin
-      run: cargo tarpaulin --out Xml
+    - name: Install nextest
+      uses: taiki-e/install-action@nextest
+
+    - name: Install just
+      uses: taiki-e/install-action@just
+
+    - name: Create the coverage report
+      run: just coverage-codecov
 
     - name: Upload to codecov.io
       uses: codecov/codecov-action@v5
-      env:
-        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+
+    - name: Upload test results to Codecov
+      if: ${{ !cancelled() }}
+      uses: codecov/test-results-action@v1
+      with:
+        files: ./target/nextest/ci/junit.xml
+        token: ${{ secrets.CODECOV_TOKEN }}
