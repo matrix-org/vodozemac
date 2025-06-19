@@ -20,7 +20,7 @@ use curve25519_dalek::EdwardsPoint;
 #[cfg(not(fuzzing))]
 use ed25519_dalek::Verifier;
 use ed25519_dalek::{
-    Signature, Signer, SigningKey, VerifyingKey, PUBLIC_KEY_LENGTH, SIGNATURE_LENGTH,
+    PUBLIC_KEY_LENGTH, SIGNATURE_LENGTH, Signature, Signer, SigningKey, VerifyingKey,
 };
 use rand::thread_rng;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};

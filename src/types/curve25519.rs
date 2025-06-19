@@ -245,7 +245,7 @@ impl From<Curve25519Keypair> for Curve25519KeypairPickle {
 #[cfg(test)]
 mod tests {
     use super::Curve25519PublicKey;
-    use crate::{utilities::DecodeError, Curve25519SecretKey, KeyError};
+    use crate::{Curve25519SecretKey, KeyError, utilities::DecodeError};
 
     #[test]
     fn decoding_invalid_base64_fails() {

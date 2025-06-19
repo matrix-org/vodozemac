@@ -78,7 +78,7 @@
 //! # Ok::<(), anyhow::Error>(())
 //! ```
 
-use chacha20poly1305::{aead::Aead, ChaCha20Poly1305, Key as Chacha20Key, KeyInit, Nonce};
+use chacha20poly1305::{ChaCha20Poly1305, Key as Chacha20Key, KeyInit, Nonce, aead::Aead};
 use hkdf::Hkdf;
 use rand::thread_rng;
 use sha2::Sha512;

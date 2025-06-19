@@ -14,9 +14,9 @@
 // limitations under the License.
 
 use hmac::{Hmac, Mac as _};
-use rand::{thread_rng, RngCore};
+use rand::{RngCore, thread_rng};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use sha2::{digest::CtOutput, Sha256};
+use sha2::{Sha256, digest::CtOutput};
 use subtle::{Choice, ConstantTimeEq};
 use thiserror::Error;
 use zeroize::{Zeroize, ZeroizeOnDrop};

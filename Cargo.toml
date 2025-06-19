@@ -7,10 +7,10 @@ name = "vodozemac"
 description = "A Rust implementation of Olm and Megolm"
 repository = "https://github.com/matrix-org/vodozemac"
 version = "0.9.0"
-edition = "2021"
+edition = "2024"
 keywords = ["matrix", "chat", "messaging", "olm", "cryptography"]
 license = "Apache-2.0"
-rust-version = "1.65"
+rust-version = "1.85"
 
 [package.metadata.docs.rs]
 all-features = true

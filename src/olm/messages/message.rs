@@ -18,9 +18,9 @@ use prost::Message as ProstMessage;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    cipher::{Mac, MessageMac},
-    utilities::{base64_decode, base64_encode, extract_mac, VarInt},
     Curve25519PublicKey, DecodeError,
+    cipher::{Mac, MessageMac},
+    utilities::{VarInt, base64_decode, base64_encode, extract_mac},
 };
 
 const MAC_TRUNCATED_VERSION: u8 = 3;
@@ -294,7 +294,7 @@ mod test {
     use assert_matches::assert_matches;
 
     use super::Message;
-    use crate::{olm::messages::message::MAC_TRUNCATED_VERSION, Curve25519PublicKey, DecodeError};
+    use crate::{Curve25519PublicKey, DecodeError, olm::messages::message::MAC_TRUNCATED_VERSION};
 
     #[test]
     fn encode() {

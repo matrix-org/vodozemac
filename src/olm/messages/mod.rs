@@ -19,7 +19,7 @@ pub use message::Message;
 pub use pre_key::PreKeyMessage;
 use serde::{Deserialize, Serialize};
 
-use crate::{base64_decode, base64_encode, DecodeError};
+use crate::{DecodeError, base64_decode, base64_encode};
 
 /// Enum over the different Olm message types.
 ///

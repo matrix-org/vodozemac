@@ -66,8 +66,8 @@ mod test {
     use super::{ExportedSessionKey, GroupSession, InboundGroupSession, MegolmMessage};
     use crate::{
         megolm::{
-            default_config, GroupSessionPickle, InboundGroupSessionPickle, SessionConfig,
-            SessionKey,
+            GroupSessionPickle, InboundGroupSessionPickle, SessionConfig, SessionKey,
+            default_config,
         },
         run_corpus,
     };

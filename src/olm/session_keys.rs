@@ -17,7 +17,7 @@ use matrix_pickle::Decode;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::{utilities::base64_encode, Curve25519PublicKey};
+use crate::{Curve25519PublicKey, utilities::base64_encode};
 
 /// The set of keys that were used to establish the Olm Session,
 #[derive(Clone, Copy, Deserialize, Serialize, PartialEq, Eq, Decode)]
