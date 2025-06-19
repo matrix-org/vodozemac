@@ -1,0 +1,8 @@
+[profile.ci]
+retries = { backoff = "exponential", count = 4, delay = "1s", jitter = true }
+# kill the slow tests if they still aren't up after 30s
+slow-timeout = { period = "30s", terminate-after = 1 }
+
+[profile.ci.junit]
+path = "junit.xml"
+store-success-output = true
