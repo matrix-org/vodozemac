@@ -1,5 +1,5 @@
 {
-    "rust-analyzer.checkOnSave.command": "clippy",
+    "rust-analyzer.check.command": "clippy",
     "rust-analyzer.cargo.features": "all",
     "rust-analyzer.rustfmt": {
         "extraArgs": ["+nightly"]
