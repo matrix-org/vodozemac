@@ -18,8 +18,8 @@ use serde::{Deserialize, Serialize};
 
 use super::PUBLIC_MAX_ONE_TIME_KEYS;
 use crate::{
-    types::{Curve25519SecretKey, KeyId},
     Curve25519PublicKey,
+    types::{Curve25519SecretKey, KeyId},
 };
 
 #[derive(Serialize, Deserialize, Clone)]

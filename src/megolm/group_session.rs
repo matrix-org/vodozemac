@@ -15,14 +15,14 @@
 use serde::{Deserialize, Serialize};
 
 use super::{
-    default_config, message::MegolmMessage, ratchet::Ratchet, session_config::Version,
-    session_keys::SessionKey, SessionConfig,
+    SessionConfig, default_config, message::MegolmMessage, ratchet::Ratchet,
+    session_config::Version, session_keys::SessionKey,
 };
 use crate::{
+    PickleError,
     cipher::Cipher,
     types::Ed25519Keypair,
     utilities::{pickle, unpickle},
-    PickleError,
 };
 
 /// A Megolm group session represents a single sending participant in an
@@ -167,9 +167,9 @@ mod libolm_compat {
 
     use super::GroupSession;
     use crate::{
-        megolm::{libolm::LibolmRatchetPickle, SessionConfig},
-        utilities::LibolmEd25519Keypair,
         Ed25519Keypair,
+        megolm::{SessionConfig, libolm::LibolmRatchetPickle},
+        utilities::LibolmEd25519Keypair,
     };
 
     #[derive(Zeroize, ZeroizeOnDrop, Decode)]

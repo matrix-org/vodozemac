@@ -22,7 +22,7 @@ use super::{
     chain_key::RemoteChainKey,
     root_key::{RemoteRootKey, RootKey},
 };
-use crate::{types::Curve25519SecretKey, Curve25519PublicKey};
+use crate::{Curve25519PublicKey, types::Curve25519SecretKey};
 
 /// A ratchet key which we created ourselves.
 ///
@@ -148,7 +148,7 @@ impl Ratchet {
 #[cfg(test)]
 mod test {
     use super::RatchetKey;
-    use crate::{olm::RatchetPublicKey, Curve25519SecretKey};
+    use crate::{Curve25519SecretKey, olm::RatchetPublicKey};
 
     #[test]
     fn ratchet_key_from_curve_25519_secret_key() {

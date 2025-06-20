@@ -19,10 +19,10 @@ use prost::Message;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    DecodeError,
     cipher::{Cipher, Mac, MessageMac},
     types::{Ed25519Keypair, Ed25519Signature},
-    utilities::{base64_decode, base64_encode, extract_mac, VarInt},
-    DecodeError,
+    utilities::{VarInt, base64_decode, base64_encode, extract_mac},
 };
 #[cfg(feature = "low-level-api")]
 use crate::{Ed25519PublicKey, SignatureError};
@@ -355,15 +355,15 @@ mod test {
     use std::vec;
 
     use crate::{
+        DecodeError, Ed25519Signature,
         cipher::Mac,
         megolm::{
+            MegolmMessage,
             message::{
                 MAC_TRUNCATED_VERSION, MESSAGE_SUFFIX_LENGTH, MESSAGE_TRUNCATED_SUFFIX_LENGTH,
                 VERSION,
             },
-            MegolmMessage,
         },
-        DecodeError, Ed25519Signature,
     };
     #[cfg(feature = "low-level-api")]
     use crate::{Ed25519Keypair, Ed25519PublicKey};

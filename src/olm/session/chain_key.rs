@@ -14,7 +14,7 @@
 
 use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
-use sha2::{digest::CtOutput, Sha256};
+use sha2::{Sha256, digest::CtOutput};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use super::{

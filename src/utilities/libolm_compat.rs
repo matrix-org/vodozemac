@@ -23,7 +23,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 #[cfg(feature = "libolm-compat")]
 use super::{base64_decode, base64_encode};
 #[cfg(feature = "libolm-compat")]
-use crate::{cipher::Cipher, LibolmPickleError};
+use crate::{LibolmPickleError, cipher::Cipher};
 
 /// Fetch the pickle version from the given pickle source.
 pub(crate) fn get_version(source: &[u8]) -> Option<u32> {

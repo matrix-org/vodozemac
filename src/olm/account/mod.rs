@@ -18,8 +18,8 @@ mod one_time_keys;
 use std::collections::HashMap;
 
 use chacha20poly1305::{
-    aead::{Aead, AeadCore, KeyInit},
     ChaCha20Poly1305,
+    aead::{Aead, AeadCore, KeyInit},
 };
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
@@ -33,19 +33,19 @@ use self::{
     one_time_keys::{OneTimeKeys, OneTimeKeysPickle},
 };
 use super::{
+    SessionConfig,
     messages::PreKeyMessage,
     session::{DecryptionError, Session},
     session_keys::SessionKeys,
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
-    SessionConfig,
 };
 use crate::{
+    Ed25519Signature, PickleError,
     types::{
         Curve25519Keypair, Curve25519KeypairPickle, Curve25519PublicKey, Curve25519SecretKey,
         Ed25519Keypair, Ed25519KeypairPickle, Ed25519PublicKey, KeyId,
     },
     utilities::{pickle, unpickle},
-    Ed25519Signature, PickleError,
 };
 
 const PUBLIC_MAX_ONE_TIME_KEYS: usize = 50;
@@ -477,7 +477,7 @@ impl Account {
         use matrix_pickle::Encode;
 
         use self::dehydrated_device::Pickle;
-        use crate::{utilities::base64_encode, DehydratedDeviceError, LibolmPickleError};
+        use crate::{DehydratedDeviceError, LibolmPickleError, utilities::base64_encode};
 
         let pickle: Pickle = self.try_into()?;
         let mut encoded = pickle
@@ -607,14 +607,14 @@ mod libolm {
     use zeroize::{Zeroize, ZeroizeOnDrop};
 
     use super::{
+        Account,
         fallback_keys::{FallbackKey, FallbackKeys},
         one_time_keys::OneTimeKeys,
-        Account,
     };
     use crate::{
+        Curve25519PublicKey, Ed25519Keypair, KeyId,
         types::{Curve25519Keypair, Curve25519SecretKey},
         utilities::LibolmEd25519Keypair,
-        Curve25519PublicKey, Ed25519Keypair, KeyId,
     };
 
     #[derive(Encode, Decode, Zeroize, ZeroizeOnDrop)]
@@ -801,13 +801,13 @@ mod dehydrated_device {
     use zeroize::{Zeroize, ZeroizeOnDrop};
 
     use super::{
+        Account,
         fallback_keys::{FallbackKey, FallbackKeys},
         one_time_keys::OneTimeKeys,
-        Account,
     };
     use crate::{
-        types::{Curve25519Keypair, Curve25519SecretKey},
         DehydratedDeviceError, Ed25519Keypair, KeyId,
+        types::{Curve25519Keypair, Curve25519SecretKey},
     };
 
     #[derive(Encode, Decode, Zeroize, ZeroizeOnDrop)]
@@ -953,7 +953,7 @@ mod dehydrated_device {
 
 #[cfg(test)]
 mod test {
-    use anyhow::{bail, Context, Result};
+    use anyhow::{Context, Result, bail};
     use assert_matches::assert_matches;
     use matrix_pickle::{Decode, Encode};
     use olm_rs::{account::OlmAccount, session::OlmMessage as LibolmOlmMessage};
@@ -961,16 +961,16 @@ mod test {
     #[cfg(feature = "libolm-compat")]
     use super::libolm::Pickle;
     use super::{
-        dehydrated_device, Account, InboundCreationResult, SessionConfig, SessionCreationError,
+        Account, InboundCreationResult, SessionConfig, SessionCreationError, dehydrated_device,
     };
     use crate::{
+        Curve25519PublicKey as PublicKey,
         cipher::Mac,
         olm::{
+            AccountPickle,
             account::PUBLIC_MAX_ONE_TIME_KEYS,
             messages::{OlmMessage, PreKeyMessage},
-            AccountPickle,
         },
-        Curve25519PublicKey as PublicKey,
     };
 
     const PICKLE_KEY: [u8; 32] = [0u8; 32];
@@ -1545,19 +1545,23 @@ mod test {
         let alice_dehydrated_result =
             alice.to_dehydrated_device(&PICKLE_KEY).expect("Should be able to dehydrate device");
 
-        assert!(Account::from_dehydrated_device(
-            &alice_dehydrated_result.ciphertext,
-            &alice_dehydrated_result.nonce,
-            &[1; 32],
-        )
-        .is_err());
+        assert!(
+            Account::from_dehydrated_device(
+                &alice_dehydrated_result.ciphertext,
+                &alice_dehydrated_result.nonce,
+                &[1; 32],
+            )
+            .is_err()
+        );
 
-        assert!(Account::from_dehydrated_device(
-            &alice_dehydrated_result.ciphertext,
-            "WrongNonce123456",
-            &PICKLE_KEY,
-        )
-        .is_err());
+        assert!(
+            Account::from_dehydrated_device(
+                &alice_dehydrated_result.ciphertext,
+                "WrongNonce123456",
+                &PICKLE_KEY,
+            )
+            .is_err()
+        );
     }
 
     #[derive(Encode, Decode)]

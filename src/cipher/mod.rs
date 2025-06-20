@@ -16,13 +16,13 @@
 pub(crate) mod key;
 
 use aes::{
-    cipher::{
-        block_padding::{Pkcs7, UnpadError},
-        BlockDecryptMut, BlockEncryptMut, KeyIvInit,
-    },
     Aes256,
+    cipher::{
+        BlockDecryptMut, BlockEncryptMut, KeyIvInit,
+        block_padding::{Pkcs7, UnpadError},
+    },
 };
-use hmac::{digest::MacError, Hmac, Mac as MacT};
+use hmac::{Hmac, Mac as MacT, digest::MacError};
 use key::CipherKeys;
 use sha2::Sha256;
 use thiserror::Error;

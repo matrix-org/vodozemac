@@ -21,18 +21,17 @@ use subtle::ConstantTimeEq;
 use thiserror::Error;
 
 use super::{
-    default_config,
+    GroupSession, SessionConfig, default_config,
     message::MegolmMessage,
     ratchet::Ratchet,
     session_config::Version,
     session_keys::{ExportedSessionKey, SessionKey},
-    GroupSession, SessionConfig,
 };
 use crate::{
+    PickleError,
     cipher::{Cipher, Mac, MessageMac},
     types::{Ed25519PublicKey, SignatureError},
     utilities::{base64_encode, pickle, unpickle},
-    PickleError,
 };
 
 /// The result of a comparison between two [`InboundGroupSession`] types.
@@ -452,8 +451,8 @@ mod libolm_compat {
 
     use super::InboundGroupSession;
     use crate::{
-        megolm::{libolm::LibolmRatchetPickle, SessionConfig},
         Ed25519PublicKey,
+        megolm::{SessionConfig, libolm::LibolmRatchetPickle},
     };
 
     #[derive(Zeroize, ZeroizeOnDrop, Decode)]

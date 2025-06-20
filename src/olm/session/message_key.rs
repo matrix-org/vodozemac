@@ -17,7 +17,7 @@ use std::fmt::Debug;
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
 
-use super::{ratchet::RatchetPublicKey, DecryptionError};
+use super::{DecryptionError, ratchet::RatchetPublicKey};
 use crate::{
     cipher::{Cipher, Mac},
     olm::messages::Message,

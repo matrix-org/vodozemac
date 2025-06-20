@@ -16,7 +16,7 @@ use thiserror::Error;
 
 #[cfg(doc)]
 use super::EstablishedEcies;
-use crate::{base64_decode, base64_encode, Curve25519PublicKey, KeyError};
+use crate::{Curve25519PublicKey, KeyError, base64_decode, base64_encode};
 
 /// The error type for the ECIES message decoding failures.
 #[derive(Debug, Error)]

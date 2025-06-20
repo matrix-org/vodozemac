@@ -47,21 +47,20 @@
 //! [spec]: https://spec.matrix.org/v1.11/client-server-api/#backup-algorithm-mmegolm_backupv1curve25519-aes-sha2
 
 use aes::cipher::{
-    block_padding::{Pkcs7, UnpadError},
     BlockDecryptMut as _, BlockEncryptMut as _, KeyIvInit as _,
+    block_padding::{Pkcs7, UnpadError},
 };
-use hmac::{digest::MacError, Mac as _};
+use hmac::{Mac as _, digest::MacError};
 use matrix_pickle::{Decode, Encode};
 use thiserror::Error;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::{
-    base64_decode,
+    Curve25519PublicKey, Curve25519SecretKey, KeyError, base64_decode,
     cipher::{
-        key::{CipherKeys, ExpandedKeys},
         Aes256CbcDec, Aes256CbcEnc, HmacSha256, Mac,
+        key::{CipherKeys, ExpandedKeys},
     },
-    Curve25519PublicKey, Curve25519SecretKey, KeyError,
 };
 
 const PICKLE_VERSION: u32 = 1;
@@ -335,7 +334,7 @@ mod tests {
     use olm_rs::pk::{OlmPkDecryption, OlmPkEncryption, PkMessage};
 
     use super::{Message, MessageDecodeError, PkDecryption, PkEncryption};
-    use crate::{base64_encode, Curve25519PublicKey, Curve25519SecretKey};
+    use crate::{Curve25519PublicKey, Curve25519SecretKey, base64_encode};
 
     /// Conversion from the libolm type to the vodozemac type. To make some
     /// tests easier on the eyes.

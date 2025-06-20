@@ -52,15 +52,15 @@
 //! [ZRTP]: https://tools.ietf.org/html/rfc6189#section-4.4.1
 
 use hkdf::Hkdf;
-use hmac::{digest::MacError, Hmac, Mac as _};
+use hmac::{Hmac, Mac as _, digest::MacError};
 use rand::thread_rng;
 use sha2::Sha256;
 use thiserror::Error;
 use x25519_dalek::{EphemeralSecret, SharedSecret};
 
 use crate::{
-    utilities::{base64_decode, base64_encode},
     Curve25519PublicKey, KeyError,
+    utilities::{base64_decode, base64_encode},
 };
 
 type HmacSha256Key = Box<[u8; 32]>;

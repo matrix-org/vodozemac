@@ -15,8 +15,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    types::{Curve25519SecretKey, KeyId},
     Curve25519PublicKey,
+    types::{Curve25519SecretKey, KeyId},
 };
 
 #[derive(Serialize, Deserialize, Clone)]

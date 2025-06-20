@@ -18,12 +18,12 @@ use arrayvec::ArrayVec;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    chain_key::RemoteChainKey, message_key::RemoteMessageKey, ratchet::RemoteRatchetKey,
-    DecryptionError,
+    DecryptionError, chain_key::RemoteChainKey, message_key::RemoteMessageKey,
+    ratchet::RemoteRatchetKey,
 };
 use crate::olm::{
-    messages::Message, session::double_ratchet::RatchetCount, session_config::Version,
-    SessionConfig,
+    SessionConfig, messages::Message, session::double_ratchet::RatchetCount,
+    session_config::Version,
 };
 
 pub(crate) const MAX_MESSAGE_GAP: u64 = 2000;
