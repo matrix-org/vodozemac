@@ -4,3 +4,4 @@ Cargo.lock
 /afl/*/target
 /afl/*/out*
 mutants.out*
+coverage.xml
