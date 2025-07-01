@@ -39,7 +39,7 @@ jobs:
     - name: Create the coverage report
       run: just coverage-codecov
 
-    - name: Upload to codecov.io
+    - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
