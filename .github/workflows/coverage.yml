@@ -17,36 +17,44 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       with:
         ref: ${{ github.event.pull_request.head.sha }}
 
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
+      uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e8b695cdcc8de1b
+      with:
+        toolchain: stable
 
     - name: Load cache
-      uses: Swatinem/rust-cache@v2
+      uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0
 
     - name: Install cargo-llvm-cov
-      uses: taiki-e/install-action@cargo-llvm-cov
+      uses: taiki-e/install-action@0eee80d37f55e834144deec670972c19e81a85b0
+      with:
+        tool: cargo-llvm-cov
 
     - name: Install nextest
-      uses: taiki-e/install-action@nextest
+      uses: taiki-e/install-action@0eee80d37f55e834144deec670972c19e81a85b0
+      with:
+        tool: nextest
 
     - name: Install just
-      uses: taiki-e/install-action@just
+      uses: taiki-e/install-action@0eee80d37f55e834144deec670972c19e81a85b0
+      with:
+        tool: just
 
     - name: Create the coverage report
       run: just coverage-codecov
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v5
+      uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
 
     - name: Upload test results to Codecov
       if: ${{ !cancelled() }}
-      uses: codecov/test-results-action@v1
+      uses: codecov/test-results-action@47f89e9acb64b76debcd5ea40642d25a4adced9f
       with:
         files: ./target/nextest/ci/junit.xml
         token: ${{ secrets.CODECOV_TOKEN }}
