@@ -28,4 +28,7 @@ exclude_re = [
   # Replacing < with <= makes no logical difference here since advancing a
   # ratchet 0 times makes no difference.
   "^src/megolm/inbound_group_session.rs:309:45: replace < with <= in InboundGroupSession::get_cipher_at$",
+  # This test successfully fails if we replace the condition manually, under
+  # cargo-mutants it still times out.
+  "src/utilities/mod.rs:118:13: replace > with >= in required_encoded_space_unsigned",
 ]
