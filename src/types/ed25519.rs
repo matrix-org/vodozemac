@@ -522,6 +522,8 @@ impl From<Ed25519KeypairPickle> for Ed25519Keypair {
 
 #[cfg(test)]
 mod tests {
+    use assert_matches2::assert_matches;
+
     use super::ExpandedSecretKey;
     use crate::{Ed25519Keypair, Ed25519PublicKey, Ed25519SecretKey, Ed25519Signature, KeyError};
 
@@ -563,10 +565,10 @@ mod tests {
 
     #[test]
     fn base64_decoding_incorrect_num_of_bytes_fails_for_public_key() {
-        assert!(matches!(
+        assert_matches!(
             Ed25519PublicKey::from_base64("foo"),
             Err(KeyError::InvalidKeyLength { .. })
-        ));
+        );
     }
 
     #[test]
