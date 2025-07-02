@@ -161,6 +161,11 @@ impl Ratchet {
         &self.inner.0
     }
 
+    #[cfg(test)]
+    pub const fn ratchet_bytes_pointer(&self) -> *const [u8; 128] {
+        &*self.inner.0
+    }
+
     fn as_parts(&mut self) -> RatchetParts<'_> {
         let (top, bottom) = self.inner.0.split_at_mut(64);
 

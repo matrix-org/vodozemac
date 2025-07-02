@@ -706,4 +706,21 @@ mod test {
             session.get_cipher_at(1000).unwrap().encrypt(b"")
         );
     }
+
+    #[test]
+    fn advance_to_does_not_clone_unnecessarily() {
+        let mut session = InboundGroupSession::from(&GroupSession::new(Default::default()));
+
+        // Let us first advance the ratchet.
+        session.latest_ratchet.advance_to(10);
+
+        let first_address = session.latest_ratchet.ratchet_bytes_pointer();
+        session.advance_to(10);
+        let second_address = session.latest_ratchet.ratchet_bytes_pointer();
+
+        assert_eq!(
+            first_address, second_address,
+            "The latest ratchet should not have moved since we were already at that session index"
+        );
+    }
 }
