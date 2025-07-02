@@ -185,12 +185,12 @@ impl Ratchet {
         self.counter += 1;
 
         // Figure out which parts of the ratchet need to be advanced.
-        while h < Self::RATCHET_PART_COUNT {
+        for i in 0..Self::RATCHET_LENGTH {
             if (self.counter & mask) == 0 {
+                h = i;
                 break;
             }
 
-            h += 1;
             mask >>= 8;
         }
 
