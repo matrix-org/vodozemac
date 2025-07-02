@@ -22,5 +22,7 @@ exclude_re = [
   "replace -= with \\+= in Ratchet::advance_to",
   # Causes an infinite loop
   "replace -= with /= in Ratchet::advance_to",
-
+  # Replacing < with <= makes no logical difference here since we have a ==
+  # branch before the < branch.
+  "^src/megolm/inbound_group_session.rs.*replace < with <= in InboundGroupSession::find_ratchet$",
 ]
