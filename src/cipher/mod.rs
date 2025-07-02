@@ -291,5 +291,10 @@ mod test {
             cipher.decrypt_pickle(&[2u8; Mac::TRUNCATED_LEN]),
             Err(DecryptionError::MacMissing)
         ));
+
+        assert!(matches!(
+            cipher.decrypt_pickle(&[0u8; Mac::TRUNCATED_LEN + 1]),
+            Err(DecryptionError::Mac(_))
+        ));
     }
 }
