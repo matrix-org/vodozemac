@@ -290,6 +290,34 @@ mod tests {
         assert_eq!(ratchet.counter, 1);
     }
 
+    /// Test that, if we have zero steps in `advance_to()` we will correctly
+    /// fall back to 100 steps.
+    ///
+    /// This is done as a snapshot of the bytes, a mutation test replaces the
+    /// condition when we fall back to 100 steps and we didn't notice this
+    /// without this test.
+    #[test]
+    fn advancing_back_creates_the_correct_bytes() {
+        let mut ratchet = Ratchet::from_bytes([0; 128].into(), 0);
+
+        ratchet.advance();
+        ratchet.advance_to(0);
+
+        assert_eq!(
+            ratchet.as_bytes(),
+            &[
+                23, 172, 138, 192, 105, 192, 252, 68, 21, 200, 237, 19, 27, 183, 164, 12, 173, 228,
+                3, 7, 119, 230, 128, 217, 229, 92, 83, 216, 5, 131, 22, 188, 159, 163, 79, 138,
+                227, 80, 19, 63, 163, 36, 116, 128, 80, 109, 235, 104, 121, 44, 74, 58, 219, 178,
+                203, 250, 94, 173, 74, 141, 82, 227, 6, 151, 162, 53, 4, 239, 5, 245, 68, 206, 102,
+                23, 30, 198, 227, 138, 58, 111, 173, 151, 116, 218, 128, 12, 49, 14, 93, 134, 249,
+                118, 99, 16, 135, 52, 150, 192, 182, 48, 229, 161, 247, 35, 208, 27, 40, 157, 250,
+                63, 114, 74, 207, 133, 188, 44, 115, 220, 157, 154, 101, 220, 79, 250, 24, 205, 26,
+                90
+            ]
+        );
+    }
+
     #[test]
     #[should_panic]
     fn only_four_parts_are_available_for_an_update() {
