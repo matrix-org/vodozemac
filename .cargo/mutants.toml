@@ -25,4 +25,7 @@ exclude_re = [
   # Replacing < with <= makes no logical difference here since we have a ==
   # branch before the < branch.
   "^src/megolm/inbound_group_session.rs.*replace < with <= in InboundGroupSession::find_ratchet$",
+  # Replacing < with <= makes no logical difference here since advancing a
+  # ratchet 0 times makes no difference.
+  "^src/megolm/inbound_group_session.rs:309:45: replace < with <= in InboundGroupSession::get_cipher_at$",
 ]
