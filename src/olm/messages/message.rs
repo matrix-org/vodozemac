@@ -291,8 +291,7 @@ impl ProtoBufMessage {
 
 #[cfg(test)]
 mod test {
-    use assert_matches::assert_matches;
-    use assert_matches2::assert_let;
+    use assert_matches2::{assert_let, assert_matches};
 
     use super::Message;
     use crate::{

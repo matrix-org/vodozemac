@@ -152,7 +152,7 @@ impl From<MessageType> for usize {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use assert_matches::assert_matches;
+    use assert_matches2::assert_matches;
     use olm_rs::session::OlmMessage as LibolmMessage;
     use serde_json::json;
 
@@ -224,7 +224,7 @@ mod tests {
         });
 
         let message: OlmMessage = serde_json::from_value(value.clone())?;
-        assert_matches!(message, OlmMessage::PreKey(_));
+        assert_matches!(message.clone(), OlmMessage::PreKey(_));
 
         let serialized = serde_json::to_value(message)?;
         assert_eq!(value, serialized, "The serialization cycle isn't a noop");
@@ -235,7 +235,7 @@ mod tests {
         });
 
         let message: OlmMessage = serde_json::from_value(value.clone())?;
-        assert_matches!(message, OlmMessage::Normal(_));
+        assert_matches!(message.clone(), OlmMessage::Normal(_));
 
         let serialized = serde_json::to_value(message)?;
         assert_eq!(value, serialized, "The serialization cycle isn't a noop");
@@ -246,7 +246,7 @@ mod tests {
     #[test]
     fn from_parts() -> Result<()> {
         let message = OlmMessage::from_parts(0, base64_decode(PRE_KEY_MESSAGE)?.as_slice())?;
-        assert_matches!(message, OlmMessage::PreKey(_));
+        assert_matches!(message.clone(), OlmMessage::PreKey(_));
         assert_eq!(
             message.message_type(),
             MessageType::PreKey,
@@ -260,7 +260,7 @@ mod tests {
         );
 
         let message = OlmMessage::from_parts(1, base64_decode(MESSAGE)?.as_slice())?;
-        assert_matches!(message, OlmMessage::Normal(_));
+        assert_matches!(message.clone(), OlmMessage::Normal(_));
         assert_eq!(
             message.message_type(),
             MessageType::Normal,

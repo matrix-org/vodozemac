@@ -328,7 +328,7 @@ impl Debug for RatchetCount {
 
 #[cfg(test)]
 mod test {
-    use assert_matches::assert_matches;
+    use assert_matches2::assert_matches;
 
     use super::{
         ActiveDoubleRatchet, DoubleRatchet, DoubleRatchetState, InactiveDoubleRatchet, RatchetCount,
@@ -344,7 +344,7 @@ mod test {
 
         let message = "It's a secret to everybody";
         let olm_message = alice_session.encrypt(message);
-        let prekey_message = assert_matches!(olm_message, OlmMessage::PreKey(m) => m);
+        assert_matches!(olm_message, OlmMessage::PreKey(prekey_message));
 
         let alice_identity_key = alice.identity_keys().curve25519;
         let bob_session_creation_result = bob
