@@ -244,6 +244,7 @@ impl From<Curve25519Keypair> for Curve25519KeypairPickle {
 
 #[cfg(test)]
 mod tests {
+    use assert_matches2::assert_matches;
     use insta::assert_debug_snapshot;
 
     use super::Curve25519PublicKey;
@@ -252,37 +253,37 @@ mod tests {
     #[test]
     fn decoding_invalid_base64_fails() {
         let base64_payload = "a";
-        assert!(matches!(
+        assert_matches!(
             Curve25519PublicKey::from_base64(base64_payload),
             Err(KeyError::InvalidKeyLength { .. })
-        ));
+        );
 
         let base64_payload = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA ";
-        assert!(matches!(
+        assert_matches!(
             Curve25519PublicKey::from_base64(base64_payload),
             Err(KeyError::Base64Error(DecodeError::InvalidByte(..)))
-        ));
+        );
 
         let base64_payload = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAZ";
-        assert!(matches!(
+        assert_matches!(
             Curve25519PublicKey::from_base64(base64_payload),
             Err(KeyError::Base64Error(DecodeError::InvalidLastSymbol(..)))
-        ));
+        );
     }
 
     #[test]
     fn decoding_incorrect_num_of_bytes_fails() {
         let base64_payload = "aaaa";
-        assert!(matches!(
+        assert_matches!(
             Curve25519PublicKey::from_base64(base64_payload),
             Err(KeyError::InvalidKeyLength { .. })
-        ));
+        );
     }
 
     #[test]
     fn decoding_of_correct_num_of_bytes_succeeds() {
         let base64_payload = "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA";
-        assert!(matches!(Curve25519PublicKey::from_base64(base64_payload), Ok(..)));
+        assert_matches!(Curve25519PublicKey::from_base64(base64_payload), Ok(..));
     }
 
     #[test]

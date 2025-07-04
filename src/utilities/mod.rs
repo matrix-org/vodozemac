@@ -156,6 +156,8 @@ impl VarInt for u64 {
 
 #[cfg(test)]
 mod test {
+    use ntest::timeout;
+
     use super::*;
 
     #[test]
@@ -171,5 +173,18 @@ mod test {
             first, second,
             "Decoding the same base64 string with and without padding should produce the same result"
         )
+    }
+
+    #[test]
+    #[timeout(10)]
+    fn integer_encoding_required_space() {
+        assert_eq!(required_encoded_space_unsigned(0), 1);
+        assert_eq!(required_encoded_space_unsigned(100), 1);
+        assert_eq!(required_encoded_space_unsigned(1000), 2);
+        assert_eq!(required_encoded_space_unsigned(10000), 2);
+        assert_eq!(required_encoded_space_unsigned(100000), 3);
+        assert_eq!(required_encoded_space_unsigned(1000000), 3);
+        assert_eq!(required_encoded_space_unsigned(10000000), 4);
+        assert_eq!(required_encoded_space_unsigned(1000000000), 5);
     }
 }

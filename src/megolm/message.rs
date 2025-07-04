@@ -354,6 +354,8 @@ mod test {
     #[cfg(feature = "low-level-api")]
     use std::vec;
 
+    use assert_matches2::assert_matches;
+
     use crate::{
         DecodeError, Ed25519Signature,
         cipher::Mac,
@@ -378,20 +380,30 @@ mod test {
     fn message_to_short() {
         let mut bytes = [1u8; 97];
         bytes[0] = VERSION;
-        assert!(matches!(
+        assert_matches!(
             MegolmMessage::try_from(bytes.as_ref()),
             Err(DecodeError::MessageTooShort(_))
-        ));
+        );
     }
 
     #[test]
     fn truncated_message_to_short() {
         let mut bytes = [1u8; 73];
         bytes[0] = MAC_TRUNCATED_VERSION;
-        assert!(matches!(
+        assert_matches!(
             MegolmMessage::try_from(bytes.as_ref()),
             Err(DecodeError::MessageTooShort(_))
-        ));
+        );
+    }
+
+    #[test]
+    fn truncated_message_decode_error() {
+        let mut bytes = [1u8; 74];
+        bytes[0] = MAC_TRUNCATED_VERSION;
+        assert_matches!(
+            MegolmMessage::try_from(bytes.as_ref()),
+            Err(DecodeError::ProtoBufError(_))
+        );
     }
 
     #[cfg(feature = "low-level-api")]

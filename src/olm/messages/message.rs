@@ -343,6 +343,13 @@ mod test {
     }
 
     #[test]
+    fn from_bytes_decoding_error() {
+        let bytes = vec![MAC_TRUNCATED_VERSION, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let result = Message::try_from(bytes);
+        assert_matches!(result, Err(DecodeError::ProtoBufError(_)));
+    }
+
+    #[test]
     fn from_bytes_invalid_tag() {
         let bytes = [
             VERSION, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,

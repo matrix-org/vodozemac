@@ -91,6 +91,18 @@ impl FoundMessageKey<'_> {
     }
 }
 
+impl<'a> Debug for FoundMessageKey<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Existing(key) => f.debug_tuple("Existing").field(key).finish(),
+            Self::New(found_key) => {
+                let (_, _, key) = found_key.as_ref();
+                f.debug_tuple("New").field(key).finish()
+            }
+        }
+    }
+}
+
 /// The receiver side data on a single chain in the double ratchet.
 ///
 /// Contains the data needed to decrypt a message sent to a given chain.
@@ -227,7 +239,14 @@ mod test {
     use assert_matches::assert_matches;
 
     use super::MessageKeyStore;
-    use crate::olm::session::message_key::RemoteMessageKey;
+    use crate::olm::{
+        DecryptionError,
+        session::{
+            ReceiverChain, RemoteChainKey, double_ratchet::RatchetCount,
+            message_key::RemoteMessageKey, ratchet::RemoteRatchetKey,
+            receiver_chain::MAX_MESSAGE_GAP,
+        },
+    };
 
     #[test]
     fn push_and_remove() {
@@ -265,5 +284,21 @@ mod test {
 
         assert_matches!(store1.get_message_key(chain_index1), Some(_));
         assert_matches!(store1.get_message_key(chain_index2), Some(_));
+    }
+
+    #[test]
+    fn respect_max_gap() {
+        let ratchet_key = RemoteRatchetKey::from([0u8; 32]);
+        let chain_key = RemoteChainKey::new([0u8; 32].into());
+
+        let receiver_chain = ReceiverChain::new(ratchet_key, chain_key, RatchetCount::Known(0));
+
+        assert_matches!(
+            receiver_chain.find_message_key(MAX_MESSAGE_GAP + 1),
+            Err(DecryptionError::TooBigMessageGap(max_invalid_gap, MAX_MESSAGE_GAP)) =>
+            assert_eq!(max_invalid_gap, MAX_MESSAGE_GAP + 1)
+        );
+
+        assert_matches!(receiver_chain.find_message_key(MAX_MESSAGE_GAP), Ok(_));
     }
 }

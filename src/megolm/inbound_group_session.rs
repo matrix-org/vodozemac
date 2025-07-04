@@ -706,4 +706,73 @@ mod test {
             session.get_cipher_at(1000).unwrap().encrypt(b"")
         );
     }
+
+    #[test]
+    fn advance_to_does_not_clone_unnecessarily() {
+        let mut session = InboundGroupSession::from(&GroupSession::new(Default::default()));
+
+        // Let us first advance the ratchet.
+        session.latest_ratchet.advance_to(10);
+
+        let first_address = session.latest_ratchet.ratchet_bytes_pointer();
+        session.advance_to(10);
+        let second_address = session.latest_ratchet.ratchet_bytes_pointer();
+
+        assert_eq!(
+            first_address, second_address,
+            "The latest ratchet should not have moved since we were already at that session index"
+        );
+    }
+
+    #[test]
+    fn find_ratchet_advances_the_correct_ratchet() {
+        let mut session = InboundGroupSession::from(&GroupSession::new(Default::default()));
+
+        let ratchet =
+            session.find_ratchet(0).expect("We should be able to find the initial ratchet");
+
+        let address = ratchet.ratchet_bytes_pointer();
+        let initial_address = session.initial_ratchet.ratchet_bytes_pointer();
+        let latest_ratchet = session.latest_ratchet.ratchet_bytes_pointer();
+
+        assert_eq!(address, initial_address, "We should have returned the initial ratchet");
+        assert_ne!(address, latest_ratchet);
+
+        let ratchet = session
+            .find_ratchet(2)
+            .expect("We should be able to find the ratchet at message index 2");
+
+        let address = ratchet.ratchet_bytes_pointer();
+
+        assert_eq!(ratchet.index(), 2);
+        assert_ne!(address, initial_address);
+        assert_eq!(
+            address, latest_ratchet,
+            "We should have advanced and returned the latest ratchet"
+        );
+
+        let ratchet = session
+            .find_ratchet(2)
+            .expect("We should be able to find the ratchet at message index 2 yet again");
+        let address = ratchet.ratchet_bytes_pointer();
+
+        assert_eq!(ratchet.index(), 2);
+        assert_ne!(address, initial_address);
+        assert_eq!(
+            address, latest_ratchet,
+            "We asked for the same ratchet index so we should again get the same latest ratchet"
+        );
+
+        let ratchet = session
+            .find_ratchet(1)
+            .expect("We should be able to find the ratchet at message index 2");
+        let address = ratchet.ratchet_bytes_pointer();
+
+        assert_eq!(ratchet.index(), 1);
+        assert_ne!(address, initial_address);
+        assert_ne!(
+            address, latest_ratchet,
+            "We should have made a new ratchet copy which changes the address",
+        );
+    }
 }
