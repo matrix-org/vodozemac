@@ -293,9 +293,8 @@ mod tests {
     /// Test that, if we have zero steps in `advance_to()` we will correctly
     /// fall back to 100 steps.
     ///
-    /// This is done as a snapshot of the bytes, a mutation test replaces the
-    /// condition when we fall back to 100 steps and we didn't notice this
-    /// without this test.
+    /// This is to catch a mutation test which replaces the condition upon which
+    /// we fall back to 256 steps.
     #[test]
     fn advancing_back_creates_the_correct_bytes() {
         let mut ratchet = Ratchet::from_bytes([0; 128].into(), 0);

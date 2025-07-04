@@ -753,14 +753,14 @@ mod test {
 
         let ratchet = session
             .find_ratchet(2)
-            .expect("We should be able to find the ratchet at message index 2");
+            .expect("We should be able to find the ratchet at message index 2 yet again");
         let address = ratchet.ratchet_bytes_pointer();
 
         assert_eq!(ratchet.index(), 2);
         assert_ne!(address, initial_address);
         assert_eq!(
             address, latest_ratchet,
-            "We should have advanced and returned the latest ratchet"
+            "We asked for the same ratchet index so we should again get the same latest ratchet"
         );
 
         let ratchet = session
