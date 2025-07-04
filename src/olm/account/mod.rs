@@ -954,7 +954,7 @@ mod dehydrated_device {
 #[cfg(test)]
 mod test {
     use anyhow::{Context, Result, bail};
-    use assert_matches::assert_matches;
+    use assert_matches2::assert_matches;
     use matrix_pickle::{Decode, Encode};
     use olm_rs::{account::OlmAccount, session::OlmMessage as LibolmOlmMessage};
 
@@ -1517,14 +1517,14 @@ mod test {
         .expect("Should be able to rehydrate device");
 
         // make sure we can decrypt both messages
-        let prekey_message = assert_matches!(bob_olm_message, OlmMessage::PreKey(m) => m);
+        assert_matches!(bob_olm_message, OlmMessage::PreKey(prekey_message));
         let InboundCreationResult { session: alice_session, plaintext } = alice_rehydrated
             .create_inbound_session(bob.curve25519_key(), &prekey_message)
             .expect("Alice should be able to create an inbound session from Bob's pre-key message");
         assert_eq!(alice_session.session_id(), bob_session.session_id());
         assert_eq!(message.as_bytes(), plaintext);
 
-        let prekey_message = assert_matches!(carol_olm_message, OlmMessage::PreKey(m) => m);
+        assert_matches!(carol_olm_message, OlmMessage::PreKey(prekey_message));
         let InboundCreationResult { session: alice_session, plaintext } = alice_rehydrated
             .create_inbound_session(carol.curve25519_key(), &prekey_message)
             .expect(

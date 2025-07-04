@@ -521,7 +521,7 @@ impl From<SessionPickle> for Session {
 #[cfg(test)]
 mod test {
     use anyhow::{Result, bail};
-    use assert_matches::assert_matches;
+    use assert_matches2::assert_matches;
     use olm_rs::{
         account::OlmAccount,
         session::{OlmMessage, OlmSession},
