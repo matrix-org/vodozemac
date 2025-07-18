@@ -3,5 +3,6 @@ Cargo.lock
 .gdb_history
 /afl/*/target
 /afl/*/out*
+/contrib/*/target
 mutants.out*
 coverage.xml
