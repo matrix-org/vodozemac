@@ -41,7 +41,7 @@ default = ["libolm-compat"]
 js = ["getrandom/js"]
 strict-signatures = []
 libolm-compat = []
-insecure-pk-encryption = []
+insecure-pk-encryption = ["libolm-compat"]
 # The low-level-api feature exposes extra APIs that are only useful in advanced
 # use cases and require extra care to use.
 low-level-api = []
