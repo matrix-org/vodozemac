@@ -14,11 +14,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout the repo
-      uses: actions/checkout@v4
+    - name: Checkout the repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
     - name: Install rust
-      uses: dtolnay/rust-toolchain@master
+      uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e8b695cdcc8de1b
       with:
         toolchain: nightly
         components: rustfmt
@@ -31,11 +31,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Actions Repository
-      uses: actions/checkout@v4
+    - name: Checkout the repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
     - name: Check the spelling of the files in our repo
-      uses: crate-ci/typos@master
+      uses: crate-ci/typos@392b78fe18a52790c53f42456e46124f77346842
 
   clippy:
     name: Run clippy
@@ -43,16 +43,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout the repo
-      uses: actions/checkout@v4
+    - name: Checkout the repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
     - name: Install rust
-      uses: dtolnay/rust-toolchain@master
+      uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e8b695cdcc8de1b
       with:
         toolchain: nightly
         components: clippy
 
-    - uses: Swatinem/rust-cache@v2
+    - uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0
 
     - name: Clippy (all-features)
       run: cargo clippy --all-targets --all-features -- -D warnings
@@ -77,14 +77,14 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Install rust
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e8b695cdcc8de1b
         with:
           toolchain: ${{ format('{0}-{1}', matrix.channel, matrix.target.toolchain) }}
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0
 
       - name: Test
         run: cargo test --all-features
