@@ -73,7 +73,7 @@ zeroize = "1.8.1"
 [dev-dependencies]
 anyhow = "1.0.98"
 assert_matches2 = "0.1.2"
-criterion = "0.6.0"
+criterion = { version = "3.0.4", package = "codspeed-criterion-compat" }
 ntest = "0.9.3"
 olm-rs = "2.2.0"
 proptest = "1.7.0"
