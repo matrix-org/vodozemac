@@ -161,6 +161,8 @@ impl Ed25519Keypair {
 
     #[cfg(feature = "libolm-compat")]
     pub(crate) fn expanded_secret_key(&self) -> Box<[u8; 64]> {
+        use std::ops::DerefMut;
+
         use sha2::Digest;
 
         let mut expanded = Box::new([0u8; 64]);
@@ -168,7 +170,8 @@ impl Ed25519Keypair {
         match &self.secret_key {
             SecretKeys::Normal(k) => {
                 let mut k = k.to_bytes();
-                Sha512::new().chain_update(k).finalize_into(expanded.as_mut_slice().into());
+                Sha512::new().chain_update(k).finalize_into(expanded.deref_mut().into());
+
                 k.zeroize();
             }
             SecretKeys::Expanded(k) => expanded.copy_from_slice(k.as_bytes()),

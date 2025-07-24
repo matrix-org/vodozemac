@@ -125,10 +125,10 @@ mod test {
 
     #[test]
     fn triple_diffie_hellman() {
-        let rng = thread_rng();
+        let mut rng = thread_rng();
 
         let alice_identity = StaticSecret::new();
-        let alice_one_time = ReusableSecret::random_from_rng(rng);
+        let alice_one_time = ReusableSecret::random_from_rng(&mut rng);
 
         let bob_identity = StaticSecret::new();
         let bob_one_time = StaticSecret::new();
