@@ -15,7 +15,7 @@
 mod fallback_keys;
 mod one_time_keys;
 
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
 
 use chacha20poly1305::{
     ChaCha20Poly1305,
@@ -176,6 +176,8 @@ impl Account {
         one_time_key: Curve25519PublicKey,
     ) -> Session {
         let rng = thread_rng();
+
+        std::thread::sleep(Duration::from_millis(1));
 
         let base_key = ReusableSecret::random_from_rng(rng);
         let public_base_key = Curve25519PublicKey::from(&base_key);
