@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use hmac::{Hmac, Mac as _};
+use hmac::{Hmac, KeyInit, Mac as _};
 use rand::{RngCore, thread_rng};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Sha256, digest::CtOutput};

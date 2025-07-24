@@ -18,7 +18,7 @@ mod one_time_keys;
 use std::collections::HashMap;
 
 use chacha20poly1305::{
-    ChaCha20Poly1305,
+    ChaCha20Poly1305, Nonce,
     aead::{Aead, AeadCore, KeyInit},
 };
 use rand::thread_rng;
@@ -175,9 +175,9 @@ impl Account {
         identity_key: Curve25519PublicKey,
         one_time_key: Curve25519PublicKey,
     ) -> Session {
-        let rng = thread_rng();
+        let mut rng = rng();
 
-        let base_key = ReusableSecret::random_from_rng(rng);
+        let base_key = ReusableSecret::random_from_rng(&mut rng);
         let public_base_key = Curve25519PublicKey::from(&base_key);
 
         let shared_secret = Shared3DHSecret::new(
@@ -485,8 +485,9 @@ impl Account {
             .map_err(|e| DehydratedDeviceError::LibolmPickle(LibolmPickleError::Encode(e)))?;
 
         let cipher = ChaCha20Poly1305::new(key.into());
-        let rng = thread_rng();
-        let nonce = ChaCha20Poly1305::generate_nonce(rng);
+        #[allow(clippy::expect_used)]
+        let nonce = ChaCha20Poly1305::generate_nonce()
+            .expect("We should be able to generate a new random nonce");
         let ciphertext = cipher.encrypt(&nonce, encoded.as_slice());
 
         encoded.zeroize();
@@ -520,7 +521,12 @@ impl Account {
         if nonce.len() != 12 {
             Err(crate::DehydratedDeviceError::InvalidNonce)
         } else {
-            let mut plaintext = cipher.decrypt(nonce.as_slice().into(), ciphertext.as_slice())?;
+            let mut nonce_array = [0u8; 12];
+            nonce_array.copy_from_slice(nonce.as_slice());
+
+            let nonce = Nonce::from(nonce_array);
+            let mut plaintext = cipher.decrypt(&nonce, ciphertext.as_slice())?;
+
             let version = get_pickle_version(&plaintext)
                 .ok_or(crate::DehydratedDeviceError::MissingVersion)?;
 
