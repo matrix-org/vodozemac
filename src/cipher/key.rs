@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::ops::Deref;
+
 use aes::{
     Aes256,
     cipher::{Array, IvSizeUser, KeySizeUser},
@@ -98,7 +100,7 @@ impl CipherKeys {
     }
 
     pub fn aes_key(&self) -> &Aes256Key {
-        Aes256Key::from_slice(self.aes_key.as_slice())
+        self.aes_key.deref().into()
     }
 
     pub const fn mac_key(&self) -> &HmacSha256Key {
@@ -106,6 +108,6 @@ impl CipherKeys {
     }
 
     pub fn iv(&self) -> &Aes256Iv {
-        Aes256Iv::from_slice(self.aes_iv.as_slice())
+        self.aes_iv.deref().into()
     }
 }

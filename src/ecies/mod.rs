@@ -78,6 +78,8 @@
 //! # Ok::<(), anyhow::Error>(())
 //! ```
 
+use std::ops::Deref;
+
 use chacha20poly1305::{ChaCha20Poly1305, Key as Chacha20Key, KeyInit, Nonce, aead::Aead};
 use hkdf::Hkdf;
 use rand::rng;
@@ -489,11 +491,11 @@ impl EstablishedEcies {
     }
 
     fn encryption_key(&self) -> &Chacha20Key {
-        Chacha20Key::from_slice(self.encryption_key.as_slice())
+        self.encryption_key.deref().into()
     }
 
     fn decryption_key(&self) -> &Chacha20Key {
-        Chacha20Key::from_slice(self.decryption_key.as_slice())
+        self.decryption_key.deref().into()
     }
 
     /// Encrypt the given plaintext using this [`EstablishedEcies`] session.
