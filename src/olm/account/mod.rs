@@ -915,7 +915,7 @@ mod dehydrated_device {
                 private_ed25519_key: account
                     .signing_key
                     .unexpanded_secret_key()
-                    .ok_or_else(|| DehydratedDeviceError::InvalidAccount)?,
+                    .ok_or(DehydratedDeviceError::InvalidAccount)?,
                 one_time_keys,
                 opt_fallback_key: OptFallbackKey { fallback_key },
             })
