@@ -287,7 +287,7 @@ impl TryFrom<&[u8]> for MegolmMessage {
             let inner = ProtobufMegolmMessage::decode(
                 message
                     .get(1..message.len() - suffix_length)
-                    .ok_or_else(|| DecodeError::MessageTooShort(message.len()))?,
+                    .ok_or(DecodeError::MessageTooShort(message.len()))?,
             )?;
 
             let signature_location = message.len() - Ed25519Signature::LENGTH;
