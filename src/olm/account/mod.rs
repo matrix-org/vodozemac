@@ -21,7 +21,7 @@ use chacha20poly1305::{
     ChaCha20Poly1305, Nonce,
     aead::{Aead, AeadCore, KeyInit},
 };
-use rand::thread_rng;
+use rand::rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use x25519_dalek::ReusableSecret;

@@ -53,7 +53,7 @@
 
 use hkdf::Hkdf;
 use hmac::{Hmac, KeyInit, Mac as _, digest::MacError};
-use rand::thread_rng;
+use rand::rng;
 use sha2::Sha256;
 use thiserror::Error;
 use x25519_dalek::{EphemeralSecret, SharedSecret};
