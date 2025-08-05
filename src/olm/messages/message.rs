@@ -220,7 +220,7 @@ impl TryFrom<&[u8]> for Message {
             let inner = ProtoBufMessage::decode(
                 value
                     .get(1..value.len() - mac_length)
-                    .ok_or_else(|| DecodeError::MessageTooShort(value.len()))?,
+                    .ok_or(DecodeError::MessageTooShort(value.len()))?,
             )?;
 
             let mac_slice = &value[value.len() - mac_length..];
