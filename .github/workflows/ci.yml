@@ -35,7 +35,7 @@ jobs:
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
     - name: Check the spelling of the files in our repo
-      uses: crate-ci/typos@392b78fe18a52790c53f42456e46124f77346842
+      uses: crate-ci/typos@a67079b4ae32e18c3f53d75368c52ce53b5fb56b
 
   clippy:
     name: Run clippy
