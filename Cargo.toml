@@ -85,3 +85,7 @@ olm-rs = { git = "https://github.com/poljar/olm-rs", rev = "9f7108c3b852c39bf1d0
 [[bench]]
 name = "olm_benchmark"
 harness = false
+
+[[bench]]
+name = "megolm_benchmark"
+harness = false
