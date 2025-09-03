@@ -36,7 +36,7 @@ pub fn outbound_session_creation(c: &mut Criterion) {
     });
 }
 
-/// Benchmark how long it takes encrypt a message using a 1-to-1 Olm session.
+/// Benchmark how long it takes to encrypt a message using a 1-to-1 Olm session.
 pub fn encryption(c: &mut Criterion) {
     let alice = Account::new();
     let mut bob = Account::new();
