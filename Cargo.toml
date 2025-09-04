@@ -80,7 +80,7 @@ proptest = "1.7.0"
 insta = "1.43.1"
 
 [patch.crates-io]
-olm-rs = { git = "https://github.com/poljar/olm-rs" }
+olm-rs = { git = "https://github.com/poljar/olm-rs", rev = "9f7108c3b852c39bf1d0f09ccaafb9a1cf7bb83e" }
 
 [[bench]]
 name = "olm_benchmark"
