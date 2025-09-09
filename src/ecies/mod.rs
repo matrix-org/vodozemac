@@ -78,9 +78,11 @@
 //! # Ok::<(), anyhow::Error>(())
 //! ```
 
+use std::ops::Deref;
+
 use chacha20poly1305::{ChaCha20Poly1305, Key as Chacha20Key, KeyInit, Nonce, aead::Aead};
 use hkdf::Hkdf;
-use rand::thread_rng;
+use rand::rng;
 use sha2::Sha512;
 use thiserror::Error;
 use x25519_dalek::{EphemeralSecret, SharedSecret};
@@ -132,9 +134,7 @@ impl EciesNonce {
         let mut nonce = [0u8; 12];
         nonce.copy_from_slice(&current.to_le_bytes()[..12]);
 
-        #[allow(clippy::expect_used)]
-        Nonce::from_exact_iter(nonce)
-            .expect("We should be able to construct the correct nonce from a 12 byte slice")
+        Nonce::from_iter(nonce)
     }
 }
 
@@ -238,8 +238,8 @@ impl Ecies {
     /// The application info will be used to derive the various secrets and
     /// provide domain separation.
     pub fn with_info(info: &str) -> Self {
-        let rng = thread_rng();
-        let secret_key = EphemeralSecret::random_from_rng(rng);
+        let mut rng = rng();
+        let secret_key = EphemeralSecret::random_from_rng(&mut rng);
         let application_info_prefix = info.to_owned();
 
         Self { secret_key, application_info_prefix }
@@ -491,11 +491,11 @@ impl EstablishedEcies {
     }
 
     fn encryption_key(&self) -> &Chacha20Key {
-        Chacha20Key::from_slice(self.encryption_key.as_slice())
+        self.encryption_key.deref().into()
     }
 
     fn decryption_key(&self) -> &Chacha20Key {
-        Chacha20Key::from_slice(self.decryption_key.as_slice())
+        self.decryption_key.deref().into()
     }
 
     /// Encrypt the given plaintext using this [`EstablishedEcies`] session.
