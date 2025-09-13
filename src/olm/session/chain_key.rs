@@ -77,6 +77,11 @@ impl RemoteChainKey {
         Self { key: bytes, index: index.into() }
     }
 
+    #[cfg(feature = "libolm-compat")]
+    pub fn to_bytes_and_index(&self) -> (Box<[u8; 32]>, u64) {
+        (self.key.clone(), self.index)
+    }
+
     pub fn advance(&mut self) {
         let output = advance(&self.key).into_bytes();
         self.key.copy_from_slice(output.as_slice());
@@ -101,6 +106,11 @@ impl ChainKey {
     #[cfg(feature = "libolm-compat")]
     pub fn from_bytes_and_index(bytes: Box<[u8; 32]>, index: u32) -> Self {
         Self { key: bytes, index: index.into() }
+    }
+
+    #[cfg(feature = "libolm-compat")]
+    pub fn to_bytes_and_index(&self) -> (Box<[u8; 32]>, u64) {
+        (self.key.clone(), self.index)
     }
 
     pub fn advance(&mut self) {

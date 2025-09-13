@@ -36,16 +36,25 @@ const fn default_config() -> SessionConfig {
 
 #[cfg(feature = "libolm-compat")]
 mod libolm {
-    use matrix_pickle::Decode;
+    use matrix_pickle::{Decode, Encode};
     use zeroize::{Zeroize, ZeroizeOnDrop};
 
     use super::ratchet::Ratchet;
 
-    #[derive(Zeroize, ZeroizeOnDrop, Decode)]
+    #[derive(Zeroize, ZeroizeOnDrop, Encode, Decode)]
     pub(crate) struct LibolmRatchetPickle {
         #[secret]
         ratchet: Box<[u8; 128]>,
         index: u32,
+    }
+
+    impl From<&Ratchet> for LibolmRatchetPickle {
+        fn from(value: &Ratchet) -> Self {
+            LibolmRatchetPickle {
+                ratchet: Box::new(value.as_bytes().to_owned()),
+                index: value.index(),
+            }
+        }
     }
 
     impl From<&LibolmRatchetPickle> for Ratchet {

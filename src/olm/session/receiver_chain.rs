@@ -60,6 +60,11 @@ impl MessageKeyStore {
     fn remove_message_key(&mut self, chain_index: u64) {
         self.inner.retain(|k| k.chain_index() != chain_index);
     }
+
+    #[cfg(feature = "libolm-compat")]
+    fn get_all(&self) -> &ArrayVec<RemoteMessageKey, MAX_MESSAGE_KEYS> {
+        &self.inner
+    }
 }
 
 impl Default for MessageKeyStore {
@@ -222,6 +227,16 @@ impl ReceiverChain {
     #[cfg(feature = "libolm-compat")]
     pub const fn ratchet_key(&self) -> RemoteRatchetKey {
         self.ratchet_key
+    }
+
+    #[cfg(feature = "libolm-compat")]
+    pub fn chain_key_and_index(&self) -> (Box<[u8; 32]>, u64) {
+        self.hkdf_ratchet.to_bytes_and_index()
+    }
+
+    #[cfg(feature = "libolm-compat")]
+    pub fn skipped_keys(&self) -> &ArrayVec<RemoteMessageKey, MAX_MESSAGE_KEYS> {
+        self.skipped_message_keys.get_all()
     }
 
     #[cfg(feature = "libolm-compat")]

@@ -13,9 +13,10 @@
 // limitations under the License.
 
 use std::fmt::Display;
+use std::io::Write;
 
 use base64::decoded_len_estimate;
-use matrix_pickle::{Decode, DecodeError};
+use matrix_pickle::{Decode, DecodeError, Encode, EncodeError};
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use x25519_dalek::{EphemeralSecret, PublicKey, ReusableSecret, SharedSecret, StaticSecret};
@@ -115,6 +116,12 @@ impl Decode for Curve25519PublicKey {
         let key = <[u8; 32]>::decode(reader)?;
 
         Ok(Curve25519PublicKey::from(key))
+    }
+}
+
+impl Encode for Curve25519PublicKey {
+    fn encode(&self, writer: &mut impl Write) -> Result<usize, EncodeError> {
+        self.as_bytes().encode(writer)
     }
 }
 

@@ -330,11 +330,31 @@ impl Session {
         const PICKLE_VERSION: u32 = 1;
         unpickle_libolm::<Pickle, _>(pickle, pickle_key, PICKLE_VERSION)
     }
+
+    /// Pickle a [`Session`] into a libolm pickle format.
+    ///
+    /// This pickle can be restored using the [`Session::from_libolm_pickle()`]
+    /// method, or can be used in the [`libolm`] C library.
+    ///
+    /// The pickle will be encrypted using the pickle key.
+    ///
+    /// ⚠️  ***Security Warning***: The pickle key will get expanded into both
+    /// an AES key and an IV in a deterministic manner. If the same pickle
+    /// key is reused, this will lead to IV reuse. To prevent this, users
+    /// have to ensure that they always use a globally (probabilistically)
+    /// unique pickle key.
+    ///
+    /// [`libolm`]: https://gitlab.matrix.org/matrix-org/olm/
+    #[cfg(feature = "libolm-compat")]
+    pub fn to_libolm_pickle(&self, pickle_key: &[u8]) -> Result<String, crate::LibolmPickleError> {
+        use crate::{olm::session::libolm_compat::Pickle, utilities::pickle_libolm};
+        pickle_libolm::<Pickle>(self.into(), pickle_key)
+    }
 }
 
 #[cfg(feature = "libolm-compat")]
 mod libolm_compat {
-    use matrix_pickle::Decode;
+    use matrix_pickle::{Decode, Encode};
     use zeroize::{Zeroize, ZeroizeOnDrop};
 
     use super::{
@@ -348,11 +368,11 @@ mod libolm_compat {
     };
     use crate::{
         Curve25519PublicKey,
-        olm::{SessionConfig, SessionKeys},
+        olm::{SessionConfig, SessionKeys, RatchetPublicKey},
         types::Curve25519SecretKey,
     };
 
-    #[derive(Decode, Zeroize, ZeroizeOnDrop)]
+    #[derive(Encode, Decode, Zeroize, ZeroizeOnDrop)]
     struct SenderChain {
         public_ratchet_key: [u8; 32],
         #[secret]
@@ -361,12 +381,23 @@ mod libolm_compat {
         chain_key_index: u32,
     }
 
-    #[derive(Decode, Zeroize, ZeroizeOnDrop)]
+    #[derive(Encode, Decode, Zeroize, ZeroizeOnDrop)]
     struct ReceivingChain {
         public_ratchet_key: [u8; 32],
         #[secret]
         chain_key: Box<[u8; 32]>,
         chain_key_index: u32,
+    }
+
+    impl From<&ReceiverChain> for ReceivingChain {
+        fn from(chain: &ReceiverChain) -> Self {
+            let (chain_key, chain_key_index) = chain.chain_key_and_index();
+            Self {
+                public_ratchet_key: chain.ratchet_key().to_bytes(),
+                chain_key,
+                chain_key_index: chain_key_index.try_into().unwrap_or(u32::MAX),
+            }
+        }
     }
 
     impl From<&ReceivingChain> for ReceiverChain {
@@ -381,7 +412,7 @@ mod libolm_compat {
         }
     }
 
-    #[derive(Decode, Zeroize, ZeroizeOnDrop)]
+    #[derive(Encode, Decode, Zeroize, ZeroizeOnDrop)]
     struct MessageKey {
         ratchet_key: [u8; 32],
         #[secret]
@@ -395,7 +426,7 @@ mod libolm_compat {
         }
     }
 
-    #[derive(Decode)]
+    #[derive(Encode, Decode)]
     pub(super) struct Pickle {
         #[allow(dead_code)]
         version: u32,
@@ -415,6 +446,42 @@ mod libolm_compat {
             self.sender_chains.zeroize();
             self.receiver_chains.zeroize();
             self.message_keys.zeroize();
+        }
+    }
+
+    impl From<&Session> for Pickle {
+        fn from(session: &Session) -> Self {
+            let mut receiver_chains = Vec::new();
+            let mut message_keys = Vec::new();
+            for chain in &session.receiving_chains.inner {
+                receiver_chains.push(chain.into());
+                for skipped_key in chain.skipped_keys() {
+                    message_keys.push(MessageKey {
+                        ratchet_key: chain.ratchet_key().to_bytes(),
+                        message_key: skipped_key.key.clone(),
+                        index: skipped_key.index.try_into().unwrap_or(u32::MAX),
+                    })
+                }
+            }
+            let mut sender_chains = Vec::new();
+            if let Some((ratchet_key, chain_key)) = session.sending_ratchet.to_ratchet_and_chain_key() {
+                let (chain_key, chain_key_index) = chain_key.to_bytes_and_index();
+                sender_chains.push(SenderChain{
+                    secret_ratchet_key: ratchet_key.clone().to_bytes(),
+                    public_ratchet_key: RatchetPublicKey::from(ratchet_key).to_bytes(),
+                    chain_key,
+                    chain_key_index: chain_key_index.try_into().unwrap_or(u32::MAX),
+                })
+            }
+            Pickle{
+                version: 1,
+                received_message: session.has_received_message(),
+                receiver_chains,
+                message_keys,
+                session_keys: session.session_keys,
+                root_key: session.sending_ratchet.root_key_bytes(),
+                sender_chains,
+            }
         }
     }
 

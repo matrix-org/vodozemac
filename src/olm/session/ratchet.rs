@@ -44,6 +44,14 @@ pub(super) struct RatchetKey(Curve25519SecretKey);
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct RatchetPublicKey(Curve25519PublicKey);
 
+impl RatchetPublicKey {
+    /// Convert this public key to a byte array (for libolm pickling)
+    #[cfg(feature = "libolm-compat")]
+    pub fn to_bytes(&self) -> [u8; 32] {
+        self.0.to_bytes()
+    }
+}
+
 /// A ratchet key which was created by the other side.
 ///
 /// See [`RatchetKey`] for explanation about ratchet keys in general. Since this
@@ -58,6 +66,13 @@ impl Debug for RemoteRatchetKey {
     }
 }
 
+impl RemoteRatchetKey {
+    #[cfg(feature = "libolm-compat")]
+    pub fn to_bytes(&self) -> [u8; 32] {
+        self.0.to_bytes()
+    }
+}
+
 impl RatchetKey {
     pub fn new() -> Self {
         Self(Curve25519SecretKey::new())
@@ -65,6 +80,11 @@ impl RatchetKey {
 
     pub fn diffie_hellman(&self, other: &RemoteRatchetKey) -> SharedSecret {
         self.0.diffie_hellman(&other.0)
+    }
+
+    #[cfg(feature = "libolm-compat")]
+    pub fn to_bytes(&self) -> Box<[u8; 32]> {
+        self.0.to_bytes()
     }
 }
 
@@ -142,6 +162,11 @@ impl Ratchet {
 
     pub const fn ratchet_key(&self) -> &RatchetKey {
         &self.ratchet_key
+    }
+
+    #[cfg(feature = "libolm-compat")]
+    pub const fn root_key(&self) -> &RootKey {
+        &self.root_key
     }
 }
 

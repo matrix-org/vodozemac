@@ -442,11 +442,31 @@ impl InboundGroupSession {
         const PICKLE_VERSION: u32 = 2;
         unpickle_libolm::<Pickle, _>(pickle, pickle_key, PICKLE_VERSION)
     }
+
+    /// Pickle an [`InboundGroupSession`] into a libolm pickle format.
+    ///
+    /// This pickle can be restored using the [`InboundGroupSession::from_libolm_pickle()`]
+    /// method, or can be used in the [`libolm`] C library.
+    ///
+    /// The pickle will be encrypted using the pickle key.
+    ///
+    /// ⚠️  ***Security Warning***: The pickle key will get expanded into both
+    /// an AES key and an IV in a deterministic manner. If the same pickle
+    /// key is reused, this will lead to IV reuse. To prevent this, users
+    /// have to ensure that they always use a globally (probabilistically)
+    /// unique pickle key.
+    ///
+    /// [`libolm`]: https://gitlab.matrix.org/matrix-org/olm/
+    #[cfg(feature = "libolm-compat")]
+    pub fn to_libolm_pickle(&self, pickle_key: &[u8]) -> Result<String, crate::LibolmPickleError> {
+        use crate::{megolm::inbound_group_session::libolm_compat::Pickle, utilities::pickle_libolm};
+        pickle_libolm::<Pickle>(self.into(), pickle_key)
+    }
 }
 
 #[cfg(feature = "libolm-compat")]
 mod libolm_compat {
-    use matrix_pickle::Decode;
+    use matrix_pickle::{Decode, Encode};
     use zeroize::{Zeroize, ZeroizeOnDrop};
 
     use super::InboundGroupSession;
@@ -455,13 +475,25 @@ mod libolm_compat {
         megolm::{SessionConfig, libolm::LibolmRatchetPickle},
     };
 
-    #[derive(Zeroize, ZeroizeOnDrop, Decode)]
+    #[derive(Zeroize, ZeroizeOnDrop, Encode, Decode)]
     pub(super) struct Pickle {
         version: u32,
         initial_ratchet: LibolmRatchetPickle,
         latest_ratchet: LibolmRatchetPickle,
         signing_key: [u8; 32],
         signing_key_verified: bool,
+    }
+
+    impl From<&InboundGroupSession> for Pickle {
+        fn from(session: &InboundGroupSession) -> Self {
+            Self {
+                version: 2,
+                initial_ratchet: (&session.initial_ratchet).into(),
+                latest_ratchet: (&session.latest_ratchet).into(),
+                signing_key: *session.signing_key.as_bytes(),
+                signing_key_verified: session.signing_key_verified,
+            }
+        }
     }
 
     impl TryFrom<Pickle> for InboundGroupSession {
