@@ -23,8 +23,7 @@ use super::{
     receiver_chain::ReceiverChain,
     root_key::{RemoteRootKey, RootKey},
 };
-use crate::olm::session::ratchet::RatchetKey;
-use crate::olm::{messages::Message, shared_secret::Shared3DHSecret};
+use crate::olm::{messages::Message, session::ratchet::RatchetKey, shared_secret::Shared3DHSecret};
 
 /// The sender side of a double-ratchet implementation.
 ///

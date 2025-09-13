@@ -445,8 +445,9 @@ impl InboundGroupSession {
 
     /// Pickle an [`InboundGroupSession`] into a libolm pickle format.
     ///
-    /// This pickle can be restored using the [`InboundGroupSession::from_libolm_pickle()`]
-    /// method, or can be used in the [`libolm`] C library.
+    /// This pickle can be restored using the
+    /// [`InboundGroupSession::from_libolm_pickle()`] method, or can be used
+    /// in the [`libolm`] C library.
     ///
     /// The pickle will be encrypted using the pickle key.
     ///
