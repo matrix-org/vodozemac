@@ -204,7 +204,7 @@ mod libolm_compat {
             Self {
                 version: 1,
                 ratchet: (&session.ratchet).into(),
-                ed25519_keypair: LibolmEd25519Keypair{
+                ed25519_keypair: LibolmEd25519Keypair {
                     private_key: Ed25519Keypair::expanded_secret_key(&session.signing_key),
                     public_key: session.signing_key.public_key().as_bytes().to_owned(),
                 },

@@ -23,8 +23,8 @@ use super::{
     receiver_chain::ReceiverChain,
     root_key::{RemoteRootKey, RootKey},
 };
-use crate::olm::{messages::Message, shared_secret::Shared3DHSecret};
 use crate::olm::session::ratchet::RatchetKey;
+use crate::olm::{messages::Message, shared_secret::Shared3DHSecret};
 
 /// The sender side of a double-ratchet implementation.
 ///
@@ -125,10 +125,8 @@ impl DoubleRatchet {
     #[cfg(feature = "libolm-compat")]
     pub fn root_key_bytes(&self) -> Box<[u8; 32]> {
         match &self.inner {
-            DoubleRatchetState::Inactive(ratchet) =>
-                ratchet.root_key.key.clone(),
-            DoubleRatchetState::Active(ratchet) =>
-                ratchet.active_ratchet.root_key().key.clone(),
+            DoubleRatchetState::Inactive(ratchet) => ratchet.root_key.key.clone(),
+            DoubleRatchetState::Active(ratchet) => ratchet.active_ratchet.root_key().key.clone(),
         }
     }
 
@@ -136,8 +134,9 @@ impl DoubleRatchet {
     pub fn to_ratchet_and_chain_key(&self) -> Option<(&RatchetKey, &ChainKey)> {
         match &self.inner {
             DoubleRatchetState::Inactive(_) => None,
-            DoubleRatchetState::Active(ratchet) =>
-                Some((ratchet.active_ratchet.ratchet_key(), &ratchet.symmetric_key_ratchet)),
+            DoubleRatchetState::Active(ratchet) => {
+                Some((ratchet.active_ratchet.ratchet_key(), &ratchet.symmetric_key_ratchet))
+            }
         }
     }
 

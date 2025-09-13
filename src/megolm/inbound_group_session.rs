@@ -459,7 +459,9 @@ impl InboundGroupSession {
     /// [`libolm`]: https://gitlab.matrix.org/matrix-org/olm/
     #[cfg(feature = "libolm-compat")]
     pub fn to_libolm_pickle(&self, pickle_key: &[u8]) -> Result<String, crate::LibolmPickleError> {
-        use crate::{megolm::inbound_group_session::libolm_compat::Pickle, utilities::pickle_libolm};
+        use crate::{
+            megolm::inbound_group_session::libolm_compat::Pickle, utilities::pickle_libolm,
+        };
         pickle_libolm::<Pickle>(self.into(), pickle_key)
     }
 }

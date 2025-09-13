@@ -368,7 +368,7 @@ mod libolm_compat {
     };
     use crate::{
         Curve25519PublicKey,
-        olm::{SessionConfig, SessionKeys, RatchetPublicKey},
+        olm::{RatchetPublicKey, SessionConfig, SessionKeys},
         types::Curve25519SecretKey,
     };
 
@@ -464,16 +464,18 @@ mod libolm_compat {
                 }
             }
             let mut sender_chains = Vec::new();
-            if let Some((ratchet_key, chain_key)) = session.sending_ratchet.to_ratchet_and_chain_key() {
+            if let Some((ratchet_key, chain_key)) =
+                session.sending_ratchet.to_ratchet_and_chain_key()
+            {
                 let (chain_key, chain_key_index) = chain_key.to_bytes_and_index();
-                sender_chains.push(SenderChain{
+                sender_chains.push(SenderChain {
                     secret_ratchet_key: ratchet_key.clone().to_bytes(),
                     public_ratchet_key: RatchetPublicKey::from(ratchet_key).to_bytes(),
                     chain_key,
                     chain_key_index: chain_key_index.try_into().unwrap_or(u32::MAX),
                 })
             }
-            Pickle{
+            Pickle {
                 version: 1,
                 received_message: session.has_received_message(),
                 receiver_chains,
