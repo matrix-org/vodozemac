@@ -171,14 +171,18 @@ impl Ratchet {
 
 #[cfg(test)]
 mod test {
+    #[cfg(feature = "libolm-compat")]
     use super::RatchetKey;
-    use crate::{Curve25519SecretKey, olm::RatchetPublicKey};
+    #[cfg(feature = "libolm-compat")]
+    use crate::Curve25519SecretKey;
+    use crate::olm::RatchetPublicKey;
 
     #[test]
+    #[cfg(feature = "libolm-compat")]
     fn ratchet_key_from_curve_25519_secret_key() {
         let bytes = b"aaaaaaaaaaaaaaawaaaaaaaaaaaaaaaa";
         let key = RatchetKey::from(Curve25519SecretKey::from_slice(bytes));
-        assert_eq!(key.0.to_bytes().as_ref(), bytes);
+        assert_eq!(key.to_bytes().as_ref(), bytes);
     }
 
     #[test]

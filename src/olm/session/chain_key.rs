@@ -142,6 +142,9 @@ impl ChainKey {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "libolm-compat")]
+    use rand::{Fill, thread_rng};
+
     use super::ChainKey;
     use crate::olm::session::chain_key::RemoteChainKey;
 
@@ -159,5 +162,29 @@ mod tests {
         assert_eq!(key.chain_index(), 0);
         key.advance();
         assert_eq!(key.chain_index(), 1);
+    }
+
+    #[test]
+    #[cfg(feature = "libolm-compat")]
+    fn chain_key_as_bytes() {
+        let mut rng = thread_rng();
+        let mut bytes = Box::new([0u8; 32]);
+        bytes.try_fill(&mut rng).unwrap();
+
+        let key = ChainKey::new(bytes.clone());
+
+        assert_eq!(key.as_bytes(), &bytes);
+    }
+
+    #[test]
+    #[cfg(feature = "libolm-compat")]
+    fn remote_chain_key_as_bytes() {
+        let mut rng = thread_rng();
+        let mut bytes = Box::new([0u8; 32]);
+        bytes.try_fill(&mut rng).unwrap();
+
+        let key = RemoteChainKey::new(bytes.clone());
+
+        assert_eq!(key.as_bytes(), &bytes);
     }
 }
