@@ -128,3 +128,36 @@ impl RootKey {
         Some((root_key, chain_key))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[cfg(feature = "libolm-compat")]
+    use rand::{Rng, rng};
+
+    #[cfg(feature = "libolm-compat")]
+    use super::*;
+
+    #[test]
+    #[cfg(feature = "libolm-compat")]
+    fn root_key_as_bytes() {
+        let mut rng = rng();
+        let mut bytes = Box::new([0u8; 32]);
+        rng.fill_bytes(bytes.as_mut_slice());
+
+        let key = RootKey::new(bytes.clone());
+
+        assert_eq!(key.as_bytes(), &bytes);
+    }
+
+    #[test]
+    #[cfg(feature = "libolm-compat")]
+    fn remote_root_key_as_bytes() {
+        let mut rng = rng();
+        let mut bytes = Box::new([0u8; 32]);
+        rng.fill_bytes(bytes.as_mut_slice());
+
+        let key = RemoteRootKey::new(bytes.clone());
+
+        assert_eq!(key.as_bytes(), &bytes);
+    }
+}
