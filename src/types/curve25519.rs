@@ -16,7 +16,7 @@ use std::fmt::Display;
 
 use base64::decoded_len_estimate;
 use matrix_pickle::{Decode, DecodeError};
-use rand::thread_rng;
+use rand::rng;
 use serde::{Deserialize, Serialize};
 use x25519_dalek::{EphemeralSecret, PublicKey, ReusableSecret, SharedSecret, StaticSecret};
 use zeroize::Zeroize;
@@ -32,9 +32,9 @@ pub struct Curve25519SecretKey(Box<StaticSecret>);
 impl Curve25519SecretKey {
     /// Generate a new, random, Curve25519SecretKey.
     pub fn new() -> Self {
-        let rng = thread_rng();
+        let mut rng = rng();
 
-        Self(Box::new(StaticSecret::random_from_rng(rng)))
+        Self(Box::new(StaticSecret::random_from_rng(&mut rng)))
     }
 
     /// Create a `Curve25519SecretKey` from the given slice of bytes.

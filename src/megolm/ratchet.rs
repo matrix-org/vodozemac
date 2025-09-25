@@ -13,8 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use hmac::{Hmac, Mac as _};
-use rand::{RngCore, thread_rng};
+use hmac::{Hmac, KeyInit, Mac as _};
+use rand::{RngCore, rng};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Sha256, digest::CtOutput};
 use subtle::{Choice, ConstantTimeEq};
@@ -139,7 +139,7 @@ impl Ratchet {
     const LAST_RATCHET_INDEX: usize = Self::RATCHET_PART_COUNT - 1;
 
     pub fn new() -> Self {
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         let mut ratchet =
             Self { inner: RatchetBytes(Box::new([0u8; Self::RATCHET_LENGTH])), counter: 0 };
