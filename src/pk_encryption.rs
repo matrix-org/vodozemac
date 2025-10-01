@@ -47,10 +47,10 @@
 //! [spec]: https://spec.matrix.org/v1.11/client-server-api/#backup-algorithm-mmegolm_backupv1curve25519-aes-sha2
 
 use aes::cipher::{
-    BlockDecryptMut as _, BlockEncryptMut as _, KeyIvInit as _,
+    BlockModeDecrypt, BlockModeEncrypt, KeyIvInit,
     block_padding::{Pkcs7, UnpadError},
 };
-use hmac::{Mac as _, digest::MacError};
+use hmac::{KeyInit as _, Mac as _, digest::MacError};
 use matrix_pickle::{Decode, Encode};
 use thiserror::Error;
 use zeroize::{Zeroize, ZeroizeOnDrop};
@@ -234,7 +234,7 @@ impl PkDecryption {
         hmac.verify_truncated_left(&message.mac)?;
 
         let cipher = Aes256CbcDec::new(cipher_keys.aes_key(), cipher_keys.iv());
-        let decrypted = cipher.decrypt_padded_vec_mut::<Pkcs7>(&message.ciphertext)?;
+        let decrypted = cipher.decrypt_padded_vec::<Pkcs7>(&message.ciphertext)?;
 
         Ok(decrypted)
     }
@@ -302,7 +302,7 @@ impl PkEncryption {
         let cipher_keys = CipherKeys::from_expanded_keys(expanded_keys);
 
         let cipher = Aes256CbcEnc::new(cipher_keys.aes_key(), cipher_keys.iv());
-        let ciphertext = cipher.encrypt_padded_vec_mut::<Pkcs7>(message);
+        let ciphertext = cipher.encrypt_padded_vec::<Pkcs7>(message);
 
         #[allow(clippy::expect_used)]
         let hmac = HmacSha256::new_from_slice(cipher_keys.mac_key())

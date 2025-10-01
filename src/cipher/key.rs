@@ -13,9 +13,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::ops::Deref;
+
 use aes::{
     Aes256,
-    cipher::{IvSizeUser, KeySizeUser, generic_array::GenericArray},
+    cipher::{Array, IvSizeUser, KeySizeUser},
 };
 use hkdf::Hkdf;
 use sha2::Sha256;
@@ -23,8 +25,8 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use super::Aes256CbcEnc;
 
-type Aes256Key = GenericArray<u8, <Aes256 as KeySizeUser>::KeySize>;
-type Aes256Iv = GenericArray<u8, <Aes256CbcEnc as IvSizeUser>::IvSize>;
+type Aes256Key = Array<u8, <Aes256 as KeySizeUser>::KeySize>;
+type Aes256Iv = Array<u8, <Aes256CbcEnc as IvSizeUser>::IvSize>;
 type HmacSha256Key = [u8; 32];
 
 #[derive(Zeroize, ZeroizeOnDrop)]
@@ -98,7 +100,7 @@ impl CipherKeys {
     }
 
     pub fn aes_key(&self) -> &Aes256Key {
-        Aes256Key::from_slice(self.aes_key.as_slice())
+        self.aes_key.deref().into()
     }
 
     pub const fn mac_key(&self) -> &HmacSha256Key {
@@ -106,6 +108,6 @@ impl CipherKeys {
     }
 
     pub fn iv(&self) -> &Aes256Iv {
-        Aes256Iv::from_slice(self.aes_iv.as_slice())
+        self.aes_iv.deref().into()
     }
 }
