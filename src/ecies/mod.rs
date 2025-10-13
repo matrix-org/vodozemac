@@ -133,6 +133,7 @@ impl EciesNonce {
         nonce.copy_from_slice(&current.to_le_bytes()[..12]);
 
         #[allow(clippy::expect_used)]
+        #[allow(deprecated)]
         Nonce::from_exact_iter(nonce)
             .expect("We should be able to construct the correct nonce from a 12 byte slice")
     }
@@ -491,10 +492,12 @@ impl EstablishedEcies {
     }
 
     fn encryption_key(&self) -> &Chacha20Key {
+        #[allow(deprecated)]
         Chacha20Key::from_slice(self.encryption_key.as_slice())
     }
 
     fn decryption_key(&self) -> &Chacha20Key {
+        #[allow(deprecated)]
         Chacha20Key::from_slice(self.decryption_key.as_slice())
     }
 
@@ -657,7 +660,10 @@ mod test {
             nonce.inner, 1,
             "After the first nonce is returned, the counter should have been incremented"
         );
-        assert_eq!(first.as_slice(), [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+
+        #[allow(deprecated)]
+        let first = first.as_slice();
+        assert_eq!(first, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
 
         let second = nonce.get();
 
@@ -665,7 +671,10 @@ mod test {
             nonce.inner, 2,
             "After the first nonce is returned, the counter should have been incremented"
         );
-        assert_eq!(second.as_slice(), [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+
+        #[allow(deprecated)]
+        let second = second.as_slice();
+        assert_eq!(second, [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     }
 
     #[test]

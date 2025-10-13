@@ -34,6 +34,7 @@ fn expand_chain_key(key: &[u8; 32]) -> Box<[u8; 32]> {
     let mut output = mac.finalize().into_bytes();
 
     let mut key = Box::new([0u8; 32]);
+    #[allow(deprecated)]
     key.copy_from_slice(output.as_slice());
 
     output.zeroize();
@@ -79,6 +80,7 @@ impl RemoteChainKey {
 
     pub fn advance(&mut self) {
         let output = advance(&self.key).into_bytes();
+        #[allow(deprecated)]
         self.key.copy_from_slice(output.as_slice());
         self.index += 1;
     }
@@ -105,6 +107,7 @@ impl ChainKey {
 
     pub fn advance(&mut self) {
         let output = advance(&self.key).into_bytes();
+        #[allow(deprecated)]
         self.key.copy_from_slice(output.as_slice());
         self.index += 1;
     }
