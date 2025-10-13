@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#[allow(deprecated)]
 use aes::{
     Aes256,
     cipher::{IvSizeUser, KeySizeUser, generic_array::GenericArray},
@@ -23,7 +24,9 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use super::Aes256CbcEnc;
 
+#[allow(deprecated)]
 type Aes256Key = GenericArray<u8, <Aes256 as KeySizeUser>::KeySize>;
+#[allow(deprecated)]
 type Aes256Iv = GenericArray<u8, <Aes256CbcEnc as IvSizeUser>::IvSize>;
 type HmacSha256Key = [u8; 32];
 
@@ -98,6 +101,7 @@ impl CipherKeys {
     }
 
     pub fn aes_key(&self) -> &Aes256Key {
+        #[allow(deprecated)]
         Aes256Key::from_slice(self.aes_key.as_slice())
     }
 
@@ -106,6 +110,7 @@ impl CipherKeys {
     }
 
     pub fn iv(&self) -> &Aes256Iv {
+        #[allow(deprecated)]
         Aes256Iv::from_slice(self.aes_iv.as_slice())
     }
 }
