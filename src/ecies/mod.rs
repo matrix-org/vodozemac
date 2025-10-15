@@ -78,6 +78,11 @@
 //! # Ok::<(), anyhow::Error>(())
 //! ```
 
+// TODO: Remove this when either clippy stops being annoying or the Zeroize derives properly
+// silence the clippy warning.
+// See this comment for more info: https://github.com/matrix-org/vodozemac/pull/259#issuecomment-3400639839
+#![allow(unused)]
+
 use chacha20poly1305::{ChaCha20Poly1305, Key as Chacha20Key, KeyInit, Nonce, aead::Aead};
 use hkdf::Hkdf;
 use rand::thread_rng;
@@ -133,6 +138,7 @@ impl EciesNonce {
         nonce.copy_from_slice(&current.to_le_bytes()[..12]);
 
         #[allow(clippy::expect_used)]
+        #[allow(deprecated)]
         Nonce::from_exact_iter(nonce)
             .expect("We should be able to construct the correct nonce from a 12 byte slice")
     }
@@ -491,10 +497,12 @@ impl EstablishedEcies {
     }
 
     fn encryption_key(&self) -> &Chacha20Key {
+        #[allow(deprecated)]
         Chacha20Key::from_slice(self.encryption_key.as_slice())
     }
 
     fn decryption_key(&self) -> &Chacha20Key {
+        #[allow(deprecated)]
         Chacha20Key::from_slice(self.decryption_key.as_slice())
     }
 
@@ -657,7 +665,10 @@ mod test {
             nonce.inner, 1,
             "After the first nonce is returned, the counter should have been incremented"
         );
-        assert_eq!(first.as_slice(), [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+
+        #[allow(deprecated)]
+        let first = first.as_slice();
+        assert_eq!(first, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
 
         let second = nonce.get();
 
@@ -665,7 +676,10 @@ mod test {
             nonce.inner, 2,
             "After the first nonce is returned, the counter should have been incremented"
         );
-        assert_eq!(second.as_slice(), [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+
+        #[allow(deprecated)]
+        let second = second.as_slice();
+        assert_eq!(second, [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     }
 
     #[test]
