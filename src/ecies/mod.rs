@@ -78,6 +78,11 @@
 //! # Ok::<(), anyhow::Error>(())
 //! ```
 
+// TODO: Remove this when either clippy stops being annoying or the Zeroize derives properly
+// silence the clippy warning.
+// See this comment for more info: https://github.com/matrix-org/vodozemac/pull/259#issuecomment-3400639839
+#![allow(unused)]
+
 use chacha20poly1305::{ChaCha20Poly1305, Key as Chacha20Key, KeyInit, Nonce, aead::Aead};
 use hkdf::Hkdf;
 use rand::thread_rng;
