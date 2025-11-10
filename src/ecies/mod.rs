@@ -78,8 +78,6 @@
 //! # Ok::<(), anyhow::Error>(())
 //! ```
 
-use std::ops::Deref;
-
 use chacha20poly1305::{ChaCha20Poly1305, Key as Chacha20Key, KeyInit, Nonce, aead::Aead};
 use hkdf::Hkdf;
 use rand::rng;

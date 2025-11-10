@@ -19,7 +19,7 @@ use aes::{
     Aes256,
     cipher::{
         BlockModeDecrypt, BlockModeEncrypt, KeyIvInit,
-        block_padding::{Pkcs7, UnpadError},
+        block_padding::{Error as UnpadError, Pkcs7},
     },
 };
 use hmac::{Hmac, KeyInit as _, Mac as MacT, digest::MacError};

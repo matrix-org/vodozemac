@@ -47,37 +47,37 @@ insecure-pk-encryption = ["libolm-compat"]
 low-level-api = []
 
 [dependencies]
-aes = { version = "0.9.0-rc.1" }
-cipher = { version = "0.5.0-rc.1", features = ["alloc"] }
+aes = { version = "0.9.0-rc.2" }
+cipher = { version = "0.5.0-rc.2", features = ["alloc"] }
 arrayvec = { version = "0.7.6", features = ["serde"] }
 base64 = "0.22.1"
 base64ct = { version = "1.8.0", features = ["std", "alloc"] }
-cbc = { version = "0.2.0-rc.1" }
-chacha20poly1305 = "0.11.0-rc.1"
+cbc = { version = "0.2.0-rc.2" }
+chacha20poly1305 = "0.11.0-rc.2"
 curve25519-dalek = { version = "5.0.0-pre.1", default-features = false, features = ["zeroize"] }
 ed25519-dalek = { version = "3.0.0-pre.1", default-features = false, features = ["rand_core", "serde", "hazmat", "zeroize"] }
-getrandom = "0.3.3"
-hkdf = "0.13.0-rc.1"
-hmac = "0.13.0-rc.1"
-matrix-pickle = { version = "0.2.1" }
+getrandom = "0.3.4"
+hkdf = "0.13.0-rc.3"
+hmac = "0.13.0-rc.3"
+matrix-pickle = { version = "0.2.2" }
 prost = "0.14.1"
 rand = "0.9.2"
-serde = { version = "1.0.219", features = ["derive"] }
-serde_bytes = "0.11.17"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_bytes = "0.11.19"
 serde_json = "1.0.143"
-sha2 = "0.11.0-rc.2"
+sha2 = "0.11.0-rc.3"
 subtle = "2.6.1"
-thiserror = "2.0.16"
+thiserror = "2.0.17"
 x25519-dalek = { version = "3.0.0-pre.1", features = ["serde", "reusable_secrets", "static_secrets", "zeroize"] }
 zeroize = { version = "1.8.1", features = ["derive"] }
 
 [dev-dependencies]
-anyhow = "1.0.99"
+anyhow = "1.0.100"
 assert_matches2 = "0.1.2"
 criterion = { version = "4.2.1", package = "codspeed-criterion-compat" }
 ntest = "0.9.3"
 olm-rs = "2.2.0"
-proptest = "1.7.0"
+proptest = "1.9.0"
 insta = "1.43.2"
 
 [patch.crates-io]
