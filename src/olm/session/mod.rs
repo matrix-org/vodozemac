@@ -22,7 +22,7 @@ mod root_key;
 
 use std::fmt::Debug;
 
-use aes::cipher::block_padding::UnpadError;
+use aes::cipher::block_padding::Error as UnpadError;
 use arrayvec::ArrayVec;
 use chain_key::RemoteChainKey;
 use double_ratchet::DoubleRatchet;
