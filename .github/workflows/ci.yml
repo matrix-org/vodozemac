@@ -78,7 +78,7 @@ jobs:
       uses: Swatinem/rust-cache@f13886b937689c021905a6b90929199931d60db1
 
     - name: Install cargo-hack
-      uses: taiki-e/install-action@81ee1d48d9194cdcab880cbdc7d36e87d39874cb
+      uses: taiki-e/install-action@44c6d64aa62cd779e873306675c7a58e86d6d532
       with:
         tool: cargo-hack
 
