@@ -402,6 +402,8 @@ mod libolm_compat {
         #[allow(dead_code)]
         received_message: bool,
         session_keys: SessionKeys,
+        #[allow(dead_code)]
+        prekey: [u8; 32],
         #[secret]
         root_key: Box<[u8; 32]>,
         sender_chains: Vec<SenderChain>,
