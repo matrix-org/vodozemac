@@ -109,7 +109,19 @@ jobs:
         with:
           toolchain: ${{ format('{0}-{1}', matrix.channel, matrix.target.toolchain) }}
 
+      - name: Install nextest
+        uses: taiki-e/install-action@44c6d64aa62cd779e873306675c7a58e86d6d532
+        with:
+          tool: nextest
+
       - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5
 
       - name: Test
-        run: cargo test --all-features
+        run: cargo nextest run --profile ci --all-features
+
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@47f89e9acb64b76debcd5ea40642d25a4adced9f
+        with:
+          files: ./target/nextest/ci/junit.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
