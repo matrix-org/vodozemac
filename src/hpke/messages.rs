@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #[cfg(doc)]
-use super::EstablishedEcies;
+use super::EstablishedHpkeChannel;
 use crate::{Curve25519PublicKey, base64_decode, base64_encode, hpke::error::MessageDecodeError};
 
 /// The initial message, sent by the ECIES channel establisher.
@@ -57,7 +57,7 @@ impl InitialMessage {
     }
 }
 
-/// An encrypted message a [`EstablishedEcies`] channel has sent.
+/// An encrypted message a [`EstablishedHpkeChannel`] channel has sent.
 #[derive(Debug)]
 pub struct Message {
     /// The ciphertext of the message.

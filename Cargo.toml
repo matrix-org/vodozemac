@@ -59,7 +59,7 @@ ed25519-dalek = { version = "3.0.0-pre.2", default-features = false, features = 
 getrandom = "0.3.4"
 hkdf = "0.13.0-rc.3"
 hmac = "0.13.0-rc.3"
-hpke = { git = "https://github.com/rozbb/rust-hpke", rev = "a73322c71426ff0f84cba7962cdaec83ff29a9a3", features = ["alloc", "x25519"] }
+hpke = { git = "https://github.com/poljar/rust-hpke", rev = "f1022438", features = ["alloc", "x25519"] }
 matrix-pickle = { version = "0.2.2" }
 prost = "0.14.1"
 rand = "0.10.0-rc.5"

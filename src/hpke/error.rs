@@ -35,10 +35,6 @@ pub enum MessageDecodeError {
 /// The Error type for the ECIES submodule.
 #[derive(Debug, Error)]
 pub enum Error {
-    /// At least one of the keys did not have contributory behaviour and the
-    /// resulting shared secret would have been insecure.
-    #[error("At least one of the keys did not have contributory behaviour")]
-    NonContributoryKey,
     /// Message decryption failed. Either the message was corrupted, the message
     /// was replayed, or the wrong key is being used to decrypt the message.
     #[error("Failed decrypting the message")]
