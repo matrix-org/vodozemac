@@ -199,6 +199,7 @@ mod cipher;
 mod types;
 mod utilities;
 
+#[cfg_attr(not(test), deprecated(since = "0.10.0", note = "Use the hpke module instead."))]
 pub mod ecies;
 pub mod hazmat;
 pub mod hpke;
