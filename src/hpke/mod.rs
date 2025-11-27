@@ -13,6 +13,38 @@
 // limitations under the License.
 
 //! Implementation of an hybrid public encryption scheme.
+//!
+//! # Examples
+//!
+//! ```
+//! use vodozemac::hpke::{HpkeSenderChannel, HpkeRecipientChannel, RecipientCreationResult, SenderCreationResult};
+//!
+//! let plaintext = b"It's a secret to everybody";
+//!
+//! let alice = HpkeSenderChannel::new();
+//! let bob = HpkeRecipientChannel::new();
+//!
+//! let SenderCreationResult { hpke: mut alice, message } = alice
+//!     .establish_channel(bob.public_key(), plaintext);
+//!
+//! let RecipientCreationResult { hpke: mut bob, message } = bob.establish_channel(&message)?;
+//!
+//! assert_eq!(
+//!     message, plaintext,
+//!     "The decrypted plaintext should match our initial plaintext"
+//! );
+//!
+//! // We now exchange the check code out-of-band and compare it.
+//! if alice.check_code() != bob.check_code() {
+//!     panic!("The check code must match; possible active MITM attack in progress");
+//! }
+//!
+//! let message = bob.seal(b"Another plaintext");
+//! let decrypted = alice.open(&message)?;
+//!
+//! assert_eq!(decrypted, b"Another plaintext");
+//! # Ok::<(), anyhow::Error>(())
+//! ```
 
 #![allow(missing_docs)]
 
@@ -93,14 +125,14 @@ impl CheckCode {
 }
 
 #[derive(Debug)]
-pub struct InboundCreationResult {
+pub struct RecipientCreationResult {
     /// The established HPKE channel.
     pub hpke: EstablishedHpkeChannel,
     /// The plaintext of the initial message.
     pub message: Vec<u8>,
 }
 
-pub struct OutboundCreationResult {
+pub struct SenderCreationResult {
     /// The established HPKE channel.
     pub hpke: EstablishedHpkeChannel,
     /// The initial message.
@@ -111,15 +143,15 @@ pub struct OutboundCreationResult {
 /// device is initiating the channel or receiving/responding as the other side
 /// of the initiation.
 enum Role {
-    Initiator { context: SenderContext, response_context: SenderResponseContext },
+    Sender { context: SenderContext, response_context: SenderResponseContext },
     Recipient { context: RecipientContext, response_context: RecipientResponseContext },
 }
 
 impl std::fmt::Debug for Role {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Role::Initiator { .. } => f.write_str("Role::Initiator"),
-            Role::Recipient { .. } => f.write_str("Role::Recipient"),
+            Role::Sender { .. } => f.write_str("Sender"),
+            Role::Recipient { .. } => f.write_str("Recipient"),
         }
     }
 }
@@ -140,7 +172,7 @@ impl Role {
                     their_public_key.to_base64(),
                 )
             }
-            Role::Initiator { .. } => {
+            Role::Sender { .. } => {
                 // we are Device S. Gp = their_public_key, Sp = our_public_key
                 format!(
                     "{partial_info}|{}|{}",
@@ -171,7 +203,7 @@ impl Role {
         let info = self.check_code_info(app_info, our_public_key, their_public_key);
 
         let ret = match self {
-            Role::Initiator { context, .. } => context.export(info.as_bytes(), &mut bytes),
+            Role::Sender { context, .. } => context.export(info.as_bytes(), &mut bytes),
             Role::Recipient { context, .. } => context.export(info.as_bytes(), &mut bytes),
         };
 
@@ -215,7 +247,7 @@ impl HpkeSenderChannel {
         self,
         their_public_key: Curve25519PublicKey,
         initial_plaintext: &[u8],
-    ) -> OutboundCreationResult {
+    ) -> SenderCreationResult {
         let mut rng = rng();
 
         let Self { application_info_prefix } = self;
@@ -246,11 +278,11 @@ impl HpkeSenderChannel {
 
         let our_public_key = encapsulated_key;
 
-        let role = Role::Initiator { context, response_context };
+        let role = Role::Sender { context, response_context };
         let check_code =
             role.check_code(&application_info_prefix, our_public_key, their_public_key);
 
-        OutboundCreationResult {
+        SenderCreationResult {
             hpke: EstablishedHpkeChannel { our_public_key, their_public_key, role, check_code },
             message: InitialMessage { encapsulated_key, ciphertext },
         }
@@ -287,19 +319,23 @@ impl HpkeRecipientChannel {
     pub fn establish_channel(
         self,
         message: &InitialMessage,
-    ) -> Result<InboundCreationResult, Error> {
+    ) -> Result<RecipientCreationResult, Error> {
         let Self { secret_key, application_info_prefix } = self;
 
         let their_public_key = message.encapsulated_key;
         let our_public_key = Curve25519PublicKey::from(&secret_key);
 
-        let secret_key =
-            <X25519HkdfSha256 as hpke::Kem>::PrivateKey::from_bytes(secret_key.as_bytes()).unwrap();
+        let secret_key = <X25519HkdfSha256 as hpke::Kem>::PrivateKey::from_bytes(
+            secret_key.as_bytes(),
+        )
+        .expect(
+            "Converting from our PrivateKey type to the HPKE private key type should never fail",
+        );
 
         let encapped_key = <X25519HkdfSha256 as hpke::Kem>::EncappedKey::from_bytes(
             message.encapsulated_key.as_bytes(),
         )
-        .unwrap();
+        .expect("Converting to the HPKE EncappedKey type should never fail");
 
         let mut context: RecipientContext = hpke::setup_receiver(
             &hpke::OpModeR::Base,
@@ -307,9 +343,9 @@ impl HpkeRecipientChannel {
             &encapped_key,
             application_info_prefix.as_bytes(),
         )
-        .unwrap();
+        .map_err(|_| Error::Decryption)?;
 
-        let message = context.open(&message.ciphertext, &[]).unwrap();
+        let message = context.open(&message.ciphertext, &[]).map_err(|_| Error::Decryption)?;
         let response_context = context.response_context();
 
         let role = Role::Recipient { context, response_context };
@@ -317,7 +353,7 @@ impl HpkeRecipientChannel {
         let check_code =
             role.check_code(&application_info_prefix, our_public_key, their_public_key);
 
-        Ok(InboundCreationResult {
+        Ok(RecipientCreationResult {
             hpke: EstablishedHpkeChannel { their_public_key, our_public_key, role, check_code },
             message,
         })
@@ -387,7 +423,7 @@ impl EstablishedHpkeChannel {
 
     pub fn seal(&mut self, plaintext: &[u8]) -> Message {
         let ret = match &mut self.role {
-            Role::Initiator { context, .. } => context.seal(plaintext, &[]),
+            Role::Sender { context, .. } => context.seal(plaintext, &[]),
             Role::Recipient { response_context, .. } => response_context.seal(plaintext, &[]),
         };
 
@@ -398,20 +434,21 @@ impl EstablishedHpkeChannel {
         Message { ciphertext }
     }
 
-    pub fn open(&mut self, message: Message) -> Result<Vec<u8>, Error> {
+    pub fn open(&mut self, message: &Message) -> Result<Vec<u8>, Error> {
         let ret = match &mut self.role {
-            Role::Initiator { response_context, .. } => {
+            Role::Sender { response_context, .. } => {
                 response_context.open(&message.ciphertext, &[])
             }
             Role::Recipient { context, .. } => context.open(&message.ciphertext, &[]),
         };
 
-        Ok(ret.unwrap())
+        ret.map_err(|_| Error::Decryption)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use insta::assert_debug_snapshot;
     use proptest::prelude::*;
 
     use super::*;
@@ -421,12 +458,12 @@ mod tests {
         let alice = HpkeSenderChannel::new();
         let bob = HpkeRecipientChannel::new();
 
-        let OutboundCreationResult { message, .. } =
+        let SenderCreationResult { message, .. } =
             alice.establish_channel(bob.public_key(), b"It's a secret to everybody");
 
         assert_ne!(message.ciphertext, b"It's a secret to everybody");
 
-        let InboundCreationResult { message, .. } = bob
+        let RecipientCreationResult { message, .. } = bob
             .establish_channel(&message)
             .expect("We should be able to establish the recipient channel");
 
@@ -438,12 +475,12 @@ mod tests {
         let alice = HpkeSenderChannel::new();
         let bob = HpkeRecipientChannel::new();
 
-        let OutboundCreationResult { hpke: mut alice, message, .. } =
+        let SenderCreationResult { hpke: mut alice, message, .. } =
             alice.establish_channel(bob.public_key(), b"It's a secret to everybody");
 
         assert_ne!(message.ciphertext, b"It's a secret to everybody");
 
-        let InboundCreationResult { hpke: mut bob, message } = bob
+        let RecipientCreationResult { hpke: mut bob, message } = bob
             .establish_channel(&message)
             .expect("We should be able to establish the recipient channel");
 
@@ -452,7 +489,7 @@ mod tests {
         let message = bob.seal(b"Foo");
         assert_ne!(message.ciphertext, b"Foo");
 
-        let decrypted = alice.open(message).unwrap();
+        let decrypted = alice.open(&message).expect("We should be able to decrypt the response");
 
         assert_eq!(decrypted, b"Foo");
     }
@@ -465,7 +502,7 @@ mod tests {
         let bob = HpkeRecipientChannel::new();
         let malory = Curve25519SecretKey::new();
 
-        let OutboundCreationResult { mut message, .. } =
+        let SenderCreationResult { mut message, .. } =
             alice.establish_channel(bob.public_key(), plaintext);
 
         message.encapsulated_key = Curve25519PublicKey::from(&malory);
@@ -474,6 +511,84 @@ mod tests {
             "The decryption should fail since Malory inserted the \
              wrong public key into the message",
         );
+    }
+
+    #[test]
+    fn test_info_construction() {
+        use crate::types::Curve25519Keypair;
+
+        let app_info = "foobar";
+        let our_public_key = Curve25519Keypair::new().public_key;
+        let their_public_key = Curve25519Keypair::new().public_key;
+
+        let alice = HpkeSenderChannel::new();
+        let bob = HpkeRecipientChannel::new();
+
+        let SenderCreationResult { hpke: alice, message } =
+            alice.establish_channel(bob.public_key(), b"");
+
+        let RecipientCreationResult { hpke: bob, .. } = bob
+            .establish_channel(&message)
+            .expect("We should be able to establish the recipient channel");
+
+        let check_code_info1 =
+            alice.role.check_code_info(app_info, our_public_key, their_public_key);
+        assert_eq!(
+            check_code_info1,
+            format!("foobar_CHECKCODE|{their_public_key}|{our_public_key}")
+        );
+
+        let check_code_info2 = bob.role.check_code_info(app_info, our_public_key, their_public_key);
+        assert_eq!(
+            check_code_info2,
+            format!("foobar_CHECKCODE|{our_public_key}|{their_public_key}")
+        );
+    }
+
+    #[test]
+    fn snapshot_debug() {
+        let key = Curve25519PublicKey::from_bytes([0; 32]);
+
+        let alice = HpkeSenderChannel::new();
+        let bob = HpkeRecipientChannel::new();
+
+        let SenderCreationResult { mut hpke, .. } = alice.establish_channel(bob.public_key(), b"");
+
+        hpke.our_public_key = key;
+        hpke.their_public_key = key;
+        hpke.check_code = CheckCode { bytes: [0, 1] };
+
+        assert_debug_snapshot!(hpke);
+    }
+
+    #[test]
+    fn check_code() {
+        let check_code = CheckCode { bytes: [0x0, 0x0] };
+        let digit = check_code.to_digit();
+        assert_eq!(digit, 0, "Two zero bytes should generate a 0 digit");
+        assert_eq!(
+            check_code.as_bytes(),
+            &[0x0, 0x0],
+            "CheckCode::as_bytes() should return the exact bytes we generated."
+        );
+
+        let check_code = CheckCode { bytes: [0x9, 0x9] };
+        let digit = check_code.to_digit();
+        assert_eq!(
+            check_code.as_bytes(),
+            &[0x9, 0x9],
+            "CheckCode::as_bytes() should return the exact bytes we generated."
+        );
+        assert_eq!(digit, 99);
+
+        let check_code = CheckCode { bytes: [0xff, 0xff] };
+        let digit = check_code.to_digit();
+        assert_eq!(
+            check_code.as_bytes(),
+            &[0xff, 0xff],
+            "CheckCode::as_bytes() should return the exact bytes we generated."
+        );
+        assert_eq!(digit, 55, "u8::MAX should generate 55");
     }
 
     proptest! {
