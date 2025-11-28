@@ -48,7 +48,7 @@
 
 use aes::cipher::{
     BlockModeDecrypt, BlockModeEncrypt, KeyIvInit,
-    block_padding::{Pkcs7, UnpadError},
+    block_padding::{Error as UnpadError, Pkcs7},
 };
 use hmac::{KeyInit as _, Mac as _, digest::MacError};
 use matrix_pickle::{Decode, Encode};
