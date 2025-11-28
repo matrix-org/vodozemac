@@ -207,7 +207,8 @@ impl Role {
             Role::Recipient { context, .. } => context.export(info.as_bytes(), &mut bytes),
         };
 
-        ret.expect("We should be able to foo");
+        #[allow(clippy::expect_used)]
+        ret.expect("We should be able to generate a check code, as it's just two bytes");
 
         CheckCode { bytes }
     }
@@ -252,12 +253,14 @@ impl HpkeSenderChannel {
 
         let Self { application_info_prefix } = self;
 
+        #[allow(clippy::expect_used)]
         let their_key =
             <X25519HkdfSha256 as hpke::Kem>::PublicKey::from_bytes(their_public_key.as_bytes())
                 .expect(
                     "Converting the Dalek public key to the HPKE public key should always work",
                 );
 
+        #[allow(clippy::expect_used)]
         let (encapsulated_key, mut context): (_, SenderContext) = hpke::setup_sender(
             &OpModeS::Base,
             &their_key,
@@ -266,12 +269,14 @@ impl HpkeSenderChannel {
         )
         .expect("Encapsulating an X25519 public key never fails since the encapsulation is just the bytes of the public key");
 
+        #[allow(clippy::expect_used)]
         let ciphertext = context
             .seal(initial_plaintext, &[])
             .expect("We should be able to seal the initial plaintext");
         let response_context = context.response_context();
 
         let encapsulated_key = encapsulated_key.to_bytes();
+        #[allow(clippy::expect_used)]
         let encapsulated_key = Curve25519PublicKey::from_slice(encapsulated_key.as_slice()).expect(
             "Converting from the HPKE public key to the Dalek public key should always work",
         );
@@ -325,6 +330,7 @@ impl HpkeRecipientChannel {
         let their_public_key = message.encapsulated_key;
         let our_public_key = Curve25519PublicKey::from(&secret_key);
 
+        #[allow(clippy::expect_used)]
         let secret_key = <X25519HkdfSha256 as hpke::Kem>::PrivateKey::from_bytes(
             secret_key.as_bytes(),
         )
@@ -332,6 +338,7 @@ impl HpkeRecipientChannel {
             "Converting from our PrivateKey type to the HPKE private key type should never fail",
         );
 
+        #[allow(clippy::expect_used)]
         let encapped_key = <X25519HkdfSha256 as hpke::Kem>::EncappedKey::from_bytes(
             message.encapsulated_key.as_bytes(),
         )
@@ -427,6 +434,7 @@ impl EstablishedHpkeChannel {
             Role::Recipient { response_context, .. } => response_context.seal(plaintext, &[]),
         };
 
+        #[allow(clippy::expect_used)]
         let ciphertext = ret.expect(
             "We should be able to seal a plaintext, unless we're overflowed the sequence counter",
         );
