@@ -54,7 +54,7 @@ mod messages;
 use error::*;
 use hpke::{
     Deserializable as _, OpModeS, Serializable,
-    aead::{AeadCtxR, AeadCtxS, AeadResponseCtxR, AeadResponseCtxS, ChaCha20Poly1305},
+    aead::{AeadCtxR, AeadCtxS, ChaCha20Poly1305},
     kdf::HkdfSha384,
     kem::X25519HkdfSha256,
 };
@@ -71,8 +71,6 @@ type Kdf = HkdfSha384;
 
 type SenderContext = AeadCtxS<Aead, Kdf, Kem>;
 type RecipientContext = AeadCtxR<Aead, Kdf, Kem>;
-type SenderResponseContext = AeadResponseCtxS<Aead, Kem>;
-type RecipientResponseContext = AeadResponseCtxR<Aead, Kem>;
 
 /// A check code that can be used to confirm that two [`EstablishedHpkeChannel`]
 /// objects share the same secret. This is supposed to be shared out-of-band to
@@ -143,8 +141,8 @@ pub struct SenderCreationResult {
 /// device is initiating the channel or receiving/responding as the other side
 /// of the initiation.
 enum Role {
-    Sender { context: SenderContext, response_context: SenderResponseContext },
-    Recipient { context: RecipientContext, response_context: RecipientResponseContext },
+    Sender { context: SenderContext },
+    Recipient { context: RecipientContext },
 }
 
 impl std::fmt::Debug for Role {
@@ -273,7 +271,6 @@ impl HpkeSenderChannel {
         let ciphertext = context
             .seal(initial_plaintext, &[])
             .expect("We should be able to seal the initial plaintext");
-        let response_context = context.response_context();
 
         let encapsulated_key = encapsulated_key.to_bytes();
         #[allow(clippy::expect_used)]
@@ -283,7 +280,7 @@ impl HpkeSenderChannel {
 
         let our_public_key = encapsulated_key;
 
-        let role = Role::Sender { context, response_context };
+        let role = Role::Sender { context };
         let check_code =
             role.check_code(&application_info_prefix, our_public_key, their_public_key);
 
@@ -353,9 +350,8 @@ impl HpkeRecipientChannel {
         .map_err(|_| Error::Decryption)?;
 
         let message = context.open(&message.ciphertext, &[]).map_err(|_| Error::Decryption)?;
-        let response_context = context.response_context();
 
-        let role = Role::Recipient { context, response_context };
+        let role = Role::Recipient { context };
 
         let check_code =
             role.check_code(&application_info_prefix, our_public_key, their_public_key);
@@ -431,7 +427,7 @@ impl EstablishedHpkeChannel {
     pub fn seal(&mut self, plaintext: &[u8]) -> Message {
         let ret = match &mut self.role {
             Role::Sender { context, .. } => context.seal(plaintext, &[]),
-            Role::Recipient { response_context, .. } => response_context.seal(plaintext, &[]),
+            Role::Recipient { context, .. } => context.response_context().seal(plaintext, &[]),
         };
 
         #[allow(clippy::expect_used)]
@@ -444,8 +440,8 @@ impl EstablishedHpkeChannel {
 
     pub fn open(&mut self, message: &Message) -> Result<Vec<u8>, Error> {
         let ret = match &mut self.role {
-            Role::Sender { response_context, .. } => {
-                response_context.open(&message.ciphertext, &[])
+            Role::Sender { context, .. } => {
+                context.response_context().open(&message.ciphertext, &[])
             }
             Role::Recipient { context, .. } => context.open(&message.ciphertext, &[]),
         };
