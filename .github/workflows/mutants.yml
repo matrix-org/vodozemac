@@ -28,7 +28,7 @@ jobs:
         with:
           toolchain: stable
 
-      - uses: Swatinem/rust-cache@f13886b937689c021905a6b90929199931d60db1
+      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5
 
       - name: Install cargo-mutants
         uses: taiki-e/install-action@3575e532701a5fc614b0c842e4119af4cc5fd16d
