@@ -28,7 +28,7 @@
 /// enter it instead of just clicking through a dialogue.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckCode {
-    pub(super) bytes: [u8; 2],
+    pub(crate) bytes: [u8; 2],
 }
 
 impl CheckCode {
