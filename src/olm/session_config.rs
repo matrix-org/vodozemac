@@ -50,7 +50,7 @@ impl SessionConfig {
 
 impl Default for SessionConfig {
     fn default() -> Self {
-        Self::version_2()
+        Self::version_1()
     }
 }
 

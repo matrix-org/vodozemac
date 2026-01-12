@@ -77,7 +77,7 @@ mod test {
     #[test]
     fn default_config_is_v1() {
         assert_eq!(default_config(), SessionConfig::version_1());
-        assert_ne!(default_config(), SessionConfig::default());
+        assert_eq!(default_config(), SessionConfig::default());
     }
 
     #[test]

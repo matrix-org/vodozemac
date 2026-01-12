@@ -596,7 +596,7 @@ mod test {
 
         let session_key = session.export_at_first_known_index();
         let mut different_config =
-            InboundGroupSession::import(&session_key, SessionConfig::version_1());
+            InboundGroupSession::import(&session_key, SessionConfig::version_2());
 
         assert!(!session.connected(&mut different_config));
         assert!(!different_config.connected(&mut session));
