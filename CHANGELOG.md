@@ -2,15 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+<!-- next-header -->
+
+## [Unreleased] - ReleaseDate
+
+### Bug Fixes
+
+- [**BREAKING**] The `default()` implementations for `olm::SessionConfig` and
+  `megolm::SessionConfig` have been updated to generate a version 1
+  `SessionConfig`.
+  ([#287](https://github.com/matrix-org/vodozemac/pull/287)).
+
 ## [0.9.0] - 2025-01-31
 
 ### Features
 
-- Added support for [MSC3814](https://github.com/matrix-org/matrix-spec-proposals/pull/3814/),
-    allowing users to export an Olm Account in a serialized format. The
-    serialized account can be uploaded to a server for safekeeping until
-    needed.
-
+- Added support for
+  [MSC3814](https://github.com/matrix-org/matrix-spec-proposals/pull/3814/),
+  allowing users to export an Olm Account in a serialized format. The serialized
+  account can be uploaded to a server for safekeeping until needed.
 
 ## [0.8.1] - 2024-10-08
 
