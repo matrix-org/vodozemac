@@ -552,6 +552,37 @@ mod test {
         megolm::{GroupSession, SessionConfig, SessionKey, SessionOrdering},
     };
 
+    /// Helper function that verifies a MAC of an encrypted message depending on
+    /// the given [`SessionConfig`].
+    fn verify_mac_helper(session_config: SessionConfig) {
+        // Let's first create a valid encrypted message.
+        let mut outbound_session = GroupSession::new(session_config);
+        let session_key = outbound_session.session_key();
+        let message = outbound_session.encrypt("Hello");
+
+        // Not let's create a cipher that should be able to verify the MAC of the
+        // message.
+        let mut session = InboundGroupSession::new(&session_key, session_config);
+        let ratchet = session.find_ratchet(0).unwrap();
+        let cipher = Cipher::new_megolm(ratchet.as_bytes());
+
+        session
+            .verify_mac(&cipher, &message)
+            .expect("Should verify MAC from matching outbound session");
+
+        // Now we create a different cipher which should fail the verification.
+        let outbound_session = GroupSession::new(session_config);
+        let session_key = outbound_session.session_key();
+
+        let mut session = InboundGroupSession::new(&session_key, session_config);
+        let ratchet = session.find_ratchet(0).unwrap();
+        let cipher = Cipher::new_megolm(ratchet.as_bytes());
+
+        session
+            .verify_mac(&cipher, &message)
+            .expect_err("Should not verify MAC from different outbound session");
+    }
+
     #[test]
     fn advance_inbound_session() {
         let mut session = InboundGroupSession::from(&GroupSession::new(Default::default()));
@@ -672,6 +703,15 @@ mod test {
         session
             .verify_mac(&cipher, &message)
             .expect_err("Should not verify MAC from different outbound session");
+    }
+
+    #[test]
+    fn verify_mac_vodozemac() {
+        // Let's first test if MAC verification with a truncated MAC works.
+        verify_mac_helper(SessionConfig::version_1());
+
+        // Now let's do the same thing with a non-truncated MAC.
+        verify_mac_helper(SessionConfig::version_2());
     }
 
     /// Test that [`InboundGroupSession::get_cipher_at`] correctly handles the
