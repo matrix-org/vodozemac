@@ -19,8 +19,9 @@ use std::collections::HashMap;
 
 use chacha20poly1305::{
     ChaCha20Poly1305, Nonce,
-    aead::{Aead, AeadCore, KeyInit},
+    aead::{Aead, KeyInit},
 };
+use cipher::crypto_common::Generate;
 use rand::rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -485,9 +486,7 @@ impl Account {
             .map_err(|e| DehydratedDeviceError::LibolmPickle(LibolmPickleError::Encode(e)))?;
 
         let cipher = ChaCha20Poly1305::new(key.into());
-        #[allow(clippy::expect_used)]
-        let nonce = ChaCha20Poly1305::generate_nonce()
-            .expect("We should be able to generate a new random nonce");
+        let nonce = Nonce::generate();
         let ciphertext = cipher.encrypt(&nonce, encoded.as_slice());
 
         encoded.zeroize();
