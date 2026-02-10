@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use cipher::{Array, consts::U32, crypto_common::Generate};
+use cipher::{Array, common::Generate, consts::U32};
 use hpke::{Deserializable as _, aead::AeadCtxR, kem::X25519HkdfSha256};
 
 use crate::{
