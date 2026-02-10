@@ -209,7 +209,7 @@ impl UnidirectionalRecipientChannel {
             channel,
             message: InitialResponse {
                 ciphertext,
-                base_response_nonce: base_response_nonce.to_vec(),
+                base_response_nonce: base_response_nonce.into(),
             },
         }
     }

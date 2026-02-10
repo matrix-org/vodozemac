@@ -156,39 +156,30 @@ impl UnidirectionalSenderChannel {
         message: &InitialResponse,
         aad: &[u8],
     ) -> Result<BidiereactionalCreationResult<Vec<u8>>, Error> {
-        if message.base_response_nonce.len() != 32 {
-            Err(Error::InvalidNonce { expected: 32, got: message.base_response_nonce.len() })
-        } else {
-            let Self(UnidirectionalHkpeChannel {
-                context,
-                application_info_prefix,
-                our_public_key,
-                their_public_key,
-            }) = self;
+        let Self(UnidirectionalHkpeChannel {
+            context,
+            application_info_prefix,
+            our_public_key,
+            their_public_key,
+        }) = self;
 
-            let mut response_context = context.create_response_context(
-                &application_info_prefix,
-                our_public_key,
-                &message.base_response_nonce,
-            );
+        let mut response_context = context.create_response_context(
+            &application_info_prefix,
+            our_public_key,
+            &message.base_response_nonce,
+        );
 
-            let plaintext =
-                response_context.open(&message.ciphertext, aad).map_err(|_| Error::Decryption)?;
+        let plaintext =
+            response_context.open(&message.ciphertext, aad).map_err(|_| Error::Decryption)?;
 
-            let role = Role::Sender { context, response_context };
-            let check_code =
-                role.check_code(&application_info_prefix, our_public_key, their_public_key);
+        let role = Role::Sender { context, response_context };
+        let check_code =
+            role.check_code(&application_info_prefix, our_public_key, their_public_key);
 
-            Ok(BidiereactionalCreationResult {
-                channel: EstablishedHpkeChannel {
-                    our_public_key,
-                    their_public_key,
-                    role,
-                    check_code,
-                },
-                message: plaintext,
-            })
-        }
+        Ok(BidiereactionalCreationResult {
+            channel: EstablishedHpkeChannel { our_public_key, their_public_key, role, check_code },
+            message: plaintext,
+        })
     }
 }
 

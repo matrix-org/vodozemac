@@ -23,6 +23,14 @@ pub enum MessageDecodeError {
     /// separator.
     #[error("The initial message is missing the | separator")]
     MissingSeparator,
+    /// The initial response contained a nonce with an incorrect length.
+    #[error("The base response nonce has an incorrect length, expected {expected}, got {got}")]
+    InvalidNonce {
+        /// The expected Nonce size.
+        expected: usize,
+        /// The size of the nonce we received in the message.
+        got: usize,
+    },
     /// The initial message could not have been decoded, the embedded Curve25519
     /// key is malformed.
     #[error("The embedded ephemeral Curve25519 key could not have been decoded: {0:?}")]
@@ -35,14 +43,6 @@ pub enum MessageDecodeError {
 /// The Error type for the HPKE submodule.
 #[derive(Debug, Error)]
 pub enum Error {
-    /// The initial response contained a nonce with an incorrect length.
-    #[error("The base response nonce has an incorrect length, expected {expected}, got {got}")]
-    InvalidNonce {
-        /// The expected Nonce size.
-        expected: usize,
-        /// The size of the nonce we received in the message.
-        got: usize,
-    },
     /// Message decryption failed. Either the message was corrupted, the message
     /// was replayed, or the wrong key is being used to decrypt the message.
     #[error("Failed decrypting the message")]

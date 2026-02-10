@@ -64,7 +64,7 @@ impl InitialMessage {
 #[derive(Debug)]
 pub struct InitialResponse {
     /// The randomly generated base response nonce.
-    pub base_response_nonce: Vec<u8>,
+    pub base_response_nonce: [u8; 32],
     /// The ciphertext of the initial message.
     pub ciphertext: Vec<u8>,
 }
@@ -76,7 +76,7 @@ impl InitialResponse {
     /// and encoded using unpadded base64.
     pub fn encode(&self) -> String {
         let ciphertext = base64_encode(&self.ciphertext);
-        let base_response_nonce = base64_encode(&self.base_response_nonce);
+        let base_response_nonce = base64_encode(self.base_response_nonce);
 
         format!("{base_response_nonce}|{ciphertext}")
     }
@@ -88,7 +88,16 @@ impl InitialResponse {
                 let base_response_nonce = base64_decode(base_response_nonce)?;
                 let ciphertext = base64_decode(ciphertext)?;
 
-                Ok(Self { ciphertext, base_response_nonce })
+                let mut nonce = [0u8; 32];
+                let nonce_len = base_response_nonce.len();
+
+                if nonce_len == 32 {
+                    nonce.copy_from_slice(&base_response_nonce);
+
+                    Ok(Self { ciphertext, base_response_nonce: nonce })
+                } else {
+                    Err(MessageDecodeError::InvalidNonce { expected: 32, got: nonce_len })
+                }
             }
             None => Err(MessageDecodeError::MissingSeparator),
         }
