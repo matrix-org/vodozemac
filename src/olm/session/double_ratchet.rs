@@ -348,7 +348,7 @@ mod test {
 
         let alice_identity_key = alice.identity_keys().curve25519;
         let bob_session_creation_result = bob
-            .create_inbound_session(alice_identity_key, &prekey_message)
+            .create_inbound_session(SessionConfig::version_1(), alice_identity_key, &prekey_message)
             .expect("Unable to create inbound session");
         assert_eq!(bob_session_creation_result.plaintext, message.as_bytes());
         (alice_session, bob_session_creation_result.session)

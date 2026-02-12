@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file.
 
 ### Bug Fixes
 
+- [**BREAKING**] The `Account::create_inbound_session()` method now requires a
+  `SessionConfig` as the first argument.
+  ([#300](https://github.com/matrix-org/vodozemac/pull/300)).
+
 - [**BREAKING**] The `default()` implementations for `olm::SessionConfig` and
   `megolm::SessionConfig` have been updated to generate a version 1
   `SessionConfig`.

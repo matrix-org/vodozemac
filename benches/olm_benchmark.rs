@@ -94,8 +94,12 @@ pub fn inbound_session_creation(c: &mut Criterion) {
                 Account::from_pickle(bob_pickle)
             },
             |mut bob| {
-                bob.create_inbound_session(identity_key, &pre_key_message)
-                    .expect("We should be able to decrypt the pre-key message and create a Session")
+                bob.create_inbound_session(
+                    SessionConfig::version_1(),
+                    identity_key,
+                    &pre_key_message,
+                )
+                .expect("We should be able to decrypt the pre-key message and create a Session")
             },
             BatchSize::SmallInput,
         );
