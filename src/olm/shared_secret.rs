@@ -83,12 +83,19 @@ impl RemoteShared3DHSecret {
         one_time_key: &StaticSecret,
         remote_identity_key: &PublicKey,
         remote_one_time_key: &PublicKey,
-    ) -> Self {
+    ) -> Option<Self> {
         let first_secret = one_time_key.diffie_hellman(remote_identity_key);
         let second_secret = identity_key.diffie_hellman(remote_one_time_key);
         let third_secret = one_time_key.diffie_hellman(remote_one_time_key);
 
-        Self(merge_secrets(first_secret, second_secret, third_secret))
+        if first_secret.was_contributory()
+            && second_secret.was_contributory()
+            && third_secret.was_contributory()
+        {
+            Some(Self(merge_secrets(first_secret, second_secret, third_secret)))
+        } else {
+            None
+        }
     }
 
     pub fn expand(self) -> (Box<[u8; 32]>, Box<[u8; 32]>) {
@@ -102,12 +109,19 @@ impl Shared3DHSecret {
         one_time_key: &ReusableSecret,
         remote_identity_key: &PublicKey,
         remote_one_time_key: &PublicKey,
-    ) -> Self {
+    ) -> Option<Self> {
         let first_secret = identity_key.diffie_hellman(remote_one_time_key);
         let second_secret = one_time_key.diffie_hellman(&remote_identity_key.inner);
         let third_secret = one_time_key.diffie_hellman(&remote_one_time_key.inner);
 
-        Self(merge_secrets(first_secret, second_secret, third_secret))
+        if first_secret.was_contributory()
+            && second_secret.was_contributory()
+            && third_secret.was_contributory()
+        {
+            Some(Self(merge_secrets(first_secret, second_secret, third_secret)))
+        } else {
+            None
+        }
     }
 
     pub fn expand(self) -> (Box<[u8; 32]>, Box<[u8; 32]>) {
@@ -138,14 +152,16 @@ mod test {
             &alice_one_time,
             &PublicKey::from(&bob_identity),
             &PublicKey::from(&bob_one_time),
-        );
+        )
+        .unwrap();
 
         let bob_secret = RemoteShared3DHSecret::new(
             &bob_identity,
             &bob_one_time,
             &PublicKey::from(&alice_identity),
             &PublicKey::from(&alice_one_time),
-        );
+        )
+        .unwrap();
 
         assert_eq!(alice_secret.0, bob_secret.0);
 

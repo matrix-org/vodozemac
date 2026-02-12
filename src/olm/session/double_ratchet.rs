@@ -339,8 +339,9 @@ mod test {
         let bob_otks = bob.generate_one_time_keys(1);
         let bob_otk = bob_otks.created.first().expect("Couldn't get a one-time-key for bob");
         let bob_identity_key = bob.identity_keys().curve25519;
-        let mut alice_session =
-            alice.create_outbound_session(SessionConfig::version_1(), bob_identity_key, *bob_otk);
+        let mut alice_session = alice
+            .create_outbound_session(SessionConfig::version_1(), bob_identity_key, *bob_otk)
+            .unwrap();
 
         let message = "It's a secret to everybody";
         let olm_message = alice_session.encrypt(message);

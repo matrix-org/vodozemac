@@ -557,8 +557,9 @@ mod test {
         let identity_keys = bob.parsed_identity_keys();
         let curve25519_key = Curve25519PublicKey::from_base64(identity_keys.curve25519())?;
         let one_time_key = Curve25519PublicKey::from_base64(&one_time_key)?;
-        let mut alice_session =
-            alice.create_outbound_session(SessionConfig::version_1(), curve25519_key, one_time_key);
+        let mut alice_session = alice
+            .create_outbound_session(SessionConfig::version_1(), curve25519_key, one_time_key)
+            .unwrap();
 
         let message = "It's a secret to everybody";
 
