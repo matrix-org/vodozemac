@@ -72,6 +72,16 @@ pub enum SessionCreationError {
     /// message.
     #[error("The message that was used to establish the Session couldn't be decrypted")]
     Decryption(#[from] DecryptionError),
+    /// One or more keys lacked contributory behavior in the Diffie-Hellman
+    /// operation, resulting in an insecure shared secret.
+    ///
+    /// For more details on contributory behavior please refer to the
+    /// [`x25519_dalek::SharedSecret::was_contributory()`] method.
+    #[error(
+        "One or more keys lacked contributory behavior in the Diffie-Hellman operation, \
+         resulting in an insecure shared secret"
+    )]
+    NonContributoryKey,
 }
 
 /// Struct holding the two public identity keys of an [`Account`].
@@ -174,7 +184,7 @@ impl Account {
         session_config: SessionConfig,
         identity_key: Curve25519PublicKey,
         one_time_key: Curve25519PublicKey,
-    ) -> Session {
+    ) -> Result<Session, SessionCreationError> {
         let rng = thread_rng();
 
         let base_key = ReusableSecret::random_from_rng(rng);
@@ -185,7 +195,8 @@ impl Account {
             &base_key,
             &identity_key,
             &one_time_key,
-        );
+        )
+        .ok_or(SessionCreationError::NonContributoryKey)?;
 
         let session_keys = SessionKeys {
             identity_key: self.curve25519_key(),
@@ -193,7 +204,7 @@ impl Account {
             one_time_key,
         };
 
-        Session::new(session_config, shared_secret, session_keys)
+        Ok(Session::new(session_config, shared_secret, session_keys))
     }
 
     /// Try to find a [`Curve25519SecretKey`] that forms a pair with the given
@@ -252,7 +263,8 @@ impl Account {
                 private_otk,
                 &pre_key_message.identity_key(),
                 &pre_key_message.base_key(),
-            );
+            )
+            .ok_or(SessionCreationError::NonContributoryKey)?;
 
             // These will be used to uniquely identify the Session.
             let session_keys = SessionKeys {
@@ -1040,8 +1052,11 @@ mod test {
         let identity_keys = bob.parsed_identity_keys();
         let curve25519_key = PublicKey::from_base64(identity_keys.curve25519())?;
         let one_time_key = PublicKey::from_base64(&one_time_key)?;
-        let mut alice_session =
-            alice.create_outbound_session(SessionConfig::version_1(), curve25519_key, one_time_key);
+        let mut alice_session = alice.create_outbound_session(
+            SessionConfig::version_1(),
+            curve25519_key,
+            one_time_key,
+        )?;
 
         let message = "It's a secret to everybody";
         let olm_message: LibolmOlmMessage = alice_session.encrypt(message).into();
@@ -1099,7 +1114,7 @@ mod test {
                 .next()
                 .context("Failed getting bob's OTK, which should never happen here.")?
                 .1,
-        );
+        )?;
 
         assert!(!bob.one_time_keys().is_empty());
         bob.mark_keys_as_published();
@@ -1377,7 +1392,7 @@ mod test {
             SessionConfig::default(),
             alice.curve25519_key(),
             *alice.one_time_keys().values().next().expect("Should have one-time key"),
-        );
+        )?;
 
         let message = session.encrypt("Test");
 
@@ -1482,28 +1497,32 @@ mod test {
             alice.to_dehydrated_device(&PICKLE_KEY).expect("Should be able to dehydrate device");
 
         // encrypt using a one-time key
-        let mut bob_session = bob.create_outbound_session(
-            SessionConfig::version_1(),
-            alice.curve25519_key(),
-            *alice
-                .one_time_keys()
-                .iter()
-                .next()
-                .expect("Failed getting alice's OTK, which should never happen here.")
-                .1,
-        );
+        let mut bob_session = bob
+            .create_outbound_session(
+                SessionConfig::version_1(),
+                alice.curve25519_key(),
+                *alice
+                    .one_time_keys()
+                    .iter()
+                    .next()
+                    .expect("Failed getting alice's OTK, which should never happen here.")
+                    .1,
+            )
+            .unwrap();
 
         // encrypt using a fallback key
-        let mut carol_session = carol.create_outbound_session(
-            SessionConfig::version_1(),
-            alice.curve25519_key(),
-            *alice
-                .fallback_key()
-                .iter()
-                .next()
-                .expect("Failed getting alice's fallback key, which should never happen here.")
-                .1,
-        );
+        let mut carol_session = carol
+            .create_outbound_session(
+                SessionConfig::version_1(),
+                alice.curve25519_key(),
+                *alice
+                    .fallback_key()
+                    .iter()
+                    .next()
+                    .expect("Failed getting alice's fallback key, which should never happen here.")
+                    .1,
+            )
+            .unwrap();
 
         let message = "It's a secret to everybody";
         let bob_olm_message = bob_session.encrypt(message);
