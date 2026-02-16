@@ -18,7 +18,7 @@ use hpke::{Deserializable as _, aead::AeadCtxR, kem::X25519HkdfSha256};
 use crate::{
     Curve25519PublicKey, Curve25519SecretKey,
     hpke::{
-        Aead, BidiereactionalCreationResult, CreateResponseContext, Error, EstablishedHpkeChannel,
+        Aead, BidirectionalCreationResult, CreateResponseContext, Error, EstablishedHpkeChannel,
         InitialMessage, InitialResponse, Kdf, Kem, MATRIX_QR_LOGIN_INFO_PREFIX, RecipientContext,
         Role, UnidirectionalHkpeChannel,
     },
@@ -178,7 +178,7 @@ impl UnidirectionalRecipientChannel {
         self,
         plaintext: &[u8],
         aad: &[u8],
-    ) -> BidiereactionalCreationResult<InitialResponse> {
+    ) -> BidirectionalCreationResult<InitialResponse> {
         let Self(UnidirectionalHkpeChannel {
             context,
             their_public_key,
@@ -205,7 +205,7 @@ impl UnidirectionalRecipientChannel {
 
         let channel = EstablishedHpkeChannel { our_public_key, their_public_key, role, check_code };
 
-        BidiereactionalCreationResult {
+        BidirectionalCreationResult {
             channel,
             message: InitialResponse {
                 ciphertext,

@@ -20,7 +20,7 @@ use rand::rng;
 use crate::{
     Curve25519PublicKey,
     hpke::{
-        Aead, BidiereactionalCreationResult, CreateResponseContext, Error, EstablishedHpkeChannel,
+        Aead, BidirectionalCreationResult, CreateResponseContext, Error, EstablishedHpkeChannel,
         InitialMessage, InitialResponse, Kdf, Kem, MATRIX_QR_LOGIN_INFO_PREFIX, Role,
         UnidirectionalHkpeChannel,
     },
@@ -155,7 +155,7 @@ impl UnidirectionalSenderChannel {
         self,
         message: &InitialResponse,
         aad: &[u8],
-    ) -> Result<BidiereactionalCreationResult<Vec<u8>>, Error> {
+    ) -> Result<BidirectionalCreationResult<Vec<u8>>, Error> {
         let Self(UnidirectionalHkpeChannel {
             context,
             application_info_prefix,
@@ -176,7 +176,7 @@ impl UnidirectionalSenderChannel {
         let check_code =
             role.check_code(&application_info_prefix, our_public_key, their_public_key);
 
-        Ok(BidiereactionalCreationResult {
+        Ok(BidirectionalCreationResult {
             channel: EstablishedHpkeChannel { our_public_key, their_public_key, role, check_code },
             message: plaintext,
         })

@@ -41,8 +41,8 @@
 //!
 //! let plaintext = b"Not a secret to me!";
 //!
-//! let BidiereactionalCreationResult { channel: mut bob, message } = bob.establish_bidirectional_channel(plaintext, &[]);
-//! let BidiereactionalCreationResult { channel: mut alice, message} = alice.establish_bidirectional_channel(&message, &[])?;
+//! let BidirectionalCreationResult { channel: mut bob, message } = bob.establish_bidirectional_channel(plaintext, &[]);
+//! let BidirectionalCreationResult { channel: mut alice, message} = alice.establish_bidirectional_channel(&message, &[])?;
 //!
 //! assert_eq!(message, plaintext);
 //!
@@ -199,7 +199,7 @@ struct UnidirectionalHkpeChannel<T> {
 
 /// The result of the creation of a bidirectional and fully established HPKE
 /// channel.
-pub struct BidiereactionalCreationResult<T> {
+pub struct BidirectionalCreationResult<T> {
     /// The established HPKE channel.
     pub channel: EstablishedHpkeChannel,
     /// The plaintext of the initial message.
@@ -351,11 +351,11 @@ mod tests {
 
         let plaintext = b"Not a secret to me!";
 
-        let BidiereactionalCreationResult { message: initial_response, .. } =
+        let BidirectionalCreationResult { message: initial_response, .. } =
             bob.establish_bidirectional_channel(plaintext, &[]);
         assert_ne!(initial_response.ciphertext, plaintext);
 
-        let BidiereactionalCreationResult { message: decrypted, .. } = alice
+        let BidirectionalCreationResult { message: decrypted, .. } = alice
             .establish_bidirectional_channel(&initial_response, &[])
             .expect("We should be able to decrypt the initial response");
 
@@ -399,10 +399,10 @@ mod tests {
             .establish_channel(&message, &[])
             .expect("We should be able to establish the recipient channel");
 
-        let BidiereactionalCreationResult { channel: bob, message: initial_response } =
+        let BidirectionalCreationResult { channel: bob, message: initial_response } =
             bob.establish_bidirectional_channel(b"My response", &[]);
 
-        let BidiereactionalCreationResult { channel: alice, .. } = alice
+        let BidirectionalCreationResult { channel: alice, .. } = alice
             .establish_bidirectional_channel(&initial_response, &[])
             .expect("We should be able to establish the bidirectional channel for Alice");
 
@@ -433,10 +433,10 @@ mod tests {
         let RecipientCreationResult { channel: bob, .. } =
             bob.establish_channel(&message, &[]).unwrap();
 
-        let BidiereactionalCreationResult { message, .. } =
+        let BidirectionalCreationResult { message, .. } =
             bob.establish_bidirectional_channel(b"", &[]);
 
-        let BidiereactionalCreationResult { mut channel, .. } =
+        let BidirectionalCreationResult { mut channel, .. } =
             alice.establish_bidirectional_channel(&message, &[]).unwrap();
 
         channel.our_public_key = key;
