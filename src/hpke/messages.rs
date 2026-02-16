@@ -34,26 +34,21 @@ pub struct InitialMessage {
 impl InitialMessage {
     /// Encode the message as a string.
     ///
-    /// The string will contain the base64-encoded Curve25519 public key and the
-    /// ciphertext of the message separated by a `|`.
+    /// This prepends the Curve25519 public key bytes to the ciphertext bytes
+    /// before it base64 encodes the bytestring.
     pub fn encode(&self) -> String {
-        let ciphertext = base64_encode(&self.ciphertext);
-        let key = self.encapsulated_key.to_base64();
+        let Self { encapsulated_key, ciphertext } = self;
 
-        format!("{ciphertext}|{key}")
+        let bytes = [encapsulated_key.to_bytes().as_slice(), ciphertext].concat();
+
+        base64_encode(bytes)
     }
 
     /// Attempt do decode a string into a [`InitialMessage`].
     pub fn decode(message: &str) -> Result<Self, MessageDecodeError> {
-        match message.split_once('|') {
-            Some((ciphertext, key)) => {
-                let encapsulated_key = Curve25519PublicKey::from_base64(key)?;
-                let ciphertext = base64_decode(ciphertext)?;
+        let (encapsulated_key, ciphertext) = decode_message_with_byte_prefix(message)?;
 
-                Ok(Self { ciphertext, encapsulated_key })
-            }
-            None => Err(MessageDecodeError::MissingSeparator),
-        }
+        Ok(Self { encapsulated_key: Curve25519PublicKey::from_bytes(encapsulated_key), ciphertext })
     }
 }
 
@@ -72,36 +67,33 @@ pub struct InitialResponse {
 impl InitialResponse {
     /// Encode the message as a string.
     ///
-    /// The string will contain the nonce and ciphertext concatenated together
-    /// and encoded using unpadded base64.
+    /// This prepends the base response nonce bytes to the ciphertext bytes
+    /// before it base64 encodes the bytestring.
     pub fn encode(&self) -> String {
-        let ciphertext = base64_encode(&self.ciphertext);
-        let base_response_nonce = base64_encode(self.base_response_nonce);
+        let Self { base_response_nonce, ciphertext } = self;
 
-        format!("{base_response_nonce}|{ciphertext}")
+        let bytes = [base_response_nonce.as_slice(), ciphertext].concat();
+
+        base64_encode(bytes)
     }
 
     /// Attempt do decode a string into a [`InitialResponse`].
     pub fn decode(message: &str) -> Result<Self, MessageDecodeError> {
-        match message.split_once('|') {
-            Some((base_response_nonce, ciphertext)) => {
-                let base_response_nonce = base64_decode(base_response_nonce)?;
-                let ciphertext = base64_decode(ciphertext)?;
+        let (base_response_nonce, ciphertext) = decode_message_with_byte_prefix(message)?;
 
-                let mut nonce = [0u8; 32];
-                let nonce_len = base_response_nonce.len();
-
-                if nonce_len == 32 {
-                    nonce.copy_from_slice(&base_response_nonce);
-
-                    Ok(Self { ciphertext, base_response_nonce: nonce })
-                } else {
-                    Err(MessageDecodeError::InvalidNonce { expected: 32, got: nonce_len })
-                }
-            }
-            None => Err(MessageDecodeError::MissingSeparator),
-        }
+        Ok(Self { base_response_nonce, ciphertext })
     }
+}
+
+fn decode_message_with_byte_prefix(
+    message: &str,
+) -> Result<([u8; 32], Vec<u8>), MessageDecodeError> {
+    let bytes = base64_decode(message)?;
+
+    bytes
+        .split_first_chunk::<32>()
+        .map(|(nonce, ciphertext)| (nonce.to_owned(), ciphertext.to_owned()))
+        .ok_or(MessageDecodeError::MessageIncomplete)
 }
 
 /// An encrypted message a [`EstablishedHpkeChannel`] channel has sent.

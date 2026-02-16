@@ -19,18 +19,9 @@ use crate::KeyError;
 /// The error type for the HPKE message decoding failures.
 #[derive(Debug, Error)]
 pub enum MessageDecodeError {
-    /// The initial message could not have been decoded, it's missing the `|`
-    /// separator.
-    #[error("The initial message is missing the | separator")]
-    MissingSeparator,
-    /// The initial response contained a nonce with an incorrect length.
-    #[error("The base response nonce has an incorrect length, expected {expected}, got {got}")]
-    InvalidNonce {
-        /// The expected Nonce size.
-        expected: usize,
-        /// The size of the nonce we received in the message.
-        got: usize,
-    },
+    /// The message failed to be decoded because the message isn't long enough.
+    #[error("The message doesn't contain enough bytes to be decoded")]
+    MessageIncomplete,
     /// The initial message could not have been decoded, the embedded Curve25519
     /// key is malformed.
     #[error("The embedded ephemeral Curve25519 key could not have been decoded: {0:?}")]
