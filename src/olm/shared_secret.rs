@@ -36,7 +36,10 @@ use sha2::Sha256;
 use x25519_dalek::{ReusableSecret, SharedSecret};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::{Curve25519PublicKey as PublicKey, types::Curve25519SecretKey as StaticSecret};
+use crate::{
+    Curve25519PublicKey as PublicKey,
+    types::{Curve25519SecretKey as StaticSecret, KeyError},
+};
 
 #[derive(Zeroize, ZeroizeOnDrop)]
 pub struct Shared3DHSecret(Box<[u8; 96]>);
@@ -78,6 +81,26 @@ fn merge_secrets(
 }
 
 impl RemoteShared3DHSecret {
+    pub(crate) fn try_new(
+        identity_key: &StaticSecret,
+        one_time_key: &StaticSecret,
+        remote_identity_key: &PublicKey,
+        remote_one_time_key: &PublicKey,
+    ) -> Result<Self, Error> {
+        let first_secret = one_time_key.diffie_hellman(remote_identity_key);
+        let second_secret = identity_key.diffie_hellman(remote_one_time_key);
+        let third_secret = one_time_key.diffie_hellman(remote_one_time_key);
+
+        if !first_secret.was_contributory()
+            || !second_secret.was_contributory()
+            || !third_secret.was_contributory() {
+            return Err(KeyError::NonContributory)
+        }
+
+        Ok(Self(merge_secrets(first_secret, second_secret, third_secret)))
+    }
+
+    #[deprecated(since = "0.10.0", note = "SECURITY: Does not reject all-zero public keys. Use try_new() instead.")]
     pub(crate) fn new(
         identity_key: &StaticSecret,
         one_time_key: &StaticSecret,
@@ -97,6 +120,26 @@ impl RemoteShared3DHSecret {
 }
 
 impl Shared3DHSecret {
+    pub(crate) fn try_new(
+        identity_key: &StaticSecret,
+        one_time_key: &ReusableSecret,
+        remote_identity_key: &PublicKey,
+        remote_one_time_key: &PublicKey,
+    ) -> Result<Self, Error> {
+        let first_secret = identity_key.diffie_hellman(remote_one_time_key);
+        let second_secret = one_time_key.diffie_hellman(&remote_identity_key.inner);
+        let third_secret = one_time_key.diffie_hellman(&remote_one_time_key.inner);
+
+        if !first_secret.was_contributory()
+            || !second_secret.was_contributory()
+            || !third_secret.was_contributory() {
+            return Err(KeyError::NonContributory)
+        }
+
+        OK(Self(merge_secrets(first_secret, second_secret, third_secret)))
+    }
+
+    #[deprecated(since = "0.10.0", note = "SECURITY: Does not reject all-zero public keys. Use try_new() instead.")]
     pub(crate) fn new(
         identity_key: &StaticSecret,
         one_time_key: &ReusableSecret,
