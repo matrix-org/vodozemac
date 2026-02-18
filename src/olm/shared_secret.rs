@@ -170,4 +170,41 @@ mod test {
 
         assert_eq!(alice_result, bob_result);
     }
+
+    #[test]
+    fn triple_diffie_hellman_non_contributory_key() {
+        let rng = thread_rng();
+
+        let alice_identity = StaticSecret::new();
+        let alice_one_time = ReusableSecret::random_from_rng(rng);
+
+        let bob_identity = StaticSecret::new();
+        let bob_one_time = StaticSecret::new();
+
+        let non_contributory_key = PublicKey::from_bytes([0u8; 32]);
+
+        let alice_secret = Shared3DHSecret::new(
+            &alice_identity,
+            &alice_one_time,
+            &PublicKey::from(&bob_identity),
+            &non_contributory_key,
+        );
+
+        assert!(
+            alice_secret.is_none(),
+            "We should reject shared secrets that are made from non-contributory keys"
+        );
+
+        let bob_secret = RemoteShared3DHSecret::new(
+            &bob_identity,
+            &bob_one_time,
+            &non_contributory_key,
+            &PublicKey::from(&alice_one_time),
+        );
+
+        assert!(
+            bob_secret.is_none(),
+            "We should reject shared secrets that are made from non-contributory keys"
+        );
+    }
 }
