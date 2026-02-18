@@ -133,11 +133,11 @@ impl Ratchet {
         Self { root_key, ratchet_key }
     }
 
-    pub fn advance(&self, remote_key: RemoteRatchetKey) -> (RemoteRootKey, RemoteChainKey) {
+    pub fn advance(&self, remote_key: RemoteRatchetKey) -> Option<(RemoteRootKey, RemoteChainKey)> {
         let (remote_root_key, remote_chain_key) =
-            self.root_key.advance(&self.ratchet_key, &remote_key);
+            self.root_key.advance(&self.ratchet_key, &remote_key)?;
 
-        (remote_root_key, remote_chain_key)
+        Some((remote_root_key, remote_chain_key))
     }
 
     pub const fn ratchet_key(&self) -> &RatchetKey {
