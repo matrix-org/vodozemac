@@ -50,7 +50,7 @@ pub struct RatchetPublicKey(Curve25519PublicKey);
 /// is the other side's key, we have only the public part of the key.
 #[derive(Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize, Decode)]
 #[serde(transparent)]
-pub struct RemoteRatchetKey(Curve25519PublicKey);
+pub(super) struct RemoteRatchetKey(pub(super) Curve25519PublicKey);
 
 impl Debug for RemoteRatchetKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -63,7 +63,7 @@ impl RatchetKey {
         Self(Curve25519SecretKey::new())
     }
 
-    pub fn diffie_hellman(&self, other: &RemoteRatchetKey) -> SharedSecret {
+    pub fn diffie_hellman(&self, other: &RemoteRatchetKey) -> Option<SharedSecret> {
         self.0.diffie_hellman(&other.0)
     }
 }
