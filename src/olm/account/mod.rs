@@ -76,7 +76,9 @@ pub enum SessionCreationError {
         /// The [`SessionConfig`] we expected.
         expected: SessionConfig,
         /// The [`SessionConfig`] the pre-key message was encrypted with.
-        got: SessionConfig,
+        ///
+        /// Will be `None` if we don't understand the received config.
+        got: Option<SessionConfig>,
     },
     /// The pre-key message that was used to establish the [`Session`] couldn't
     /// be decrypted. The message needs to be decryptable, otherwise we will
@@ -255,13 +257,24 @@ impl Account {
             let config = if pre_key_message.message.mac_truncated() {
                 SessionConfig::version_1()
             } else {
-                SessionConfig::version_2()
+                #[cfg(feature = "experimental-session-config")]
+                {
+                    SessionConfig::version_2()
+                }
+
+                #[cfg(not(feature = "experimental-session-config"))]
+                {
+                    return Err(SessionCreationError::MismatchedSessionConfig {
+                        expected: expected_config,
+                        got: None,
+                    });
+                }
             };
 
             if config != expected_config {
                 return Err(SessionCreationError::MismatchedSessionConfig {
                     expected: expected_config,
-                    got: config,
+                    got: Some(config),
                 });
             }
 
@@ -974,7 +987,7 @@ mod dehydrated_device {
 #[cfg(test)]
 mod test {
     use anyhow::{Context, Result, bail};
-    use assert_matches2::{assert_let, assert_matches};
+    use assert_matches2::assert_matches;
     use matrix_pickle::{Decode, Encode};
     use olm_rs::{account::OlmAccount, session::OlmMessage as LibolmOlmMessage};
 
@@ -1103,8 +1116,7 @@ mod test {
         Ok(())
     }
 
-    #[test]
-    fn vodozemac_vodozemac_communication() -> Result<()> {
+    fn vodozemac_vodozemac_communication(session_config: SessionConfig) -> Result<()> {
         // Both of these are vodozemac accounts.
         let alice = Account::new();
         let mut bob = Account::new();
@@ -1112,7 +1124,7 @@ mod test {
         bob.generate_one_time_keys(1);
 
         let mut alice_session = alice.create_outbound_session(
-            SessionConfig::version_2(),
+            session_config,
             bob.curve25519_key(),
             *bob.one_time_keys()
                 .iter()
@@ -1133,7 +1145,7 @@ mod test {
             assert_eq!(m.session_id(), alice_session.session_id());
 
             let InboundCreationResult { session: mut bob_session, plaintext } =
-                bob.create_inbound_session(SessionConfig::version_2(), alice.curve25519_key(), &m)?;
+                bob.create_inbound_session(session_config, alice.curve25519_key(), &m)?;
             assert_eq!(alice_session.session_id(), bob_session.session_id());
             assert_eq!(m.session_keys(), bob_session.session_keys());
 
@@ -1164,6 +1176,17 @@ mod test {
         }
 
         Ok(())
+    }
+
+    #[test]
+    fn vodozemac_vodozemac_communication_session_config_v1() -> Result<()> {
+        vodozemac_vodozemac_communication(SessionConfig::version_1())
+    }
+
+    #[test]
+    #[cfg(feature = "experimental-session-config")]
+    fn vodozemac_vodozemac_communication_session_config_v2() -> Result<()> {
+        vodozemac_vodozemac_communication(SessionConfig::version_2())
     }
 
     #[test]
@@ -1646,6 +1669,7 @@ mod test {
         assert_eq!(alice.identity_keys(), account.identity_keys());
     }
 
+    #[cfg(feature = "experimental-session-config")]
     #[test]
     fn vodozemac_incorrect_session_config() {
         // Both of these are vodozemac accounts.
@@ -1665,7 +1689,7 @@ mod test {
         let message = "It's a secret to everybody";
         let pre_key_message = alice_session.encrypt(message);
 
-        assert_let!(OlmMessage::PreKey(pre_key_message) = pre_key_message);
+        assert_matches2::assert_let!(OlmMessage::PreKey(pre_key_message) = pre_key_message);
 
         let result = bob.create_inbound_session(
             SessionConfig::version_2(),

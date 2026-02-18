@@ -61,6 +61,7 @@ impl DoubleRatchet {
         }
     }
 
+    #[cfg(feature = "experimental-session-config")]
     pub fn encrypt(&mut self, plaintext: &[u8]) -> Message {
         self.next_message_key().encrypt(plaintext)
     }
