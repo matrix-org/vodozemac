@@ -24,7 +24,6 @@ use chacha20poly1305::{
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use x25519_dalek::ReusableSecret;
 use zeroize::Zeroize;
 
 pub use self::one_time_keys::OneTimeKeyGenerationResult;
@@ -185,9 +184,7 @@ impl Account {
         identity_key: Curve25519PublicKey,
         one_time_key: Curve25519PublicKey,
     ) -> Result<Session, SessionCreationError> {
-        let rng = thread_rng();
-
-        let base_key = ReusableSecret::random_from_rng(rng);
+        let base_key = Curve25519SecretKey::new();
         let public_base_key = Curve25519PublicKey::from(&base_key);
 
         let shared_secret = Shared3DHSecret::new(

@@ -54,7 +54,7 @@ fn kdf(
     ratchet_key: &RatchetKey,
     remote_ratchet_key: &RemoteRatchetKey,
 ) -> Option<Box<[u8; 64]>> {
-    let shared_secret = ratchet_key.diffie_hellman(remote_ratchet_key);
+    let shared_secret = ratchet_key.diffie_hellman(remote_ratchet_key)?;
     let hkdf: Hkdf<Sha256> = Hkdf::new(Some(root_key.as_ref()), shared_secret.as_bytes());
     let mut output = Box::new([0u8; 64]);
 
@@ -62,7 +62,7 @@ fn kdf(
     hkdf.expand(ADVANCEMENT_SEED, output.as_mut_slice())
         .expect("We should be able to expand the shared secret.");
 
-    if shared_secret.was_contributory() { Some(output) } else { None }
+    Some(output)
 }
 
 impl RemoteRootKey {
