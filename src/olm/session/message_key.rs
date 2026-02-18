@@ -74,6 +74,7 @@ impl MessageKey {
     /// authentication code (MAC). If you need the message authentication code
     /// to be truncated, please take a look at the
     /// [`MessageKey::encrypt_truncated_mac()`] method instead.
+    #[cfg(feature = "experimental-session-config")]
     pub fn encrypt(self, plaintext: &[u8]) -> Message {
         let cipher = Cipher::new(&self.key);
 
@@ -145,6 +146,7 @@ impl RemoteMessageKey {
         }
     }
 
+    #[cfg(feature = "experimental-session-config")]
     pub fn decrypt(&self, message: &Message) -> Result<Vec<u8>, DecryptionError> {
         let cipher = Cipher::new(&self.key);
 

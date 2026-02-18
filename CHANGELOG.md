@@ -8,6 +8,9 @@ All notable changes to this project will be documented in this file.
 
 ### Features
 
+- [**BREAKING**] Support for SessionConfig::V2 has been moved behind the
+  `experimental-session-config` feature flag.
+  ([#300](https://github.com/matrix-org/vodozemac/pull/300)).
 - [**BREAKING**] The `Curve25519SecretKey.diffie_hellman()` method now returns
   an `Option`. This change makes the `Account::create_outbound_session()` and
   `Session::encrypt()` methods fallible. Thanks @soatok for raising.
@@ -17,7 +20,6 @@ All notable changes to this project will be documented in this file.
   verification has been removed. This will not affect honestly generated
   signatures but could start newly rejecting maliciously generated signatures.
   ([#299](https://github.com/matrix-org/vodozemac/pull/299)).
-
 
 ### Bug Fixes
 

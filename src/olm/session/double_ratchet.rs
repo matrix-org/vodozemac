@@ -61,6 +61,7 @@ impl DoubleRatchet {
         }
     }
 
+    #[cfg(feature = "experimental-session-config")]
     pub fn encrypt(&mut self, plaintext: &[u8]) -> Result<Message, EncryptionError> {
         Ok(self.next_message_key().ok_or(EncryptionError::NonContributoryKey)?.encrypt(plaintext))
     }
