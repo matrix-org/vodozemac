@@ -1059,7 +1059,7 @@ mod test {
         )?;
 
         let message = "It's a secret to everybody";
-        let olm_message: LibolmOlmMessage = alice_session.encrypt(message).into();
+        let olm_message: LibolmOlmMessage = alice_session.encrypt(message).unwrap().into();
 
         if let LibolmOlmMessage::PreKey(m) = olm_message.clone() {
             let libolm_session =
@@ -1070,7 +1070,7 @@ mod test {
             assert_eq!(message, plaintext);
 
             let second_text = "Here's another secret to everybody";
-            let olm_message = alice_session.encrypt(second_text).into();
+            let olm_message = alice_session.encrypt(second_text).unwrap().into();
 
             let plaintext = libolm_session.decrypt(olm_message)?;
             assert_eq!(second_text, plaintext);
@@ -1087,7 +1087,7 @@ mod test {
             assert_eq!(plaintext, another_reply.as_bytes());
 
             let last_text = "Nope, I'll have the last word";
-            let olm_message = alice_session.encrypt(last_text).into();
+            let olm_message = alice_session.encrypt(last_text).unwrap().into();
 
             let plaintext = libolm_session.decrypt(olm_message)?;
             assert_eq!(last_text, plaintext);
@@ -1121,7 +1121,7 @@ mod test {
         assert!(bob.one_time_keys().is_empty());
 
         let message = "It's a secret to everybody";
-        let olm_message = alice_session.encrypt(message);
+        let olm_message = alice_session.encrypt(message).unwrap();
 
         if let OlmMessage::PreKey(m) = olm_message {
             assert_eq!(m.session_keys(), alice_session.session_keys());
@@ -1135,24 +1135,24 @@ mod test {
             assert_eq!(message.as_bytes(), plaintext);
 
             let second_text = "Here's another secret to everybody";
-            let olm_message = alice_session.encrypt(second_text);
+            let olm_message = alice_session.encrypt(second_text).unwrap();
 
             let plaintext = bob_session.decrypt(&olm_message)?;
             assert_eq!(second_text.as_bytes(), plaintext);
 
             let reply_plain = "Yes, take this, it's dangerous out there";
-            let reply = bob_session.encrypt(reply_plain);
+            let reply = bob_session.encrypt(reply_plain).unwrap();
             let plaintext = alice_session.decrypt(&reply)?;
 
             assert_eq!(plaintext, reply_plain.as_bytes());
 
             let another_reply = "Last one";
-            let reply = bob_session.encrypt(another_reply);
+            let reply = bob_session.encrypt(another_reply).unwrap();
             let plaintext = alice_session.decrypt(&reply)?;
             assert_eq!(plaintext, another_reply.as_bytes());
 
             let last_text = "Nope, I'll have the last word";
-            let olm_message = alice_session.encrypt(last_text);
+            let olm_message = alice_session.encrypt(last_text).unwrap();
 
             let plaintext = bob_session.decrypt(&olm_message)?;
             assert_eq!(last_text.as_bytes(), plaintext);
@@ -1394,7 +1394,7 @@ mod test {
             *alice.one_time_keys().values().next().expect("Should have one-time key"),
         )?;
 
-        let message = session.encrypt("Test");
+        let message = session.encrypt("Test").unwrap();
 
         if let OlmMessage::PreKey(m) = message {
             let mut message = m.to_bytes();
@@ -1525,8 +1525,8 @@ mod test {
             .unwrap();
 
         let message = "It's a secret to everybody";
-        let bob_olm_message = bob_session.encrypt(message);
-        let carol_olm_message = carol_session.encrypt(message);
+        let bob_olm_message = bob_session.encrypt(message).unwrap();
+        let carol_olm_message = carol_session.encrypt(message).unwrap();
 
         let mut alice_rehydrated = Account::from_dehydrated_device(
             &alice_dehydrated_result.ciphertext,
