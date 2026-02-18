@@ -342,7 +342,10 @@ mod test {
     use super::{
         ActiveDoubleRatchet, DoubleRatchet, DoubleRatchetState, InactiveDoubleRatchet, RatchetCount,
     };
-    use crate::olm::{Account, OlmMessage, Session, SessionConfig};
+    use crate::{
+        Curve25519PublicKey,
+        olm::{Account, OlmMessage, Session, SessionConfig, session::ratchet::RemoteRatchetKey},
+    };
 
     fn create_session_pair(alice: &Account, bob: &mut Account) -> (Session, Session) {
         let bob_otks = bob.generate_one_time_keys(1);
@@ -459,6 +462,19 @@ mod test {
         assert_eq!(
             assert_inactive_ratchet(&bob_session.sending_ratchet).ratchet_count,
             RatchetCount::Unknown(())
+        );
+    }
+
+    #[test]
+    fn advance_with_non_contributory_key_fails() {
+        let (mut alice_session, _) = create_session_pair(&Account::new(), &mut Account::new());
+
+        let ratchet = &mut alice_session.sending_ratchet;
+        let ratchet_key = RemoteRatchetKey(Curve25519PublicKey::from_bytes([0u8; 32]));
+
+        assert!(
+            ratchet.advance(ratchet_key).is_none(),
+            "We shouldn't be able to advance the session with a non-contributory remote ratchet key"
         );
     }
 }

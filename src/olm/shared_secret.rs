@@ -33,7 +33,7 @@
 
 use hkdf::Hkdf;
 use sha2::Sha256;
-use x25519_dalek::{ReusableSecret, SharedSecret};
+use x25519_dalek::SharedSecret;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::{Curve25519PublicKey as PublicKey, types::Curve25519SecretKey as StaticSecret};
@@ -84,18 +84,11 @@ impl RemoteShared3DHSecret {
         remote_identity_key: &PublicKey,
         remote_one_time_key: &PublicKey,
     ) -> Option<Self> {
-        let first_secret = one_time_key.diffie_hellman(remote_identity_key);
-        let second_secret = identity_key.diffie_hellman(remote_one_time_key);
-        let third_secret = one_time_key.diffie_hellman(remote_one_time_key);
+        let first_secret = one_time_key.diffie_hellman(remote_identity_key)?;
+        let second_secret = identity_key.diffie_hellman(remote_one_time_key)?;
+        let third_secret = one_time_key.diffie_hellman(remote_one_time_key)?;
 
-        if first_secret.was_contributory()
-            && second_secret.was_contributory()
-            && third_secret.was_contributory()
-        {
-            Some(Self(merge_secrets(first_secret, second_secret, third_secret)))
-        } else {
-            None
-        }
+        Some(Self(merge_secrets(first_secret, second_secret, third_secret)))
     }
 
     pub fn expand(self) -> (Box<[u8; 32]>, Box<[u8; 32]>) {
@@ -106,22 +99,15 @@ impl RemoteShared3DHSecret {
 impl Shared3DHSecret {
     pub(crate) fn new(
         identity_key: &StaticSecret,
-        one_time_key: &ReusableSecret,
+        one_time_key: &StaticSecret,
         remote_identity_key: &PublicKey,
         remote_one_time_key: &PublicKey,
     ) -> Option<Self> {
-        let first_secret = identity_key.diffie_hellman(remote_one_time_key);
-        let second_secret = one_time_key.diffie_hellman(&remote_identity_key.inner);
-        let third_secret = one_time_key.diffie_hellman(&remote_one_time_key.inner);
+        let first_secret = identity_key.diffie_hellman(remote_one_time_key)?;
+        let second_secret = one_time_key.diffie_hellman(remote_identity_key)?;
+        let third_secret = one_time_key.diffie_hellman(remote_one_time_key)?;
 
-        if first_secret.was_contributory()
-            && second_secret.was_contributory()
-            && third_secret.was_contributory()
-        {
-            Some(Self(merge_secrets(first_secret, second_secret, third_secret)))
-        } else {
-            None
-        }
+        Some(Self(merge_secrets(first_secret, second_secret, third_secret)))
     }
 
     pub fn expand(self) -> (Box<[u8; 32]>, Box<[u8; 32]>) {
@@ -131,18 +117,13 @@ impl Shared3DHSecret {
 
 #[cfg(test)]
 mod test {
-    use rand::thread_rng;
-    use x25519_dalek::ReusableSecret;
-
     use super::{RemoteShared3DHSecret, Shared3DHSecret};
     use crate::{Curve25519PublicKey as PublicKey, types::Curve25519SecretKey as StaticSecret};
 
     #[test]
     fn triple_diffie_hellman() {
-        let rng = thread_rng();
-
         let alice_identity = StaticSecret::new();
-        let alice_one_time = ReusableSecret::random_from_rng(rng);
+        let alice_one_time = StaticSecret::new();
 
         let bob_identity = StaticSecret::new();
         let bob_one_time = StaticSecret::new();
@@ -173,10 +154,8 @@ mod test {
 
     #[test]
     fn triple_diffie_hellman_non_contributory_key() {
-        let rng = thread_rng();
-
         let alice_identity = StaticSecret::new();
-        let alice_one_time = ReusableSecret::random_from_rng(rng);
+        let alice_one_time = StaticSecret::new();
 
         let bob_identity = StaticSecret::new();
         let bob_one_time = StaticSecret::new();
