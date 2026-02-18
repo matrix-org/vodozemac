@@ -53,7 +53,7 @@ fn kdf(
     root_key: &[u8; 32],
     ratchet_key: &RatchetKey,
     remote_ratchet_key: &RemoteRatchetKey,
-) -> Box<[u8; 64]> {
+) -> Option<Box<[u8; 64]>> {
     let shared_secret = ratchet_key.diffie_hellman(remote_ratchet_key);
     let hkdf: Hkdf<Sha256> = Hkdf::new(Some(root_key.as_ref()), shared_secret.as_bytes());
     let mut output = Box::new([0u8; 64]);
@@ -62,7 +62,7 @@ fn kdf(
     hkdf.expand(ADVANCEMENT_SEED, output.as_mut_slice())
         .expect("We should be able to expand the shared secret.");
 
-    output
+    if shared_secret.was_contributory() { Some(output) } else { None }
 }
 
 impl RemoteRootKey {
@@ -73,9 +73,9 @@ impl RemoteRootKey {
     pub(super) fn advance(
         &self,
         remote_ratchet_key: &RemoteRatchetKey,
-    ) -> (RootKey, ChainKey, RatchetKey) {
+    ) -> Option<(RootKey, ChainKey, RatchetKey)> {
         let ratchet_key = RatchetKey::new();
-        let output = kdf(&self.key, &ratchet_key, remote_ratchet_key);
+        let output = kdf(&self.key, &ratchet_key, remote_ratchet_key)?;
 
         let mut chain_key = Box::new([0u8; 32]);
         let mut root_key = Box::new([0u8; 32]);
@@ -86,7 +86,7 @@ impl RemoteRootKey {
         let chain_key = ChainKey::new(chain_key);
         let root_key = RootKey::new(root_key);
 
-        (root_key, chain_key, ratchet_key)
+        Some((root_key, chain_key, ratchet_key))
     }
 }
 
@@ -99,8 +99,8 @@ impl RootKey {
         &self,
         old_ratchet_key: &RatchetKey,
         remote_ratchet_key: &RemoteRatchetKey,
-    ) -> (RemoteRootKey, RemoteChainKey) {
-        let output = kdf(&self.key, old_ratchet_key, remote_ratchet_key);
+    ) -> Option<(RemoteRootKey, RemoteChainKey)> {
+        let output = kdf(&self.key, old_ratchet_key, remote_ratchet_key)?;
 
         let mut chain_key = Box::new([0u8; 32]);
         let mut root_key = Box::new([0u8; 32]);
@@ -111,6 +111,6 @@ impl RootKey {
         let root_key = RemoteRootKey::new(root_key);
         let chain_key = RemoteChainKey::new(chain_key);
 
-        (root_key, chain_key)
+        Some((root_key, chain_key))
     }
 }

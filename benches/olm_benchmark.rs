@@ -57,7 +57,10 @@ pub fn encryption(c: &mut Criterion) {
         .unwrap();
 
     c.bench_function("Encrypting a message", |b| {
-        b.iter(|| session.encrypt("It's a secret to everybody"));
+        b.iter(|| {
+            #[allow(clippy::unwrap_used)]
+            session.encrypt("It's a secret to everybody").unwrap()
+        });
     });
 }
 
@@ -83,7 +86,8 @@ pub fn inbound_session_creation(c: &mut Criterion) {
         .create_outbound_session(SessionConfig::version_1(), identity_key, one_time_key)
         .unwrap();
 
-    let pre_key_message = session.encrypt("It's a secret to everybody");
+    #[allow(clippy::unwrap_used)]
+    let pre_key_message = session.encrypt("It's a secret to everybody").unwrap();
     assert_let!(OlmMessage::PreKey(pre_key_message) = pre_key_message);
 
     let bob_pickle = bob.pickle().encrypt(&[0u8; 32]);

@@ -65,6 +65,16 @@ pub enum DecryptionError {
     /// The ciphertext of the message isn't padded correctly.
     #[error("Failed decrypting Olm message, invalid padding")]
     InvalidPadding(#[from] UnpadError),
+    /// One or more keys lacked contributory behavior in the Diffie-Hellman
+    /// operation, resulting in an insecure shared secret.
+    ///
+    /// For more details on contributory behavior please refer to the
+    /// [`x25519_dalek::SharedSecret::was_contributory()`] method.
+    #[error(
+        "One or more keys lacked contributory behavior in the Diffie-Hellman operation, \
+         resulting in an insecure shared secret"
+    )]
+    NonContributoryKey,
     /// The session is missing the correct message key to decrypt the message,
     /// either because it was already used up, or because the Session has been
     /// ratcheted forwards and the message key has been discarded.
@@ -73,6 +83,21 @@ pub enum DecryptionError {
     /// Too many messages have been skipped to attempt decrypting this message.
     #[error("The message gap was too big, got {0}, max allowed {1}")]
     TooBigMessageGap(u64, u64),
+}
+
+/// Error type for Olm-based encryption failures.
+#[derive(Error, Debug)]
+pub enum EncryptionError {
+    /// One or more keys lacked contributory behavior in the Diffie-Hellman
+    /// operation, resulting in an insecure shared secret.
+    ///
+    /// For more details on contributory behavior please refer to the
+    /// [`x25519_dalek::SharedSecret::was_contributory()`] method.
+    #[error(
+        "One or more keys lacked contributory behavior in the Diffie-Hellman operation, \
+         resulting in an insecure shared secret"
+    )]
+    NonContributoryKey,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -229,18 +254,18 @@ impl Session {
     /// depending on whether the session is fully established. A [`Session`] is
     /// fully established once you receive (and decrypt) at least one
     /// message from the other side.
-    pub fn encrypt(&mut self, plaintext: impl AsRef<[u8]>) -> OlmMessage {
+    pub fn encrypt(&mut self, plaintext: impl AsRef<[u8]>) -> Result<OlmMessage, EncryptionError> {
         let message = match self.config.version {
             Version::V1 => self.sending_ratchet.encrypt_truncated_mac(plaintext.as_ref()),
             Version::V2 => self.sending_ratchet.encrypt(plaintext.as_ref()),
-        };
+        }?;
 
         if self.has_received_message() {
-            OlmMessage::Normal(message)
+            Ok(OlmMessage::Normal(message))
         } else {
             let message = PreKeyMessage::new(self.session_keys, message);
 
-            OlmMessage::PreKey(message)
+            Ok(OlmMessage::PreKey(message))
         }
     }
 
@@ -264,7 +289,7 @@ impl Session {
     /// number of out-of-order messages, this will eventually lead to
     /// undecryptable messages.
     #[cfg(feature = "low-level-api")]
-    pub fn next_message_key(&mut self) -> MessageKey {
+    pub fn next_message_key(&mut self) -> Option<MessageKey> {
         self.sending_ratchet.next_message_key()
     }
 
@@ -288,7 +313,10 @@ impl Session {
         if let Some(ratchet) = self.receiving_chains.find_ratchet(&ratchet_key) {
             ratchet.decrypt(message, &self.config)
         } else {
-            let (sending_ratchet, mut remote_ratchet) = self.sending_ratchet.advance(ratchet_key);
+            let (sending_ratchet, mut remote_ratchet) =
+                self.sending_ratchet
+                    .advance(ratchet_key)
+                    .ok_or(DecryptionError::NonContributoryKey)?;
 
             let plaintext = remote_ratchet.decrypt(message, &self.config)?;
 
@@ -563,7 +591,7 @@ mod test {
 
         let message = "It's a secret to everybody";
 
-        let olm_message = alice_session.encrypt(message);
+        let olm_message = alice_session.encrypt(message).unwrap();
         bob.mark_keys_as_published();
 
         if let OlmMessage::PreKey(m) = olm_message.into() {
@@ -633,7 +661,7 @@ mod test {
 
         assert_eq!(alice_session.receiving_chains.len(), 1);
 
-        let message_4 = alice_session.encrypt("Message 4").into();
+        let message_4 = alice_session.encrypt("Message 4").unwrap().into();
         assert_eq!(
             "Message 4",
             bob_session.decrypt(message_4).expect("Should be able to decrypt message 4")
@@ -745,13 +773,13 @@ mod test {
         let (_, _, mut session, olm) = session_and_libolm_pair().unwrap();
 
         let plaintext = "It's a secret to everybody";
-        let old_message = session.encrypt(plaintext);
+        let old_message = session.encrypt(plaintext).unwrap();
 
         for _ in 0..9 {
-            session.encrypt("Hello");
+            session.encrypt("Hello").unwrap();
         }
 
-        let message = session.encrypt("Hello");
+        let message = session.encrypt("Hello").unwrap();
         olm.decrypt(message.into()).expect("Should be able to decrypt message");
 
         let key = b"DEFAULT_PICKLE_KEY";
@@ -769,7 +797,7 @@ mod test {
             plaintext.as_bytes()
         );
 
-        let message = unpickled.encrypt(plaintext);
+        let message = unpickled.encrypt(plaintext).unwrap();
 
         assert_eq!(
             session.decrypt(&message).expect("Should be able to decrypt re-encrypted message"),
@@ -796,5 +824,18 @@ mod test {
         let repickle = serde_json::to_value(repickle).unwrap();
 
         assert_eq!(pickle, repickle);
+    }
+
+    #[test]
+    #[cfg(feature = "low-level-api")]
+    fn next_message_key_returns_a_key() {
+        let plaintext = "It's a secret to everybody";
+        let (_, _, mut session, _) = session_and_libolm_pair().unwrap();
+
+        let message_key =
+            session.next_message_key().expect("We should be able to get a message key");
+
+        let message = message_key.encrypt(plaintext.as_bytes());
+        assert_ne!(message.ciphertext, plaintext.as_bytes());
     }
 }
