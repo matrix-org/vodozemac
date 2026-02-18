@@ -86,6 +86,7 @@ impl FoundMessageKey<'_> {
 
         match config.version {
             Version::V1 => message_key.decrypt_truncated_mac(message),
+            #[cfg(feature = "experimental-session-config")]
             Version::V2 => message_key.decrypt(message),
         }
     }
