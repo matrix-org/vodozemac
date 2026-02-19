@@ -70,6 +70,13 @@ impl RemoteRootKey {
         Self { key: bytes }
     }
 
+    /// Get the [`RemoteRootKey`] as a boxed slice of bytes.
+    #[cfg(feature = "libolm-compat")]
+    #[allow(clippy::borrowed_box)]
+    pub fn as_bytes(&self) -> &Box<[u8; 32]> {
+        &self.key
+    }
+
     pub(super) fn advance(
         &self,
         remote_ratchet_key: &RemoteRatchetKey,
@@ -95,6 +102,13 @@ impl RootKey {
         Self { key: bytes }
     }
 
+    /// Get the [`RootKey`] as a boxed slice of bytes.
+    #[cfg(feature = "libolm-compat")]
+    #[allow(clippy::borrowed_box)]
+    pub fn as_bytes(&self) -> &Box<[u8; 32]> {
+        &self.key
+    }
+
     pub(super) fn advance(
         &self,
         old_ratchet_key: &RatchetKey,
@@ -112,5 +126,38 @@ impl RootKey {
         let chain_key = RemoteChainKey::new(chain_key);
 
         (root_key, chain_key)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(feature = "libolm-compat")]
+    use rand::{Fill, thread_rng};
+
+    #[cfg(feature = "libolm-compat")]
+    use super::*;
+
+    #[test]
+    #[cfg(feature = "libolm-compat")]
+    fn root_key_as_bytes() {
+        let mut rng = thread_rng();
+        let mut bytes = Box::new([0u8; 32]);
+        bytes.try_fill(&mut rng).unwrap();
+
+        let key = RootKey::new(bytes.clone());
+
+        assert_eq!(key.as_bytes(), &bytes);
+    }
+
+    #[test]
+    #[cfg(feature = "libolm-compat")]
+    fn remote_root_key_as_bytes() {
+        let mut rng = thread_rng();
+        let mut bytes = Box::new([0u8; 32]);
+        bytes.try_fill(&mut rng).unwrap();
+
+        let key = RemoteRootKey::new(bytes.clone());
+
+        assert_eq!(key.as_bytes(), &bytes);
     }
 }

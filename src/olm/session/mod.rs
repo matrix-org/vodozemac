@@ -110,6 +110,13 @@ impl ChainStore {
     fn find_ratchet(&mut self, ratchet_key: &RemoteRatchetKey) -> Option<&mut ReceiverChain> {
         self.inner.iter_mut().find(|r| r.belongs_to(ratchet_key))
     }
+
+    /// Create a iterator from this [`ChainStore`] iterrating over the
+    /// [`ReceiverChain`]s in the store.
+    #[cfg(feature = "libolm-compat")]
+    pub fn iter(&self) -> std::slice::Iter<'_, ReceiverChain> {
+        self.inner.iter()
+    }
 }
 
 impl Default for ChainStore {
@@ -325,16 +332,33 @@ impl Session {
         pickle: &str,
         pickle_key: &[u8],
     ) -> Result<Self, crate::LibolmPickleError> {
-        use crate::{olm::session::libolm_compat::Pickle, utilities::unpickle_libolm};
+        use crate::{
+            olm::session::libolm_compat::{PICKLE_VERSION, Pickle},
+            utilities::unpickle_libolm,
+        };
 
-        const PICKLE_VERSION: u32 = 1;
         unpickle_libolm::<Pickle, _>(pickle, pickle_key, PICKLE_VERSION)
+    }
+
+    /// Pickle an [`Session`] into a libolm pickle format.
+    ///
+    /// This pickle can be restored using the [`Session::from_libolm_pickle`]
+    /// method, or can be used in the [`libolm`] C library.
+    ///
+    /// The pickle will be encryptd using the pickle key.
+    ///
+    /// [`libolm`]: https://gitlab.matrix.org/matrix-org/olm/
+    #[cfg(feature = "libolm-compat")]
+    pub fn to_libolm_pickle(&self, pickle_key: &[u8]) -> Result<String, crate::LibolmPickleError> {
+        use crate::{olm::session::libolm_compat::Pickle, utilities::pickle_libolm};
+
+        pickle_libolm::<Pickle>(self.try_into()?, pickle_key)
     }
 }
 
 #[cfg(feature = "libolm-compat")]
 mod libolm_compat {
-    use matrix_pickle::Decode;
+    use matrix_pickle::{Decode, Encode};
     use zeroize::{Zeroize, ZeroizeOnDrop};
 
     use super::{
@@ -347,12 +371,15 @@ mod libolm_compat {
         root_key::{RemoteRootKey, RootKey},
     };
     use crate::{
-        Curve25519PublicKey,
+        Curve25519PublicKey, LibolmPickleError,
         olm::{SessionConfig, SessionKeys},
         types::Curve25519SecretKey,
     };
 
-    #[derive(Decode, Zeroize, ZeroizeOnDrop)]
+    pub const PICKLE_VERSION: u32 = 1;
+    const LIBOLM_MAX_MESSAGE_KEYS: usize = 40;
+
+    #[derive(Decode, Encode, Zeroize, ZeroizeOnDrop)]
     struct SenderChain {
         public_ratchet_key: [u8; 32],
         #[secret]
@@ -361,16 +388,16 @@ mod libolm_compat {
         chain_key_index: u32,
     }
 
-    #[derive(Decode, Zeroize, ZeroizeOnDrop)]
-    struct ReceivingChain {
+    #[derive(Decode, Encode, Zeroize, ZeroizeOnDrop)]
+    struct LibolmReceiverChain {
         public_ratchet_key: [u8; 32],
         #[secret]
         chain_key: Box<[u8; 32]>,
         chain_key_index: u32,
     }
 
-    impl From<&ReceivingChain> for ReceiverChain {
-        fn from(chain: &ReceivingChain) -> Self {
+    impl From<&LibolmReceiverChain> for ReceiverChain {
+        fn from(chain: &LibolmReceiverChain) -> Self {
             let ratchet_key = RemoteRatchetKey::from(chain.public_ratchet_key);
             let chain_key = RemoteChainKey::from_bytes_and_index(
                 chain.chain_key.clone(),
@@ -381,7 +408,21 @@ mod libolm_compat {
         }
     }
 
-    #[derive(Decode, Zeroize, ZeroizeOnDrop)]
+    impl TryFrom<&ReceiverChain> for LibolmReceiverChain {
+        type Error = LibolmPickleError;
+
+        fn try_from(chain: &ReceiverChain) -> Result<Self, Self::Error> {
+            Ok(LibolmReceiverChain {
+                chain_key: chain.hkdf_ratchet.as_bytes().to_owned(),
+                chain_key_index: chain.hkdf_ratchet.chain_index().try_into().map_err(|_| {
+                    LibolmPickleError::ChainIndexTooBig(chain.hkdf_ratchet.chain_index())
+                })?,
+                public_ratchet_key: chain.ratchet_key().as_ref().to_bytes(),
+            })
+        }
+    }
+
+    #[derive(Decode, Encode, Zeroize, ZeroizeOnDrop)]
     struct MessageKey {
         ratchet_key: [u8; 32],
         #[secret]
@@ -395,7 +436,7 @@ mod libolm_compat {
         }
     }
 
-    #[derive(Decode)]
+    #[derive(Decode, Encode)]
     pub(super) struct Pickle {
         #[allow(dead_code)]
         version: u32,
@@ -405,7 +446,7 @@ mod libolm_compat {
         #[secret]
         root_key: Box<[u8; 32]>,
         sender_chains: Vec<SenderChain>,
-        receiver_chains: Vec<ReceivingChain>,
+        receiver_chains: Vec<LibolmReceiverChain>,
         message_keys: Vec<MessageKey>,
     }
 
@@ -418,8 +459,75 @@ mod libolm_compat {
         }
     }
 
+    impl TryFrom<&Session> for Pickle {
+        type Error = LibolmPickleError;
+
+        fn try_from(session: &Session) -> Result<Self, Self::Error> {
+            use super::double_ratchet::DoubleRatchetState::*;
+
+            let receiver_chains: Result<Vec<_>, _> =
+                session.receiving_chains.iter().map(LibolmReceiverChain::try_from).collect();
+
+            let (root_key, sender_chains) = match session.sending_ratchet.state() {
+                Active(chain) => {
+                    let root_key = chain.active_ratchet.root_key().as_bytes().to_owned();
+                    let secret_ratchet_key = chain.active_ratchet.ratchet_key().to_bytes();
+
+                    let chain = SenderChain {
+                        public_ratchet_key: chain.ratchet_key().as_ref().to_bytes(),
+                        secret_ratchet_key,
+                        chain_key: chain.symmetric_key_ratchet.as_bytes().to_owned(),
+                        chain_key_index: chain.symmetric_key_ratchet.index().try_into().map_err(
+                            |_| {
+                                LibolmPickleError::ChainIndexTooBig(
+                                    chain.symmetric_key_ratchet.index(),
+                                )
+                            },
+                        )?,
+                    };
+
+                    (root_key, vec![chain])
+                }
+                Inactive(chain) => {
+                    let root_key = chain.root_key().as_bytes().to_owned();
+
+                    (root_key, vec![])
+                }
+            };
+
+            let mut message_keys: Vec<MessageKey> = session
+                .receiving_chains
+                .iter()
+                .flat_map(|c| {
+                    c.skipped_message_keys
+                        .iter()
+                        .filter_map(|k| {
+                            Some(MessageKey {
+                                ratchet_key: c.ratchet_key().as_ref().to_bytes(),
+                                index: k.chain_index().try_into().ok()?,
+                                message_key: k.key.to_owned(),
+                            })
+                        })
+                        .collect::<Vec<MessageKey>>()
+                })
+                .collect();
+
+            message_keys.truncate(LIBOLM_MAX_MESSAGE_KEYS);
+
+            Ok(Pickle {
+                version: PICKLE_VERSION,
+                received_message: session.has_received_message(),
+                session_keys: session.session_keys(),
+                receiver_chains: receiver_chains?,
+                sender_chains,
+                message_keys,
+                root_key,
+            })
+        }
+    }
+
     impl TryFrom<Pickle> for Session {
-        type Error = crate::LibolmPickleError;
+        type Error = LibolmPickleError;
 
         fn try_from(pickle: Pickle) -> Result<Self, Self::Error> {
             let mut receiving_chains = ChainStore::new();
@@ -469,7 +577,7 @@ mod libolm_compat {
                     config: SessionConfig::version_1(),
                 })
             } else {
-                Err(crate::LibolmPickleError::InvalidSession)
+                Err(LibolmPickleError::InvalidSession)
             }
         }
     }
@@ -522,10 +630,7 @@ impl From<SessionPickle> for Session {
 mod test {
     use anyhow::{Result, bail};
     use assert_matches2::assert_matches;
-    use olm_rs::{
-        account::OlmAccount,
-        session::{OlmMessage, OlmSession},
-    };
+    use olm_rs::{account::OlmAccount, session::OlmSession};
 
     use super::{DecryptionError, Session};
     use crate::{
@@ -565,7 +670,7 @@ mod test {
         let olm_message = alice_session.encrypt(message);
         bob.mark_keys_as_published();
 
-        if let OlmMessage::PreKey(m) = olm_message.into() {
+        if let olm_rs::session::OlmMessage::PreKey(m) = olm_message.into() {
             let session =
                 bob.create_inbound_session_from(&alice.curve25519_key().to_base64(), m)?;
 
@@ -741,6 +846,8 @@ mod test {
     #[test]
     #[cfg(feature = "libolm-compat")]
     fn libolm_unpickling() {
+        use crate::{base64_decode, olm::OlmMessage};
+
         let (_, _, mut session, olm) = session_and_libolm_pair().unwrap();
 
         let plaintext = "It's a secret to everybody";
@@ -752,6 +859,16 @@ mod test {
 
         let message = session.encrypt("Hello");
         olm.decrypt(message.into()).expect("Should be able to decrypt message");
+
+        for _ in 0..9 {
+            olm.encrypt(plaintext);
+        }
+
+        let message = olm.encrypt("Hello");
+        let (message_type, ciphertext) = message.to_tuple();
+        let ciphertext = base64_decode(&ciphertext).unwrap();
+        let message = OlmMessage::from_parts(message_type as usize, &ciphertext).unwrap();
+        session.decrypt(&message).expect("We should be able to decrypt the message");
 
         let key = b"DEFAULT_PICKLE_KEY";
         let pickle = olm.pickle(olm_rs::PicklingMode::Encrypted { key: key.to_vec() });
@@ -770,10 +887,12 @@ mod test {
 
         let message = unpickled.encrypt(plaintext);
 
+        assert_eq!(session.receiving_chains.len(), 1);
         assert_eq!(
-            session.decrypt(&message).expect("Should be able to decrypt re-encrypted message"),
-            plaintext.as_bytes()
+            session.receiving_chains.iter().next().unwrap().skipped_message_keys.iter().len(),
+            9
         );
+        assert_eq!(session.decrypt(&message).unwrap(), plaintext.as_bytes());
     }
 
     #[test]
@@ -795,5 +914,50 @@ mod test {
         let repickle = serde_json::to_value(repickle).unwrap();
 
         assert_eq!(pickle, repickle);
+    }
+
+    #[test]
+    #[cfg(feature = "libolm-compat")]
+    fn libolm_pickle_cycle() {
+        use crate::{base64_decode, olm::OlmMessage};
+        let plaintext = "It's a secret to everybody";
+
+        let (_, _, mut session, olm) = session_and_libolm_pair().unwrap();
+
+        for _ in 0..9 {
+            olm.encrypt(plaintext);
+        }
+
+        for _ in 0..9 {
+            session.encrypt(plaintext);
+        }
+
+        let message = olm.encrypt("It's a secret to everybody");
+        let (message_type, ciphertext) = message.to_tuple();
+        let ciphertext = base64_decode(&ciphertext).unwrap();
+        let message = OlmMessage::from_parts(message_type as usize, &ciphertext).unwrap();
+        let _ = session.decrypt(&message).unwrap();
+
+        let vodozemac_pickle = session
+            .to_libolm_pickle(&PICKLE_KEY)
+            .expect("We should be able to pickle the session into a libolm pickle");
+
+        let libolm_session = OlmSession::unpickle(
+            vodozemac_pickle,
+            olm_rs::PicklingMode::Encrypted { key: PICKLE_KEY.to_vec() },
+        )
+        .unwrap();
+
+        assert_eq!(olm.session_id(), libolm_session.session_id());
+
+        let repickle =
+            libolm_session.pickle(olm_rs::PicklingMode::Encrypted { key: PICKLE_KEY.to_vec() });
+        let session = Session::from_libolm_pickle(&repickle, &PICKLE_KEY).unwrap();
+
+        assert_eq!(olm.session_id(), session.session_id());
+        assert_eq!(
+            session.receiving_chains.iter().next().unwrap().skipped_message_keys.iter().len(),
+            9
+        );
     }
 }

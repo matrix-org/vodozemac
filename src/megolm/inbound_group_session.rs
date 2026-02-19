@@ -435,18 +435,35 @@ impl InboundGroupSession {
         pickle: &str,
         pickle_key: &[u8],
     ) -> Result<Self, crate::LibolmPickleError> {
+        use libolm_compat::{PICKLE_VERSION, Pickle};
+
+        use crate::utilities::unpickle_libolm;
+
+        unpickle_libolm::<Pickle, _>(pickle, pickle_key, PICKLE_VERSION)
+    }
+
+    /// Pickle an [`InboundGroupSession`] into a libolm pickle format.
+    ///
+    /// This pickle can be restored using the
+    /// [`InboundGroupSession::from_libolm_pickle`] method, or can be used in
+    /// the [`libolm`] C library.
+    ///
+    /// The pickle will be encryptd using the pickle key.
+    ///
+    /// [`libolm`]: https://gitlab.matrix.org/matrix-org/olm/
+    #[cfg(feature = "libolm-compat")]
+    pub fn to_libolm_pickle(&self, pickle_key: &[u8]) -> Result<String, crate::LibolmPickleError> {
         use crate::{
-            megolm::inbound_group_session::libolm_compat::Pickle, utilities::unpickle_libolm,
+            megolm::inbound_group_session::libolm_compat::Pickle, utilities::pickle_libolm,
         };
 
-        const PICKLE_VERSION: u32 = 2;
-        unpickle_libolm::<Pickle, _>(pickle, pickle_key, PICKLE_VERSION)
+        pickle_libolm::<Pickle>(self.into(), pickle_key)
     }
 }
 
 #[cfg(feature = "libolm-compat")]
 mod libolm_compat {
-    use matrix_pickle::Decode;
+    use matrix_pickle::{Decode, Encode};
     use zeroize::{Zeroize, ZeroizeOnDrop};
 
     use super::InboundGroupSession;
@@ -455,13 +472,27 @@ mod libolm_compat {
         megolm::{SessionConfig, libolm::LibolmRatchetPickle},
     };
 
-    #[derive(Zeroize, ZeroizeOnDrop, Decode)]
+    pub const PICKLE_VERSION: u32 = 2;
+
+    #[derive(Zeroize, ZeroizeOnDrop, Decode, Encode)]
     pub(super) struct Pickle {
         version: u32,
         initial_ratchet: LibolmRatchetPickle,
         latest_ratchet: LibolmRatchetPickle,
         signing_key: [u8; 32],
         signing_key_verified: bool,
+    }
+
+    impl From<&InboundGroupSession> for Pickle {
+        fn from(s: &InboundGroupSession) -> Self {
+            Self {
+                version: PICKLE_VERSION,
+                initial_ratchet: (&s.initial_ratchet).into(),
+                latest_ratchet: (&s.latest_ratchet).into(),
+                signing_key: s.signing_key.as_bytes().to_owned(),
+                signing_key_verified: s.signing_key_verified,
+            }
+        }
     }
 
     impl TryFrom<Pickle> for InboundGroupSession {
