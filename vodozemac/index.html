@@ -1,0 +1,134 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="A Rust implementation of Olm and Megolm"><title>vodozemac - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="vodozemac" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0-nightly (c04308580 2026-02-18)" data-channel="nightly" data-search-js="search-63369b7b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../static.files/storage-41dd4d93.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-5013f961.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate vodozemac</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../vodozemac/index.html">vodozemac</a><span class="version">0.9.0</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#olm" title="Olm">Olm</a></li><li><a href="#megolm" title="Megolm">Megolm</a></li><li><a href="#features" title="Features">Features</a><ul><li><a href="#supported" title="Supported">Supported</a></li><li><a href="#unsupported" title="Unsupported">Unsupported</a></li><li><a href="#planned" title="Planned">Planned</a></li></ul></li><li><a href="#feature-flags" title="Feature flags">Feature flags</a><ul><li><a href="#low-level-api" title="Low-level API">Low-level API</a></li></ul></li><li><a href="#pickling" title="Pickling">Pickling</a><ul><li><a href="#legacy-pickles" title="Legacy pickles">Legacy pickles</a></li><li><a href="#modern-pickles" title="Modern pickles">Modern pickles</a></li></ul></li></ul><h3><a href="#modules">Crate Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#statics" title="Statics">Statics</a></li><li><a href="#functions" title="Functions">Functions</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1>Crate <span>vodozemac</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/vodozemac/lib.rs.html#15-353">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>A Rust implementation of Olm and Megolm</p>
+<p>vodozemac is a Rust reimplementation of
+<a href="https://gitlab.matrix.org/matrix-org/olm">libolm</a>, a cryptographic library
+used for end-to-end encryption in <a href="https://matrix.org">Matrix</a>. At its core, it
+is an implementation of the Olm and Megolm cryptographic ratchets, along
+with a high-level API to easily establish cryptographic communication
+channels employing those ratchets with other parties. It also implements
+some other miscellaneous cryptographic functionality which is useful for
+building Matrix clients, such as <a href="https://spec.matrix.org/v1.2/client-server-api/#short-authentication-string-sas-verification">SAS</a>.</p>
+<h2 id="olm"><a class="doc-anchor" href="#olm">§</a>Olm</h2>
+<p>Olm is an implementation of the <a href="https://whispersystems.org/docs/specifications/doubleratchet/">Double Ratchet
+algorithm</a>, very
+similar to that employed by the Signal Protocol. It allows the establishment
+of a 1-to-1 private communication channel, with perfect forward secrecy and
+self-healing properties.</p>
+<p>A detailed technical specification can be found at
+<a href="https://gitlab.matrix.org/matrix-org/olm/-/blob/master/docs/olm.md">https://gitlab.matrix.org/matrix-org/olm/-/blob/master/docs/olm.md</a>.</p>
+<p>For more information on using vodozemac for Olm, see the <a href="olm/index.html" title="mod vodozemac::olm"><code>olm</code></a> module.</p>
+<h2 id="megolm"><a class="doc-anchor" href="#megolm">§</a>Megolm</h2>
+<p>Megolm is an AES-based single ratchet for group conversations with a large
+number of participants, where using Olm would be cost prohibitive because it
+would imply encrypting each message individually for each participant.
+Megolm sidesteps this by encrypting messages with a symmetric ratchet,
+shared once with each participant and then reused for a sequence of messages
+before rotating.</p>
+<p>This is a trade-off in which we lose Olm’s self-healing properties, because
+someone in possession of a Megolm session at a particular state can derive
+all future states. However, if the attacker is only able to obtain the
+session in a ratcheted state, they cannot use it to decrypt messages
+encrypted with an earlier state. This preserves forward secrecy.</p>
+<p>A detailed technical specification can be found at
+<a href="https://gitlab.matrix.org/matrix-org/olm/-/blob/master/docs/megolm.md">https://gitlab.matrix.org/matrix-org/olm/-/blob/master/docs/megolm.md</a>.</p>
+<p>For more information on using vodozemac for Megolm, see the <a href="megolm/index.html" title="mod vodozemac::megolm"><code>megolm</code></a>
+module.</p>
+<h2 id="features"><a class="doc-anchor" href="#features">§</a>Features</h2><h3 id="supported"><a class="doc-anchor" href="#supported">§</a>Supported</h3>
+<ul>
+<li><a href="https://matrix-org.github.io/vodozemac/vodozemac/olm/index.html">Olm</a></li>
+<li><a href="https://matrix-org.github.io/vodozemac/vodozemac/megolm/index.html">Megolm</a></li>
+<li><a href="#legacy-pickles">libolm pickle format</a> (read-only)</li>
+<li><a href="#modern-pickles">Modern pickle format</a></li>
+<li><a href="https://matrix-org.github.io/vodozemac/vodozemac/sas/index.html">SAS (Short Authentication Strings)</a></li>
+</ul>
+<h3 id="unsupported"><a class="doc-anchor" href="#unsupported">§</a>Unsupported</h3>
+<ul>
+<li>Creating asymmetric <a href="https://spec.matrix.org/v1.2/client-server-api/#server-side-key-backups">server-side message key
+backups</a>, since they are slated to be replaced
+with symmetric backups.</li>
+</ul>
+<h3 id="planned"><a class="doc-anchor" href="#planned">§</a>Planned</h3>
+<ul>
+<li>Symmetric <a href="https://github.com/uhoreg/matrix-doc/blob/symmetric-backups/proposals/3270-symmetric-megolm-backup.md">server-side message key backups</a></li>
+<li>Importing asymmetric <a href="https://spec.matrix.org/v1.2/client-server-api/#server-side-key-backups">server-side message key
+backups</a>, for compatibility with existing
+backups created by libolm.</li>
+</ul>
+<h2 id="feature-flags"><a class="doc-anchor" href="#feature-flags">§</a>Feature flags</h2><h3 id="low-level-api"><a class="doc-anchor" href="#low-level-api">§</a>Low-level API</h3>
+<p>Feature: <code>low-level-api</code> (default: off)</p>
+<p>Vodozemac exposes some lower-level structs and functions that are only
+useful in very advanced use cases. These should <em>not</em> be needed by the vast
+majority of users.</p>
+<p>Extreme care must be taken when using such APIs, as incorrect usage can lead
+to broken sessions.</p>
+<h2 id="pickling"><a class="doc-anchor" href="#pickling">§</a>Pickling</h2>
+<p>vodozemac supports serializing its entire internal state into a form
+a “pickle”. The state can subsequently be restored from such a pickle
+(“unpickled”) in order to continue operation. This is used to support some
+Matrix features like device dehydration.</p>
+<h3 id="legacy-pickles"><a class="doc-anchor" href="#legacy-pickles">§</a>Legacy pickles</h3>
+<p>The legacy pickle format is a simple binary format used by libolm.
+Implemented for interoperability with current clients which are using
+libolm. Only <em>unpickling</em> is supported.</p>
+<h3 id="modern-pickles"><a class="doc-anchor" href="#modern-pickles">§</a>Modern pickles</h3>
+<p>The crate also implements a modern pickling mechanism using
+<a href="https://serde.rs/">Serde</a>. The exact serialization format is not mandated
+nor specified by this crate, but you can serialize to and deserialize from
+any format supported by Serde.</p>
+<p>The following structs support pickling:</p>
+<ul>
+<li><a href="olm/struct.Account.html" title="struct vodozemac::olm::Account"><code>olm::Account</code></a></li>
+<li><a href="olm/struct.Session.html" title="struct vodozemac::olm::Session"><code>olm::Session</code></a></li>
+<li><a href="megolm/struct.GroupSession.html" title="struct vodozemac::megolm::GroupSession"><code>megolm::GroupSession</code></a></li>
+<li><a href="megolm/struct.InboundGroupSession.html" title="struct vodozemac::megolm::InboundGroupSession"><code>megolm::InboundGroupSession</code></a></li>
+</ul>
+<p>For example, the following will print out the JSON representing the
+serialized <code>Account</code> and will leave no new copies of the account’s secrets
+in memory:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>anyhow::Result;
+<span class="kw">use </span>vodozemac::olm::{Account, AccountPickle};
+
+<span class="kw">const </span>PICKLE_KEY: [u8; <span class="number">32</span>] = [<span class="number">0u8</span>; <span class="number">32</span>];
+
+<span class="kw">fn </span>main() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt;{
+    <span class="kw">let </span><span class="kw-2">mut </span>account = Account::new();
+
+    account.generate_one_time_keys(<span class="number">10</span>);
+    account.generate_fallback_key();
+
+    <span class="kw">let </span>pickle = account.pickle().encrypt(<span class="kw-2">&amp;</span>PICKLE_KEY);
+
+    <span class="kw">let </span>account2: Account = AccountPickle::from_encrypted(<span class="kw-2">&amp;</span>pickle, <span class="kw-2">&amp;</span>PICKLE_KEY)<span class="question-mark">?</span>.into();
+
+    <span class="macro">assert_eq!</span>(account.identity_keys(), account2.identity_keys());
+
+    <span class="prelude-val">Ok</span>(())
+}</code></pre></div>
+<p>You can unpickle a pickle-able struct directly from its serialized form:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code>    <span class="kw">let </span><span class="kw-2">mut </span>json_str = serde_json::to_string(<span class="kw-2">&amp;</span>some_account.pickle())<span class="question-mark">?</span>;
+    <span class="comment">// This will produce an account which is identical to `some_account`.
+    </span><span class="kw">let </span>account: Account = serde_json::from_str::&lt;AccountPickle&gt;(<span class="kw-2">&amp;</span>json_str)<span class="question-mark">?</span>.into();
+
+    json_str.zeroize();</code></pre></div>
+<p>However, the pickle-able structs do not implement <code>serde::Serialize</code>
+themselves. If you want to serialize to a format other than JSON, you should
+instead call the <code>.pickle()</code> method to obtain a special serializable struct.
+This struct <em>does</em> implement <code>Serialize</code> and can therefore be serialized
+into any format supported by <code>serde</code>. To get back to the original struct
+from such as serializable struct, just call <code>.unpickle()</code>.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>anyhow::Result;
+<span class="kw">use </span>vodozemac::olm::Account;
+
+<span class="kw">fn </span>main() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+    <span class="kw">let </span>account = Account::new();
+    <span class="kw">let </span>account: Account = account.pickle().into();  <span class="comment">// this is identity
+
+    </span><span class="prelude-val">Ok</span>(())
+}</code></pre></div></div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="ecies/index.html" title="mod vodozemac::ecies">ecies</a></dt><dd>Implementation of an integrated encryption scheme.</dd><dt><a class="mod" href="megolm/index.html" title="mod vodozemac::megolm">megolm</a></dt><dd>An implementation of the Megolm ratchet.</dd><dt><a class="mod" href="olm/index.html" title="mod vodozemac::olm">olm</a></dt><dd>An implementation of the Olm double ratchet.</dd><dt><a class="mod" href="sas/index.html" title="mod vodozemac::sas">sas</a></dt><dd>User-friendly key verification using short authentication strings (SAS).</dd></dl><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.Curve25519PublicKey.html" title="struct vodozemac::Curve25519PublicKey">Curve25519<wbr>Public<wbr>Key</a></dt><dd>Struct representing a Curve25519 public key.</dd><dt><a class="struct" href="struct.Curve25519SecretKey.html" title="struct vodozemac::Curve25519SecretKey">Curve25519<wbr>Secret<wbr>Key</a></dt><dd>Struct representing a Curve25519 secret key.</dd><dt><a class="struct" href="struct.Ed25519Keypair.html" title="struct vodozemac::Ed25519Keypair">Ed25519<wbr>Keypair</a></dt><dd>A struct collecting both a public, and a secret, Ed25519 key.</dd><dt><a class="struct" href="struct.Ed25519PublicKey.html" title="struct vodozemac::Ed25519PublicKey">Ed25519<wbr>Public<wbr>Key</a></dt><dd>An Ed25519 public key, used to verify digital signatures.</dd><dt><a class="struct" href="struct.Ed25519SecretKey.html" title="struct vodozemac::Ed25519SecretKey">Ed25519<wbr>Secret<wbr>Key</a></dt><dd>An Ed25519 secret key, used to create digital signatures.</dd><dt><a class="struct" href="struct.Ed25519Signature.html" title="struct vodozemac::Ed25519Signature">Ed25519<wbr>Signature</a></dt><dd>An Ed25519 digital signature, can be used to verify the authenticity of a
+message.</dd><dt><a class="struct" href="struct.KeyId.html" title="struct vodozemac::KeyId">KeyId</a></dt><dd>A unique identifier for a one-time <a href="struct.Curve25519PublicKey.html" title="struct vodozemac::Curve25519PublicKey"><code>Curve25519PublicKey</code></a>.</dd><dt><a class="struct" href="struct.ProtoBufDecodeError.html" title="struct vodozemac::ProtoBufDecodeError">Proto<wbr>BufDecode<wbr>Error</a></dt><dd>A Protobuf message decoding error.</dd><dt><a class="struct" href="struct.SharedSecret.html" title="struct vodozemac::SharedSecret">Shared<wbr>Secret</a></dt><dd>The result of a Diffie-Hellman key exchange.</dd></dl><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><dl class="item-table"><dt><a class="enum" href="enum.Base64DecodeError.html" title="enum vodozemac::Base64DecodeError">Base64<wbr>Decode<wbr>Error</a></dt><dd>Errors that can occur while decoding.</dd><dt><a class="enum" href="enum.DecodeError.html" title="enum vodozemac::DecodeError">Decode<wbr>Error</a></dt><dd>Error type describing the different ways message decoding can fail.</dd><dt><a class="enum" href="enum.DehydratedDeviceError.html" title="enum vodozemac::DehydratedDeviceError">Dehydrated<wbr>Device<wbr>Error</a></dt><dd>Error type describing the various ways dehydrated devices can fail to be
+decoded.</dd><dt><a class="enum" href="enum.KeyError.html" title="enum vodozemac::KeyError">KeyError</a></dt><dd>Error type for failures that may occur when decoding or using a
+cryptographic key.</dd><dt><a class="enum" href="enum.LibolmPickleError.html" title="enum vodozemac::LibolmPickleError">Libolm<wbr>Pickle<wbr>Error</a></dt><dd>Error type describing the various ways libolm pickles can fail to be
+decoded.</dd><dt><a class="enum" href="enum.PickleError.html" title="enum vodozemac::PickleError">Pickle<wbr>Error</a></dt><dd>Error type describing the various ways Vodozemac pickles can fail to be
+decoded.</dd><dt><a class="enum" href="enum.SignatureError.html" title="enum vodozemac::SignatureError">Signature<wbr>Error</a></dt><dd>Error type describing signature verification failures.</dd></dl><h2 id="statics" class="section-header">Statics<a href="#statics" class="anchor">§</a></h2><dl class="item-table"><dt><a class="static" href="static.VERSION.html" title="static vodozemac::VERSION">VERSION</a></dt><dd>The version of vodozemac that is being used.</dd></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.base64_decode.html" title="fn vodozemac::base64_decode">base64_<wbr>decode</a></dt><dd>Decode the input as base64 with no padding.</dd><dt><a class="fn" href="fn.base64_encode.html" title="fn vodozemac::base64_encode">base64_<wbr>encode</a></dt><dd>Encode the input as base64 with no padding.</dd></dl></section></div></main></body></html>
