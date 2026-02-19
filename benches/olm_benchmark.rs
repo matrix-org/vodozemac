@@ -25,11 +25,10 @@ pub fn outbound_session_creation(c: &mut Criterion) {
         b.iter_batched(
             Account::new,
             |alice| {
-                alice.create_outbound_session(
-                    SessionConfig::version_1(),
-                    identity_key,
-                    one_time_key,
-                );
+                #[allow(clippy::unwrap_used)]
+                alice
+                    .create_outbound_session(SessionConfig::version_1(), identity_key, one_time_key)
+                    .unwrap();
             },
             BatchSize::SmallInput,
         );
@@ -52,11 +51,16 @@ pub fn encryption(c: &mut Criterion) {
 
     bob.mark_keys_as_published();
 
-    let mut session =
-        alice.create_outbound_session(SessionConfig::version_1(), identity_key, one_time_key);
+    #[allow(clippy::unwrap_used)]
+    let mut session = alice
+        .create_outbound_session(SessionConfig::version_1(), identity_key, one_time_key)
+        .unwrap();
 
     c.bench_function("Encrypting a message", |b| {
-        b.iter(|| session.encrypt("It's a secret to everybody"));
+        b.iter(|| {
+            #[allow(clippy::unwrap_used)]
+            session.encrypt("It's a secret to everybody").unwrap()
+        });
     });
 }
 
@@ -77,10 +81,13 @@ pub fn inbound_session_creation(c: &mut Criterion) {
 
     bob.mark_keys_as_published();
 
-    let mut session =
-        alice.create_outbound_session(SessionConfig::version_1(), identity_key, one_time_key);
+    #[allow(clippy::unwrap_used)]
+    let mut session = alice
+        .create_outbound_session(SessionConfig::version_1(), identity_key, one_time_key)
+        .unwrap();
 
-    let pre_key_message = session.encrypt("It's a secret to everybody");
+    #[allow(clippy::unwrap_used)]
+    let pre_key_message = session.encrypt("It's a secret to everybody").unwrap();
     assert_let!(OlmMessage::PreKey(pre_key_message) = pre_key_message);
 
     let bob_pickle = bob.pickle().encrypt(&[0u8; 32]);

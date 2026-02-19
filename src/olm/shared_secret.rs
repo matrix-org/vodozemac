@@ -33,7 +33,7 @@
 
 use hkdf::Hkdf;
 use sha2::Sha256;
-use x25519_dalek::{ReusableSecret, SharedSecret};
+use x25519_dalek::SharedSecret;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::{Curve25519PublicKey as PublicKey, types::Curve25519SecretKey as StaticSecret};
@@ -83,12 +83,12 @@ impl RemoteShared3DHSecret {
         one_time_key: &StaticSecret,
         remote_identity_key: &PublicKey,
         remote_one_time_key: &PublicKey,
-    ) -> Self {
-        let first_secret = one_time_key.diffie_hellman(remote_identity_key);
-        let second_secret = identity_key.diffie_hellman(remote_one_time_key);
-        let third_secret = one_time_key.diffie_hellman(remote_one_time_key);
+    ) -> Option<Self> {
+        let first_secret = one_time_key.diffie_hellman(remote_identity_key)?;
+        let second_secret = identity_key.diffie_hellman(remote_one_time_key)?;
+        let third_secret = one_time_key.diffie_hellman(remote_one_time_key)?;
 
-        Self(merge_secrets(first_secret, second_secret, third_secret))
+        Some(Self(merge_secrets(first_secret, second_secret, third_secret)))
     }
 
     pub fn expand(self) -> (Box<[u8; 32]>, Box<[u8; 32]>) {
@@ -99,15 +99,15 @@ impl RemoteShared3DHSecret {
 impl Shared3DHSecret {
     pub(crate) fn new(
         identity_key: &StaticSecret,
-        one_time_key: &ReusableSecret,
+        one_time_key: &StaticSecret,
         remote_identity_key: &PublicKey,
         remote_one_time_key: &PublicKey,
-    ) -> Self {
-        let first_secret = identity_key.diffie_hellman(remote_one_time_key);
-        let second_secret = one_time_key.diffie_hellman(&remote_identity_key.inner);
-        let third_secret = one_time_key.diffie_hellman(&remote_one_time_key.inner);
+    ) -> Option<Self> {
+        let first_secret = identity_key.diffie_hellman(remote_one_time_key)?;
+        let second_secret = one_time_key.diffie_hellman(remote_identity_key)?;
+        let third_secret = one_time_key.diffie_hellman(remote_one_time_key)?;
 
-        Self(merge_secrets(first_secret, second_secret, third_secret))
+        Some(Self(merge_secrets(first_secret, second_secret, third_secret)))
     }
 
     pub fn expand(self) -> (Box<[u8; 32]>, Box<[u8; 32]>) {
@@ -117,18 +117,13 @@ impl Shared3DHSecret {
 
 #[cfg(test)]
 mod test {
-    use rand::thread_rng;
-    use x25519_dalek::ReusableSecret;
-
     use super::{RemoteShared3DHSecret, Shared3DHSecret};
     use crate::{Curve25519PublicKey as PublicKey, types::Curve25519SecretKey as StaticSecret};
 
     #[test]
     fn triple_diffie_hellman() {
-        let rng = thread_rng();
-
         let alice_identity = StaticSecret::new();
-        let alice_one_time = ReusableSecret::random_from_rng(rng);
+        let alice_one_time = StaticSecret::new();
 
         let bob_identity = StaticSecret::new();
         let bob_one_time = StaticSecret::new();
@@ -138,14 +133,16 @@ mod test {
             &alice_one_time,
             &PublicKey::from(&bob_identity),
             &PublicKey::from(&bob_one_time),
-        );
+        )
+        .unwrap();
 
         let bob_secret = RemoteShared3DHSecret::new(
             &bob_identity,
             &bob_one_time,
             &PublicKey::from(&alice_identity),
             &PublicKey::from(&alice_one_time),
-        );
+        )
+        .unwrap();
 
         assert_eq!(alice_secret.0, bob_secret.0);
 
@@ -153,5 +150,40 @@ mod test {
         let bob_result = bob_secret.expand();
 
         assert_eq!(alice_result, bob_result);
+    }
+
+    #[test]
+    fn triple_diffie_hellman_non_contributory_key() {
+        let alice_identity = StaticSecret::new();
+        let alice_one_time = StaticSecret::new();
+
+        let bob_identity = StaticSecret::new();
+        let bob_one_time = StaticSecret::new();
+
+        let non_contributory_key = PublicKey::from_bytes([0u8; 32]);
+
+        let alice_secret = Shared3DHSecret::new(
+            &alice_identity,
+            &alice_one_time,
+            &PublicKey::from(&bob_identity),
+            &non_contributory_key,
+        );
+
+        assert!(
+            alice_secret.is_none(),
+            "We should reject shared secrets that are made from non-contributory keys"
+        );
+
+        let bob_secret = RemoteShared3DHSecret::new(
+            &bob_identity,
+            &bob_one_time,
+            &non_contributory_key,
+            &PublicKey::from(&alice_one_time),
+        );
+
+        assert!(
+            bob_secret.is_none(),
+            "We should reject shared secrets that are made from non-contributory keys"
+        );
     }
 }
