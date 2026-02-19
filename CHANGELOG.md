@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased] - ReleaseDate
 
+### Features
+
+- [**BREAKING**] The strict-signatures feature has become the default
+  configuration. Support for non-strict signature verification has been removed.
+  ([#299](https://github.com/matrix-org/vodozemac/pull/299)).
+
 ### Bug Fixes
 
 - [**BREAKING**] The `default()` implementations for `olm::SessionConfig` and
