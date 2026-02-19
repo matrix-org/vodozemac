@@ -26,7 +26,27 @@ use crate::olm::{
     session_config::Version,
 };
 
+/// The maximum number of message keys that can be skipped in a single receiver
+/// chain.
 pub(crate) const MAX_MESSAGE_GAP: u64 = 2000;
+
+/// The maximum number of message keys to retain when messages arrive out of
+/// order.
+///
+/// For example, if we receive a message with chain index 2, we will cache the
+/// skipped message keys for chain indices 0 and 1.
+///
+/// This limit applies per receiver chain. With the current configuration,
+/// that results in storing up to 200 skipped message keys in total.
+///
+/// Matrix servers buffer messages and generally attempt to deliver them in
+/// send order. In practice, this limit does not need to be higher. Increasing
+/// it would add risk without providing any meaningful benefit.
+/// The number of message keys we'll store if we receive an out of order
+/// message.
+///
+/// More info on the tradeofs can be found in the double ratchet spec:
+/// https://signal.org/docs/specifications/doubleratchet/#deletion-of-skipped-message-keys
 pub(crate) const MAX_MESSAGE_KEYS: usize = 40;
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -179,8 +199,18 @@ impl ReceiverChain {
             // Advance the ratchet up until our desired point.
             while ratchet.chain_index() < chain_index {
                 if chain_index - ratchet.chain_index() > MAX_MESSAGE_KEYS as u64 {
+                    // If we're still too many messages away for us to save the skipped message
+                    // keys just advance the ratchet by one index. This avoids the expansion of a
+                    // message key we're going to throw away.
+                    //
+                    // NOTE: Messages that were encrypted with the chain index of this loop
+                    // iteration will not have their message key anymore around. This does not mean
+                    // that any messages new messages, following the message at `chain_index`, will
+                    // be undecryptable.
                     ratchet.advance();
                 } else {
+                    // Otherwise advance the ratchet using the `create_message_key()` method and
+                    // store the skipped key.
                     let key = ratchet.create_message_key();
                     skipped_keys.push(key);
                 }
