@@ -8,11 +8,16 @@ All notable changes to this project will be documented in this file.
 
 ### Features
 
+- [**BREAKING**] The `CurvePublicSecretKey.diffie_hellman()` method now returns
+  an `Option`. This change makes the `Account::create_outbound_session()` and
+  `Session::encrypt()` methods fallible.
+  ([#298](https://github.com/matrix-org/vodozemac/pull/298)).
 - [**BREAKING**] Remove the `strict-signatures` feature flag. Strict Ed25519
   signature checking is now the default. Support for non-strict signature
   verification has been removed. This will not affect honestly generated
   signatures but could start newly rejecting maliciously generated signatures.
   ([#299](https://github.com/matrix-org/vodozemac/pull/299)).
+
 
 ### Bug Fixes
 
