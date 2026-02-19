@@ -220,7 +220,7 @@ impl TryFrom<&[u8]> for Message {
             let inner = ProtoBufMessage::decode(
                 value
                     .get(1..value.len() - mac_length)
-                    .ok_or_else(|| DecodeError::MessageTooShort(value.len()))?,
+                    .ok_or(DecodeError::MessageTooShort(value.len()))?,
             )?;
 
             let mac_slice = &value[value.len() - mac_length..];
@@ -276,12 +276,12 @@ impl ProtoBufMessage {
 
         [
             [version].as_ref(),
-            Self::RATCHET_TAG.as_ref(),
+            Self::RATCHET_TAG.as_slice(),
             &ratchet_len,
             &self.ratchet_key,
-            Self::INDEX_TAG.as_ref(),
+            Self::INDEX_TAG.as_slice(),
             &index,
-            Self::CIPHER_TAG.as_ref(),
+            Self::CIPHER_TAG.as_slice(),
             &ciphertext_len,
             &self.ciphertext,
         ]
@@ -312,8 +312,8 @@ mod test {
         let mut encoded = Message::new_truncated_mac(ratchet_key, chain_index, ciphertext.to_vec());
         encoded.mac = (*b"MACHEREE").into();
 
-        assert_eq!(encoded.to_mac_bytes(), message.as_ref());
-        assert_eq!(encoded.to_bytes(), message_mac.as_ref());
+        assert_eq!(encoded.to_mac_bytes(), message.as_slice());
+        assert_eq!(encoded.to_bytes(), message_mac.as_slice());
         assert_eq!(encoded.ciphertext(), ciphertext.to_vec());
         assert_eq!(encoded.chain_index(), chain_index);
         assert_eq!(encoded.version(), MAC_TRUNCATED_VERSION);

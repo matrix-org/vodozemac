@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![allow(unused_assignments)]
+
 //! Implementation of an integrated encryption scheme.
 //!
 //! This module implements
@@ -78,14 +80,9 @@
 //! # Ok::<(), anyhow::Error>(())
 //! ```
 
-// TODO: Remove this when either clippy stops being annoying or the Zeroize derives properly
-// silence the clippy warning.
-// See this comment for more info: https://github.com/matrix-org/vodozemac/pull/259#issuecomment-3400639839
-#![allow(unused)]
-
 use chacha20poly1305::{ChaCha20Poly1305, Key as Chacha20Key, KeyInit, Nonce, aead::Aead};
 use hkdf::Hkdf;
-use rand::thread_rng;
+use rand::rng;
 use sha2::Sha512;
 use thiserror::Error;
 use x25519_dalek::{EphemeralSecret, SharedSecret};
@@ -137,10 +134,7 @@ impl EciesNonce {
         let mut nonce = [0u8; 12];
         nonce.copy_from_slice(&current.to_le_bytes()[..12]);
 
-        #[allow(clippy::expect_used)]
-        #[allow(deprecated)]
-        Nonce::from_exact_iter(nonce)
-            .expect("We should be able to construct the correct nonce from a 12 byte slice")
+        Nonce::from_iter(nonce)
     }
 }
 
@@ -244,8 +238,8 @@ impl Ecies {
     /// The application info will be used to derive the various secrets and
     /// provide domain separation.
     pub fn with_info(info: &str) -> Self {
-        let rng = thread_rng();
-        let secret_key = EphemeralSecret::random_from_rng(rng);
+        let mut rng = rng();
+        let secret_key = EphemeralSecret::random_from_rng(&mut rng);
         let application_info_prefix = info.to_owned();
 
         Self { secret_key, application_info_prefix }

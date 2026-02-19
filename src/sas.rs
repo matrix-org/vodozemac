@@ -52,8 +52,8 @@
 //! [ZRTP]: https://tools.ietf.org/html/rfc6189#section-4.4.1
 
 use hkdf::Hkdf;
-use hmac::{Hmac, Mac as _, digest::MacError};
-use rand::thread_rng;
+use hmac::{Hmac, KeyInit, Mac as _, digest::MacError};
+use rand::rng;
 use sha2::Sha256;
 use thiserror::Error;
 use x25519_dalek::{EphemeralSecret, SharedSecret};
@@ -221,9 +221,9 @@ impl Sas {
     /// This creates an ephemeral curve25519 keypair that can be used to
     /// establish a shared secret.
     pub fn new() -> Self {
-        let rng = thread_rng();
+        let mut rng = rng();
 
-        let secret_key = EphemeralSecret::random_from_rng(rng);
+        let secret_key = EphemeralSecret::random_from_rng(&mut rng);
         let public_key = Curve25519PublicKey::from(&secret_key);
 
         Self { secret_key, public_key }

@@ -22,7 +22,7 @@ use ed25519_dalek::Verifier;
 use ed25519_dalek::{
     PUBLIC_KEY_LENGTH, SIGNATURE_LENGTH, Signature, Signer, SigningKey, VerifyingKey,
 };
-use rand::thread_rng;
+use rand::rng;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_bytes::{ByteBuf as SerdeByteBuf, Bytes as SerdeBytes};
 use sha2::Sha512;
@@ -129,7 +129,7 @@ impl<'d> Deserialize<'d> for ExpandedSecretKey {
 impl Ed25519Keypair {
     /// Create a new, random, `Ed25519Keypair`.
     pub fn new() -> Self {
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let signing_key = SigningKey::generate(&mut rng);
 
         Self {
@@ -161,6 +161,8 @@ impl Ed25519Keypair {
 
     #[cfg(feature = "libolm-compat")]
     pub(crate) fn expanded_secret_key(&self) -> Box<[u8; 64]> {
+        use std::ops::DerefMut;
+
         use sha2::Digest;
 
         let mut expanded = Box::new([0u8; 64]);
@@ -168,7 +170,8 @@ impl Ed25519Keypair {
         match &self.secret_key {
             SecretKeys::Normal(k) => {
                 let mut k = k.to_bytes();
-                Sha512::new().chain_update(k).finalize_into(expanded.as_mut_slice().into());
+                Sha512::new().chain_update(k).finalize_into(expanded.deref_mut().into());
+
                 k.zeroize();
             }
             SecretKeys::Expanded(k) => expanded.copy_from_slice(k.as_bytes()),
@@ -208,7 +211,7 @@ impl Ed25519SecretKey {
 
     /// Create a new random `Ed25519SecretKey`.
     pub fn new() -> Self {
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let signing_key = SigningKey::generate(&mut rng);
         let key = Box::new(signing_key);
 
