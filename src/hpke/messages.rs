@@ -37,18 +37,33 @@ impl InitialMessage {
     /// This prepends the Curve25519 public key bytes to the ciphertext bytes
     /// before it base64 encodes the bytestring.
     pub fn encode(&self) -> String {
-        let Self { encapsulated_key, ciphertext } = self;
-
-        let bytes = [encapsulated_key.to_bytes().as_slice(), ciphertext].concat();
+        let bytes = self.to_bytes();
 
         base64_encode(bytes)
     }
 
     /// Attempt do decode a string into a [`InitialMessage`].
     pub fn decode(message: &str) -> Result<Self, MessageDecodeError> {
-        let (encapsulated_key, ciphertext) = decode_message_with_byte_prefix(message)?;
+        let bytes = base64_decode(message)?;
 
-        Ok(Self { encapsulated_key: Curve25519PublicKey::from_bytes(encapsulated_key), ciphertext })
+        Self::from_bytes(&bytes)
+    }
+
+    /// Encode the message as a byte vector.
+    ///
+    /// This prepends the Curve25519 public key bytes to the ciphertext bytes.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let Self { encapsulated_key, ciphertext } = self;
+
+        [encapsulated_key.to_bytes().as_slice(), ciphertext].concat()
+    }
+
+    /// Attempt do decode a slice of bytes into a [`InitialMessage`].
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, MessageDecodeError> {
+        let (encapsulated_key, ciphertext) = decode_message_with_byte_prefix(bytes)?;
+        let encapsulated_key = Curve25519PublicKey::from_bytes(encapsulated_key);
+
+        Ok(Self { encapsulated_key, ciphertext })
     }
 }
 
@@ -70,26 +85,36 @@ impl InitialResponse {
     /// This prepends the base response nonce bytes to the ciphertext bytes
     /// before it base64 encodes the bytestring.
     pub fn encode(&self) -> String {
-        let Self { base_response_nonce, ciphertext } = self;
-
-        let bytes = [base_response_nonce.as_slice(), ciphertext].concat();
+        let bytes = self.to_bytes();
 
         base64_encode(bytes)
     }
 
     /// Attempt do decode a string into a [`InitialResponse`].
     pub fn decode(message: &str) -> Result<Self, MessageDecodeError> {
-        let (base_response_nonce, ciphertext) = decode_message_with_byte_prefix(message)?;
+        let bytes = base64_decode(message)?;
+        Self::from_bytes(&bytes)
+    }
+
+    /// Attempt do decode a slice of bytes into a [`InitialResponse`].
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, MessageDecodeError> {
+        let (base_response_nonce, ciphertext) = decode_message_with_byte_prefix(bytes)?;
 
         Ok(Self { base_response_nonce, ciphertext })
+    }
+
+    /// Encode the message as a byte vector.
+    ///
+    /// This prepends the base response nonce to the ciphertext bytes.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let Self { base_response_nonce, ciphertext } = self;
+        [base_response_nonce.as_slice(), ciphertext].concat()
     }
 }
 
 fn decode_message_with_byte_prefix(
-    message: &str,
+    bytes: &[u8],
 ) -> Result<([u8; 32], Vec<u8>), MessageDecodeError> {
-    let bytes = base64_decode(message)?;
-
     bytes
         .split_first_chunk::<32>()
         .map(|(nonce, ciphertext)| (nonce.to_owned(), ciphertext.to_owned()))
