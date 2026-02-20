@@ -121,7 +121,7 @@ impl Message {
 mod test {
     use super::*;
 
-    const INITIAL_MESSAGE: &str = "3On7QFJyLQMAErua9K/yIOcJALvuMYax1AW0iWgf64AwtSMZXwAA012Q|9yA/CX8pJKF02Prd75ZyBQHg3fGTVVGDNl86q1z17Us";
+    const INITIAL_MESSAGE: &str = "9yA/CX8pJKF02Prd75ZyBQHg3fGTVVGDNl86q1z17Uvc6ftAUnItAwASu5r0r/Ig5wkAu+4xhrHUBbSJaB/rgDC1IxlfAADTXZA";
     const MESSAGE: &str = "ZmtSLdzMcyjC5eV6L8xBI6amsq7gDNbCjz1W5OjX4Z8W";
     const PUBLIC_KEY: &str = "9yA/CX8pJKF02Prd75ZyBQHg3fGTVVGDNl86q1z17Us";
 
@@ -138,6 +138,8 @@ mod test {
 
         let encoded = message.encode();
         assert_eq!(INITIAL_MESSAGE, encoded);
+
+        InitialMessage::decode("").expect_err("An empty message should fail to be decoded");
     }
 
     #[test]
