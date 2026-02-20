@@ -336,10 +336,12 @@ mod tests {
         let alice = HpkeSenderChannel::new();
         let bob = HpkeRecipientChannel::new();
 
+        let bob_public_key = bob.public_key();
+
         let plaintext = b"It's a secret to everybody";
 
         let SenderCreationResult { channel: alice, message, .. } =
-            alice.establish_channel(bob.public_key(), plaintext, &[]);
+            alice.establish_channel(bob_public_key, plaintext, &[]);
 
         assert_ne!(message.ciphertext, plaintext);
 
@@ -351,15 +353,49 @@ mod tests {
 
         let plaintext = b"Not a secret to me!";
 
-        let BidirectionalCreationResult { message: initial_response, .. } =
+        let BidirectionalCreationResult { message: initial_response, channel: mut bob } =
             bob.establish_bidirectional_channel(plaintext, &[]);
         assert_ne!(initial_response.ciphertext, plaintext);
 
-        let BidirectionalCreationResult { message: decrypted, .. } = alice
+        let BidirectionalCreationResult { message: decrypted, channel: mut alice } = alice
             .establish_bidirectional_channel(&initial_response, &[])
             .expect("We should be able to decrypt the initial response");
 
         assert_eq!(decrypted, plaintext);
+        assert_eq!(
+            alice.check_code(),
+            bob.check_code(),
+            "Alice and Bob should derive the same check code"
+        );
+
+        assert_eq!(
+            bob_public_key,
+            bob.public_key(),
+            "The public key should stay the same even after the bidirectional channel has been established"
+        );
+
+        assert_eq!(bob.their_public_key(), alice.public_key());
+
+        // Further messages can also be exchanged.
+        let plaintext = b"Fully";
+        let message = bob.seal(plaintext, &[]);
+        let decrypted =
+            alice.open(&message, &[]).expect("Alice should be able to open Bob's latest message");
+
+        assert_eq!(plaintext.as_slice(), decrypted);
+
+        alice.open(&message, &[]).expect_err("Replaying a message should not be possible");
+
+        let message = alice.seal(plaintext, b"some additional data");
+        bob.open(&message, &[]).expect_err(
+            "Bob should not be able to decrypt a message without providing the same AAD",
+        );
+
+        let message = bob
+            .open(&message, b"some additional data")
+            .expect("Bob should be able to decrypt Alice's final message");
+
+        assert_eq!(message, plaintext);
     }
 
     #[test]
