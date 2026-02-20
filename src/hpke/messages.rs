@@ -138,7 +138,13 @@ impl Message {
 
     /// Attempt do decode a base64 string into a [`Message`].
     pub fn decode(message: &str) -> Result<Self, MessageDecodeError> {
-        Ok(Self { ciphertext: base64_decode(message)? })
+        let ciphertext = base64_decode(message)?;
+
+        if ciphertext.is_empty() {
+            Err(MessageDecodeError::MessageIncomplete)
+        } else {
+            Ok(Self { ciphertext })
+        }
     }
 }
 
@@ -191,5 +197,7 @@ mod test {
 
         let encoded = message.encode();
         assert_eq!(MESSAGE, encoded);
+
+        Message::decode("").expect_err("An empty message should fail to be decoded");
     }
 }
