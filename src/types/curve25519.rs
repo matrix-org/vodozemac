@@ -63,6 +63,10 @@ impl Curve25519SecretKey {
 
         key
     }
+
+    pub(crate) fn as_bytes(&self) -> &[u8; 32] {
+        self.0.as_bytes()
+    }
 }
 
 impl Default for Curve25519SecretKey {

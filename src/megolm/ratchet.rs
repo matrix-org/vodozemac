@@ -14,7 +14,7 @@
 // limitations under the License.
 
 use hmac::{Hmac, KeyInit, Mac as _};
-use rand::{RngCore, rng};
+use rand::{Rng, rng};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Sha256, digest::CtOutput};
 use subtle::{Choice, ConstantTimeEq};

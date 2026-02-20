@@ -90,6 +90,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 pub use self::messages::{InitialMessage, Message, MessageDecodeError};
 use crate::Curve25519PublicKey;
+pub use crate::hpke::CheckCode;
 
 mod messages;
 
@@ -135,56 +136,6 @@ impl EciesNonce {
         nonce.copy_from_slice(&current.to_le_bytes()[..12]);
 
         Nonce::from_iter(nonce)
-    }
-}
-
-/// A check code that can be used to confirm that two [`EstablishedEcies`]
-/// objects share the same secret. This is supposed to be shared out-of-band to
-/// protect against active MITM attacks.
-///
-/// Since the initiator device can always tell whether a MITM attack is in
-/// progress after channel establishment, this code technically carries only a
-/// single bit of information, representing whether the initiator has determined
-/// that the channel is "secure" or "not secure".
-///
-/// However, given this will need to be interactively confirmed by the user,
-/// there is risk that the user would confirm the dialogue without paying
-/// attention to its content. By expanding this single bit into a deterministic
-/// two-digit check code, the user is forced to pay more attention by having to
-/// enter it instead of just clicking through a dialogue.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckCode {
-    bytes: [u8; 2],
-}
-
-impl CheckCode {
-    /// Convert the check code to an array of two bytes.
-    ///
-    /// The bytes can be converted to a more user-friendly representation. The
-    /// [`CheckCode::to_digit`] converts the bytes to a two-digit number.
-    pub const fn as_bytes(&self) -> &[u8; 2] {
-        &self.bytes
-    }
-
-    /// Convert the check code to two base-10 numbers.
-    ///
-    /// The number should be displayed with a leading 0 in case the first digit
-    /// is a 0.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use vodozemac::ecies::CheckCode;
-    /// # let check_code: CheckCode = unimplemented!();
-    /// let check_code = check_code.to_digit();
-    ///
-    /// println!("The check code of the IECS channel is: {check_code:02}");
-    /// ```
-    pub const fn to_digit(&self) -> u8 {
-        let first = (self.bytes[0] % 10) * 10;
-        let second = self.bytes[1] % 10;
-
-        first + second
     }
 }
 
