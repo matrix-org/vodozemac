@@ -25,7 +25,7 @@ jobs:
         run: cargo codspeed build
 
       - name: Run the benchmarks
-        uses: CodSpeedHQ/action@e736f0d2aeb36da38e9f08eca4dff7967408d154
+        uses: CodSpeedHQ/action@2ac572851726409c88c02a307f1ea2632a9ea59b
         with:
           run: cargo codspeed run
           mode: "instrumentation"
