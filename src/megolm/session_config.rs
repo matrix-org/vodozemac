@@ -24,6 +24,7 @@ pub struct SessionConfig {
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub(super) enum Version {
     V1 = 1,
+    #[cfg(feature = "experimental-session-config")]
     V2 = 2,
 }
 
@@ -43,6 +44,7 @@ impl SessionConfig {
     /// Create a `SessionConfig` for the Megolm version 2. This version of
     /// Megolm uses AES-256 and HMAC to encrypt individual messages. The MAC
     /// won't be truncated.
+    #[cfg(feature = "experimental-session-config")]
     pub const fn version_2() -> Self {
         SessionConfig { version: Version::V2 }
     }
@@ -61,6 +63,7 @@ mod test {
     #[test]
     fn version() {
         assert_eq!(SessionConfig::version_1().version(), Version::V1 as u8);
+        #[cfg(feature = "experimental-session-config")]
         assert_eq!(SessionConfig::version_2().version(), Version::V2 as u8);
     }
 }

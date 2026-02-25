@@ -118,6 +118,7 @@ impl Message {
         base64_encode(self.to_bytes())
     }
 
+    #[cfg(feature = "experimental-session-config")]
     pub(crate) fn new(
         ratchet_key: Curve25519PublicKey,
         chain_index: u64,

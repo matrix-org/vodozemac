@@ -66,6 +66,20 @@ pub enum SessionCreationError {
         expected {0}, got {1}"
     )]
     MismatchedIdentityKey(Curve25519PublicKey, Curve25519PublicKey),
+    /// The pre-key message was encrypted with a Session which used a unexpected
+    /// SessionConfig.
+    #[error(
+        "The given identity key doesn't match the one in the pre-key message: \
+        expected {expected:?}, got {got:?}"
+    )]
+    MismatchedSessionConfig {
+        /// The [`SessionConfig`] we expected.
+        expected: SessionConfig,
+        /// The [`SessionConfig`] the pre-key message was encrypted with.
+        ///
+        /// Will be `None` if we don't understand the received config.
+        got: Option<SessionConfig>,
+    },
     /// The pre-key message that was used to establish the [`Session`] couldn't
     /// be decrypted. The message needs to be decryptable, otherwise we will
     /// have created a Session that wasn't used to encrypt the pre-key
@@ -230,6 +244,7 @@ impl Account {
     /// identity key
     pub fn create_inbound_session(
         &mut self,
+        expected_config: SessionConfig,
         their_identity_key: Curve25519PublicKey,
         pre_key_message: &PreKeyMessage,
     ) -> Result<InboundCreationResult, SessionCreationError> {
@@ -239,6 +254,30 @@ impl Account {
                 pre_key_message.identity_key(),
             ))
         } else {
+            let config = if pre_key_message.message.mac_truncated() {
+                SessionConfig::version_1()
+            } else {
+                #[cfg(feature = "experimental-session-config")]
+                {
+                    SessionConfig::version_2()
+                }
+
+                #[cfg(not(feature = "experimental-session-config"))]
+                {
+                    return Err(SessionCreationError::MismatchedSessionConfig {
+                        expected: expected_config,
+                        got: None,
+                    });
+                }
+            };
+
+            if config != expected_config {
+                return Err(SessionCreationError::MismatchedSessionConfig {
+                    expected: expected_config,
+                    got: Some(config),
+                });
+            }
+
             // Find the matching private part of the OTK that the message claims
             // was used to create the session that encrypted it.
             let public_otk = pre_key_message.one_time_key();
@@ -259,12 +298,6 @@ impl Account {
                 identity_key: pre_key_message.identity_key(),
                 base_key: pre_key_message.base_key(),
                 one_time_key: pre_key_message.one_time_key(),
-            };
-
-            let config = if pre_key_message.message.mac_truncated() {
-                SessionConfig::version_1()
-            } else {
-                SessionConfig::version_2()
             };
 
             // Create a Session, AKA a double ratchet, this one will have an
@@ -1083,8 +1116,7 @@ mod test {
         Ok(())
     }
 
-    #[test]
-    fn vodozemac_vodozemac_communication() -> Result<()> {
+    fn vodozemac_vodozemac_communication(session_config: SessionConfig) -> Result<()> {
         // Both of these are vodozemac accounts.
         let alice = Account::new();
         let mut bob = Account::new();
@@ -1092,7 +1124,7 @@ mod test {
         bob.generate_one_time_keys(1);
 
         let mut alice_session = alice.create_outbound_session(
-            SessionConfig::version_2(),
+            session_config,
             bob.curve25519_key(),
             *bob.one_time_keys()
                 .iter()
@@ -1113,7 +1145,7 @@ mod test {
             assert_eq!(m.session_id(), alice_session.session_id());
 
             let InboundCreationResult { session: mut bob_session, plaintext } =
-                bob.create_inbound_session(alice.curve25519_key(), &m)?;
+                bob.create_inbound_session(session_config, alice.curve25519_key(), &m)?;
             assert_eq!(alice_session.session_id(), bob_session.session_id());
             assert_eq!(m.session_keys(), bob_session.session_keys());
 
@@ -1147,6 +1179,17 @@ mod test {
     }
 
     #[test]
+    fn vodozemac_vodozemac_communication_session_config_v1() -> Result<()> {
+        vodozemac_vodozemac_communication(SessionConfig::version_1())
+    }
+
+    #[test]
+    #[cfg(feature = "experimental-session-config")]
+    fn vodozemac_vodozemac_communication_session_config_v2() -> Result<()> {
+        vodozemac_vodozemac_communication(SessionConfig::version_2())
+    }
+
+    #[test]
     fn inbound_session_creation() -> Result<()> {
         let alice = OlmAccount::new();
         let mut bob = Account::new();
@@ -1167,7 +1210,7 @@ mod test {
         let identity_key = PublicKey::from_base64(alice.parsed_identity_keys().curve25519())?;
 
         let InboundCreationResult { session, plaintext } = if let OlmMessage::PreKey(m) = &message {
-            bob.create_inbound_session(identity_key, m)?
+            bob.create_inbound_session(SessionConfig::version_1(), identity_key, m)?
         } else {
             bail!("Got invalid message type from olm_rs {:?}", message);
         };
@@ -1203,7 +1246,7 @@ mod test {
 
         if let OlmMessage::PreKey(m) = &message {
             let InboundCreationResult { session, plaintext } =
-                bob.create_inbound_session(identity_key, m)?;
+                bob.create_inbound_session(SessionConfig::version_1(), identity_key, m)?;
 
             assert_eq!(m.session_keys(), session.session_keys());
             assert_eq!(alice_session.session_id(), session.session_id());
@@ -1392,7 +1435,11 @@ mod test {
 
             let message = PreKeyMessage::try_from(message)?;
 
-            match alice.create_inbound_session(malory.curve25519_key(), &message) {
+            match alice.create_inbound_session(
+                SessionConfig::version_1(),
+                malory.curve25519_key(),
+                &message,
+            ) {
                 Err(SessionCreationError::Decryption(_)) => {}
                 e => bail!("Expected a decryption error, got {:?}", e),
             }
@@ -1519,14 +1566,22 @@ mod test {
         // make sure we can decrypt both messages
         assert_matches!(bob_olm_message, OlmMessage::PreKey(prekey_message));
         let InboundCreationResult { session: alice_session, plaintext } = alice_rehydrated
-            .create_inbound_session(bob.curve25519_key(), &prekey_message)
+            .create_inbound_session(
+                SessionConfig::version_1(),
+                bob.curve25519_key(),
+                &prekey_message,
+            )
             .expect("Alice should be able to create an inbound session from Bob's pre-key message");
         assert_eq!(alice_session.session_id(), bob_session.session_id());
         assert_eq!(message.as_bytes(), plaintext);
 
         assert_matches!(carol_olm_message, OlmMessage::PreKey(prekey_message));
         let InboundCreationResult { session: alice_session, plaintext } = alice_rehydrated
-            .create_inbound_session(carol.curve25519_key(), &prekey_message)
+            .create_inbound_session(
+                SessionConfig::version_1(),
+                carol.curve25519_key(),
+                &prekey_message,
+            )
             .expect(
                 "Alice should be able to create an inbound session from Carol's pre-key message",
             );
@@ -1612,5 +1667,40 @@ mod test {
             Account::from_decrypted_dehydrated_device(&encoded).expect("Should rehydrate account");
 
         assert_eq!(alice.identity_keys(), account.identity_keys());
+    }
+
+    #[cfg(feature = "experimental-session-config")]
+    #[test]
+    fn vodozemac_incorrect_session_config() {
+        // Both of these are vodozemac accounts.
+        let alice = Account::new();
+        let mut bob = Account::new();
+
+        bob.generate_one_time_keys(1);
+        let one_time_key =
+            *bob.one_time_keys().values().next().expect("Bob should have generated a one-time key");
+
+        let mut alice_session = alice.create_outbound_session(
+            SessionConfig::version_1(),
+            bob.curve25519_key(),
+            one_time_key,
+        );
+
+        let message = "It's a secret to everybody";
+        let pre_key_message = alice_session.encrypt(message);
+
+        assert_matches2::assert_let!(OlmMessage::PreKey(pre_key_message) = pre_key_message);
+
+        let result = bob.create_inbound_session(
+            SessionConfig::version_2(),
+            alice.curve25519_key(),
+            &pre_key_message,
+        );
+
+        assert_matches!(
+            result,
+            Err(SessionCreationError::MismatchedSessionConfig { .. }),
+            "We should not create a session if the incorrect session config was used"
+        );
     }
 }

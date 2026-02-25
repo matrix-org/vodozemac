@@ -60,7 +60,7 @@
 //!     let bob_otk = *bob.one_time_keys().values().next().unwrap();
 //!
 //!     let mut alice_session = alice
-//!         .create_outbound_session(SessionConfig::version_2(), bob.curve25519_key(), bob_otk);
+//!         .create_outbound_session(SessionConfig::version_1(), bob.curve25519_key(), bob_otk);
 //!
 //!     bob.mark_keys_as_published();
 //!
@@ -68,7 +68,7 @@
 //!     let alice_msg = alice_session.encrypt(message);
 //!
 //!     if let OlmMessage::PreKey(m) = alice_msg.clone() {
-//!         let result = bob.create_inbound_session(alice.curve25519_key(), &m)?;
+//!         let result = bob.create_inbound_session(SessionConfig::version_1(), alice.curve25519_key(), &m)?;
 //!
 //!         let mut bob_session = result.session;
 //!         let what_bob_received = result.plaintext;

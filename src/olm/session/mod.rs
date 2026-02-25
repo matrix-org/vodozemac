@@ -232,6 +232,7 @@ impl Session {
     pub fn encrypt(&mut self, plaintext: impl AsRef<[u8]>) -> OlmMessage {
         let message = match self.config.version {
             Version::V1 => self.sending_ratchet.encrypt_truncated_mac(plaintext.as_ref()),
+            #[cfg(feature = "experimental-session-config")]
             Version::V2 => self.sending_ratchet.encrypt(plaintext.as_ref()),
         };
 
