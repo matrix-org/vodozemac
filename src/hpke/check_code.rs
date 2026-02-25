@@ -26,6 +26,12 @@
 /// attention to its content. By expanding this single bit into a deterministic
 /// two-digit check code, the user is forced to pay more attention by having to
 /// enter it instead of just clicking through a dialogue.
+///
+/// An example protocol which uses the [`CheckCode`] for out of band
+/// confirmation can be found in [MSC4108] and [MSC4388].
+///
+/// [MSC4108]: https://github.com/matrix-org/matrix-spec-proposals/pull/4108
+/// [MSC4388]: https://github.com/matrix-org/matrix-spec-proposals/pull/4388
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckCode {
     pub(crate) bytes: [u8; 2],
