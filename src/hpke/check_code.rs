@@ -48,9 +48,6 @@ impl CheckCode {
 
     /// Convert the check code to two base-10 numbers.
     ///
-    /// The number should be displayed with a leading 0 in case the first digit
-    /// is a 0.
-    ///
     /// # Examples
     ///
     /// ```no_run
@@ -58,10 +55,10 @@ impl CheckCode {
     /// # let check_code: CheckCode = unimplemented!();
     /// let check_code = check_code.to_digit();
     ///
-    /// println!("The check code of the HPKE channel is: {check_code:02}");
+    /// println!("The check code of the HPKE channel is: {check_code:12}");
     /// ```
     pub const fn to_digit(&self) -> u8 {
-        let first = (self.bytes[0] % 10) * 10;
+        let first = ((self.bytes[0] % 9) + 1) * 10;
         let second = self.bytes[1] % 10;
 
         first + second
@@ -78,7 +75,7 @@ mod tests {
     fn check_code() {
         let check_code = CheckCode { bytes: [0x0, 0x0] };
         let digit = check_code.to_digit();
-        assert_eq!(digit, 0, "Two zero bytes should generate a 0 digit");
+        assert_eq!(digit, 10, "Two zero bytes should generate a 10 digit");
         assert_eq!(
             check_code.as_bytes(),
             &[0x0, 0x0],
@@ -92,7 +89,7 @@ mod tests {
             &[0x9, 0x9],
             "CheckCode::as_bytes() should return the exact bytes we generated."
         );
-        assert_eq!(digit, 99);
+        assert_eq!(digit, 19, "Two 0x9 bytes should generate a 19 digit");
 
         let check_code = CheckCode { bytes: [0xff, 0xff] };
         let digit = check_code.to_digit();
@@ -101,7 +98,7 @@ mod tests {
             &[0xff, 0xff],
             "CheckCode::as_bytes() should return the exact bytes we generated."
         );
-        assert_eq!(digit, 55, "u8::MAX should generate 55");
+        assert_eq!(digit, 45, "u8::MAX should generate 45");
     }
 
     proptest! {
@@ -114,8 +111,8 @@ mod tests {
             let digit = check_code.to_digit();
 
             prop_assert!(
-                (0..=99).contains(&digit),
-                "The digit should be in the 0-99 range"
+                (10..=99).contains(&digit),
+                "The digit should be in the 10-99 range"
             );
         }
     }
