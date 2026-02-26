@@ -37,6 +37,24 @@ pub struct CheckCode {
     pub(crate) bytes: [u8; 2],
 }
 
+/// Enum controlling how the [`CheckCode`] should be represented as digits.
+pub enum DigitMode {
+    /// Allow a zero to be the first digit.
+    ///
+    /// This corresponds to the way the digits were used in the initial version
+    /// of [MSC4108].
+    ///
+    /// [MSC4108]: https://github.com/matrix-org/matrix-spec-proposals/pull/4108
+    AllowLeadingZero,
+
+    /// Don't allow a leading zero.
+    ///
+    /// This corresponds to the way the digits are defined in [MSC4388].
+    ///
+    /// [MSC4388]: https://github.com/matrix-org/matrix-spec-proposals/pull/4388
+    NoLeadingZero,
+}
+
 impl CheckCode {
     /// Convert the check code to an array of two bytes.
     ///
@@ -54,14 +72,17 @@ impl CheckCode {
     /// # Examples
     ///
     /// ```no_run
-    /// # use vodozemac::hpke::CheckCode;
+    /// # use vodozemac::hpke::{CheckCode, DigitMode};
     /// # let check_code: CheckCode = unimplemented!();
-    /// let check_code = check_code.to_digit();
+    /// let check_code = check_code.to_digit(DigitMode::NoLeadingZero);
     ///
     /// println!("The check code of the HPKE channel is: {check_code:02}");
     /// ```
-    pub const fn to_digit(&self) -> u8 {
-        let first = (self.bytes[0] % 10) * 10;
+    pub const fn to_digit(&self, mode: DigitMode) -> u8 {
+        let first = match mode {
+            DigitMode::AllowLeadingZero => (self.bytes[0] % 10) * 10,
+            DigitMode::NoLeadingZero => ((self.bytes[0] % 9) + 1) * 10,
+        };
         let second = self.bytes[1] % 10;
 
         first + second
@@ -75,9 +96,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn check_code() {
+    fn check_code_with_leading_zero() {
         let check_code = CheckCode { bytes: [0x0, 0x0] };
-        let digit = check_code.to_digit();
+        let digit = check_code.to_digit(DigitMode::AllowLeadingZero);
         assert_eq!(digit, 0, "Two zero bytes should generate a 0 digit");
         assert_eq!(
             check_code.as_bytes(),
@@ -86,7 +107,7 @@ mod tests {
         );
 
         let check_code = CheckCode { bytes: [0x9, 0x9] };
-        let digit = check_code.to_digit();
+        let digit = check_code.to_digit(DigitMode::AllowLeadingZero);
         assert_eq!(
             check_code.as_bytes(),
             &[0x9, 0x9],
@@ -95,7 +116,7 @@ mod tests {
         assert_eq!(digit, 99);
 
         let check_code = CheckCode { bytes: [0xff, 0xff] };
-        let digit = check_code.to_digit();
+        let digit = check_code.to_digit(DigitMode::AllowLeadingZero);
         assert_eq!(
             check_code.as_bytes(),
             &[0xff, 0xff],
@@ -104,14 +125,58 @@ mod tests {
         assert_eq!(digit, 55, "u8::MAX should generate 55");
     }
 
+    #[test]
+    fn check_code_no_leading_zero() {
+        let check_code = CheckCode { bytes: [0x0, 0x0] };
+        let digit = check_code.to_digit(DigitMode::NoLeadingZero);
+        assert_eq!(digit, 10, "Two zero bytes should generate a 10 digit");
+        assert_eq!(
+            check_code.as_bytes(),
+            &[0x0, 0x0],
+            "CheckCode::as_bytes() should return the exact bytes we generated."
+        );
+
+        let check_code = CheckCode { bytes: [0x8, 0x9] };
+        let digit = check_code.to_digit(DigitMode::NoLeadingZero);
+        assert_eq!(
+            check_code.as_bytes(),
+            &[0x8, 0x9],
+            "CheckCode::as_bytes() should return the exact bytes we generated."
+        );
+        assert_eq!(digit, 99);
+
+        let check_code = CheckCode { bytes: [0xff, 0xff] };
+        let digit = check_code.to_digit(DigitMode::NoLeadingZero);
+        assert_eq!(
+            check_code.as_bytes(),
+            &[0xff, 0xff],
+            "CheckCode::as_bytes() should return the exact bytes we generated."
+        );
+        assert_eq!(digit, 45, "u8::MAX should generate 45");
+    }
+
     proptest! {
         #[test]
-        fn check_code_proptest(bytes in prop::array::uniform2(0u8..) ) {
+        fn check_code_proptest_with_leading_zero(bytes in prop::array::uniform2(0u8..) ) {
             let check_code = CheckCode {
                 bytes
             };
 
-            let digit = check_code.to_digit();
+            let digit = check_code.to_digit(DigitMode::AllowLeadingZero);
+
+            prop_assert!(
+                (0..=99).contains(&digit),
+                "The digit should be in the 0-99 range"
+            );
+        }
+
+        #[test]
+        fn check_code_proptest_no_leading_zero(bytes in prop::array::uniform2(0u8..) ) {
+            let check_code = CheckCode {
+                bytes
+            };
+
+            let digit = check_code.to_digit(DigitMode::NoLeadingZero);
 
             prop_assert!(
                 (0..=99).contains(&digit),

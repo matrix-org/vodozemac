@@ -90,7 +90,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 pub use self::messages::{InitialMessage, Message, MessageDecodeError};
 use crate::Curve25519PublicKey;
-pub use crate::hpke::CheckCode;
+pub use crate::hpke::{CheckCode, DigitMode};
 
 mod messages;
 
@@ -568,7 +568,10 @@ mod test {
             "The decrypted plaintext should match our initial plaintext"
         );
         assert_eq!(alice.check_code(), bob.check_code());
-        assert_eq!(alice.check_code().to_digit(), bob.check_code().to_digit());
+        assert_eq!(
+            alice.check_code().to_digit(DigitMode::AllowLeadingZero),
+            bob.check_code().to_digit(DigitMode::AllowLeadingZero)
+        );
 
         let message = bob.encrypt(b"Another plaintext");
 
@@ -630,7 +633,7 @@ mod test {
     #[test]
     fn check_code() {
         let check_code = CheckCode { bytes: [0x0, 0x0] };
-        let digit = check_code.to_digit();
+        let digit = check_code.to_digit(DigitMode::AllowLeadingZero);
         assert_eq!(digit, 0, "Two zero bytes should generate a 0 digit");
         assert_eq!(
             check_code.as_bytes(),
@@ -639,7 +642,7 @@ mod test {
         );
 
         let check_code = CheckCode { bytes: [0x9, 0x9] };
-        let digit = check_code.to_digit();
+        let digit = check_code.to_digit(DigitMode::AllowLeadingZero);
         assert_eq!(
             check_code.as_bytes(),
             &[0x9, 0x9],
@@ -648,7 +651,7 @@ mod test {
         assert_eq!(digit, 99);
 
         let check_code = CheckCode { bytes: [0xff, 0xff] };
-        let digit = check_code.to_digit();
+        let digit = check_code.to_digit(DigitMode::AllowLeadingZero);
         assert_eq!(
             check_code.as_bytes(),
             &[0xff, 0xff],
@@ -713,7 +716,7 @@ mod test {
                 bytes
             };
 
-            let digit = check_code.to_digit();
+            let digit = check_code.to_digit(DigitMode::AllowLeadingZero);
 
             prop_assert!(
                 (0..=99).contains(&digit),
