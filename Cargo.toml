@@ -47,41 +47,43 @@ insecure-pk-encryption = ["libolm-compat"]
 low-level-api = []
 
 [dependencies]
-aes = { version = "0.9.0-rc.2" }
-cipher = { version = "0.5.0-rc.3", features = ["alloc"] }
+aes = { version = "0.9.0-rc.4" }
+cipher = { version = "0.5.0", features = ["alloc"] }
 arrayvec = { version = "0.7.6", features = ["serde"] }
 base64 = "0.22.1"
 base64ct = { version = "1.8.3", features = ["std", "alloc"] }
-cbc = { version = "0.2.0-rc.2" }
-chacha20poly1305 = "0.11.0-rc.2"
-curve25519-dalek = { version = "5.0.0-pre.4", default-features = false, features = ["zeroize"] }
-ed25519-dalek = { version = "3.0.0-pre.4", default-features = false, features = ["rand_core", "serde", "hazmat", "zeroize"] }
-getrandom = "0.3.4"
-hkdf = "0.13.0-rc.3"
-hmac = "0.13.0-rc.3"
+cbc = { version = "0.2.0-rc.3" }
+chacha20poly1305 = "0.11.0-rc.3"
+curve25519-dalek = { version = "5.0.0-pre.6", default-features = false, features = ["zeroize"] }
+ed25519-dalek = { version = "3.0.0-pre.6", default-features = false, features = ["rand_core", "serde", "hazmat", "zeroize"] }
+getrandom = "0.4.1"
+hkdf = "0.13.0-rc.5"
+hmac = "0.13.0-rc.5"
+hpke = { git = "https://github.com/poljar/rust-hpke/", rev = "85f5efbe", features = ["alloc", "x25519", "hazmat-streaming-enc"] }
 matrix-pickle = { version = "0.2.2" }
 prost = "0.14.3"
-rand = "0.10.0-rc.6"
+rand = "0.10.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_bytes = "0.11.19"
 serde_json = "1.0.149"
-sha2 = "0.11.0-rc.3"
+sha2 = "0.11.0-rc.5"
 subtle = "2.6.1"
-thiserror = "2.0.17"
-x25519-dalek = { version = "3.0.0-pre.4", features = ["serde", "reusable_secrets", "static_secrets", "zeroize"] }
+thiserror = "2.0.18"
+x25519-dalek = { version = "3.0.0-pre.6", features = ["serde", "reusable_secrets", "static_secrets", "zeroize"] }
 zeroize = { version = "1.8.2", features = ["derive"] }
 
 [dev-dependencies]
-anyhow = "1.0.100"
+anyhow = "1.0.101"
 assert_matches2 = "0.1.2"
-criterion = { version = "4.2.1", package = "codspeed-criterion-compat" }
+criterion = { version = "4.3.0", package = "codspeed-criterion-compat" }
 ntest = "0.9.5"
 olm-rs = "2.2.0"
-proptest = "1.9.0"
-insta = "1.46.0"
+proptest = "1.10.0"
+insta = "1.46.3"
 
 [patch.crates-io]
 olm-rs = { git = "https://github.com/poljar/olm-rs", rev = "9f7108c3b852c39bf1d0f09ccaafb9a1cf7bb83e" }
+universal-hash = { git = "https://github.com/RustCrypto/traits", rev = "b7a3bbfef1bea8fe765a9203c3956f997c9a43f9" }
 
 [[bench]]
 name = "olm_benchmark"

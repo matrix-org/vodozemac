@@ -1,0 +1,7 @@
+---
+source: src/hpke/sender.rs
+expression: alice
+---
+HpkeSenderChannel {
+    application_info_prefix: "MATRIX_QR_CODE_LOGIN",
+}

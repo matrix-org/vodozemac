@@ -201,6 +201,7 @@ mod utilities;
 
 pub mod ecies;
 pub mod hazmat;
+pub mod hpke;
 pub mod megolm;
 pub mod olm;
 #[cfg(feature = "insecure-pk-encryption")]
