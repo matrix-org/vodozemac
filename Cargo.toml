@@ -59,7 +59,7 @@ ed25519-dalek = { version = "3.0.0-pre.6", default-features = false, features = 
 getrandom = "0.4.1"
 hkdf = "0.13.0-rc.5"
 hmac = "0.13.0-rc.5"
-hpke = { git = "https://github.com/rozbb/rust-hpke/", rev = "08b1cfc142e914b637f929a8b93bd6bab8a63d03", features = ["alloc", "x25519", "hazmat-streaming-enc"] }
+hpke = { git = "https://github.com/poljar/rust-hpke/", rev = "85f5efbe", features = ["alloc", "x25519", "hazmat-streaming-enc"] }
 matrix-pickle = { version = "0.2.2" }
 prost = "0.14.3"
 rand = "0.10.0"
@@ -83,6 +83,7 @@ insta = "1.46.3"
 
 [patch.crates-io]
 olm-rs = { git = "https://github.com/poljar/olm-rs", rev = "9f7108c3b852c39bf1d0f09ccaafb9a1cf7bb83e" }
+universal-hash = { git = "https://github.com/RustCrypto/traits", rev = "b7a3bbfef1bea8fe765a9203c3956f997c9a43f9" }
 
 [[bench]]
 name = "olm_benchmark"

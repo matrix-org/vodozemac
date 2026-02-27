@@ -15,7 +15,6 @@
 use hpke::{
     Deserializable as _, OpModeS, Serializable as _, aead::AeadCtxS, kem::X25519HkdfSha256,
 };
-use rand::rng;
 
 use crate::{
     Curve25519PublicKey,
@@ -77,7 +76,6 @@ impl HpkeSenderChannel {
     ) -> SenderCreationResult {
         let Self { application_info_prefix } = self;
 
-        let mut rng = rng();
         let their_key = convert_public_key(their_public_key);
 
         #[allow(clippy::expect_used)]
@@ -85,7 +83,6 @@ impl HpkeSenderChannel {
             &OpModeS::Base,
             &their_key,
             application_info_prefix.as_bytes(),
-            &mut rng,
         )
         .expect("Encapsulating an X25519 public key never fails since the encapsulation is just the bytes of the public key");
 
