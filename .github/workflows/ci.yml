@@ -5,6 +5,8 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions: {}
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -16,6 +18,8 @@ jobs:
     steps:
     - name: Checkout the repository
       uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+      with:
+        persist-credentials: false
 
     - name: Install rust
       uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
@@ -33,6 +37,8 @@ jobs:
     steps:
     - name: Checkout the repository
       uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+      with:
+        persist-credentials: false
 
     - name: Check the spelling of the files in our repo
       uses: crate-ci/typos@65120634e79d8374d1aa2f27e54baa0c364fff5a
@@ -45,6 +51,8 @@ jobs:
     steps:
     - name: Checkout the repository
       uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+      with:
+        persist-credentials: false
 
     - name: Install rust
       uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
@@ -68,6 +76,8 @@ jobs:
     steps:
     - name: Checkout the repository
       uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+      with:
+        persist-credentials: false
 
     - name: Install Rust
       uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
@@ -103,6 +113,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+        with:
+          persist-credentials: false
 
       - name: Install rust
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
