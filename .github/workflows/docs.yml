@@ -5,14 +5,19 @@ on:
     branches: [main]
   pull_request:
 
+permissions: {}
+
 jobs:
   docs:
     name: docs
     runs-on: ubuntu-latest
+    permissions: { contents: write }
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+        with:
+          persist-credentials: false
 
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
