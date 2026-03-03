@@ -10,6 +10,8 @@ permissions: {}
 jobs:
   cargo-mutants:
     runs-on: ubuntu-latest
+    name: cargo-mutants (full)
+
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
         with:

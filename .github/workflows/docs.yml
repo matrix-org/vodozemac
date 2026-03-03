@@ -11,6 +11,8 @@ jobs:
   docs:
     name: docs
     runs-on: ubuntu-latest
+
+    # Needs write access for the Deploy step
     permissions: { contents: write }
 
     steps:
