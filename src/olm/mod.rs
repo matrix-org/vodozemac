@@ -60,12 +60,12 @@
 //!     let bob_otk = *bob.one_time_keys().values().next().unwrap();
 //!
 //!     let mut alice_session = alice
-//!         .create_outbound_session(SessionConfig::version_2(), bob.curve25519_key(), bob_otk);
+//!         .create_outbound_session(SessionConfig::version_1(), bob.curve25519_key(), bob_otk)?;
 //!
 //!     bob.mark_keys_as_published();
 //!
 //!     let message = "Keep it between us, OK?";
-//!     let alice_msg = alice_session.encrypt(message);
+//!     let alice_msg = alice_session.encrypt(message)?;
 //!
 //!     if let OlmMessage::PreKey(m) = alice_msg.clone() {
 //!         let result = bob.create_inbound_session(alice.curve25519_key(), &m)?;
@@ -78,7 +78,7 @@
 //!         assert_eq!(message.as_bytes(), what_bob_received);
 //!
 //!         let bob_reply = "Yes. Take this, it's dangerous out there!";
-//!         let bob_encrypted_reply = bob_session.encrypt(bob_reply).into();
+//!         let bob_encrypted_reply = bob_session.encrypt(bob_reply)?.into();
 //!
 //!         let what_alice_received = alice_session
 //!             .decrypt(&bob_encrypted_reply)?;
@@ -109,6 +109,8 @@ pub use account::{
     SessionCreationError,
 };
 pub use messages::{Message, MessageType, OlmMessage, PreKeyMessage};
-pub use session::{DecryptionError, Session, SessionPickle, ratchet::RatchetPublicKey};
+pub use session::{
+    DecryptionError, EncryptionError, Session, SessionPickle, ratchet::RatchetPublicKey,
+};
 pub use session_config::SessionConfig;
 pub use session_keys::SessionKeys;

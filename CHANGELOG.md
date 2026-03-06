@@ -6,6 +6,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased] - ReleaseDate
 
+### Features
+
+- [**BREAKING**] The `CurvePublicSecretKey.diffie_hellman()` method now returns
+  an `Option`. This change makes the `Account::create_outbound_session()` and
+  `Session::encrypt()` methods fallible.
+  ([#298](https://github.com/matrix-org/vodozemac/pull/298)).
+
 ### Bug Fixes
 
 - [**BREAKING**] The `default()` implementations for `olm::SessionConfig` and
