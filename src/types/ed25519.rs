@@ -17,8 +17,6 @@ use std::fmt::Display;
 use base64::decoded_len_estimate;
 use base64ct::Encoding;
 use curve25519_dalek::EdwardsPoint;
-#[cfg(not(fuzzing))]
-use ed25519_dalek::Verifier;
 use ed25519_dalek::{
     PUBLIC_KEY_LENGTH, SIGNATURE_LENGTH, Signature, Signer, SigningKey, VerifyingKey,
 };
@@ -384,30 +382,13 @@ impl Ed25519PublicKey {
 
     /// Verify that the provided signature for a given message has been signed
     /// by the private key matching this public one.
-    ///
-    /// By default this performs an [RFC8032] compatible signature check. A
-    /// stricter version of the signature check can be enabled with the
-    /// `strict-signatures` feature flag.
-    ///
-    /// The stricter variant is compatible with libsodium 0.16 and under the
-    /// hood uses the [`ed25519_dalek::PublicKey::verify_strict()`] method.
-    ///
-    /// For more info, see the ed25519_dalek [README] and [this] post.
-    ///
-    /// [RFC8032]: https://datatracker.ietf.org/doc/html/rfc8032#section-5.1.7
-    /// [README]: https://github.com/dalek-cryptography/ed25519-dalek#a-note-on-signature-malleability
-    /// [this]: https://hdevalence.ca/blog/2020-10-04-its-25519am
     #[cfg(not(fuzzing))]
     pub fn verify(
         &self,
         message: &[u8],
         signature: &Ed25519Signature,
     ) -> Result<(), SignatureError> {
-        if cfg!(feature = "strict-signatures") {
-            Ok(self.0.verify_strict(message, &signature.0)?)
-        } else {
-            Ok(self.0.verify(message, &signature.0)?)
-        }
+        Ok(self.0.verify_strict(message, &signature.0)?)
     }
 
     #[cfg(fuzzing)]
