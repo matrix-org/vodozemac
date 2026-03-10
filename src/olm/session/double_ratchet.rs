@@ -23,7 +23,7 @@ use super::{
     receiver_chain::ReceiverChain,
     root_key::{RemoteRootKey, RootKey},
 };
-use crate::olm::{messages::Message, shared_secret::Shared3DHSecret};
+use crate::olm::{EncryptionError, messages::Message, shared_secret::Shared3DHSecret};
 
 /// The sender side of a double-ratchet implementation.
 ///
@@ -47,26 +47,29 @@ pub(super) struct DoubleRatchet {
 }
 
 impl DoubleRatchet {
-    pub fn next_message_key(&mut self) -> MessageKey {
+    pub fn next_message_key(&mut self) -> Option<MessageKey> {
         match &mut self.inner {
             DoubleRatchetState::Inactive(ratchet) => {
-                let mut ratchet = ratchet.activate();
+                let mut ratchet = ratchet.activate()?;
 
                 let message_key = ratchet.next_message_key();
                 self.inner = DoubleRatchetState::Active(ratchet);
 
-                message_key
+                Some(message_key)
             }
-            DoubleRatchetState::Active(ratchet) => ratchet.next_message_key(),
+            DoubleRatchetState::Active(ratchet) => Some(ratchet.next_message_key()),
         }
     }
 
-    pub fn encrypt(&mut self, plaintext: &[u8]) -> Message {
-        self.next_message_key().encrypt(plaintext)
+    pub fn encrypt(&mut self, plaintext: &[u8]) -> Result<Message, EncryptionError> {
+        Ok(self.next_message_key().ok_or(EncryptionError::NonContributoryKey)?.encrypt(plaintext))
     }
 
-    pub fn encrypt_truncated_mac(&mut self, plaintext: &[u8]) -> Message {
-        self.next_message_key().encrypt_truncated_mac(plaintext)
+    pub fn encrypt_truncated_mac(&mut self, plaintext: &[u8]) -> Result<Message, EncryptionError> {
+        Ok(self
+            .next_message_key()
+            .ok_or(EncryptionError::NonContributoryKey)?
+            .encrypt_truncated_mac(plaintext))
     }
 
     /// Create a new `DoubleRatchet` instance, based on a newly-calculated
@@ -121,18 +124,21 @@ impl DoubleRatchet {
         Self { inner: ratchet.into() }
     }
 
-    pub fn advance(&mut self, ratchet_key: RemoteRatchetKey) -> (DoubleRatchet, ReceiverChain) {
+    pub fn advance(
+        &mut self,
+        ratchet_key: RemoteRatchetKey,
+    ) -> Option<(DoubleRatchet, ReceiverChain)> {
         let (ratchet, receiver_chain) = match &self.inner {
-            DoubleRatchetState::Active(r) => r.advance(ratchet_key),
+            DoubleRatchetState::Active(r) => r.advance(ratchet_key)?,
             DoubleRatchetState::Inactive(r) => {
-                let ratchet = r.activate();
+                let ratchet = r.activate()?;
                 // Advancing an inactive ratchet shouldn't be possible since the
                 // other side did not yet receive our new ratchet key.
                 //
                 // This will likely end up in a decryption error but for
                 // consistency sake and avoiding the leakage of our internal
                 // state it's better to error out there.
-                let ret = ratchet.advance(ratchet_key);
+                let ret = ratchet.advance(ratchet_key)?;
 
                 self.inner = ratchet.into();
 
@@ -140,7 +146,7 @@ impl DoubleRatchet {
             }
         };
 
-        (Self { inner: DoubleRatchetState::Inactive(ratchet) }, receiver_chain)
+        Some((Self { inner: DoubleRatchetState::Inactive(ratchet) }, receiver_chain))
     }
 }
 
@@ -195,16 +201,16 @@ struct InactiveDoubleRatchet {
 }
 
 impl InactiveDoubleRatchet {
-    fn activate(&self) -> ActiveDoubleRatchet {
-        let (root_key, chain_key, ratchet_key) = self.root_key.advance(&self.ratchet_key);
+    fn activate(&self) -> Option<ActiveDoubleRatchet> {
+        let (root_key, chain_key, ratchet_key) = self.root_key.advance(&self.ratchet_key)?;
         let active_ratchet = Ratchet::new_with_ratchet_key(root_key, ratchet_key);
 
-        ActiveDoubleRatchet {
+        Some(ActiveDoubleRatchet {
             parent_ratchet_key: Some(self.ratchet_key),
             ratchet_count: self.ratchet_count.advance(),
             active_ratchet,
             symmetric_key_ratchet: chain_key,
-        }
+        })
     }
 }
 
@@ -251,8 +257,11 @@ struct ActiveDoubleRatchet {
 }
 
 impl ActiveDoubleRatchet {
-    fn advance(&self, ratchet_key: RemoteRatchetKey) -> (InactiveDoubleRatchet, ReceiverChain) {
-        let (root_key, remote_chain) = self.active_ratchet.advance(ratchet_key);
+    fn advance(
+        &self,
+        ratchet_key: RemoteRatchetKey,
+    ) -> Option<(InactiveDoubleRatchet, ReceiverChain)> {
+        let (root_key, remote_chain) = self.active_ratchet.advance(ratchet_key)?;
 
         let new_ratchet_count = self.ratchet_count.advance();
         let ratchet = InactiveDoubleRatchet {
@@ -262,7 +271,7 @@ impl ActiveDoubleRatchet {
         };
         let receiver_chain = ReceiverChain::new(ratchet_key, remote_chain, new_ratchet_count);
 
-        (ratchet, receiver_chain)
+        Some((ratchet, receiver_chain))
     }
 
     fn ratchet_key(&self) -> RatchetPublicKey {
@@ -333,17 +342,21 @@ mod test {
     use super::{
         ActiveDoubleRatchet, DoubleRatchet, DoubleRatchetState, InactiveDoubleRatchet, RatchetCount,
     };
-    use crate::olm::{Account, OlmMessage, Session, SessionConfig};
+    use crate::{
+        Curve25519PublicKey,
+        olm::{Account, OlmMessage, Session, SessionConfig, session::ratchet::RemoteRatchetKey},
+    };
 
     fn create_session_pair(alice: &Account, bob: &mut Account) -> (Session, Session) {
         let bob_otks = bob.generate_one_time_keys(1);
         let bob_otk = bob_otks.created.first().expect("Couldn't get a one-time-key for bob");
         let bob_identity_key = bob.identity_keys().curve25519;
-        let mut alice_session =
-            alice.create_outbound_session(SessionConfig::version_1(), bob_identity_key, *bob_otk);
+        let mut alice_session = alice
+            .create_outbound_session(SessionConfig::version_1(), bob_identity_key, *bob_otk)
+            .unwrap();
 
         let message = "It's a secret to everybody";
-        let olm_message = alice_session.encrypt(message);
+        let olm_message = alice_session.encrypt(message).unwrap();
         assert_matches!(olm_message, OlmMessage::PreKey(prekey_message));
 
         let alice_identity_key = alice.identity_keys().curve25519;
@@ -384,7 +397,7 @@ mod test {
         );
 
         // Once Bob replies, the ratchets should bump to 1.
-        let olm_message = bob_session.encrypt("sssh");
+        let olm_message = bob_session.encrypt("sssh").unwrap();
         alice_session.decrypt(&olm_message).expect("Alice could not decrypt message from Bob");
         assert_eq!(
             assert_inactive_ratchet(&alice_session.sending_ratchet).ratchet_count,
@@ -396,7 +409,7 @@ mod test {
         );
 
         // Now Alice replies again.
-        let olm_message = alice_session.encrypt("sssh");
+        let olm_message = alice_session.encrypt("sssh").unwrap();
         bob_session.decrypt(&olm_message).expect("Bob could not decrypt message from Alice");
         assert_eq!(
             assert_active_ratchet(&alice_session.sending_ratchet).ratchet_count,
@@ -428,7 +441,7 @@ mod test {
         );
 
         // Once Bob replies, Alice's count bumps to 1, but Bob's remains unknown.
-        let olm_message = bob_session.encrypt("sssh");
+        let olm_message = bob_session.encrypt("sssh").unwrap();
         alice_session.decrypt(&olm_message).expect("Alice could not decrypt message from Bob");
         assert_eq!(
             assert_inactive_ratchet(&alice_session.sending_ratchet).ratchet_count,
@@ -440,7 +453,7 @@ mod test {
         );
 
         // Now Alice replies again.
-        let olm_message = alice_session.encrypt("sssh");
+        let olm_message = alice_session.encrypt("sssh").unwrap();
         bob_session.decrypt(&olm_message).expect("Bob could not decrypt message from Alice");
         assert_eq!(
             assert_active_ratchet(&alice_session.sending_ratchet).ratchet_count,
@@ -449,6 +462,19 @@ mod test {
         assert_eq!(
             assert_inactive_ratchet(&bob_session.sending_ratchet).ratchet_count,
             RatchetCount::Unknown(())
+        );
+    }
+
+    #[test]
+    fn advance_with_non_contributory_key_fails() {
+        let (mut alice_session, _) = create_session_pair(&Account::new(), &mut Account::new());
+
+        let ratchet = &mut alice_session.sending_ratchet;
+        let ratchet_key = RemoteRatchetKey(Curve25519PublicKey::from_bytes([0u8; 32]));
+
+        assert!(
+            ratchet.advance(ratchet_key).is_none(),
+            "We shouldn't be able to advance the session with a non-contributory remote ratchet key"
         );
     }
 }
