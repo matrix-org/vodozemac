@@ -6,6 +6,8 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions: {}
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -20,6 +22,7 @@ jobs:
       uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
       with:
         ref: ${{ github.event.pull_request.head.sha }}
+        persist-credentials: false
 
     - name: Install Rust
       uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9

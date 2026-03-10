@@ -5,13 +5,18 @@ on:
     branches:
       - main
 
+permissions: {}
+
 jobs:
   cargo-mutants:
     runs-on: ubuntu-latest
+    name: cargo-mutants (full)
+
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Install rust
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
