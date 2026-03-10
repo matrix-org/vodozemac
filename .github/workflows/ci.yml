@@ -41,7 +41,7 @@ jobs:
         persist-credentials: false
 
     - name: Check the spelling of the files in our repo
-      uses: crate-ci/typos@65120634e79d8374d1aa2f27e54baa0c364fff5a
+      uses: crate-ci/typos@631208b7aac2daa8b707f55e7331f9112b0e062d
 
   clippy:
     name: Run clippy
