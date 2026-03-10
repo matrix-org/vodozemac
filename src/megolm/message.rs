@@ -166,6 +166,7 @@ impl MegolmMessage {
 
     /// Implementation of [`MegolmMessage::encrypt`] that is used by rest of the
     /// crate.
+    #[cfg(feature = "experimental-session-config")]
     pub(super) fn encrypt_full_mac(
         message_index: u32,
         cipher: &Cipher,
