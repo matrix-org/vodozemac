@@ -21,7 +21,7 @@ use chacha20poly1305::{
     ChaCha20Poly1305, Nonce,
     aead::{Aead, KeyInit},
 };
-use cipher::crypto_common::Generate;
+use cipher::common::Generate;
 use rand::rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
