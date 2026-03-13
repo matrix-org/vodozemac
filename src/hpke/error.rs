@@ -38,4 +38,7 @@ pub enum Error {
     /// was replayed, or the wrong key is being used to decrypt the message.
     #[error("Failed decrypting the message")]
     Decryption,
+    /// The encapsulation of the initial message failed.
+    #[error("Failed decrypting the message")]
+    Encapsulation(#[from] hpke::HpkeError),
 }

@@ -73,23 +73,15 @@ impl HpkeSenderChannel {
         their_public_key: Curve25519PublicKey,
         initial_plaintext: &[u8],
         aad: &[u8],
-    ) -> SenderCreationResult {
+    ) -> Result<SenderCreationResult, Error> {
         let Self { application_info_prefix } = self;
 
         let their_key = convert_public_key(their_public_key);
 
-        #[allow(clippy::expect_used)]
-        let (encapsulated_key, mut context) = hpke::setup_sender(
-            &OpModeS::Base,
-            &their_key,
-            application_info_prefix.as_bytes(),
-        )
-        .expect("Encapsulating an X25519 public key never fails since the encapsulation is just the bytes of the public key");
+        let (encapsulated_key, mut context) =
+            hpke::setup_sender(&OpModeS::Base, &their_key, application_info_prefix.as_bytes())?;
 
-        #[allow(clippy::expect_used)]
-        let ciphertext = context
-            .seal(initial_plaintext, aad)
-            .expect("We should be able to seal the initial plaintext");
+        let ciphertext = context.seal(initial_plaintext, aad)?;
 
         let encapsulated_key = convert_encapsulated_key(encapsulated_key);
         let our_public_key = encapsulated_key;
@@ -101,7 +93,10 @@ impl HpkeSenderChannel {
             their_public_key,
         });
 
-        SenderCreationResult { channel, message: InitialMessage { encapsulated_key, ciphertext } }
+        Ok(SenderCreationResult {
+            channel,
+            message: InitialMessage { encapsulated_key, ciphertext },
+        })
     }
 }
 
@@ -201,8 +196,9 @@ mod tests {
         let alice = HpkeSenderChannel::new();
         let bob = HpkeRecipientChannel::new();
 
-        let SenderCreationResult { channel: mut alice, .. } =
-            alice.establish_channel(bob.public_key(), b"", &[]);
+        let SenderCreationResult { channel: mut alice, .. } = alice
+            .establish_channel(bob.public_key(), b"", &[])
+            .expect("We should be able to create the initial sender channel");
 
         alice.0.our_public_key = key;
         alice.0.their_public_key = key;

@@ -27,7 +27,7 @@
 //! let bob = HpkeRecipientChannel::new();
 //!
 //! let SenderCreationResult { channel: mut alice, message } = alice
-//!     .establish_channel(bob.public_key(), plaintext, &[]);
+//!     .establish_channel(bob.public_key(), plaintext, &[])?;
 //!
 //! let RecipientCreationResult { channel: mut bob, message } = bob.establish_channel(&message, &[])?;
 //!
@@ -319,8 +319,9 @@ mod tests {
 
         let plaintext = b"It's a secret to everybody";
 
-        let SenderCreationResult { message, .. } =
-            alice.establish_channel(bob.public_key(), plaintext, &[]);
+        let SenderCreationResult { message, .. } = alice
+            .establish_channel(bob.public_key(), plaintext, &[])
+            .expect("We should be able to create the sender channel");
 
         assert_ne!(message.ciphertext, plaintext);
 
@@ -340,8 +341,9 @@ mod tests {
 
         let plaintext = b"It's a secret to everybody";
 
-        let SenderCreationResult { channel: alice, message, .. } =
-            alice.establish_channel(bob_public_key, plaintext, &[]);
+        let SenderCreationResult { channel: alice, message, .. } = alice
+            .establish_channel(bob_public_key, plaintext, &[])
+            .expect("We should be able to create the sender channel");
 
         assert_ne!(message.ciphertext, plaintext);
 
@@ -406,8 +408,9 @@ mod tests {
         let bob = HpkeRecipientChannel::new();
         let malory = Curve25519SecretKey::new();
 
-        let SenderCreationResult { mut message, .. } =
-            alice.establish_channel(bob.public_key(), plaintext, &[]);
+        let SenderCreationResult { mut message, .. } = alice
+            .establish_channel(bob.public_key(), plaintext, &[])
+            .expect("We should be able to create the sender channel");
 
         message.encapsulated_key = Curve25519PublicKey::from(&malory);
 
@@ -428,8 +431,9 @@ mod tests {
         let alice = HpkeSenderChannel::new();
         let bob = HpkeRecipientChannel::new();
 
-        let SenderCreationResult { channel: alice, message } =
-            alice.establish_channel(bob.public_key(), b"", &[]);
+        let SenderCreationResult { channel: alice, message } = alice
+            .establish_channel(bob.public_key(), b"", &[])
+            .expect("We should be able to create the sender channel");
 
         let RecipientCreationResult { channel: bob, message: _ } = bob
             .establish_channel(&message, &[])
@@ -463,8 +467,9 @@ mod tests {
         let alice = HpkeSenderChannel::new();
         let bob = HpkeRecipientChannel::new();
 
-        let SenderCreationResult { channel: alice, message } =
-            alice.establish_channel(bob.public_key(), b"", &[]);
+        let SenderCreationResult { channel: alice, message } = alice
+            .establish_channel(bob.public_key(), b"", &[])
+            .expect("We should be able to create the sender channel");
 
         let RecipientCreationResult { channel: bob, .. } =
             bob.establish_channel(&message, &[]).unwrap();

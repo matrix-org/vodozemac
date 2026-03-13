@@ -241,8 +241,9 @@ mod tests {
 
         assert_debug_snapshot!(bob);
 
-        let SenderCreationResult { message, .. } =
-            alice.establish_channel(bob.public_key(), b"", &[]);
+        let SenderCreationResult { message, .. } = alice
+            .establish_channel(bob.public_key(), b"", &[])
+            .expect("We should be able to create the sender channel");
 
         let RecipientCreationResult { channel: mut bob, .. } =
             bob.establish_channel(&message, &[]).unwrap();
