@@ -60,7 +60,7 @@ jobs:
         toolchain: nightly
         components: clippy
 
-    - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5
+    - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4
 
     - name: Clippy (all-features)
       run: cargo clippy --all-targets --all-features -- -D warnings
@@ -85,7 +85,7 @@ jobs:
         toolchain: stable
 
     - name: Load cache
-      uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5
+      uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4
 
     - name: Install cargo-hack
       uses: taiki-e/install-action@a37010ded18ff788be4440302bd6830b1ae50d8b
@@ -126,7 +126,7 @@ jobs:
         with:
           tool: nextest
 
-      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4
 
       - name: Test
         run: cargo nextest run --profile ci --all-features
