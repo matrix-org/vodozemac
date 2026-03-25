@@ -48,7 +48,7 @@ impl Curve25519SecretKey {
     /// secret.
     ///
     /// Returns `None` if one of the keys does not show contributory behavior
-    /// resulting in a all zeroes shared secret.
+    /// resulting in an all-zero shared secret.
     pub fn diffie_hellman(&self, their_public_key: &Curve25519PublicKey) -> Option<SharedSecret> {
         let shared_secret = self.0.diffie_hellman(&their_public_key.inner);
 
