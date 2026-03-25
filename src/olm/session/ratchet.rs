@@ -66,6 +66,15 @@ impl RatchetKey {
     pub fn diffie_hellman(&self, other: &RemoteRatchetKey) -> SharedSecret {
         self.0.diffie_hellman(&other.0)
     }
+
+    /// Convert the [`RatchetKey`] to a slice of bytes.
+    ///
+    /// **Note**: This creates a copy of the key which won't be zeroized, the
+    /// caller of the method needs to make sure to zeroize the returned array.
+    #[cfg(feature = "libolm-compat")]
+    pub fn to_bytes(&self) -> Box<[u8; 32]> {
+        self.0.to_bytes()
+    }
 }
 
 impl Default for RatchetKey {
@@ -95,6 +104,12 @@ impl From<[u8; 32]> for RemoteRatchetKey {
 impl From<Curve25519PublicKey> for RemoteRatchetKey {
     fn from(key: Curve25519PublicKey) -> Self {
         RemoteRatchetKey(key)
+    }
+}
+
+impl AsRef<Curve25519PublicKey> for RemoteRatchetKey {
+    fn as_ref(&self) -> &Curve25519PublicKey {
+        &self.0
     }
 }
 
@@ -143,18 +158,31 @@ impl Ratchet {
     pub const fn ratchet_key(&self) -> &RatchetKey {
         &self.ratchet_key
     }
+
+    /// Get the [`RootKey`] of this ratchet.
+    ///
+    /// See the documentation of [`RootKey`] to learn more about what the root
+    /// key is.
+    #[cfg(feature = "libolm-compat")]
+    pub(super) fn root_key(&self) -> &RootKey {
+        &self.root_key
+    }
 }
 
 #[cfg(test)]
 mod test {
+    #[cfg(feature = "libolm-compat")]
     use super::RatchetKey;
-    use crate::{Curve25519SecretKey, olm::RatchetPublicKey};
+    #[cfg(feature = "libolm-compat")]
+    use crate::Curve25519SecretKey;
+    use crate::olm::RatchetPublicKey;
 
     #[test]
+    #[cfg(feature = "libolm-compat")]
     fn ratchet_key_from_curve_25519_secret_key() {
         let bytes = b"aaaaaaaaaaaaaaawaaaaaaaaaaaaaaaa";
         let key = RatchetKey::from(Curve25519SecretKey::from_slice(bytes));
-        assert_eq!(key.0.to_bytes().as_ref(), bytes);
+        assert_eq!(key.to_bytes().as_ref(), bytes);
     }
 
     #[test]
