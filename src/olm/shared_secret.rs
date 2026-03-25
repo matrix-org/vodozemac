@@ -166,6 +166,7 @@ mod test {
             &alice_identity,
             &alice_one_time,
             &PublicKey::from(&bob_identity),
+            // Passing a non-contributory key as the remote one-time key, i.e. Bob's one-time key.
             &non_contributory_key,
         );
 
@@ -177,6 +178,8 @@ mod test {
         let bob_secret = RemoteShared3DHSecret::new(
             &bob_identity,
             &bob_one_time,
+            // Passing a non-contributory key as the remote identity key, i.e. Alice's identity
+            // key.
             &non_contributory_key,
             &PublicKey::from(&alice_one_time),
         );
