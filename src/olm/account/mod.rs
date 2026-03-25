@@ -68,8 +68,7 @@ pub enum SessionCreationError {
     /// The pre-key message was encrypted with a Session which used an
     /// unexpected SessionConfig.
     #[error(
-        "The session config doesn't match the one used for the pre-key message: expected \
-        {expected:?}, got {got:?}"
+        "The session config doesn't match the one used for the pre-key message: expected {expected:?}, got {got:?}"
     )]
     MismatchedSessionConfig {
         /// The [`SessionConfig`] we expected.
@@ -1679,9 +1678,9 @@ mod test {
         assert_eq!(alice.identity_keys(), account.identity_keys());
     }
 
-    #[cfg(feature = "experimental-session-config")]
     #[test]
-    fn vodozemac_incorrect_session_config() {
+    #[cfg(feature = "experimental-session-config")]
+    fn create_session_with_incorrect_session_config_upgrade() {
         // Both of these are vodozemac accounts.
         let alice = Account::new();
         let mut bob = Account::new();
@@ -1710,6 +1709,76 @@ mod test {
             result,
             Err(SessionCreationError::MismatchedSessionConfig { .. }),
             "We should not create a session if the incorrect session config was used"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "experimental-session-config")]
+    fn create_session_with_incorrect_session_config_downgrade() {
+        let alice = Account::new();
+        let mut bob = Account::new();
+
+        bob.generate_one_time_keys(1);
+        let one_time_key =
+            *bob.one_time_keys().values().next().expect("Bob should have generated a one-time key");
+
+        let mut alice_session = alice
+            .create_outbound_session(SessionConfig::version_2(), bob.curve25519_key(), one_time_key)
+            .expect("We should be able to create an outbound session with bob.");
+
+        let message = "It's a secret to everybody";
+        let pre_key_message =
+            alice_session.encrypt(message).expect("We should be able to encrypt the first message");
+
+        assert_matches2::assert_let!(OlmMessage::PreKey(pre_key_message) = pre_key_message);
+
+        let result = bob.create_inbound_session(
+            SessionConfig::version_1(),
+            alice.curve25519_key(),
+            &pre_key_message,
+        );
+
+        assert_matches!(
+            result,
+            Err(SessionCreationError::MismatchedSessionConfig { .. }),
+            "We should not create a session if the incorrect session config was used"
+        );
+    }
+
+    #[test]
+    fn create_session_with_unsupported_session_config() {
+        let alice = Account::new();
+        let mut bob = Account::new();
+
+        bob.generate_one_time_keys(1);
+        let one_time_key =
+            *bob.one_time_keys().values().next().expect("Bob should have generated a one-time key");
+
+        let mut alice_session = alice
+            .create_outbound_session(SessionConfig::version_1(), bob.curve25519_key(), one_time_key)
+            .expect("We should be able to create an outbound session with bob.");
+
+        let message = "It's a secret to everybody";
+        let pre_key_message =
+            alice_session.encrypt(message).expect("We should be able to encrypt the first message");
+
+        assert_matches2::assert_let!(OlmMessage::PreKey(mut pre_key_message) = pre_key_message);
+
+        // Technically this can't happen as the pre-key message parsing will reject such
+        // a version, but let's double check if our session creation is robust against
+        // unknown versions.
+        pre_key_message.message.version = 0xFF;
+
+        let result = bob.create_inbound_session(
+            SessionConfig::version_1(),
+            alice.curve25519_key(),
+            &pre_key_message,
+        );
+
+        assert_matches!(
+            result,
+            Err(SessionCreationError::MismatchedSessionConfig { got: None, .. }),
+            "We should not create a session if an unknown session config was used for the pre-key message"
         );
     }
 }
