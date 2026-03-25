@@ -77,8 +77,7 @@ pub enum SessionCreationError {
     /// For more details on contributory behavior please refer to the
     /// [`x25519_dalek::SharedSecret::was_contributory()`] method.
     #[error(
-        "One or more keys lacked contributory behavior in the Diffie-Hellman operation, \
-         resulting in an insecure shared secret"
+        "The shared secret was derived from an insecure key exchange (non-contributory behaviour)"
     )]
     NonContributoryKey,
 }
