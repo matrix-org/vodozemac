@@ -41,9 +41,10 @@ impl SessionConfig {
         SessionConfig { version: Version::V1 }
     }
 
-    /// Create a `SessionConfig` for the Olm version 2. This version of Olm will
-    /// use AES-256 and HMAC to encrypt individual messages. The MAC won't be
-    /// truncated.
+    /// Creates a [`SessionConfig`] for Olm version 2.
+    ///
+    /// This version of Olm uses AES-256 and HMAC to encrypt individual
+    /// messages, and the MAC is not truncated.
     #[cfg(feature = "experimental-session-config")]
     pub const fn version_2() -> Self {
         SessionConfig { version: Version::V2 }
