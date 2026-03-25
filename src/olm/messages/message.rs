@@ -23,8 +23,8 @@ use crate::{
     utilities::{VarInt, base64_decode, base64_encode, extract_mac},
 };
 
-const MAC_TRUNCATED_VERSION: u8 = 3;
-const VERSION: u8 = 4;
+pub(crate) const MAC_TRUNCATED_VERSION: u8 = 3;
+pub(crate) const VERSION: u8 = 4;
 
 /// An encrypted Olm message.
 ///
@@ -61,11 +61,6 @@ impl Message {
     /// The version of the Olm message.
     pub const fn version(&self) -> u8 {
         self.version
-    }
-
-    /// Has the MAC been truncated in this Olm message.
-    pub const fn mac_truncated(&self) -> bool {
-        self.version == MAC_TRUNCATED_VERSION
     }
 
     /// Try to decode the given byte slice as a Olm [`Message`].
