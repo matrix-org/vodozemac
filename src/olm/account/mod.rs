@@ -39,7 +39,7 @@ use super::{
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
 };
 use crate::{
-    Ed25519Signature, PickleError,
+    Ed25519Signature, PickleError, olm,
     types::{
         Curve25519Keypair, Curve25519KeypairPickle, Curve25519PublicKey, Curve25519SecretKey,
         Ed25519Keypair, Ed25519KeypairPickle, Ed25519PublicKey, KeyId,
@@ -261,16 +261,11 @@ impl Account {
                 pre_key_message.identity_key(),
             ))
         } else {
-            let config = if pre_key_message.message.mac_truncated() {
-                SessionConfig::version_1()
-            } else {
+            let config = match pre_key_message.message.version() {
+                olm::messages::message::MAC_TRUNCATED_VERSION => SessionConfig::version_1(),
                 #[cfg(feature = "experimental-session-config")]
-                {
-                    SessionConfig::version_2()
-                }
-
-                #[cfg(not(feature = "experimental-session-config"))]
-                {
+                olm::messages::message::VERSION => SessionConfig::version_2(),
+                _ => {
                     return Err(SessionCreationError::MismatchedSessionConfig {
                         expected: expected_config,
                         got: None,
