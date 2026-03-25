@@ -65,11 +65,11 @@ pub enum SessionCreationError {
         expected {0}, got {1}"
     )]
     MismatchedIdentityKey(Curve25519PublicKey, Curve25519PublicKey),
-    /// The pre-key message was encrypted with a Session which used a unexpected
-    /// SessionConfig.
+    /// The pre-key message was encrypted with a Session which used an
+    /// unexpected SessionConfig.
     #[error(
-        "The given identity key doesn't match the one in the pre-key message: \
-        expected {expected:?}, got {got:?}"
+        "The session config doesn't match the one used for the pre-key message: expected \
+        {expected:?}, got {got:?}"
     )]
     MismatchedSessionConfig {
         /// The [`SessionConfig`] we expected.
