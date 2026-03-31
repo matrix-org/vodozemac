@@ -197,7 +197,7 @@ impl Cipher {
     ///
     /// **Warning**: This is a low-level function and must be called before
     /// invoking the [`Cipher::decrypt()`] method.
-    #[cfg(not(fuzzing))]
+    #[cfg(all(not(fuzzing), feature = "experimental-session-config"))]
     pub fn verify_mac(&self, message: &[u8], tag: &Mac) -> Result<(), MacError> {
         let mut hmac = self.get_hmac();
 
