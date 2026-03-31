@@ -45,7 +45,7 @@ pub(crate) const MAX_MESSAGE_GAP: u64 = 2000;
 /// The number of message keys we'll store if we receive an out of order
 /// message.
 ///
-/// More info on the tradeofs can be found in the double ratchet spec:
+/// More info on the tradeoffs can be found in the double ratchet spec:
 /// https://signal.org/docs/specifications/doubleratchet/#deletion-of-skipped-message-keys
 pub(crate) const MAX_MESSAGE_KEYS: usize = 40;
 
