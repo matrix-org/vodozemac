@@ -96,6 +96,7 @@ impl GroupSession {
                 &self.signing_key,
                 plaintext.as_ref(),
             ),
+            #[cfg(feature = "experimental-session-config")]
             Version::V2 => MegolmMessage::encrypt_full_mac(
                 self.message_index(),
                 &cipher,
@@ -238,6 +239,7 @@ mod test {
             GroupSession::new(SessionConfig::version_1()).session_config(),
             SessionConfig::version_1()
         );
+        #[cfg(feature = "experimental-session-config")]
         assert_eq!(
             GroupSession::new(SessionConfig::version_2()).session_config(),
             SessionConfig::version_2()

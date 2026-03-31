@@ -22,10 +22,8 @@ use chacha20poly1305::{
     aead::{Aead, KeyInit},
 };
 use cipher::common::Generate;
-use rand::rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use x25519_dalek::ReusableSecret;
 use zeroize::Zeroize;
 
 pub use self::one_time_keys::OneTimeKeyGenerationResult;
@@ -41,7 +39,7 @@ use super::{
     shared_secret::{RemoteShared3DHSecret, Shared3DHSecret},
 };
 use crate::{
-    Ed25519Signature, PickleError,
+    Ed25519Signature, PickleError, olm,
     types::{
         Curve25519Keypair, Curve25519KeypairPickle, Curve25519PublicKey, Curve25519SecretKey,
         Ed25519Keypair, Ed25519KeypairPickle, Ed25519PublicKey, KeyId,
@@ -67,12 +65,34 @@ pub enum SessionCreationError {
         expected {0}, got {1}"
     )]
     MismatchedIdentityKey(Curve25519PublicKey, Curve25519PublicKey),
+    /// The pre-key message was encrypted with a Session which used an
+    /// unexpected SessionConfig.
+    #[error(
+        "The session config doesn't match the one used for the pre-key message: expected {expected:?}, got {got:?}"
+    )]
+    MismatchedSessionConfig {
+        /// The [`SessionConfig`] we expected.
+        expected: SessionConfig,
+        /// The [`SessionConfig`] the pre-key message was encrypted with.
+        ///
+        /// Will be `None` if we don't understand the received config.
+        got: Option<SessionConfig>,
+    },
     /// The pre-key message that was used to establish the [`Session`] couldn't
     /// be decrypted. The message needs to be decryptable, otherwise we will
     /// have created a Session that wasn't used to encrypt the pre-key
     /// message.
     #[error("The message that was used to establish the Session couldn't be decrypted")]
     Decryption(#[from] DecryptionError),
+    /// One or more keys lacked contributory behavior in the Diffie-Hellman
+    /// operation, resulting in an insecure shared secret.
+    ///
+    /// For more details on contributory behavior please refer to the
+    /// [`x25519_dalek::SharedSecret::was_contributory()`] method.
+    #[error(
+        "The shared secret was derived from an insecure key exchange (non-contributory behaviour)"
+    )]
+    NonContributoryKey,
 }
 
 /// Struct holding the two public identity keys of an [`Account`].
@@ -175,10 +195,8 @@ impl Account {
         session_config: SessionConfig,
         identity_key: Curve25519PublicKey,
         one_time_key: Curve25519PublicKey,
-    ) -> Session {
-        let mut rng = rng();
-
-        let base_key = ReusableSecret::random_from_rng(&mut rng);
+    ) -> Result<Session, SessionCreationError> {
+        let base_key = Curve25519SecretKey::new();
         let public_base_key = Curve25519PublicKey::from(&base_key);
 
         let shared_secret = Shared3DHSecret::new(
@@ -186,7 +204,8 @@ impl Account {
             &base_key,
             &identity_key,
             &one_time_key,
-        );
+        )
+        .ok_or(SessionCreationError::NonContributoryKey)?;
 
         let session_keys = SessionKeys {
             identity_key: self.curve25519_key(),
@@ -194,7 +213,7 @@ impl Account {
             one_time_key,
         };
 
-        Session::new(session_config, shared_secret, session_keys)
+        Ok(Session::new(session_config, shared_secret, session_keys))
     }
 
     /// Try to find a [`Curve25519SecretKey`] that forms a pair with the given
@@ -231,6 +250,7 @@ impl Account {
     /// identity key
     pub fn create_inbound_session(
         &mut self,
+        expected_config: SessionConfig,
         their_identity_key: Curve25519PublicKey,
         pre_key_message: &PreKeyMessage,
     ) -> Result<InboundCreationResult, SessionCreationError> {
@@ -240,6 +260,25 @@ impl Account {
                 pre_key_message.identity_key(),
             ))
         } else {
+            let config = match pre_key_message.message.version() {
+                olm::messages::message::MAC_TRUNCATED_VERSION => SessionConfig::version_1(),
+                #[cfg(feature = "experimental-session-config")]
+                olm::messages::message::VERSION => SessionConfig::version_2(),
+                _ => {
+                    return Err(SessionCreationError::MismatchedSessionConfig {
+                        expected: expected_config,
+                        got: None,
+                    });
+                }
+            };
+
+            if config != expected_config {
+                return Err(SessionCreationError::MismatchedSessionConfig {
+                    expected: expected_config,
+                    got: Some(config),
+                });
+            }
+
             // Find the matching private part of the OTK that the message claims
             // was used to create the session that encrypted it.
             let public_otk = pre_key_message.one_time_key();
@@ -253,19 +292,14 @@ impl Account {
                 private_otk,
                 &pre_key_message.identity_key(),
                 &pre_key_message.base_key(),
-            );
+            )
+            .ok_or(SessionCreationError::NonContributoryKey)?;
 
             // These will be used to uniquely identify the Session.
             let session_keys = SessionKeys {
                 identity_key: pre_key_message.identity_key(),
                 base_key: pre_key_message.base_key(),
                 one_time_key: pre_key_message.one_time_key(),
-            };
-
-            let config = if pre_key_message.message.mac_truncated() {
-                SessionConfig::version_1()
-            } else {
-                SessionConfig::version_2()
             };
 
             // Create a Session, AKA a double ratchet, this one will have an
@@ -1045,11 +1079,14 @@ mod test {
         let identity_keys = bob.parsed_identity_keys();
         let curve25519_key = PublicKey::from_base64(identity_keys.curve25519())?;
         let one_time_key = PublicKey::from_base64(&one_time_key)?;
-        let mut alice_session =
-            alice.create_outbound_session(SessionConfig::version_1(), curve25519_key, one_time_key);
+        let mut alice_session = alice.create_outbound_session(
+            SessionConfig::version_1(),
+            curve25519_key,
+            one_time_key,
+        )?;
 
         let message = "It's a secret to everybody";
-        let olm_message: LibolmOlmMessage = alice_session.encrypt(message).into();
+        let olm_message: LibolmOlmMessage = alice_session.encrypt(message).unwrap().into();
 
         if let LibolmOlmMessage::PreKey(m) = olm_message.clone() {
             let libolm_session =
@@ -1060,7 +1097,7 @@ mod test {
             assert_eq!(message, plaintext);
 
             let second_text = "Here's another secret to everybody";
-            let olm_message = alice_session.encrypt(second_text).into();
+            let olm_message = alice_session.encrypt(second_text).unwrap().into();
 
             let plaintext = libolm_session.decrypt(olm_message)?;
             assert_eq!(second_text, plaintext);
@@ -1077,7 +1114,7 @@ mod test {
             assert_eq!(plaintext, another_reply.as_bytes());
 
             let last_text = "Nope, I'll have the last word";
-            let olm_message = alice_session.encrypt(last_text).into();
+            let olm_message = alice_session.encrypt(last_text).unwrap().into();
 
             let plaintext = libolm_session.decrypt(olm_message)?;
             assert_eq!(last_text, plaintext);
@@ -1088,8 +1125,7 @@ mod test {
         Ok(())
     }
 
-    #[test]
-    fn vodozemac_vodozemac_communication() -> Result<()> {
+    fn vodozemac_vodozemac_communication(session_config: SessionConfig) -> Result<()> {
         // Both of these are vodozemac accounts.
         let alice = Account::new();
         let mut bob = Account::new();
@@ -1097,58 +1133,69 @@ mod test {
         bob.generate_one_time_keys(1);
 
         let mut alice_session = alice.create_outbound_session(
-            SessionConfig::version_2(),
+            session_config,
             bob.curve25519_key(),
             *bob.one_time_keys()
                 .iter()
                 .next()
                 .context("Failed getting bob's OTK, which should never happen here.")?
                 .1,
-        );
+        )?;
 
         assert!(!bob.one_time_keys().is_empty());
         bob.mark_keys_as_published();
         assert!(bob.one_time_keys().is_empty());
 
         let message = "It's a secret to everybody";
-        let olm_message = alice_session.encrypt(message);
+        let olm_message = alice_session.encrypt(message).unwrap();
 
         if let OlmMessage::PreKey(m) = olm_message {
             assert_eq!(m.session_keys(), alice_session.session_keys());
             assert_eq!(m.session_id(), alice_session.session_id());
 
             let InboundCreationResult { session: mut bob_session, plaintext } =
-                bob.create_inbound_session(alice.curve25519_key(), &m)?;
+                bob.create_inbound_session(session_config, alice.curve25519_key(), &m)?;
             assert_eq!(alice_session.session_id(), bob_session.session_id());
             assert_eq!(m.session_keys(), bob_session.session_keys());
 
             assert_eq!(message.as_bytes(), plaintext);
 
             let second_text = "Here's another secret to everybody";
-            let olm_message = alice_session.encrypt(second_text);
+            let olm_message = alice_session.encrypt(second_text).unwrap();
 
             let plaintext = bob_session.decrypt(&olm_message)?;
             assert_eq!(second_text.as_bytes(), plaintext);
 
             let reply_plain = "Yes, take this, it's dangerous out there";
-            let reply = bob_session.encrypt(reply_plain);
+            let reply = bob_session.encrypt(reply_plain).unwrap();
             let plaintext = alice_session.decrypt(&reply)?;
 
             assert_eq!(plaintext, reply_plain.as_bytes());
 
             let another_reply = "Last one";
-            let reply = bob_session.encrypt(another_reply);
+            let reply = bob_session.encrypt(another_reply).unwrap();
             let plaintext = alice_session.decrypt(&reply)?;
             assert_eq!(plaintext, another_reply.as_bytes());
 
             let last_text = "Nope, I'll have the last word";
-            let olm_message = alice_session.encrypt(last_text);
+            let olm_message = alice_session.encrypt(last_text).unwrap();
 
             let plaintext = bob_session.decrypt(&olm_message)?;
             assert_eq!(last_text.as_bytes(), plaintext);
         }
 
         Ok(())
+    }
+
+    #[test]
+    fn vodozemac_vodozemac_communication_session_config_v1() -> Result<()> {
+        vodozemac_vodozemac_communication(SessionConfig::version_1())
+    }
+
+    #[test]
+    #[cfg(feature = "experimental-session-config")]
+    fn vodozemac_vodozemac_communication_session_config_v2() -> Result<()> {
+        vodozemac_vodozemac_communication(SessionConfig::version_2())
     }
 
     #[test]
@@ -1172,7 +1219,7 @@ mod test {
         let identity_key = PublicKey::from_base64(alice.parsed_identity_keys().curve25519())?;
 
         let InboundCreationResult { session, plaintext } = if let OlmMessage::PreKey(m) = &message {
-            bob.create_inbound_session(identity_key, m)?
+            bob.create_inbound_session(SessionConfig::version_1(), identity_key, m)?
         } else {
             bail!("Got invalid message type from olm_rs {:?}", message);
         };
@@ -1208,7 +1255,7 @@ mod test {
 
         if let OlmMessage::PreKey(m) = &message {
             let InboundCreationResult { session, plaintext } =
-                bob.create_inbound_session(identity_key, m)?;
+                bob.create_inbound_session(SessionConfig::version_1(), identity_key, m)?;
 
             assert_eq!(m.session_keys(), session.session_keys());
             assert_eq!(alice_session.session_id(), session.session_id());
@@ -1382,9 +1429,9 @@ mod test {
             SessionConfig::default(),
             alice.curve25519_key(),
             *alice.one_time_keys().values().next().expect("Should have one-time key"),
-        );
+        )?;
 
-        let message = session.encrypt("Test");
+        let message = session.encrypt("Test").unwrap();
 
         if let OlmMessage::PreKey(m) = message {
             let mut message = m.to_bytes();
@@ -1397,7 +1444,11 @@ mod test {
 
             let message = PreKeyMessage::try_from(message)?;
 
-            match alice.create_inbound_session(malory.curve25519_key(), &message) {
+            match alice.create_inbound_session(
+                SessionConfig::version_1(),
+                malory.curve25519_key(),
+                &message,
+            ) {
                 Err(SessionCreationError::Decryption(_)) => {}
                 e => bail!("Expected a decryption error, got {:?}", e),
             }
@@ -1487,32 +1538,36 @@ mod test {
             alice.to_dehydrated_device(&PICKLE_KEY).expect("Should be able to dehydrate device");
 
         // encrypt using a one-time key
-        let mut bob_session = bob.create_outbound_session(
-            SessionConfig::version_1(),
-            alice.curve25519_key(),
-            *alice
-                .one_time_keys()
-                .iter()
-                .next()
-                .expect("Failed getting alice's OTK, which should never happen here.")
-                .1,
-        );
+        let mut bob_session = bob
+            .create_outbound_session(
+                SessionConfig::version_1(),
+                alice.curve25519_key(),
+                *alice
+                    .one_time_keys()
+                    .iter()
+                    .next()
+                    .expect("Failed getting alice's OTK, which should never happen here.")
+                    .1,
+            )
+            .unwrap();
 
         // encrypt using a fallback key
-        let mut carol_session = carol.create_outbound_session(
-            SessionConfig::version_1(),
-            alice.curve25519_key(),
-            *alice
-                .fallback_key()
-                .iter()
-                .next()
-                .expect("Failed getting alice's fallback key, which should never happen here.")
-                .1,
-        );
+        let mut carol_session = carol
+            .create_outbound_session(
+                SessionConfig::version_1(),
+                alice.curve25519_key(),
+                *alice
+                    .fallback_key()
+                    .iter()
+                    .next()
+                    .expect("Failed getting alice's fallback key, which should never happen here.")
+                    .1,
+            )
+            .unwrap();
 
         let message = "It's a secret to everybody";
-        let bob_olm_message = bob_session.encrypt(message);
-        let carol_olm_message = carol_session.encrypt(message);
+        let bob_olm_message = bob_session.encrypt(message).unwrap();
+        let carol_olm_message = carol_session.encrypt(message).unwrap();
 
         let mut alice_rehydrated = Account::from_dehydrated_device(
             &alice_dehydrated_result.ciphertext,
@@ -1524,14 +1579,22 @@ mod test {
         // make sure we can decrypt both messages
         assert_matches!(bob_olm_message, OlmMessage::PreKey(prekey_message));
         let InboundCreationResult { session: alice_session, plaintext } = alice_rehydrated
-            .create_inbound_session(bob.curve25519_key(), &prekey_message)
+            .create_inbound_session(
+                SessionConfig::version_1(),
+                bob.curve25519_key(),
+                &prekey_message,
+            )
             .expect("Alice should be able to create an inbound session from Bob's pre-key message");
         assert_eq!(alice_session.session_id(), bob_session.session_id());
         assert_eq!(message.as_bytes(), plaintext);
 
         assert_matches!(carol_olm_message, OlmMessage::PreKey(prekey_message));
         let InboundCreationResult { session: alice_session, plaintext } = alice_rehydrated
-            .create_inbound_session(carol.curve25519_key(), &prekey_message)
+            .create_inbound_session(
+                SessionConfig::version_1(),
+                carol.curve25519_key(),
+                &prekey_message,
+            )
             .expect(
                 "Alice should be able to create an inbound session from Carol's pre-key message",
             );
@@ -1617,5 +1680,109 @@ mod test {
             Account::from_decrypted_dehydrated_device(&encoded).expect("Should rehydrate account");
 
         assert_eq!(alice.identity_keys(), account.identity_keys());
+    }
+
+    #[test]
+    #[cfg(feature = "experimental-session-config")]
+    fn create_session_with_incorrect_session_config_upgrade() {
+        // Both of these are vodozemac accounts.
+        let alice = Account::new();
+        let mut bob = Account::new();
+
+        bob.generate_one_time_keys(1);
+        let one_time_key =
+            *bob.one_time_keys().values().next().expect("Bob should have generated a one-time key");
+
+        let mut alice_session = alice
+            .create_outbound_session(SessionConfig::version_1(), bob.curve25519_key(), one_time_key)
+            .expect("We should be able to create an outbound session with bob.");
+
+        let message = "It's a secret to everybody";
+        let pre_key_message =
+            alice_session.encrypt(message).expect("We should be able to encrypt the first message");
+
+        assert_matches2::assert_let!(OlmMessage::PreKey(pre_key_message) = pre_key_message);
+
+        let result = bob.create_inbound_session(
+            SessionConfig::version_2(),
+            alice.curve25519_key(),
+            &pre_key_message,
+        );
+
+        assert_matches!(
+            result,
+            Err(SessionCreationError::MismatchedSessionConfig { .. }),
+            "We should not create a session if the incorrect session config was used"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "experimental-session-config")]
+    fn create_session_with_incorrect_session_config_downgrade() {
+        let alice = Account::new();
+        let mut bob = Account::new();
+
+        bob.generate_one_time_keys(1);
+        let one_time_key =
+            *bob.one_time_keys().values().next().expect("Bob should have generated a one-time key");
+
+        let mut alice_session = alice
+            .create_outbound_session(SessionConfig::version_2(), bob.curve25519_key(), one_time_key)
+            .expect("We should be able to create an outbound session with bob.");
+
+        let message = "It's a secret to everybody";
+        let pre_key_message =
+            alice_session.encrypt(message).expect("We should be able to encrypt the first message");
+
+        assert_matches2::assert_let!(OlmMessage::PreKey(pre_key_message) = pre_key_message);
+
+        let result = bob.create_inbound_session(
+            SessionConfig::version_1(),
+            alice.curve25519_key(),
+            &pre_key_message,
+        );
+
+        assert_matches!(
+            result,
+            Err(SessionCreationError::MismatchedSessionConfig { .. }),
+            "We should not create a session if the incorrect session config was used"
+        );
+    }
+
+    #[test]
+    fn create_session_with_unsupported_session_config() {
+        let alice = Account::new();
+        let mut bob = Account::new();
+
+        bob.generate_one_time_keys(1);
+        let one_time_key =
+            *bob.one_time_keys().values().next().expect("Bob should have generated a one-time key");
+
+        let mut alice_session = alice
+            .create_outbound_session(SessionConfig::version_1(), bob.curve25519_key(), one_time_key)
+            .expect("We should be able to create an outbound session with bob.");
+
+        let message = "It's a secret to everybody";
+        let pre_key_message =
+            alice_session.encrypt(message).expect("We should be able to encrypt the first message");
+
+        assert_matches2::assert_let!(OlmMessage::PreKey(mut pre_key_message) = pre_key_message);
+
+        // Technically this can't happen as the pre-key message parsing will reject such
+        // a version, but let's double check if our session creation is robust against
+        // unknown versions.
+        pre_key_message.message.version = 0xFF;
+
+        let result = bob.create_inbound_session(
+            SessionConfig::version_1(),
+            alice.curve25519_key(),
+            &pre_key_message,
+        );
+
+        assert_matches!(
+            result,
+            Err(SessionCreationError::MismatchedSessionConfig { got: None, .. }),
+            "We should not create a session if an unknown session config was used for the pre-key message"
+        );
     }
 }
