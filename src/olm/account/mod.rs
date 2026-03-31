@@ -21,7 +21,7 @@ use chacha20poly1305::{
     ChaCha20Poly1305, Nonce,
     aead::{Aead, KeyInit},
 };
-use cipher::crypto_common::Generate;
+use cipher::common::Generate;
 use rand::rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -747,7 +747,7 @@ mod libolm {
                 version: 4,
                 ed25519_keypair: LibolmEd25519Keypair {
                     private_key: account.signing_key.expanded_secret_key(),
-                    public_key: account.signing_key.public_key().as_bytes().to_owned(),
+                    public_key: *account.signing_key.public_key().as_bytes(),
                 },
                 public_curve25519_key: account.diffie_hellman_key.public_key().to_bytes(),
                 private_curve25519_key: account.diffie_hellman_key.secret_key().to_bytes(),
