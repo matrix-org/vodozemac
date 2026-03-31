@@ -288,7 +288,7 @@ impl TryFrom<&[u8]> for MegolmMessage {
             let inner = ProtobufMegolmMessage::decode(
                 message
                     .get(1..message.len() - suffix_length)
-                    .ok_or_else(|| DecodeError::MessageTooShort(message.len()))?,
+                    .ok_or(DecodeError::MessageTooShort(message.len()))?,
             )?;
 
             let signature_location = message.len() - Ed25519Signature::LENGTH;
@@ -340,9 +340,9 @@ impl ProtobufMegolmMessage {
 
         [
             [version].as_ref(),
-            Self::INDEX_TAG.as_ref(),
+            Self::INDEX_TAG.as_slice(),
             &index,
-            Self::CIPHER_TAG.as_ref(),
+            Self::CIPHER_TAG.as_slice(),
             &ciphertext_len,
             &self.ciphertext,
         ]
@@ -382,7 +382,7 @@ mod test {
         let mut bytes = [1u8; 97];
         bytes[0] = VERSION;
         assert_matches!(
-            MegolmMessage::try_from(bytes.as_ref()),
+            MegolmMessage::try_from(bytes.as_slice()),
             Err(DecodeError::MessageTooShort(_))
         );
     }
@@ -392,7 +392,7 @@ mod test {
         let mut bytes = [1u8; 73];
         bytes[0] = MAC_TRUNCATED_VERSION;
         assert_matches!(
-            MegolmMessage::try_from(bytes.as_ref()),
+            MegolmMessage::try_from(bytes.as_slice()),
             Err(DecodeError::MessageTooShort(_))
         );
     }
@@ -402,7 +402,7 @@ mod test {
         let mut bytes = [1u8; 74];
         bytes[0] = MAC_TRUNCATED_VERSION;
         assert_matches!(
-            MegolmMessage::try_from(bytes.as_ref()),
+            MegolmMessage::try_from(bytes.as_slice()),
             Err(DecodeError::ProtoBufError(_))
         );
     }
