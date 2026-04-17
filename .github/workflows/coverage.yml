@@ -15,6 +15,9 @@ jobs:
   code_coverage:
     name: Code Coverage
     runs-on: "ubuntu-latest"
+    permissions:
+      contents: read
+      id-token: write
     if: github.event_name == 'push' || !github.event.pull_request.draft
 
     steps:
@@ -32,20 +35,10 @@ jobs:
     - name: Load cache
       uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4
 
-    - name: Install cargo-llvm-cov
+    - name: Install cargo-llvm-cov, nextest, just
       uses: taiki-e/install-action@85b24a67ef0c632dfefad70b9d5ce8fddb040754
       with:
-        tool: cargo-llvm-cov
-
-    - name: Install nextest
-      uses: taiki-e/install-action@85b24a67ef0c632dfefad70b9d5ce8fddb040754
-      with:
-        tool: nextest
-
-    - name: Install just
-      uses: taiki-e/install-action@85b24a67ef0c632dfefad70b9d5ce8fddb040754
-      with:
-        tool: just
+        tool: cargo-llvm-cov,nextest,just
 
     - name: Create the coverage report
       run: just coverage-codecov
@@ -53,11 +46,11 @@ jobs:
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2
       with:
-        token: ${{ secrets.CODECOV_TOKEN }}
+        use_oidc: true
 
     - name: Upload test results to Codecov
       if: ${{ !cancelled() }}
-      uses: codecov/test-results-action@0fa95f0e1eeaafde2c782583b36b28ad0d8c77d3
+      uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de
       with:
-        files: ./target/nextest/ci/junit.xml
-        token: ${{ secrets.CODECOV_TOKEN }}
+        use_oidc: true
+        report_type: "test_results"

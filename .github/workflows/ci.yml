@@ -100,6 +100,11 @@ jobs:
     needs: [clippy]
 
     runs-on: ${{ matrix.target.os }}
+
+    permissions:
+      contents: read
+      id-token: write
+
     strategy:
       matrix:
         target: [
@@ -133,7 +138,7 @@ jobs:
 
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/test-results-action@0fa95f0e1eeaafde2c782583b36b28ad0d8c77d3
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de
         with:
-          files: ./target/nextest/ci/junit.xml
-          token: ${{ secrets.CODECOV_TOKEN }}
+          use_oidc: true
+          report_type: "test_results"
