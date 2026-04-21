@@ -24,8 +24,8 @@
 cryptographic ratchets, offering a high-level API for straightforward creation
 of secure communication channels using these ratchets.
 
-Designed as a modern alternative to the [libolm] cryptographic library, which is
-used for end-to-end encryption in [Matrix], vodozemac provides not only the
+Designed as a modern alternative to the [libolm] cryptographic library, vodozemac is
+used for end-to-end encryption in [Matrix]. It provides not only the
 [Olm] and [Megolm] ratchets but also additional cryptographic features useful
 for developing Matrix clients, such as [SAS] and the integrated encryption
 scheme outlined in [MSC4108].
