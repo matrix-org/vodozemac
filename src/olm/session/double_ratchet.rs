@@ -24,6 +24,8 @@ use super::{
     root_key::{RemoteRootKey, RootKey},
 };
 use crate::olm::{EncryptionError, messages::Message, shared_secret::Shared3DHSecret};
+#[cfg(feature = "hazmat-expose-root-key")]
+use super::ratchet::RatchetKey;
 
 /// The sender side of a double-ratchet implementation.
 ///
@@ -123,6 +125,45 @@ impl DoubleRatchet {
         let ratchet = InactiveDoubleRatchet { root_key, ratchet_key, ratchet_count };
 
         Self { inner: ratchet.into() }
+    }
+
+    /// hazmat: build an active sender-side `DoubleRatchet` directly from raw
+    /// key material, bypassing the Olm 3DH handshake. Used by downstream
+    /// protocols that derive their own root key (e.g., Noise variants).
+    /// No new derivation — supplied values become the chain's keys verbatim.
+    #[cfg(feature = "hazmat-expose-root-key")]
+    pub(super) fn active_from_root_key_material(
+        root_key: RootKey,
+        chain_key: ChainKey,
+        ratchet_key: RatchetKey,
+    ) -> Self {
+        Self {
+            inner: ActiveDoubleRatchet {
+                parent_ratchet_key: None,
+                ratchet_count: RatchetCount::new(),
+                active_ratchet: Ratchet::new_with_ratchet_key(root_key, ratchet_key),
+                symmetric_key_ratchet: chain_key,
+            }
+            .into(),
+        }
+    }
+
+    /// hazmat: snapshot the active sender chain's raw bytes for equivalence
+    /// testing against an `Account`-derived session. Returns `None` if the
+    /// ratchet is inactive (no current sender chain).
+    #[cfg(feature = "hazmat-expose-root-key")]
+    pub(super) fn active_sending_state(&self) -> Option<super::ActiveSendingState> {
+        let DoubleRatchetState::Active(a) = &self.inner else { return None };
+        let mut root_key = [0u8; 32];
+        root_key.copy_from_slice(a.active_ratchet.root_key.key.as_ref());
+        let mut chain_key = [0u8; 32];
+        chain_key.copy_from_slice(a.symmetric_key_ratchet.key.as_ref());
+        Some(super::ActiveSendingState {
+            root_key,
+            chain_key,
+            chain_index: a.symmetric_key_ratchet.index,
+            ratchet_key: *a.active_ratchet.ratchet_key.0.to_bytes(),
+        })
     }
 
     pub fn advance(

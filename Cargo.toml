@@ -45,6 +45,11 @@ experimental-session-config = []
 # The low-level-api feature exposes extra APIs that are only useful in advanced
 # use cases and require extra care to use.
 low-level-api = []
+# Hazmat: expose a `Session` constructor that accepts pre-derived root/chain
+# /ratchet key material from a non-Olm handshake (e.g., Noise variants).
+# No new cryptographic logic — pure visibility + thin constructor over existing
+# internals. See `Session::from_root_key_material`.
+hazmat-expose-root-key = []
 
 [dependencies]
 aes = "0.8.4"

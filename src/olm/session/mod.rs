@@ -190,6 +190,51 @@ impl Debug for Session {
     }
 }
 
+/// hazmat: raw key material for an active Olm sender chain. Companion to
+/// [`Session::from_root_key_material`] and [`Session::active_sending_state`],
+/// exposed for downstream protocols that build a `Session` from a non-Olm
+/// handshake (Noise variants, alternative KEMs).
+#[cfg(feature = "hazmat-expose-root-key")]
+pub struct ActiveSendingState {
+    /// Current root key `R_i` of the active sender chain.
+    pub root_key: [u8; 32],
+    /// Current chain key `C_{i,j}` of the active sender chain.
+    pub chain_key: [u8; 32],
+    /// Index `j` within the current chain.
+    pub chain_index: u64,
+    /// Secret part of our local ratchet key `T_i`.
+    pub ratchet_key: [u8; 32],
+}
+
+#[cfg(feature = "hazmat-expose-root-key")]
+impl Session {
+    /// hazmat: build a `Session` directly from raw active-sender key material
+    /// derived by a non-Olm handshake. No new derivation is performed —
+    /// supplied bytes become the active chain's keys verbatim. The supplied
+    /// [`SessionKeys`] is used solely for the session ID and pre-key message
+    /// envelope, with no further use of its contents.
+    pub fn from_root_key_material(
+        config: SessionConfig,
+        session_keys: SessionKeys,
+        root_key: [u8; 32],
+        chain_key: [u8; 32],
+        ratchet_key_secret: [u8; 32],
+    ) -> Self {
+        let sending_ratchet = DoubleRatchet::active_from_root_key_material(
+            root_key::RootKey::new(Box::new(root_key)),
+            chain_key::ChainKey::new(Box::new(chain_key)),
+            ratchet::RatchetKey::from(crate::Curve25519SecretKey::from_slice(&ratchet_key_secret)),
+        );
+        Self { session_keys, sending_ratchet, receiving_chains: ChainStore::new(), config }
+    }
+
+    /// hazmat: read out the active sender chain's raw key material for
+    /// equivalence testing. Returns `None` if there is no active sender chain.
+    pub fn active_sending_state(&self) -> Option<ActiveSendingState> {
+        self.sending_ratchet.active_sending_state()
+    }
+}
+
 impl Session {
     pub(super) fn new(
         config: SessionConfig,
