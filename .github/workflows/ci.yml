@@ -88,7 +88,7 @@ jobs:
       uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4
 
     - name: Install cargo-hack
-      uses: taiki-e/install-action@6e4b50d359005dacdb018fa32c03bc35522c6616
+      uses: taiki-e/install-action@5f57d6cb7cd20b14a8a27f522884c4bc8a187458
       with:
         tool: cargo-hack
 
@@ -127,7 +127,7 @@ jobs:
           toolchain: ${{ format('{0}-{1}', matrix.channel, matrix.target.toolchain) }}
 
       - name: Install nextest
-        uses: taiki-e/install-action@6e4b50d359005dacdb018fa32c03bc35522c6616
+        uses: taiki-e/install-action@5f57d6cb7cd20b14a8a27f522884c4bc8a187458
         with:
           tool: nextest
 
