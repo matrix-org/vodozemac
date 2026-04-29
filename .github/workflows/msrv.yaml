@@ -1,0 +1,22 @@
+name: Rust version
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      with:
+        persist-credentials: false
+    - uses: taiki-e/install-action@5f57d6cb7cd20b14a8a27f522884c4bc8a187458 # cargo-hack
+      with:
+        tool: cargo-hack
+    - run: cargo hack check --rust-version --workspace --all-targets
