@@ -1,0 +1,10 @@
+---
+source: src/hpke/sender.rs
+expression: alice
+---
+UnidirectionalSenderChannel {
+    application_info_prefix: "MATRIX_QR_CODE_LOGIN",
+    our_public_key: "curve25519:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    their_public_key: "curve25519:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    ..
+}
