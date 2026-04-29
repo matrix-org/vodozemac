@@ -35,7 +35,7 @@
 //!     let decryption = PkDecryption::new();
 //!     let encryption = PkEncryption::from_key(decryption.public_key());
 //!
-//!     let message = encryption.encrypt(plaintext);
+//!     let message = encryption.encrypt(plaintext)?;
 //!     let decrypted = decryption.decrypt(&message)?;
 //!
 //!     assert_eq!(decrypted.as_slice(), plaintext);
@@ -69,6 +69,16 @@ const PICKLE_VERSION: u32 = 1;
 /// step.
 #[derive(Debug, Error)]
 pub enum Error {
+    /// One or more keys lacked contributory behavior in the Diffie-Hellman
+    /// operation, resulting in an insecure shared secret.
+    ///
+    /// For more details on contributory behavior please refer to the
+    /// [`x25519_dalek::SharedSecret::was_contributory()`] method.
+    #[error(
+        "One or more keys lacked contributory behavior in the Diffie-Hellman operation, \
+         resulting in an insecure shared secret"
+    )]
+    NonContributoryKey,
     /// The message has invalid [Pkcs7] padding.
     #[error("failed to decrypt, invalid padding: {0}")]
     InvalidPadding(#[from] UnpadError),
@@ -220,7 +230,10 @@ impl PkDecryption {
     /// Decrypt a [`Message`] which was encrypted for this [`PkDecryption`]
     /// object.
     pub fn decrypt(&self, message: &Message) -> Result<Vec<u8>, Error> {
-        let shared_secret = self.secret_key.diffie_hellman(&message.ephemeral_key);
+        let shared_secret = self
+            .secret_key
+            .diffie_hellman(&message.ephemeral_key)
+            .ok_or(Error::NonContributoryKey)?;
 
         let expanded_keys = ExpandedKeys::new_helper(shared_secret.as_bytes(), b"");
         let cipher_keys = CipherKeys::from_expanded_keys(expanded_keys);
@@ -294,9 +307,10 @@ impl PkEncryption {
     }
 
     /// Encrypt a message using this [`PkEncryption`] object.
-    pub fn encrypt(&self, message: &[u8]) -> Message {
+    pub fn encrypt(&self, message: &[u8]) -> Result<Message, Error> {
         let ephemeral_key = Curve25519SecretKey::new();
-        let shared_secret = ephemeral_key.diffie_hellman(&self.public_key);
+        let shared_secret =
+            ephemeral_key.diffie_hellman(&self.public_key).ok_or(Error::NonContributoryKey)?;
 
         let expanded_keys = ExpandedKeys::new_helper(shared_secret.as_bytes(), b"");
         let cipher_keys = CipherKeys::from_expanded_keys(expanded_keys);
@@ -313,7 +327,7 @@ impl PkEncryption {
         let mut mac = hmac.finalize().into_bytes().to_vec();
         mac.truncate(Mac::TRUNCATED_LEN);
 
-        Message { ciphertext, mac, ephemeral_key: Curve25519PublicKey::from(&ephemeral_key) }
+        Ok(Message { ciphertext, mac, ephemeral_key: Curve25519PublicKey::from(&ephemeral_key) })
     }
 }
 
@@ -390,7 +404,7 @@ mod tests {
 
         let message = "It's a secret to everybody";
 
-        let encrypted = encryptor.encrypt(message.as_ref());
+        let encrypted = encryptor.encrypt(message.as_ref()).unwrap();
         let encrypted = encrypted.into();
 
         let decrypted = decryptor
@@ -408,7 +422,7 @@ mod tests {
 
         let message = "It's a secret to everybody";
 
-        let encrypted = encryptor.encrypt(message.as_ref());
+        let encrypted = encryptor.encrypt(message.as_ref()).unwrap();
         let decrypted = decryptor
             .decrypt(&encrypted)
             .expect("We should be able to decrypt a message we encrypted");

@@ -10,28 +10,32 @@ on:
       - "Cargo.*"
       - "src/**"
 
+permissions: {}
+
 jobs:
   cargo-mutants:
+    name: cargo-mutants
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Relative diff
         run: |
           git branch -av
-          git diff origin/${{ github.base_ref }}.. | tee git.diff
+          git diff origin/${GITHUB_BASE_REF}.. | tee git.diff
 
       - name: Install rust
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
         with:
           toolchain: stable
 
-      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4
 
       - name: Install cargo-mutants
-        uses: taiki-e/install-action@3522286d40783523f9c7880e33f785905b4c20d0
+        uses: taiki-e/install-action@5f57d6cb7cd20b14a8a27f522884c4bc8a187458
         with:
           tool: cargo-mutants
 
@@ -39,7 +43,7 @@ jobs:
         run: cargo mutants -vV --no-shuffle --in-place --in-diff git.diff
 
       - name: Archive mutants.out
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
           name: mutants-incremental.out

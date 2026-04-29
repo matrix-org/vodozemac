@@ -341,6 +341,7 @@ impl InboundGroupSession {
                     Err(DecryptionError::InvalidMACLength(Mac::TRUNCATED_LEN, Mac::LENGTH))
                 }
             }
+            #[cfg(feature = "experimental-session-config")]
             Version::V2 => {
                 if let MessageMac::Full(m) = &message.mac {
                     Ok(cipher.verify_mac(&message.to_mac_bytes(), m)?)
@@ -625,12 +626,15 @@ mod test {
         assert!(!session.connected(&mut other));
         assert!(!clone.connected(&mut other));
 
-        let session_key = session.export_at_first_known_index();
-        let mut different_config =
-            InboundGroupSession::import(&session_key, SessionConfig::version_2());
+        #[cfg(feature = "experimental-session-config")]
+        {
+            let session_key = session.export_at_first_known_index();
+            let mut different_config =
+                InboundGroupSession::import(&session_key, SessionConfig::version_2());
 
-        assert!(!session.connected(&mut different_config));
-        assert!(!different_config.connected(&mut session));
+            assert!(!session.connected(&mut different_config));
+            assert!(!different_config.connected(&mut session));
+        }
     }
 
     #[test]
@@ -711,6 +715,7 @@ mod test {
         verify_mac_helper(SessionConfig::version_1());
 
         // Now let's do the same thing with a non-truncated MAC.
+        #[cfg(feature = "experimental-session-config")]
         verify_mac_helper(SessionConfig::version_2());
     }
 
