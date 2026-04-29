@@ -161,6 +161,6 @@ mod test {
     fn ratchet_public_key_from_bytes() {
         let bytes = b"aaaaaaaaaaaaaaawaaaaaaaaaaaaaaaa";
         let key = RatchetPublicKey::from(*bytes);
-        assert_eq!(key.0.to_bytes().as_ref(), bytes);
+        assert_eq!(key.0.to_bytes().as_slice(), bytes);
     }
 }

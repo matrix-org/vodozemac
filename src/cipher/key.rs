@@ -16,7 +16,7 @@
 #[allow(deprecated)]
 use aes::{
     Aes256,
-    cipher::{IvSizeUser, KeySizeUser, generic_array::GenericArray},
+    cipher::{Array, IvSizeUser, KeySizeUser},
 };
 use hkdf::Hkdf;
 use sha2::Sha256;
@@ -25,9 +25,9 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 use super::Aes256CbcEnc;
 
 #[allow(deprecated)]
-type Aes256Key = GenericArray<u8, <Aes256 as KeySizeUser>::KeySize>;
+type Aes256Key = Array<u8, <Aes256 as KeySizeUser>::KeySize>;
 #[allow(deprecated)]
-type Aes256Iv = GenericArray<u8, <Aes256CbcEnc as IvSizeUser>::IvSize>;
+type Aes256Iv = Array<u8, <Aes256CbcEnc as IvSizeUser>::IvSize>;
 type HmacSha256Key = [u8; 32];
 
 #[derive(Zeroize, ZeroizeOnDrop)]
