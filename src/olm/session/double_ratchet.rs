@@ -24,7 +24,7 @@ use super::{
     root_key::{RemoteRootKey, RootKey},
 };
 use crate::olm::{EncryptionError, messages::Message, shared_secret::Shared3DHSecret};
-#[cfg(feature = "hazmat-expose-root-key")]
+#[cfg(feature = "low-level-api")]
 use super::ratchet::RatchetKey;
 
 /// The sender side of a double-ratchet implementation.
@@ -131,7 +131,7 @@ impl DoubleRatchet {
     /// key material, bypassing the Olm 3DH handshake. Used by downstream
     /// protocols that derive their own root key (e.g., Noise variants).
     /// No new derivation — supplied values become the chain's keys verbatim.
-    #[cfg(feature = "hazmat-expose-root-key")]
+    #[cfg(feature = "low-level-api")]
     pub(super) fn active_from_root_key_material(
         root_key: RootKey,
         chain_key: ChainKey,
@@ -151,7 +151,7 @@ impl DoubleRatchet {
     /// hazmat: snapshot the active sender chain's raw bytes for equivalence
     /// testing against an `Account`-derived session. Returns `None` if the
     /// ratchet is inactive (no current sender chain).
-    #[cfg(feature = "hazmat-expose-root-key")]
+    #[cfg(feature = "low-level-api")]
     pub(super) fn active_sending_state(&self) -> Option<super::ActiveSendingState> {
         let DoubleRatchetState::Active(a) = &self.inner else { return None };
         let mut root_key = [0u8; 32];

@@ -194,7 +194,7 @@ impl Debug for Session {
 /// [`Session::from_root_key_material`] and [`Session::active_sending_state`],
 /// exposed for downstream protocols that build a `Session` from a non-Olm
 /// handshake (Noise variants, alternative KEMs).
-#[cfg(feature = "hazmat-expose-root-key")]
+#[cfg(feature = "low-level-api")]
 pub struct ActiveSendingState {
     /// Current root key `R_i` of the active sender chain.
     pub root_key: [u8; 32],
@@ -206,7 +206,7 @@ pub struct ActiveSendingState {
     pub ratchet_key: [u8; 32],
 }
 
-#[cfg(feature = "hazmat-expose-root-key")]
+#[cfg(feature = "low-level-api")]
 impl Session {
     /// hazmat: build a `Session` directly from raw active-sender key material
     /// derived by a non-Olm handshake. No new derivation is performed —
