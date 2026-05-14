@@ -16,6 +16,8 @@ use std::fmt::{Debug, Formatter};
 
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "low-level-api")]
+use super::ratchet::RatchetKey;
 use super::{
     chain_key::ChainKey,
     message_key::MessageKey,
@@ -24,8 +26,6 @@ use super::{
     root_key::{RemoteRootKey, RootKey},
 };
 use crate::olm::{EncryptionError, messages::Message, shared_secret::Shared3DHSecret};
-#[cfg(feature = "low-level-api")]
-use super::ratchet::RatchetKey;
 
 /// The sender side of a double-ratchet implementation.
 ///
