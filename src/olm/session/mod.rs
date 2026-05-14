@@ -884,4 +884,38 @@ mod test {
         let message = message_key.encrypt(plaintext.as_bytes());
         assert_ne!(message.ciphertext, plaintext.as_bytes());
     }
+
+    #[test]
+    #[cfg(feature = "low-level-api")]
+    fn from_root_key_material_exposes_active_sending_state() {
+        use crate::{Curve25519SecretKey, olm::SessionKeys};
+
+        let session_keys = SessionKeys {
+            identity_key: Curve25519PublicKey::from_bytes([0xAA; 32]),
+            base_key: Curve25519PublicKey::from_bytes([0xBB; 32]),
+            one_time_key: Curve25519PublicKey::from_bytes([0xCC; 32]),
+        };
+
+        let root_key = [0x11u8; 32];
+        let chain_key = [0x22u8; 32];
+        let ratchet_key_secret = [0x33u8; 32];
+
+        let session = Session::from_root_key_material(
+            SessionConfig::version_2(),
+            session_keys,
+            root_key,
+            chain_key,
+            ratchet_key_secret,
+        );
+
+        let state = session
+            .active_sending_state()
+            .expect("a freshly constructed Session must have an active sending chain");
+
+        assert_eq!(state.root_key, root_key);
+        assert_eq!(state.chain_key, chain_key);
+        assert_eq!(state.chain_index, 0);
+        let expected_ratchet_key = *Curve25519SecretKey::from_slice(&ratchet_key_secret).to_bytes();
+        assert_eq!(state.ratchet_key, expected_ratchet_key);
+    }
 }
