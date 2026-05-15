@@ -95,6 +95,9 @@ jobs:
     - name: Check that our features compile
       run: cargo hack check --each-feature --no-dev-deps
 
+    - name: Check that our tests pass for each feature set
+      run: cargo hack test --each-feature
+
   test:
     name: ${{ matrix.target.name }} ${{ matrix.channel }}
     needs: [clippy]
