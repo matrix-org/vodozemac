@@ -901,7 +901,7 @@ mod test {
         let ratchet_key_secret = [0x33u8; 32];
 
         let session = Session::from_root_key_material(
-            SessionConfig::version_2(),
+            SessionConfig::version_1(),
             session_keys,
             root_key,
             chain_key,
