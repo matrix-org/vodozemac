@@ -1,3 +1,5 @@
+# Test for correct secret zeroization
+
 This test demonstrates that our zeroization approach works correctly.
 
 The test is implemented using a GDB script and requires that it is run from

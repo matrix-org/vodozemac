@@ -31,7 +31,6 @@ git push --set-upstream origin/release-x.y.z
 ```
 
 4. Pass the review and merge the branch as you would with any other branch.
-
 5. Create a tag for your new release:
 
 ```bash
@@ -58,4 +57,7 @@ cargo release push --execute
 8. Create a GitHub release from the pushed tag and copy the updates from the
    changelog to the GitHub release.
 
-For more information on cargo-release: https://github.com/crate-ci/cargo-release
+For more information on cargo-release:
+[https://github.com/crate-ci/cargo-release][https-github-com-crate-ci-cargo-release]
+
+[https-github-com-crate-ci-cargo-release]: https://github.com/crate-ci/cargo-release
