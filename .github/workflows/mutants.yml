@@ -35,7 +35,7 @@ jobs:
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4
 
       - name: Install cargo-mutants
-        uses: taiki-e/install-action@cca35edeb1d01366c2843b68fc3ca441446d73d3
+        uses: taiki-e/install-action@c070f87102a1c75b3183910f391c1cb887fe13c8
         with:
           tool: cargo-mutants
 
