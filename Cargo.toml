@@ -48,14 +48,14 @@ low-level-api = []
 
 [dependencies]
 aes = { version = "0.9.0" }
-cipher = { version = "0.5.1", features = ["alloc"] }
+cipher = { version = "0.5.2", features = ["alloc"] }
 arrayvec = { version = "0.7.6", features = ["serde"] }
 base64 = "0.22.1"
 base64ct = { version = "1.8.3", features = ["std", "alloc"] }
-cbc = { version = "0.2.0" }
+cbc = { version = "0.2.1" }
 chacha20poly1305 = "0.11.0-rc.3"
 curve25519-dalek = { version = "5.0.0-pre.6", default-features = false, features = ["zeroize"] }
-ed25519-dalek = { version = "3.0.0-pre.6", default-features = false, features = ["rand_core", "serde", "hazmat", "zeroize"] }
+ed25519-dalek = { version = "3.0.0-pre.7", default-features = false, features = ["rand_core", "serde", "hazmat", "zeroize"] }
 getrandom = "0.4.2"
 hkdf = "0.13.0"
 hmac = "0.13.0"
