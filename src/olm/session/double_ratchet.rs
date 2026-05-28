@@ -154,15 +154,11 @@ impl DoubleRatchet {
     #[cfg(feature = "low-level-api")]
     pub(super) fn active_sending_state(&self) -> Option<super::ActiveSendingState> {
         let DoubleRatchetState::Active(a) = &self.inner else { return None };
-        let mut root_key = [0u8; 32];
-        root_key.copy_from_slice(a.active_ratchet.root_key.key.as_ref());
-        let mut chain_key = [0u8; 32];
-        chain_key.copy_from_slice(a.symmetric_key_ratchet.key.as_ref());
         Some(super::ActiveSendingState {
-            root_key,
-            chain_key,
+            root_key: a.active_ratchet.root_key.key.clone(),
+            chain_key: a.symmetric_key_ratchet.key.clone(),
             chain_index: a.symmetric_key_ratchet.index,
-            ratchet_key: *a.active_ratchet.ratchet_key.0.to_bytes(),
+            ratchet_key: a.active_ratchet.ratchet_key.0.to_bytes(),
         })
     }
 

@@ -32,6 +32,8 @@ use receiver_chain::ReceiverChain;
 use root_key::RemoteRootKey;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+#[cfg(feature = "low-level-api")]
+use zeroize::Zeroize;
 
 use super::{
     SessionConfig,
@@ -190,29 +192,112 @@ impl Debug for Session {
     }
 }
 
-/// hazmat: raw key material for an active Olm sender chain. Companion to
-/// [`Session::from_root_key_material`] and [`Session::active_sending_state`],
-/// exposed for downstream protocols that build a `Session` from a non-Olm
-/// handshake (Noise variants, alternative KEMs).
+/// hazmat: a snapshot of the secret key material backing an active Olm sender
+/// chain.
+///
+/// This is the companion type to [`Session::from_root_key_material`] and is
+/// returned by [`Session::active_sending_state`]. It exists so that a
+/// [`Session`] bootstrapped from a non-Olm handshake can be compared for
+/// equivalence against an `Account`-derived [`Session`] — i.e. to assert that
+/// both sides agree on the root key, chain key and ratchet key once the
+/// handshake completes.
+///
+/// As with [`Session::from_root_key_material`], the only thing replaced here is
+/// the Olm 3DH handshake that normally seeds the root key; the Double Ratchet
+/// itself is untouched. See that constructor for the full rationale and an
+/// example.
+///
+/// The three 32-byte secrets are heap-allocated (boxed) and zeroized on drop,
+/// so moving the value around does not leave copies of the key material behind
+/// on the stack.
 #[cfg(feature = "low-level-api")]
 pub struct ActiveSendingState {
     /// Current root key `R_i` of the active sender chain.
-    pub root_key: [u8; 32],
+    pub root_key: Box<[u8; 32]>,
     /// Current chain key `C_{i,j}` of the active sender chain.
-    pub chain_key: [u8; 32],
+    pub chain_key: Box<[u8; 32]>,
     /// Index `j` within the current chain.
     pub chain_index: u64,
     /// Secret part of our local ratchet key `T_i`.
-    pub ratchet_key: [u8; 32],
+    pub ratchet_key: Box<[u8; 32]>,
+}
+
+#[cfg(feature = "low-level-api")]
+impl Drop for ActiveSendingState {
+    fn drop(&mut self) {
+        self.root_key.zeroize();
+        self.chain_key.zeroize();
+        self.ratchet_key.zeroize();
+    }
 }
 
 #[cfg(feature = "low-level-api")]
 impl Session {
-    /// hazmat: build a `Session` directly from raw active-sender key material
-    /// derived by a non-Olm handshake. No new derivation is performed —
-    /// supplied bytes become the active chain's keys verbatim. The supplied
-    /// [`SessionKeys`] is used solely for the session ID and pre-key message
-    /// envelope, with no further use of its contents.
+    /// hazmat: build a [`Session`] directly from raw active-sender key material
+    /// derived outside of Olm.
+    ///
+    /// The supplied `root_key`, `chain_key` and `ratchet_key_secret` become the
+    /// active sending chain's keys *verbatim* — no key derivation, KDF or AEAD
+    /// step is performed here. The supplied [`SessionKeys`] is used solely to
+    /// compute the session ID and to populate the pre-key message envelope; its
+    /// contents are never used as key material.
+    ///
+    /// # When to use this
+    ///
+    /// This is for downstream protocols that run their own authenticated key
+    /// exchange and want to layer vodozemac's audited Double Ratchet on top,
+    /// rather than vendoring a separate ratchet implementation. Typical cases
+    /// are Noise handshakes (for example a Noise `KK` exchange carried over a
+    /// transport such as Tor v3 onion services) or alternative / post-quantum
+    /// KEMs.
+    ///
+    /// This constructor *replaces only the Olm 3DH handshake*: the bytes you
+    /// pass in stand in for the secret that 3DH would normally produce. From
+    /// that point on the Double Ratchet works exactly as it does in a regular
+    /// Olm session — the symmetric-key ratchet advances per message and the DH
+    /// ratchet advances on each received reply.
+    ///
+    /// Both peers must independently derive identical `root_key`, `chain_key`
+    /// and `ratchet_key_secret` material and agree on which side owns the
+    /// initial sending chain; the other side decrypts the first message and the
+    /// DH ratchet converges from there.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use vodozemac::{
+    ///     Curve25519PublicKey,
+    ///     olm::{Session, SessionConfig, SessionKeys},
+    /// };
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// // Secret material produced by your own (non-Olm) handshake. These bytes
+    /// // become the active sender chain's keys verbatim.
+    /// let root_key = [0u8; 32];
+    /// let chain_key = [0u8; 32];
+    /// let ratchet_key_secret = [0u8; 32];
+    ///
+    /// // `SessionKeys` only feeds the session ID and the pre-key message
+    /// // envelope; its contents are not used as key material.
+    /// let session_keys = SessionKeys {
+    ///     identity_key: Curve25519PublicKey::from_bytes([1u8; 32]),
+    ///     base_key: Curve25519PublicKey::from_bytes([2u8; 32]),
+    ///     one_time_key: Curve25519PublicKey::from_bytes([3u8; 32]),
+    /// };
+    ///
+    /// let mut session = Session::from_root_key_material(
+    ///     SessionConfig::version_1(),
+    ///     session_keys,
+    ///     root_key,
+    ///     chain_key,
+    ///     ratchet_key_secret,
+    /// );
+    ///
+    /// // `session` is now a ready-to-use Olm sender.
+    /// let message = session.encrypt("Hello from a non-Olm handshake")?;
+    /// # let _ = message;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn from_root_key_material(
         config: SessionConfig,
         session_keys: SessionKeys,
@@ -912,10 +997,10 @@ mod test {
             .active_sending_state()
             .expect("a freshly constructed Session must have an active sending chain");
 
-        assert_eq!(state.root_key, root_key);
-        assert_eq!(state.chain_key, chain_key);
+        assert_eq!(*state.root_key, root_key);
+        assert_eq!(*state.chain_key, chain_key);
         assert_eq!(state.chain_index, 0);
         let expected_ratchet_key = *Curve25519SecretKey::from_slice(&ratchet_key_secret).to_bytes();
-        assert_eq!(state.ratchet_key, expected_ratchet_key);
+        assert_eq!(*state.ratchet_key, expected_ratchet_key);
     }
 }
