@@ -23,14 +23,14 @@ All notable changes to this project will be documented in this file.
   signatures but could start newly rejecting maliciously generated signatures.
   ([#299](https://github.com/matrix-org/vodozemac/pull/299)).
 
-### Bug Fixes
+### Bug fixes
 
 - [**BREAKING**] The `Account::create_inbound_session()` method now requires a
   `SessionConfig` as the first argument.
   ([#300](https://github.com/matrix-org/vodozemac/pull/300)).
 - [**BREAKING**] The `default()` implementations for `olm::SessionConfig` and
   `megolm::SessionConfig` have been updated to generate a version 1
-  `SessionConfig`.
+  `SessionConfig`
   ([#287](https://github.com/matrix-org/vodozemac/pull/287)).
 
 ## [0.9.0] - 2025-01-31
@@ -44,16 +44,16 @@ All notable changes to this project will be documented in this file.
 
 ## [0.8.1] - 2024-10-08
 
-### Bug Fixes
+### Bug fixes
 
 - Fix the compilation when the default features are disabled
-
 
 ## 0.8.0 - 2024-09-20
 
 ### Features
 
-- Apply the const keyword to many methods ([#167](https://github.com/matrix-org/vodozemac/pull/167)).
+- Apply the const keyword to many methods
+  ([#167](https://github.com/matrix-org/vodozemac/pull/167)).
 
 - [**BREAKING**] The `Account::sign()` method now accepts an `impl AsRef<[u8]>`
 for the message instead of a `&str`. This has been streamlined to be like
@@ -61,21 +61,26 @@ most of our other methods accepting a message to be encrypted. This
 change is mostly backwards compatible as the method will continue to
 accept a string.
 
-The `OlmMessage::from_parts()` and `OlmMessage::to_parts()` methods now
-accept and return an `&[u8]` and `Vec<u8>` exclusively for the
-ciphertext. The `base64_encode()` and `base64_decode()` methods can be
-used to achieve the previous behavior ([#176](https://github.com/matrix-org/vodozemac/pull/176)).
+The `OlmMessage::from_parts()` and `OlmMessage::to_parts()` methods now accept
+and return an `&[u8]` and `Vec<u8>` exclusively for the ciphertext. The
+`base64_encode()` and `base64_decode()` methods can be used to achieve the
+previous behavior ([#176](https://github.com/matrix-org/vodozemac/pull/176)).
 
-- Add support for the libolm PkEncryption feature. This allows
-Matrix clients to implement the [m.megolm_backup.v1.curve25519-aes-sha2](https://spec.matrix.org/v1.11/client-server-api/#backup-algorithm-mmegolm_backupv1curve25519-aes-sha2)
-room key backup algorithm. Please note that this algorithm contains a
-critical flaw and should only be used for compatibility reasons ([#171](https://github.com/matrix-org/vodozemac/pull/171)) ([#180](https://github.com/matrix-org/vodozemac/pull/180)).
+- Add support for the libolm PkEncryption feature. This allows Matrix clients to
+implement the
+[m.megolm_backup.v1.curve25519-aes-sha2](https://spec.matrix.org/v1.11/client-server-api/#backup-algorithm-mmegolm_backupv1curve25519-aes-sha2)
+room key backup algorithm. Please note that this algorithm contains a critical
+flaw and should only be used for compatibility reasons
+([#171](https://github.com/matrix-org/vodozemac/pull/171))
+([#180](https://github.com/matrix-org/vodozemac/pull/180)).
 
 ### Refactor
 
-- Remove the pkcs7 crate from the list of dependencies ([#164](https://github.com/matrix-org/vodozemac/pull/164)).
+- Remove the pkcs7 crate from the list of dependencies
+  ([#164](https://github.com/matrix-org/vodozemac/pull/164)).
 
-- Remove Debug implementations for the libolm compat structs ([#184](https://github.com/matrix-org/vodozemac/pull/184)).
+- Remove Debug implementations for the libolm compat structs
+  ([#184](https://github.com/matrix-org/vodozemac/pull/184)).
 
 ## 0.7.0 - 2024-07-17
 
@@ -83,7 +88,7 @@ critical flaw and should only be used for compatibility reasons ([#171](https://
 
 - Add an [Elliptic Curve Integrated Encryption
   Scheme](https://en.wikipedia.org/wiki/Integrated_Encryption_Scheme). This
-  scheme can be used to establish a secure *ephemeral* encrypted channel, in
+  scheme can be used to establish a secure _ephemeral_ encrypted channel, in
   situations for which Olm may be unsuitable due to complexity or the
   unavailability of long-term identity keys. There is also support for
   out-of-band authentication of the receiver side. The scheme was designed
@@ -93,26 +98,38 @@ critical flaw and should only be used for compatibility reasons ([#171](https://
 ### Security
 
 - Use a constant-time Base64 encoder for secret key material to mitigate
-  side-channel attacks leaking secret key material ([#156](https://github.com/matrix-org/vodozemac/pull/156)) (Low, [CVE-2024-40640](https://www.cve.org/CVERecord?id=CVE-2024-40640), [GHSA-j8cm-g7r6-hfpq](https://github.com/matrix-org/vodozemac/security/advisories/GHSA-j8cm-g7r6-hfpq)).
+side-channel attacks leaking secret key material
+([#156](https://github.com/matrix-org/vodozemac/pull/156)) (Low,
+[CVE-2024-40640](https://www.cve.org/CVERecord?id=CVE-2024-40640),
+[GHSA-j8cm-g7r6-hfpq](https://github.com/matrix-org/vodozemac/security/advisories/GHSA-j8cm-g7r6-hfpq)).
 
 ## [0.6.0] - 2024-05-06
 
-### Security Fixes
+### Security fixes
 
-- Re-enable zeroization in the Dalek crates ([#130](https://github.com/matrix-org/vodozemac/pull/130)) (Low, [CVE-2024-34063](https://www.cve.org/CVERecord?id=CVE-2024-34063), [GHSA-c3hm-hxwf-g5c6](https://github.com/matrix-org/vodozemac/security/advisories/GHSA-c3hm-hxwf-g5c6))
-
+- Re-enable zeroization in the Dalek crates
+([#130](https://github.com/matrix-org/vodozemac/pull/130)) (Low,
+[CVE-2024-34063](https://www.cve.org/CVERecord?id=CVE-2024-34063),
+[GHSA-c3hm-hxwf-g5c6](https://github.com/matrix-org/vodozemac/security/advisories/GHSA-c3hm-hxwf-g5c6))
 
 ### Features
 
-- Track the number of Diffie-Hellman ratchet advances in the Olm Session.
-  This number is useful only for debugging purposes and will be included in the
-  Debug output of the Olm `Session` ([#134](https://github.com/matrix-org/vodozemac/pull/134)).
+- Track the number of Diffie-Hellman ratchet advances in the Olm Session. This
+  number is useful only for debugging purposes and will be included in the Debug
+  output of the Olm `Session`
+  ([#134](https://github.com/matrix-org/vodozemac/pull/134)).
 
 ### Testing
 
-- Add mutation tests ([#136](https://github.com/matrix-org/vodozemac/pull/136)) ([#138](https://github.com/matrix-org/vodozemac/pull/138)) ([#140](https://github.com/matrix-org/vodozemac/pull/140)) ([#139](https://github.com/matrix-org/vodozemac/pull/139)) ([#144](https://github.com/matrix-org/vodozemac/pull/144)) ([#143](https://github.com/matrix-org/vodozemac/pull/143)),
-  special thanks to [Johannes Marbach](https://github.com/Johennes) for that.
-- Enable mutation tests on CI ([#147](https://github.com/matrix-org/vodozemac/pull/147)).
+- Add mutation tests ([#136](https://github.com/matrix-org/vodozemac/pull/136))
+  ([#138](https://github.com/matrix-org/vodozemac/pull/138))
+  ([#140](https://github.com/matrix-org/vodozemac/pull/140))
+  ([#139](https://github.com/matrix-org/vodozemac/pull/139))
+  ([#144](https://github.com/matrix-org/vodozemac/pull/144))
+  ([#143](https://github.com/matrix-org/vodozemac/pull/143)), special thanks to
+  [Johannes Marbach](https://github.com/Johennes) for that.
+- Enable mutation tests on CI
+  ([#147](https://github.com/matrix-org/vodozemac/pull/147)).
 
 ## [0.5.1] - 2024-02-05
 
@@ -124,13 +141,14 @@ critical flaw and should only be used for compatibility reasons ([#171](https://
 
 ### Features
 
-- Add support for exporting an Account to a libolm pickle ([#111](https://github.com/matrix-org/vodozemac/pull/111))
-- Add base64 decoding and encoding methods to the public interface ([#112](https://github.com/matrix-org/vodozemac/pull/112))
-
+- Add support for exporting an Account to a libolm pickle
+  ([#111](https://github.com/matrix-org/vodozemac/pull/111))
+- Add base64 decoding and encoding methods to the public interface
+  ([#112](https://github.com/matrix-org/vodozemac/pull/112))
 
 ## [0.4.0] - 2023-05-31
 
-### Bug Fixes
+### Bug fixes
 
 - Use the next key id from the libolm pickle instead of guessing
 
@@ -141,8 +159,10 @@ critical flaw and should only be used for compatibility reasons ([#171](https://
 - Expose the version of vodozemac
 - Make Debug representation of the public key types prettier
 - Add a method to calculate the Session ID from a pre-key message
-- [**breaking**] Return the created and discarded one-time keys when generating new ones ([#100](https://github.com/matrix-org/vodozemac/pull/100))
-- [**breaking**] Return the fallback key which was removed when generating a new one
+- [**breaking**] Return the created and discarded one-time keys when generating
+new ones ([#100](https://github.com/matrix-org/vodozemac/pull/100))
+- [**breaking**] Return the fallback key which was removed when generating a new
+one
 - Expose the build-time git commit hash and description as static vars
 - Expose the Curve25519SecretKey type
 
@@ -157,7 +177,7 @@ critical flaw and should only be used for compatibility reasons ([#171](https://
 
 ## [0.3.0] - 2022-09-13
 
-### Bug Fixes
+### Bug fixes
 
 - Accept a byteslice for the pickle key
 - Hide the remove_one_time_key method

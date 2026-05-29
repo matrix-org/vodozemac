@@ -2,9 +2,9 @@
 
 Thank you for taking the time to contribute to Matrix!
 
-This is the repository for Vodozemac, a Rust implementation of Olm and Megolm.
+This is the repository for vodozemac, a Rust implementation of Olm and Megolm.
 
-# Writing changelog entries
+## Writing changelog entries
 
 Our goal is to maintain clear, concise, and informative changelogs that
 accurately document changes in the project. Changelog entries should be written
@@ -15,32 +15,35 @@ well-written changelog entry should be understandable even to those who may not
 be deeply familiar with the project. Provide enough context to ensure clarity
 and ease of understanding.
 
-# Commit Message Format
+## Commit message format
 
 Commit messages should be formatted as Conventional Commits. In addition, some
 git trailers are supported and have special meaning (see below).
 
-### Conventional Commits
+### Conventional commits
 
 Conventional Commits are structured as follows:
 
-```
+```text
 <type>(<scope>): <short summary>
 ```
 
-The type of changes which will be included in changelogs is one of the following:
+The type of changes which will be included in changelogs is one of the
+following:
 
-    feat: A new feature
-    fix: A bug fix
-    doc: Documentation changes
-    refactor: Code refactoring
-    perf: Performance improvements
-    ci: Changes to CI configuration files and scripts
+```text
+feat: A new feature
+fix: A bug fix
+doc: Documentation changes
+refactor: Code refactoring
+perf: Performance improvements
+ci: Changes to CI configuration files and scripts
+```
 
 The scope is optional and can specify the area of the codebase affected (e.g.,
 olm, cipher).
 
-# Sign off
+## Sign off
 
 We ask that everybody who contributes to this project signs off their
 contributions, as explained below.
@@ -61,7 +64,7 @@ Origin](https://developercertificate.org/) (DCO). This is a simple declaration
 that you wrote the contribution or otherwise have the right to contribute it to
 Matrix:
 
-```
+```text
 Developer Certificate of Origin
 Version 1.1
 
@@ -102,7 +105,7 @@ By making a contribution to this project, I certify that:
 If you agree to this for your contribution, then all that's needed is to include
 the line in your commit or pull request comment:
 
-```
+```text
 Signed-off-by: Your Name <your@email.example.org>
 ```
 

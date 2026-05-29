@@ -24,11 +24,11 @@
 cryptographic ratchets, offering a high-level API for straightforward creation
 of secure communication channels using these ratchets.
 
-Designed as a modern alternative to the [libolm] cryptographic library, vodozemac is
-used for end-to-end encryption in [Matrix]. It provides not only the
-[Olm] and [Megolm] ratchets but also additional cryptographic features useful
-for developing Matrix clients, such as [SAS] and the integrated encryption
-scheme outlined in [MSC4108].
+Designed as a modern alternative to the [libolm] cryptographic library,
+vodozemac is used for end-to-end encryption in [Matrix]. It provides not only
+the [Olm] and [Megolm] ratchets but also additional cryptographic features
+useful for developing Matrix clients, such as [SAS] and the integrated
+encryption scheme outlined in [MSC4108].
 
 [vodozemac]: https://hjp.znanje.hr/index.php?show=search_by_id&id=f19vXxZ%2F
 [Olm]: https://gitlab.matrix.org/matrix-org/olm/-/blob/master/docs/olm.md
@@ -44,7 +44,7 @@ Explore how to implement end-to-end encryption in our [documentation].
 
 [documentation]: https://docs.rs/vodozemac/latest/vodozemac/
 
-# Installation
+## Installation
 
 To install add the following to your project's `Cargo.toml`:
 
@@ -53,7 +53,7 @@ To install add the following to your project's `Cargo.toml`:
 vodozemac = "0.10.0"
 ```
 
-# Security Notes
+## Security notes
 
 This crate has received one security [audit] by [Least Authority], with no
 significant findings.

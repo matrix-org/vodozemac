@@ -429,7 +429,7 @@ mod test {
             crate::olm::session::test::session_and_libolm_pair()
                 .expect("unable to create sessions");
 
-        // Import the libolm session into a proper Vodozmac session.
+        // Import the libolm session into a proper vodozemac session.
         let key = b"DEFAULT_PICKLE_KEY";
         let pickle =
             bob_libolm_session.pickle(olm_rs::PicklingMode::Encrypted { key: key.to_vec() });

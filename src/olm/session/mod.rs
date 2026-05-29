@@ -836,7 +836,7 @@ mod test {
         let message_key =
             session.next_message_key().expect("We should be able to get a message key");
 
-        let message = message_key.encrypt(plaintext.as_bytes());
+        let message = message_key.encrypt_truncated_mac(plaintext.as_bytes());
         assert_ne!(message.ciphertext, plaintext.as_bytes());
     }
 }
