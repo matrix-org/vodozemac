@@ -25,13 +25,14 @@ exceptions = [
 
 [bans]
 multiple-versions = "warn"
-wildcards = "deny"
+wildcards = "allow"
 
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
 
 allow-git = [
+    "https://github.com/rozbb/rust-hpke/",
     "https://github.com/poljar/olm-rs",
     "https://github.com/poljar/olm-sys",
 ]
