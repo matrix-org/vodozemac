@@ -1,0 +1,51 @@
+[global]
+# Use the GitHub Markdown flavour, https://github.com/rvben/rumdl/blob/main/docs/flavors/gfm.md.
+flavor = "gfm"
+disable = [
+  # `first-line-heading`, https://github.com/rvben/rumdl/blob/main/docs/md041.md.
+  # Some documents are fragments, the first heading is defined somewhere else.
+  "MD041",
+]
+
+# `line-length`, https://github.com/rvben/rumdl/blob/main/docs/md013.md.
+[MD013]
+line-length = 80
+code-blocks = false
+tables = false
+reflow = true
+
+# `ol-prefix`, https://github.com/rvben/rumdl/blob/main/docs/md029.md.
+[MD029]
+style = "ordered"
+
+# `no-inline-html`, https://github.com/rvben/rumdl/blob/main/docs/md033.md.
+[MD033]
+allowed-elements = [
+  "i",
+  "q",
+  "cite",
+  "a",
+  "time",
+  "sub",
+  "sup",
+  "figure", "figcaption",
+  "table",
+  "summary", "details",
+  "math", "mo", "mn", "mi", "semantics", "annotation",
+]
+disallowed-elements = ["gfm"]
+fix = true
+fix-mode = "relaxed"
+
+# `heading-capitalization`, https://github.com/rvben/rumdl/blob/main/docs/md063.md.
+[MD063]
+enabled = true
+ignore-words = ["vodozemac"]
+style = "sentence-case"
+min-level = 1
+max-level = 3
+
+# `list-item-spacing`, https://github.com/rvben/rumdl/blob/main/docs/md076.md.
+[MD076]
+style = "tight"
+allow-loose-continuation = true
