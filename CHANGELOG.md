@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased] - ReleaseDate
 
+### Features
+
+- Add a new `olm::Session` constructor which allows the 3DH step to be skipped.
+  ([#341](https://github.com/matrix-org/vodozemac/pull/341))
+
 ## [0.10.0] - 2026-04-13
 
 ### Features
