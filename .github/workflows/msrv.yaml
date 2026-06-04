@@ -16,7 +16,7 @@ jobs:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       with:
         persist-credentials: false
-    - uses: taiki-e/install-action@213ccc1a076163c093f914550b94feb90fab916d # cargo-hack
+    - uses: taiki-e/install-action@6ed6112eb9893c58dd600eebccdf6e77ab7bfa9c # cargo-hack
       with:
         tool: cargo-hack
     - run: cargo hack check --rust-version --workspace --all-targets
