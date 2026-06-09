@@ -18,10 +18,10 @@ mod one_time_keys;
 use std::collections::HashMap;
 
 use chacha20poly1305::{
-    ChaCha20Poly1305,
-    aead::{Aead, AeadCore, KeyInit},
+    ChaCha20Poly1305, Nonce,
+    aead::{Aead, KeyInit},
 };
-use rand::thread_rng;
+use cipher::common::Generate;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use zeroize::Zeroize;
@@ -520,8 +520,7 @@ impl Account {
             .map_err(|e| DehydratedDeviceError::LibolmPickle(LibolmPickleError::Encode(e)))?;
 
         let cipher = ChaCha20Poly1305::new(key.into());
-        let rng = thread_rng();
-        let nonce = ChaCha20Poly1305::generate_nonce(rng);
+        let nonce = Nonce::generate();
         let ciphertext = cipher.encrypt(&nonce, encoded.as_slice());
 
         encoded.zeroize();
@@ -555,7 +554,12 @@ impl Account {
         if nonce.len() != 12 {
             Err(crate::DehydratedDeviceError::InvalidNonce)
         } else {
-            let mut plaintext = cipher.decrypt(nonce.as_slice().into(), ciphertext.as_slice())?;
+            let mut nonce_array = [0u8; 12];
+            nonce_array.copy_from_slice(nonce.as_slice());
+
+            let nonce = Nonce::from(nonce_array);
+            let mut plaintext = cipher.decrypt(&nonce, ciphertext.as_slice())?;
+
             let version = get_pickle_version(&plaintext)
                 .ok_or(crate::DehydratedDeviceError::MissingVersion)?;
 
@@ -777,7 +781,7 @@ mod libolm {
                 version: 4,
                 ed25519_keypair: LibolmEd25519Keypair {
                     private_key: account.signing_key.expanded_secret_key(),
-                    public_key: account.signing_key.public_key().as_bytes().to_owned(),
+                    public_key: *account.signing_key.public_key().as_bytes(),
                 },
                 public_curve25519_key: account.diffie_hellman_key.public_key().to_bytes(),
                 private_curve25519_key: account.diffie_hellman_key.secret_key().to_bytes(),
@@ -944,7 +948,7 @@ mod dehydrated_device {
                 private_ed25519_key: account
                     .signing_key
                     .unexpanded_secret_key()
-                    .ok_or_else(|| DehydratedDeviceError::InvalidAccount)?,
+                    .ok_or(DehydratedDeviceError::InvalidAccount)?,
                 one_time_keys,
                 opt_fallback_key: OptFallbackKey { fallback_key },
             })
