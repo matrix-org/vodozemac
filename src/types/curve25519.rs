@@ -16,7 +16,7 @@ use std::fmt::Display;
 
 use base64::decoded_len_estimate;
 use matrix_pickle::{Decode, DecodeError};
-use rand::thread_rng;
+use rand_core::OsRng;
 use serde::{Deserialize, Serialize};
 use x25519_dalek::{EphemeralSecret, PublicKey, ReusableSecret, SharedSecret, StaticSecret};
 use zeroize::Zeroize;
@@ -32,7 +32,7 @@ pub struct Curve25519SecretKey(Box<StaticSecret>);
 impl Curve25519SecretKey {
     /// Generate a new, random, Curve25519SecretKey.
     pub fn new() -> Self {
-        let rng = thread_rng();
+        let rng = OsRng;
 
         Self(Box::new(StaticSecret::random_from_rng(rng)))
     }

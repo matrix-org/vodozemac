@@ -60,7 +60,7 @@ hkdf = "0.12.4"
 hmac = "0.12.1"
 matrix-pickle = { version = "0.2.1" }
 prost = "0.14.3"
-rand = "0.8.5"
+rand_core = { version = "0.6.4", features = ["getrandom"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_bytes = "0.11.17"
 serde_json = "1.0.140"

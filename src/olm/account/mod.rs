@@ -21,7 +21,7 @@ use chacha20poly1305::{
     ChaCha20Poly1305,
     aead::{Aead, AeadCore, KeyInit},
 };
-use rand::thread_rng;
+use rand_core::OsRng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use zeroize::Zeroize;
@@ -520,7 +520,7 @@ impl Account {
             .map_err(|e| DehydratedDeviceError::LibolmPickle(LibolmPickleError::Encode(e)))?;
 
         let cipher = ChaCha20Poly1305::new(key.into());
-        let rng = thread_rng();
+        let rng = OsRng;
         let nonce = ChaCha20Poly1305::generate_nonce(rng);
         let ciphertext = cipher.encrypt(&nonce, encoded.as_slice());
 

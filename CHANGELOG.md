@@ -11,6 +11,11 @@ All notable changes to this project will be documented in this file.
 - Add a new `olm::Session` constructor which allows the 3DH step to be skipped.
   ([#341](https://github.com/matrix-org/vodozemac/pull/341))
 
+### Refactor
+
+- Use `rand_core::OsRng` directly for cryptographic randomness.
+  ([#363](https://github.com/matrix-org/vodozemac/pull/363))
+
 ## [0.10.0] - 2026-04-13
 
 ### Features
