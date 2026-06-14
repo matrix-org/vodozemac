@@ -53,7 +53,7 @@
 
 use hkdf::Hkdf;
 use hmac::{Hmac, Mac as _, digest::MacError};
-use rand::thread_rng;
+use rand_core::OsRng;
 use sha2::Sha256;
 use thiserror::Error;
 use x25519_dalek::{EphemeralSecret, SharedSecret};
@@ -221,7 +221,7 @@ impl Sas {
     /// This creates an ephemeral curve25519 keypair that can be used to
     /// establish a shared secret.
     pub fn new() -> Self {
-        let rng = thread_rng();
+        let rng = OsRng;
 
         let secret_key = EphemeralSecret::random_from_rng(rng);
         let public_key = Curve25519PublicKey::from(&secret_key);

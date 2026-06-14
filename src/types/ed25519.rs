@@ -20,7 +20,7 @@ use curve25519_dalek::EdwardsPoint;
 use ed25519_dalek::{
     PUBLIC_KEY_LENGTH, SIGNATURE_LENGTH, Signature, Signer, SigningKey, VerifyingKey,
 };
-use rand::thread_rng;
+use rand_core::OsRng;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_bytes::{ByteBuf as SerdeByteBuf, Bytes as SerdeBytes};
 use sha2::Sha512;
@@ -127,7 +127,7 @@ impl<'d> Deserialize<'d> for ExpandedSecretKey {
 impl Ed25519Keypair {
     /// Create a new, random, `Ed25519Keypair`.
     pub fn new() -> Self {
-        let mut rng = thread_rng();
+        let mut rng = OsRng;
         let signing_key = SigningKey::generate(&mut rng);
 
         Self {
@@ -206,7 +206,7 @@ impl Ed25519SecretKey {
 
     /// Create a new random `Ed25519SecretKey`.
     pub fn new() -> Self {
-        let mut rng = thread_rng();
+        let mut rng = OsRng;
         let signing_key = SigningKey::generate(&mut rng);
         let key = Box::new(signing_key);
 
