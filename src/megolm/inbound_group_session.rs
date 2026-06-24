@@ -14,7 +14,7 @@
 
 use std::cmp::Ordering;
 
-use aes::cipher::block_padding::UnpadError;
+use aes::cipher::block_padding::Error as UnpadError;
 use hmac::digest::MacError;
 use serde::{Deserialize, Serialize};
 use subtle::ConstantTimeEq;

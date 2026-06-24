@@ -18,11 +18,11 @@ pub(crate) mod key;
 use aes::{
     Aes256,
     cipher::{
-        BlockDecryptMut, BlockEncryptMut, KeyIvInit,
-        block_padding::{Pkcs7, UnpadError},
+        BlockModeDecrypt, BlockModeEncrypt, KeyIvInit,
+        block_padding::{Error as UnpadError, Pkcs7},
     },
 };
-use hmac::{Hmac, Mac as MacT, digest::MacError};
+use hmac::{Hmac, KeyInit as _, Mac as MacT, digest::MacError};
 use key::CipherKeys;
 use sha2::Sha256;
 use thiserror::Error;
@@ -162,7 +162,7 @@ impl Cipher {
     /// separately to generate the message authentication code (MAC).
     pub fn encrypt(&self, plaintext: &[u8]) -> Vec<u8> {
         let cipher = Aes256CbcEnc::new(self.keys.aes_key(), self.keys.iv());
-        cipher.encrypt_padded_vec_mut::<Pkcs7>(plaintext)
+        cipher.encrypt_padded_vec::<Pkcs7>(plaintext)
     }
 
     /// Generates a message authentication code (MAC) for the given ciphertext.
@@ -189,7 +189,7 @@ impl Cipher {
     /// to ensure the integrity of the ciphertext.
     pub fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>, UnpadError> {
         let cipher = Aes256CbcDec::new(self.keys.aes_key(), self.keys.iv());
-        cipher.decrypt_padded_vec_mut::<Pkcs7>(ciphertext)
+        cipher.decrypt_padded_vec::<Pkcs7>(ciphertext)
     }
 
     /// Verifies that the provided message authentication code (MAC) correctly
