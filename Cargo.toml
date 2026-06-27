@@ -67,7 +67,7 @@ serde_json = "1.0.140"
 sha2 = "0.10.9"
 subtle = "2.6.1"
 thiserror = "2.0.18"
-x25519-dalek = { version = "2.0.1", features = ["serde", "reusable_secrets", "static_secrets", "zeroize"] }
+x25519-dalek = { version = "2.0.1", default-features = false, features = ["alloc", "serde", "reusable_secrets", "static_secrets", "zeroize"] }
 zeroize = "1.8.2"
 
 [dev-dependencies]
