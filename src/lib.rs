@@ -102,6 +102,22 @@
 //! Extreme care must be taken when using such APIs, as incorrect usage can lead
 //! to broken sessions.
 //!
+//! ## Precomputed tables
+//!
+//! Feature: `precomputed-tables` (default: on)
+//!
+//! Enables curve25519-dalek's precomputed basepoint tables, which speed up
+//! fixed-base scalar multiplication — key generation and Ed25519 signing — at
+//! the cost of embedding roughly 40 KB of lookup tables in the final binary.
+//! Variable-base operations, such as the X25519 Diffie-Hellman used by the
+//! Double Ratchet, are unaffected.
+//!
+//! Size-sensitive builds can drop the tables by disabling default features:
+//!
+//! ```toml
+//! vodozemac = { version = "0.10.0", default-features = false, features = ["libolm-compat"] }
+//! ```
+//!
 //! # Pickling
 //!
 //! vodozemac supports serializing its entire internal state into a form
