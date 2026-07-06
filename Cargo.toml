@@ -54,8 +54,8 @@ base64 = "0.22.1"
 base64ct = { version = "1.8.3", features = ["std", "alloc"] }
 cbc = { version = "0.2.1" }
 chacha20poly1305 = "0.11.0"
-curve25519-dalek = { version = "5.0.0-rc.1", default-features = false, features = ["zeroize"] }
-ed25519-dalek = { version = "3.0.0-rc.1", default-features = false, features = ["rand_core", "serde", "hazmat", "zeroize"] }
+curve25519-dalek = { version = "5.0.0", default-features = false, features = ["zeroize"] }
+ed25519-dalek = { version = "3.0.0", default-features = false, features = ["rand_core", "serde", "hazmat", "zeroize"] }
 getrandom = "0.4.3"
 hkdf = "0.13.0"
 hmac = "0.13.0"
@@ -68,7 +68,7 @@ serde_json = "1.0.150"
 sha2 = "0.11.0"
 subtle = "2.6.1"
 thiserror = "2.0.18"
-x25519-dalek = { version = "3.0.0-rc.1", features = ["serde", "reusable_secrets", "static_secrets", "zeroize"] }
+x25519-dalek = { version = "3.0.0", features = ["serde", "reusable_secrets", "static_secrets", "zeroize"] }
 zeroize = { version = "1.9.0", features = ["derive"] }
 
 [dev-dependencies]
