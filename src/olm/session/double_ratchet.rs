@@ -16,6 +16,8 @@ use std::fmt::{Debug, Formatter};
 
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "low-level-api")]
+use super::ratchet::RatchetKey;
 use super::{
     chain_key::ChainKey,
     message_key::MessageKey,
@@ -123,6 +125,41 @@ impl DoubleRatchet {
         let ratchet = InactiveDoubleRatchet { root_key, ratchet_key, ratchet_count };
 
         Self { inner: ratchet.into() }
+    }
+
+    /// hazmat: build an active sender-side `DoubleRatchet` directly from raw
+    /// key material, bypassing the Olm 3DH handshake. Used by downstream
+    /// protocols that derive their own root key (e.g., Noise variants).
+    /// No new derivation — supplied values become the chain's keys verbatim.
+    #[cfg(feature = "low-level-api")]
+    pub(super) fn active_from_root_key_material(
+        root_key: RootKey,
+        chain_key: ChainKey,
+        ratchet_key: RatchetKey,
+    ) -> Self {
+        Self {
+            inner: ActiveDoubleRatchet {
+                parent_ratchet_key: None,
+                ratchet_count: RatchetCount::new(),
+                active_ratchet: Ratchet::new_with_ratchet_key(root_key, ratchet_key),
+                symmetric_key_ratchet: chain_key,
+            }
+            .into(),
+        }
+    }
+
+    /// hazmat: snapshot the active sender chain's raw bytes for equivalence
+    /// testing against an `Account`-derived session. Returns `None` if the
+    /// ratchet is inactive (no current sender chain).
+    #[cfg(feature = "low-level-api")]
+    pub(super) fn active_sending_state(&self) -> Option<super::ActiveSendingState> {
+        let DoubleRatchetState::Active(a) = &self.inner else { return None };
+        Some(super::ActiveSendingState {
+            root_key: a.active_ratchet.root_key.key.clone(),
+            chain_key: a.symmetric_key_ratchet.key.clone(),
+            chain_index: a.symmetric_key_ratchet.index,
+            ratchet_key: a.active_ratchet.ratchet_key.0.to_bytes(),
+        })
     }
 
     pub fn advance(

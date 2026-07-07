@@ -22,7 +22,7 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         ref: ${{ github.event.pull_request.head.sha }}
         persist-credentials: false
@@ -36,7 +36,7 @@ jobs:
       uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4
 
     - name: Install cargo-llvm-cov, nextest, just
-      uses: taiki-e/install-action@213ccc1a076163c093f914550b94feb90fab916d
+      uses: taiki-e/install-action@16b05812d776ae1dfaabc8277e421fb6d2506419
       with:
         tool: cargo-llvm-cov,nextest,just
 
@@ -44,13 +44,13 @@ jobs:
       run: just coverage-codecov
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354
+      uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f
       with:
         use_oidc: true
 
     - name: Upload test results to Codecov
       if: ${{ !cancelled() }}
-      uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354
+      uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f
       with:
         use_oidc: true
         report_type: "test_results"

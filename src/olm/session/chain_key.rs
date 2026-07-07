@@ -54,8 +54,8 @@ fn advance(key: &[u8; 32]) -> CtOutput<Hmac<Sha256>> {
 
 #[derive(Clone, Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 pub(super) struct ChainKey {
-    key: Box<[u8; 32]>,
-    index: u64,
+    pub(super) key: Box<[u8; 32]>,
+    pub(super) index: u64,
 }
 
 #[derive(Clone, Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]

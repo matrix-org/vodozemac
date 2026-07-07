@@ -38,7 +38,7 @@ use crate::{Curve25519PublicKey, types::Curve25519SecretKey};
 /// ratchet keys as `T`<sub>`i`</sub>.
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(transparent)]
-pub(super) struct RatchetKey(Curve25519SecretKey);
+pub(super) struct RatchetKey(pub(super) Curve25519SecretKey);
 
 /// The public part of a [`RatchetKey`].
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -118,8 +118,8 @@ impl From<&RatchetKey> for RatchetPublicKey {
 /// `R`<sub>`i`</sub>, and our own ratchet key `T`<sub>`i`</sub>.
 #[derive(Serialize, Deserialize, Clone)]
 pub(super) struct Ratchet {
-    root_key: RootKey,
-    ratchet_key: RatchetKey,
+    pub(super) root_key: RootKey,
+    pub(super) ratchet_key: RatchetKey,
 }
 
 impl Ratchet {
