@@ -17,7 +17,7 @@ jobs:
 
     steps:
     - name: Checkout the repository
-      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         persist-credentials: false
 
@@ -36,12 +36,12 @@ jobs:
 
     steps:
     - name: Checkout the repository
-      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         persist-credentials: false
 
     - name: Check the spelling of the files in our repo
-      uses: crate-ci/typos@37bb98842b0d8c4ffebdb75301a13db0267cef89
+      uses: crate-ci/typos@bee27e3a4fd1ea2111cf90ab89cd076c870fce14
 
   clippy:
     name: Run clippy
@@ -50,7 +50,7 @@ jobs:
 
     steps:
     - name: Checkout the repository
-      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         persist-credentials: false
 
@@ -75,7 +75,7 @@ jobs:
 
     steps:
     - name: Checkout the repository
-      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         persist-credentials: false
 
@@ -88,7 +88,7 @@ jobs:
       uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4
 
     - name: Install cargo-hack
-      uses: taiki-e/install-action@15449e3094499af05d8d964a1c884208e4b8b595
+      uses: taiki-e/install-action@16b05812d776ae1dfaabc8277e421fb6d2506419
       with:
         tool: cargo-hack
 
@@ -120,7 +120,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
@@ -130,7 +130,7 @@ jobs:
           toolchain: ${{ format('{0}-{1}', matrix.channel, matrix.target.toolchain) }}
 
       - name: Install nextest
-        uses: taiki-e/install-action@15449e3094499af05d8d964a1c884208e4b8b595
+        uses: taiki-e/install-action@16b05812d776ae1dfaabc8277e421fb6d2506419
         with:
           tool: nextest
 
