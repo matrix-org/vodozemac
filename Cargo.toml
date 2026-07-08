@@ -37,9 +37,13 @@ unwrap_used = "deny"
 mem_forget = "deny"
 
 [features]
-default = ["libolm-compat"]
+default = ["libolm-compat", "precomputed-tables"]
 wasm_js = ["getrandom/wasm_js"]
 libolm-compat = []
+# Enables curve25519-dalek's precomputed basepoint tables, speeding up
+# fixed-base scalar multiplication (key generation and Ed25519 signing) at the
+# cost of embedding ~40 KB of lookup tables in the final binary.
+precomputed-tables = ["curve25519-dalek/precomputed-tables"]
 insecure-pk-encryption = ["libolm-compat"]
 experimental-session-config = []
 # The low-level-api feature exposes extra APIs that are only useful in advanced
@@ -68,7 +72,7 @@ serde_json = "1.0.150"
 sha2 = "0.11.0"
 subtle = "2.6.1"
 thiserror = "2.0.18"
-x25519-dalek = { version = "3.0.0", features = ["serde", "reusable_secrets", "static_secrets", "zeroize"] }
+x25519-dalek = { version = "3.0.0", default-features = false, features = ["serde", "reusable_secrets", "static_secrets", "zeroize"] }
 zeroize = { version = "1.9.0", features = ["derive"] }
 
 [dev-dependencies]

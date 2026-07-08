@@ -8,6 +8,11 @@ All notable changes to this project will be documented in this file.
 
 ### Features
 
+- Add a new default-enabled `precomputed-tables` feature flag which controls
+  curve25519-dalek's precomputed basepoint tables. Size-sensitive builds can
+  now disable the default features to drop roughly 40 KB of lookup tables from
+  the final binary, at the cost of slower key generation and Ed25519 signing.
+  ([#369](https://github.com/matrix-org/vodozemac/pull/369))
 - Add a new `olm::Session` constructor which allows the 3DH step to be skipped.
   ([#341](https://github.com/matrix-org/vodozemac/pull/341))
 
