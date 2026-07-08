@@ -68,7 +68,7 @@ impl ExportedSessionKey {
     fn to_bytes_with_version(&self, version: u8) -> Vec<u8> {
         let index = self.ratchet_index.to_be_bytes();
 
-        [[version].as_ref(), index.as_ref(), self.ratchet.as_ref(), self.signing_key.as_bytes()]
+        [[version].as_slice(), index.as_slice(), self.ratchet.as_ref(), self.signing_key.as_bytes()]
             .concat()
     }
 
