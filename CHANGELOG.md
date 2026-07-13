@@ -16,6 +16,7 @@ All notable changes to this project will be documented in this file.
   `impl CryptoRng` so randomness can be injected for deterministic testing,
   reproducible builds and custom/hardware entropy sources. The existing
   `OsRng`-backed methods are unchanged.
+  ([#379](https://github.com/matrix-org/vodozemac/pull/379))
 - Add a new default-enabled `precomputed-tables` feature flag which controls
   curve25519-dalek's precomputed basepoint tables. Size-sensitive builds can
   now disable the default features to drop roughly 40 KB of lookup tables from
