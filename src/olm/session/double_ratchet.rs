@@ -14,6 +14,7 @@
 
 use std::fmt::{Debug, Formatter};
 
+use rand::CryptoRng;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "low-level-api")]
@@ -63,14 +64,54 @@ impl DoubleRatchet {
         }
     }
 
+    pub fn next_message_key_with_rng<R: CryptoRng>(
+        &mut self,
+        rng: &mut R,
+    ) -> Option<MessageKey> {
+        match &mut self.inner {
+            DoubleRatchetState::Inactive(ratchet) => {
+                let mut ratchet = ratchet.activate_with_rng(rng)?;
+
+                let message_key = ratchet.next_message_key();
+                self.inner = DoubleRatchetState::Active(ratchet);
+
+                Some(message_key)
+            }
+            DoubleRatchetState::Active(ratchet) => Some(ratchet.next_message_key()),
+        }
+    }
+
     #[cfg(feature = "experimental-session-config")]
     pub fn encrypt(&mut self, plaintext: &[u8]) -> Result<Message, EncryptionError> {
         Ok(self.next_message_key().ok_or(EncryptionError::NonContributoryKey)?.encrypt(plaintext))
     }
 
+    #[cfg(feature = "experimental-session-config")]
+    pub fn encrypt_with_rng<R: CryptoRng>(
+        &mut self,
+        plaintext: &[u8],
+        rng: &mut R,
+    ) -> Result<Message, EncryptionError> {
+        Ok(self
+            .next_message_key_with_rng(rng)
+            .ok_or(EncryptionError::NonContributoryKey)?
+            .encrypt(plaintext))
+    }
+
     pub fn encrypt_truncated_mac(&mut self, plaintext: &[u8]) -> Result<Message, EncryptionError> {
         Ok(self
             .next_message_key()
+            .ok_or(EncryptionError::NonContributoryKey)?
+            .encrypt_truncated_mac(plaintext))
+    }
+
+    pub fn encrypt_truncated_mac_with_rng<R: CryptoRng>(
+        &mut self,
+        plaintext: &[u8],
+        rng: &mut R,
+    ) -> Result<Message, EncryptionError> {
+        Ok(self
+            .next_message_key_with_rng(rng)
             .ok_or(EncryptionError::NonContributoryKey)?
             .encrypt_truncated_mac(plaintext))
     }
@@ -87,6 +128,25 @@ impl DoubleRatchet {
             parent_ratchet_key: None, // First chain in a session lacks parent ratchet key
             ratchet_count: RatchetCount::new(),
             active_ratchet: Ratchet::new(root_key),
+            symmetric_key_ratchet: chain_key,
+        };
+
+        Self { inner: ratchet.into() }
+    }
+
+    pub fn active_with_rng<R: CryptoRng>(
+        shared_secret: Shared3DHSecret,
+        rng: &mut R,
+    ) -> Self {
+        let (root_key, chain_key) = shared_secret.expand();
+
+        let root_key = RootKey::new(root_key);
+        let chain_key = ChainKey::new(chain_key);
+
+        let ratchet = ActiveDoubleRatchet {
+            parent_ratchet_key: None, // First chain in a session lacks parent ratchet key
+            ratchet_count: RatchetCount::new(),
+            active_ratchet: Ratchet::new_with_rng(root_key, rng),
             symmetric_key_ratchet: chain_key,
         };
 
@@ -241,6 +301,22 @@ struct InactiveDoubleRatchet {
 impl InactiveDoubleRatchet {
     fn activate(&self) -> Option<ActiveDoubleRatchet> {
         let (root_key, chain_key, ratchet_key) = self.root_key.advance(&self.ratchet_key)?;
+        let active_ratchet = Ratchet::new_with_ratchet_key(root_key, ratchet_key);
+
+        Some(ActiveDoubleRatchet {
+            parent_ratchet_key: Some(self.ratchet_key),
+            ratchet_count: self.ratchet_count.advance(),
+            active_ratchet,
+            symmetric_key_ratchet: chain_key,
+        })
+    }
+
+    fn activate_with_rng<R: CryptoRng>(
+        &self,
+        rng: &mut R,
+    ) -> Option<ActiveDoubleRatchet> {
+        let (root_key, chain_key, ratchet_key) =
+            self.root_key.advance_with_rng(&self.ratchet_key, rng)?;
         let active_ratchet = Ratchet::new_with_ratchet_key(root_key, ratchet_key);
 
         Some(ActiveDoubleRatchet {

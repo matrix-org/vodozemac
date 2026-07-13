@@ -16,7 +16,7 @@ use std::fmt::Display;
 
 use base64::decoded_len_estimate;
 use matrix_pickle::{Decode, DecodeError};
-use rand::rng;
+use rand::{CryptoRng, rng};
 use serde::{Deserialize, Serialize};
 use x25519_dalek::{EphemeralSecret, PublicKey, ReusableSecret, SharedSecret, StaticSecret};
 use zeroize::Zeroize;
@@ -35,6 +35,23 @@ impl Curve25519SecretKey {
         let mut rng = rng();
 
         Self(Box::new(StaticSecret::random_from_rng(&mut rng)))
+    }
+
+    /// Generate a new, random, `Curve25519SecretKey`, drawing entropy from the
+    /// provided random number generator.
+    ///
+    /// This behaves exactly like [`Curve25519SecretKey::new`] but sources its
+    /// randomness from the caller-supplied `rng` instead of the thread-local
+    /// generator. It is useful for deterministic testing, reproducible builds,
+    /// and integrating hardware or otherwise custom entropy sources.
+    ///
+    /// **Warning**: the security of the generated key rests entirely on the
+    /// quality of `rng`. Supplying a low-entropy, predictable, or reused
+    /// generator yields predictable or repeated secret keys and breaks the
+    /// security of any protocol built on top of them. Pass a cryptographically
+    /// secure generator seeded with sufficient entropy.
+    pub fn new_with_rng<R: CryptoRng>(rng: &mut R) -> Self {
+        Self(Box::new(StaticSecret::random_from_rng(rng)))
     }
 
     /// Create a `Curve25519SecretKey` from the given slice of bytes.
@@ -87,6 +104,13 @@ pub(crate) struct Curve25519Keypair {
 impl Curve25519Keypair {
     pub fn new() -> Self {
         let secret_key = Curve25519SecretKey::new();
+        let public_key = Curve25519PublicKey::from(&secret_key);
+
+        Self { secret_key, public_key }
+    }
+
+    pub fn new_with_rng<R: CryptoRng>(rng: &mut R) -> Self {
+        let secret_key = Curve25519SecretKey::new_with_rng(rng);
         let public_key = Curve25519PublicKey::from(&secret_key);
 
         Self { secret_key, public_key }

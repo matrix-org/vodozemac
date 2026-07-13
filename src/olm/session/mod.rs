@@ -27,6 +27,7 @@ use arrayvec::ArrayVec;
 use chain_key::RemoteChainKey;
 use double_ratchet::DoubleRatchet;
 use hmac::digest::MacError;
+use rand::CryptoRng;
 use ratchet::RemoteRatchetKey;
 use receiver_chain::ReceiverChain;
 use root_key::RemoteRootKey;
@@ -336,6 +337,22 @@ impl Session {
         }
     }
 
+    pub(super) fn new_with_rng<R: CryptoRng>(
+        config: SessionConfig,
+        shared_secret: Shared3DHSecret,
+        session_keys: SessionKeys,
+        rng: &mut R,
+    ) -> Self {
+        let local_ratchet = DoubleRatchet::active_with_rng(shared_secret, rng);
+
+        Self {
+            session_keys,
+            sending_ratchet: local_ratchet,
+            receiving_chains: Default::default(),
+            config,
+        }
+    }
+
     pub(super) fn new_remote(
         config: SessionConfig,
         shared_secret: RemoteShared3DHSecret,
@@ -389,6 +406,45 @@ impl Session {
             Version::V1 => self.sending_ratchet.encrypt_truncated_mac(plaintext.as_ref()),
             #[cfg(feature = "experimental-session-config")]
             Version::V2 => self.sending_ratchet.encrypt(plaintext.as_ref()),
+        }?;
+
+        if self.has_received_message() {
+            Ok(OlmMessage::Normal(message))
+        } else {
+            let message = PreKeyMessage::new(self.session_keys, message);
+
+            Ok(OlmMessage::PreKey(message))
+        }
+    }
+
+    /// Encrypt the `plaintext` and construct an [`OlmMessage`], drawing any
+    /// required entropy from the provided random number generator.
+    ///
+    /// This behaves exactly like [`Session::encrypt`] but sources its
+    /// randomness from the caller-supplied `rng` instead of the thread-local
+    /// generator. Randomness is consumed **only** when the ratchet advances the
+    /// Diffie-Hellman step (i.e. the first message sent after receiving a reply,
+    /// which mints a fresh ratchet key); messages that merely advance the
+    /// symmetric chain draw nothing from `rng`. This enables deterministic
+    /// testing, reproducible builds, and custom/hardware entropy sources.
+    ///
+    /// **Warning**: the forward secrecy and post-compromise security of the
+    /// session depend on each genuinely-new ratchet step drawing *fresh*,
+    /// high-quality randomness. Supplying a low-entropy, predictable, or reused
+    /// generator across two distinct ratchet advances collapses the ephemeral
+    /// ratchet keys and breaks these guarantees. Pass a cryptographically secure
+    /// generator seeded with sufficient entropy.
+    pub fn encrypt_with_rng<R: CryptoRng>(
+        &mut self,
+        plaintext: impl AsRef<[u8]>,
+        rng: &mut R,
+    ) -> Result<OlmMessage, EncryptionError> {
+        let message = match self.config.version {
+            Version::V1 => {
+                self.sending_ratchet.encrypt_truncated_mac_with_rng(plaintext.as_ref(), rng)
+            }
+            #[cfg(feature = "experimental-session-config")]
+            Version::V2 => self.sending_ratchet.encrypt_with_rng(plaintext.as_ref(), rng),
         }?;
 
         if self.has_received_message() {

@@ -22,6 +22,7 @@ use chacha20poly1305::{
     aead::{Aead, KeyInit},
 };
 use cipher::common::Generate;
+use rand::CryptoRng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use zeroize::Zeroize;
@@ -150,6 +151,28 @@ impl Account {
         }
     }
 
+    /// Create a new [`Account`] with new random identity keys, drawing entropy
+    /// from the provided random number generator.
+    ///
+    /// This behaves exactly like [`Account::new`] but sources its randomness
+    /// from the caller-supplied `rng` instead of the thread-local generator. It
+    /// enables deterministic testing, reproducible builds, and custom/hardware
+    /// entropy sources.
+    ///
+    /// **Warning**: the security of the account's identity keys rests entirely
+    /// on the quality of `rng`. Supplying a low-entropy, predictable, or reused
+    /// generator yields predictable identity keys and breaks the security of any
+    /// session built from this account. Pass a cryptographically secure
+    /// generator seeded with sufficient entropy.
+    pub fn new_with_rng<R: CryptoRng>(rng: &mut R) -> Self {
+        Self {
+            signing_key: Ed25519Keypair::new_with_rng(rng),
+            diffie_hellman_key: Curve25519Keypair::new_with_rng(rng),
+            one_time_keys: OneTimeKeys::new(),
+            fallback_keys: FallbackKeys::new(),
+        }
+    }
+
     /// Get the [`IdentityKeys`] of this Account
     pub const fn identity_keys(&self) -> IdentityKeys {
         IdentityKeys { ed25519: self.ed25519_key(), curve25519: self.curve25519_key() }
@@ -214,6 +237,47 @@ impl Account {
         };
 
         Ok(Session::new(session_config, shared_secret, session_keys))
+    }
+
+    /// Create a [`Session`] with the given identity key and one-time key,
+    /// drawing entropy from the provided random number generator.
+    ///
+    /// This behaves exactly like [`Account::create_outbound_session`] but
+    /// sources its randomness from the caller-supplied `rng` instead of the
+    /// thread-local generator. It enables deterministic testing, reproducible
+    /// builds, and custom/hardware entropy sources.
+    ///
+    /// **Warning**: the security of the resulting session rests entirely on the
+    /// quality of `rng`; the ephemeral base key and initial ratchet key it mints
+    /// must come from fresh, high-quality randomness. Supplying a low-entropy,
+    /// predictable, or reused generator breaks forward secrecy and
+    /// authentication. Pass a cryptographically secure generator seeded with
+    /// sufficient entropy.
+    pub fn create_outbound_session_with_rng<R: CryptoRng>(
+        &self,
+        session_config: SessionConfig,
+        identity_key: Curve25519PublicKey,
+        one_time_key: Curve25519PublicKey,
+        rng: &mut R,
+    ) -> Result<Session, SessionCreationError> {
+        let base_key = Curve25519SecretKey::new_with_rng(rng);
+        let public_base_key = Curve25519PublicKey::from(&base_key);
+
+        let shared_secret = Shared3DHSecret::new(
+            self.diffie_hellman_key.secret_key(),
+            &base_key,
+            &identity_key,
+            &one_time_key,
+        )
+        .ok_or(SessionCreationError::NonContributoryKey)?;
+
+        let session_keys = SessionKeys {
+            identity_key: self.curve25519_key(),
+            base_key: public_base_key,
+            one_time_key,
+        };
+
+        Ok(Session::new_with_rng(session_config, shared_secret, session_keys, rng))
     }
 
     /// Try to find a [`Curve25519SecretKey`] that forms a pair with the given
@@ -339,6 +403,26 @@ impl Account {
         self.one_time_keys.generate(count)
     }
 
+    /// Generates the supplied number of one time keys, drawing entropy from the
+    /// provided random number generator.
+    ///
+    /// This behaves exactly like [`Account::generate_one_time_keys`] but sources
+    /// its randomness from the caller-supplied `rng` instead of the thread-local
+    /// generator. It enables deterministic testing, reproducible builds, and
+    /// custom/hardware entropy sources.
+    ///
+    /// **Warning**: the security of the generated one-time keys rests entirely
+    /// on the quality of `rng`. Supplying a low-entropy, predictable, or reused
+    /// generator yields predictable one-time keys. Pass a cryptographically
+    /// secure generator seeded with sufficient entropy.
+    pub fn generate_one_time_keys_with_rng<R: CryptoRng>(
+        &mut self,
+        count: usize,
+        rng: &mut R,
+    ) -> OneTimeKeyGenerationResult {
+        self.one_time_keys.generate_with_rng(count, rng)
+    }
+
     /// Get the number of one-time keys we have stored locally.
     ///
     /// This will be equal or greater to the number of one-time keys we have
@@ -371,6 +455,25 @@ impl Account {
     /// is called. This return value is mostly useful for logging purposes.
     pub fn generate_fallback_key(&mut self) -> Option<Curve25519PublicKey> {
         self.fallback_keys.generate_fallback_key()
+    }
+
+    /// Generate a single new fallback key, drawing entropy from the provided
+    /// random number generator.
+    ///
+    /// This behaves exactly like [`Account::generate_fallback_key`] but sources
+    /// its randomness from the caller-supplied `rng` instead of the thread-local
+    /// generator. It enables deterministic testing, reproducible builds, and
+    /// custom/hardware entropy sources.
+    ///
+    /// **Warning**: the security of the generated fallback key rests entirely on
+    /// the quality of `rng`. Supplying a low-entropy, predictable, or reused
+    /// generator yields a predictable fallback key. Pass a cryptographically
+    /// secure generator seeded with sufficient entropy.
+    pub fn generate_fallback_key_with_rng<R: CryptoRng>(
+        &mut self,
+        rng: &mut R,
+    ) -> Option<Curve25519PublicKey> {
+        self.fallback_keys.generate_fallback_key_with_rng(rng)
     }
 
     /// Get the currently unpublished fallback key.
