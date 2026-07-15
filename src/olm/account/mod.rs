@@ -161,8 +161,8 @@ impl Account {
     ///
     /// **Warning**: the security of the account's identity keys rests entirely
     /// on the quality of `rng`. Supplying a low-entropy, predictable, or reused
-    /// generator yields predictable identity keys and breaks the security of any
-    /// session built from this account. Pass a cryptographically secure
+    /// generator yields predictable identity keys and breaks the security of
+    /// any session built from this account. Pass a cryptographically secure
     /// generator seeded with sufficient entropy.
     pub fn new_with_rng<R: CryptoRng>(rng: &mut R) -> Self {
         Self {
@@ -248,11 +248,11 @@ impl Account {
     /// builds, and custom/hardware entropy sources.
     ///
     /// **Warning**: the security of the resulting session rests entirely on the
-    /// quality of `rng`; the ephemeral base key and initial ratchet key it mints
-    /// must come from fresh, high-quality randomness. Supplying a low-entropy,
-    /// predictable, or reused generator breaks forward secrecy and
-    /// authentication. Pass a cryptographically secure generator seeded with
-    /// sufficient entropy.
+    /// quality of `rng`; the ephemeral base key and initial ratchet key it
+    /// mints must come from fresh, high-quality randomness. Supplying a
+    /// low-entropy, predictable, or reused generator breaks forward secrecy
+    /// and authentication. Pass a cryptographically secure generator seeded
+    /// with sufficient entropy.
     pub fn create_outbound_session_with_rng<R: CryptoRng>(
         &self,
         session_config: SessionConfig,
@@ -406,10 +406,10 @@ impl Account {
     /// Generates the supplied number of one time keys, drawing entropy from the
     /// provided random number generator.
     ///
-    /// This behaves exactly like [`Account::generate_one_time_keys`] but sources
-    /// its randomness from the caller-supplied `rng` instead of the thread-local
-    /// generator. It enables deterministic testing, reproducible builds, and
-    /// custom/hardware entropy sources.
+    /// This behaves exactly like [`Account::generate_one_time_keys`] but
+    /// sources its randomness from the caller-supplied `rng` instead of the
+    /// thread-local generator. It enables deterministic testing,
+    /// reproducible builds, and custom/hardware entropy sources.
     ///
     /// **Warning**: the security of the generated one-time keys rests entirely
     /// on the quality of `rng`. Supplying a low-entropy, predictable, or reused
@@ -461,14 +461,14 @@ impl Account {
     /// random number generator.
     ///
     /// This behaves exactly like [`Account::generate_fallback_key`] but sources
-    /// its randomness from the caller-supplied `rng` instead of the thread-local
-    /// generator. It enables deterministic testing, reproducible builds, and
-    /// custom/hardware entropy sources.
+    /// its randomness from the caller-supplied `rng` instead of the
+    /// thread-local generator. It enables deterministic testing,
+    /// reproducible builds, and custom/hardware entropy sources.
     ///
-    /// **Warning**: the security of the generated fallback key rests entirely on
-    /// the quality of `rng`. Supplying a low-entropy, predictable, or reused
-    /// generator yields a predictable fallback key. Pass a cryptographically
-    /// secure generator seeded with sufficient entropy.
+    /// **Warning**: the security of the generated fallback key rests entirely
+    /// on the quality of `rng`. Supplying a low-entropy, predictable, or
+    /// reused generator yields a predictable fallback key. Pass a
+    /// cryptographically secure generator seeded with sufficient entropy.
     pub fn generate_fallback_key_with_rng<R: CryptoRng>(
         &mut self,
         rng: &mut R,

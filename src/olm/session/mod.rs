@@ -423,17 +423,18 @@ impl Session {
     /// This behaves exactly like [`Session::encrypt`] but sources its
     /// randomness from the caller-supplied `rng` instead of the thread-local
     /// generator. Randomness is consumed **only** when the ratchet advances the
-    /// Diffie-Hellman step (i.e. the first message sent after receiving a reply,
-    /// which mints a fresh ratchet key); messages that merely advance the
-    /// symmetric chain draw nothing from `rng`. This enables deterministic
-    /// testing, reproducible builds, and custom/hardware entropy sources.
+    /// Diffie-Hellman step (i.e. the first message sent after receiving a
+    /// reply, which mints a fresh ratchet key); messages that merely
+    /// advance the symmetric chain draw nothing from `rng`. This enables
+    /// deterministic testing, reproducible builds, and custom/hardware
+    /// entropy sources.
     ///
     /// **Warning**: the forward secrecy and post-compromise security of the
     /// session depend on each genuinely-new ratchet step drawing *fresh*,
     /// high-quality randomness. Supplying a low-entropy, predictable, or reused
     /// generator across two distinct ratchet advances collapses the ephemeral
-    /// ratchet keys and breaks these guarantees. Pass a cryptographically secure
-    /// generator seeded with sufficient entropy.
+    /// ratchet keys and breaks these guarantees. Pass a cryptographically
+    /// secure generator seeded with sufficient entropy.
     pub fn encrypt_with_rng<R: CryptoRng>(
         &mut self,
         plaintext: impl AsRef<[u8]>,

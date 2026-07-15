@@ -237,8 +237,8 @@ impl Ed25519SecretKey {
         Self(key)
     }
 
-    /// Create a new random `Ed25519SecretKey`, drawing entropy from the provided
-    /// random number generator.
+    /// Create a new random `Ed25519SecretKey`, drawing entropy from the
+    /// provided random number generator.
     ///
     /// This behaves exactly like [`Ed25519SecretKey::new`] but sources its
     /// randomness from the caller-supplied `rng` instead of the thread-local

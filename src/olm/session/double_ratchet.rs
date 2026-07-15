@@ -64,10 +64,7 @@ impl DoubleRatchet {
         }
     }
 
-    pub fn next_message_key_with_rng<R: CryptoRng>(
-        &mut self,
-        rng: &mut R,
-    ) -> Option<MessageKey> {
+    pub fn next_message_key_with_rng<R: CryptoRng>(&mut self, rng: &mut R) -> Option<MessageKey> {
         match &mut self.inner {
             DoubleRatchetState::Inactive(ratchet) => {
                 let mut ratchet = ratchet.activate_with_rng(rng)?;
@@ -134,10 +131,7 @@ impl DoubleRatchet {
         Self { inner: ratchet.into() }
     }
 
-    pub fn active_with_rng<R: CryptoRng>(
-        shared_secret: Shared3DHSecret,
-        rng: &mut R,
-    ) -> Self {
+    pub fn active_with_rng<R: CryptoRng>(shared_secret: Shared3DHSecret, rng: &mut R) -> Self {
         let (root_key, chain_key) = shared_secret.expand();
 
         let root_key = RootKey::new(root_key);
@@ -311,10 +305,7 @@ impl InactiveDoubleRatchet {
         })
     }
 
-    fn activate_with_rng<R: CryptoRng>(
-        &self,
-        rng: &mut R,
-    ) -> Option<ActiveDoubleRatchet> {
+    fn activate_with_rng<R: CryptoRng>(&self, rng: &mut R) -> Option<ActiveDoubleRatchet> {
         let (root_key, chain_key, ratchet_key) =
             self.root_key.advance_with_rng(&self.ratchet_key, rng)?;
         let active_ratchet = Ratchet::new_with_ratchet_key(root_key, ratchet_key);
