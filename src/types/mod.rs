@@ -17,9 +17,9 @@ mod ed25519;
 
 pub(crate) use curve25519::{Curve25519Keypair, Curve25519KeypairPickle};
 pub use curve25519::{Curve25519PublicKey, Curve25519SecretKey};
+pub(crate) use ed25519::Ed25519KeypairPickle;
 pub use ed25519::{
-    Ed25519Keypair, Ed25519KeypairPickle, Ed25519PublicKey, Ed25519SecretKey, Ed25519Signature,
-    SignatureError,
+    Ed25519Keypair, Ed25519PublicKey, Ed25519SecretKey, Ed25519Signature, SignatureError,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;

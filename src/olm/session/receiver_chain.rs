@@ -170,7 +170,7 @@ impl Debug for ReceiverChain {
 }
 
 impl ReceiverChain {
-    pub fn new(
+    pub(super) fn new(
         ratchet_key: RemoteRatchetKey,
         chain_key: RemoteChainKey,
         ratchet_count: RatchetCount,
@@ -224,7 +224,7 @@ impl ReceiverChain {
         }
     }
 
-    pub fn decrypt(
+    pub(super) fn decrypt(
         &mut self,
         message: &Message,
         config: &SessionConfig,
@@ -251,16 +251,16 @@ impl ReceiverChain {
     }
 
     #[cfg(feature = "libolm-compat")]
-    pub const fn ratchet_key(&self) -> RemoteRatchetKey {
+    pub(super) const fn ratchet_key(&self) -> RemoteRatchetKey {
         self.ratchet_key
     }
 
     #[cfg(feature = "libolm-compat")]
-    pub fn insert_message_key(&mut self, message_key: RemoteMessageKey) {
+    pub(super) fn insert_message_key(&mut self, message_key: RemoteMessageKey) {
         self.skipped_message_keys.push(message_key)
     }
 
-    pub fn belongs_to(&self, ratchet_key: &RemoteRatchetKey) -> bool {
+    pub(super) fn belongs_to(&self, ratchet_key: &RemoteRatchetKey) -> bool {
         &self.ratchet_key == ratchet_key
     }
 }

@@ -134,11 +134,11 @@ impl<'a> RatchetParts<'a> {
 }
 
 impl Ratchet {
-    pub const RATCHET_LENGTH: usize = 128;
+    pub(super) const RATCHET_LENGTH: usize = 128;
     const RATCHET_PART_COUNT: usize = 4;
     const LAST_RATCHET_INDEX: usize = Self::RATCHET_PART_COUNT - 1;
 
-    pub fn new() -> Self {
+    pub(super) fn new() -> Self {
         let mut rng = rng();
 
         let mut ratchet =
@@ -149,20 +149,20 @@ impl Ratchet {
         ratchet
     }
 
-    pub const fn from_bytes(bytes: Box<[u8; Self::RATCHET_LENGTH]>, counter: u32) -> Self {
+    pub(super) const fn from_bytes(bytes: Box<[u8; Self::RATCHET_LENGTH]>, counter: u32) -> Self {
         Self { inner: RatchetBytes(bytes), counter }
     }
 
-    pub const fn index(&self) -> u32 {
+    pub(super) const fn index(&self) -> u32 {
         self.counter
     }
 
-    pub const fn as_bytes(&self) -> &[u8; Self::RATCHET_LENGTH] {
+    pub(super) const fn as_bytes(&self) -> &[u8; Self::RATCHET_LENGTH] {
         &self.inner.0
     }
 
     #[cfg(test)]
-    pub const fn ratchet_bytes_pointer(&self) -> *const [u8; 128] {
+    pub(super) const fn ratchet_bytes_pointer(&self) -> *const [u8; 128] {
         &*self.inner.0
     }
 
@@ -180,7 +180,7 @@ impl Ratchet {
         RatchetParts { r_0, r_1, r_2, r_3 }
     }
 
-    pub fn advance(&mut self) {
+    pub(super) fn advance(&mut self) {
         let mut mask: u32 = 0x00FFFFFF;
 
         // The index of the "slowest" part of the ratchet that needs to be
@@ -208,7 +208,7 @@ impl Ratchet {
         }
     }
 
-    pub fn advance_to(&mut self, advance_to: u32) {
+    pub(super) fn advance_to(&mut self, advance_to: u32) {
         for j in 0..Self::RATCHET_PART_COUNT {
             let shift = (Self::LAST_RATCHET_INDEX - j) * 8;
             let mask: u32 = !0u32 << shift;
