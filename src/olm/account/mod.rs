@@ -804,7 +804,7 @@ mod libolm {
                 one_time_keys.insert_secret_key(key_id, secret_key, key.published);
             }
 
-            one_time_keys.next_key_id = pickle.next_key_id.into();
+            one_time_keys.next_key_id = u64::from(pickle.next_key_id) + 1;
 
             let fallback_keys = FallbackKeys {
                 key_id: pickle
@@ -1316,9 +1316,9 @@ mod test {
         let mut one_time_keys: Vec<_> =
             unpickled.one_time_keys().values().map(|k| k.to_base64()).collect();
 
-        // We generated 10 one-time keys on the libolm side, we expect the next key id
-        // to be 11.
-        assert_eq!(unpickled.one_time_keys.next_key_id, 11);
+        // We generated 10 one-time keys on the libolm side + 1 fallback key,
+        // we expect the next key id to be 12.
+        assert_eq!(unpickled.one_time_keys.next_key_id, 12);
 
         olm_one_time_keys.sort();
         one_time_keys.sort();
@@ -1335,6 +1335,31 @@ mod test {
                 .expect("We should have a fallback key")
                 .to_base64()
         );
+
+        Ok(())
+    }
+
+    #[test]
+    #[cfg(feature = "libolm-compat")]
+    fn libolm_unpickling_without_fallback_key_does_not_invalidate_last_one_time_key() -> Result<()> {
+        let olm = OlmAccount::new();
+        olm.generate_one_time_keys(5);
+        olm.mark_keys_as_published();
+
+        let key = b"DEFAULT_PICKLE_KEY";
+        let pickle = olm.pickle(olm_rs::PicklingMode::Encrypted { key: key.to_vec() });
+
+        let mut unpickled = Account::from_libolm_pickle(&pickle, key)?;
+        assert_eq!(unpickled.one_time_keys.next_key_id, 6);
+
+        let imported: Vec<_> = unpickled.one_time_keys.secret_keys().keys().copied().collect();
+        unpickled.generate_one_time_keys(1);
+
+        // All 5 imported keys must survive, plus the new one under a fresh id.
+        assert_eq!(unpickled.one_time_keys.secret_keys().len(), 6);
+        for key_id in imported {
+            assert!(unpickled.one_time_keys.secret_keys().contains_key(&key_id));
+        }
 
         Ok(())
     }
