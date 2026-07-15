@@ -28,7 +28,10 @@
 //!     different one.
 
 use rand::{SeedableRng, rngs::StdRng};
-use vodozemac::olm::{Account, OlmMessage, Session, SessionConfig};
+use vodozemac::{
+    Ed25519SecretKey,
+    olm::{Account, OlmMessage, Session, SessionConfig},
+};
 
 /// A deterministic, seedable CSPRNG for reproducible test vectors.
 fn seeded(seed: u8) -> StdRng {
@@ -120,8 +123,7 @@ fn with_rng_session_interoperates_with_default_account() {
     // Bob is built with the default (OsRng) path; Alice uses the `_with_rng`
     // path. If the seam is behaviour-preserving they must be able to talk.
     let mut bob = Account::new();
-    let bob_otk =
-        *bob.generate_one_time_keys(1).created.first().expect("one OTK");
+    let bob_otk = *bob.generate_one_time_keys(1).created.first().expect("one OTK");
 
     let alice = Account::new_with_rng(&mut seeded(20));
     let mut alice_session = alice
@@ -157,11 +159,8 @@ fn with_rng_session_interoperates_with_default_account() {
 #[allow(clippy::expect_used, clippy::panic)]
 fn alice_ready_to_advance() -> Session {
     let mut bob = Account::new_with_rng(&mut seeded(30));
-    let bob_otk = *bob
-        .generate_one_time_keys_with_rng(1, &mut seeded(31))
-        .created
-        .first()
-        .expect("one OTK");
+    let bob_otk =
+        *bob.generate_one_time_keys_with_rng(1, &mut seeded(31)).created.first().expect("one OTK");
 
     let alice = Account::new_with_rng(&mut seeded(32));
     let mut alice_session = alice
@@ -225,4 +224,37 @@ fn dh_ratchet_advance_mints_fresh_ephemeral_under_distinct_rng() {
     let msg_b = b.encrypt_with_rng("advance", &mut seeded(41)).expect("encrypt");
 
     assert_ne!(msg_a.to_parts(), msg_b.to_parts());
+}
+
+#[test]
+fn ed25519_secret_key_with_rng_is_seed_driven() {
+    // Same seed => byte-identical key: the injected RNG fully determines the key.
+    let a = Ed25519SecretKey::new_with_rng(&mut seeded(1));
+    let b = Ed25519SecretKey::new_with_rng(&mut seeded(1));
+    assert_eq!(a.public_key(), b.public_key());
+
+    // Distinct seeds => distinct keys: the key genuinely comes from `rng`, not a
+    // constant. (Determinism alone would also hold for a key that ignored the
+    // RNG entirely; this divergence pins the RNG as the actual entropy source.)
+    let c = Ed25519SecretKey::new_with_rng(&mut seeded(2));
+    assert_ne!(a.public_key(), c.public_key());
+}
+
+#[test]
+fn fallback_key_with_rng_assigns_a_fresh_key_id_each_time() {
+    let mut account = Account::new_with_rng(&mut seeded(30));
+
+    account.generate_fallback_key_with_rng(&mut seeded(31));
+    let first_id = *account.fallback_key().keys().next().expect("a fallback key exists");
+
+    account.generate_fallback_key_with_rng(&mut seeded(32));
+    let second_id = *account.fallback_key().keys().next().expect("a fallback key exists");
+
+    // Each regeneration must advance the internal key-id counter so the new
+    // fallback key is published under a distinct KeyId; a counter that fails to
+    // increment would re-issue the same id.
+    assert_ne!(
+        first_id, second_id,
+        "each generated fallback key must receive a fresh, incrementing KeyId"
+    );
 }
