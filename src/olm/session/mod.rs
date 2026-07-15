@@ -15,8 +15,8 @@
 
 mod chain_key;
 mod double_ratchet;
-pub mod message_key;
-pub mod ratchet;
+pub(crate) mod message_key;
+pub(crate) mod ratchet;
 mod receiver_chain;
 mod root_key;
 
@@ -125,12 +125,12 @@ impl ChainStore {
     }
 
     #[cfg(test)]
-    pub const fn len(&self) -> usize {
+    pub(crate) const fn len(&self) -> usize {
         self.inner.len()
     }
 
     #[cfg(feature = "libolm-compat")]
-    pub fn get(&self, index: usize) -> Option<&ReceiverChain> {
+    pub(crate) fn get(&self, index: usize) -> Option<&ReceiverChain> {
         self.inner.get(index)
     }
 
@@ -700,7 +700,7 @@ mod test {
     /// Create a pair of accounts, one using vodozemac and one libolm.
     ///
     /// Then, create a pair of sessions between the two.
-    pub fn session_and_libolm_pair() -> Result<(Account, OlmAccount, Session, OlmSession)> {
+    pub(crate) fn session_and_libolm_pair() -> Result<(Account, OlmAccount, Session, OlmSession)> {
         let alice = Account::new();
         let bob = OlmAccount::new();
         bob.generate_one_time_keys(1);

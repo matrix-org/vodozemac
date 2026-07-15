@@ -85,25 +85,25 @@ pub(crate) struct Curve25519Keypair {
 }
 
 impl Curve25519Keypair {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let secret_key = Curve25519SecretKey::new();
         let public_key = Curve25519PublicKey::from(&secret_key);
 
         Self { secret_key, public_key }
     }
 
-    pub fn from_secret_key(key: &[u8; 32]) -> Self {
+    pub(crate) fn from_secret_key(key: &[u8; 32]) -> Self {
         let secret_key = Curve25519SecretKey::from_slice(key);
         let public_key = Curve25519PublicKey::from(&secret_key);
 
         Curve25519Keypair { secret_key, public_key }
     }
 
-    pub const fn secret_key(&self) -> &Curve25519SecretKey {
+    pub(crate) const fn secret_key(&self) -> &Curve25519SecretKey {
         &self.secret_key
     }
 
-    pub const fn public_key(&self) -> Curve25519PublicKey {
+    pub(crate) const fn public_key(&self) -> Curve25519PublicKey {
         self.public_key
     }
 }
@@ -250,10 +250,11 @@ impl From<Curve25519Keypair> for Curve25519KeypairPickle {
 #[cfg(test)]
 mod tests {
     use assert_matches2::assert_matches;
+    use base64::DecodeError;
     use insta::assert_debug_snapshot;
 
     use super::Curve25519PublicKey;
-    use crate::{Curve25519SecretKey, KeyError, utilities::DecodeError};
+    use crate::{Curve25519SecretKey, KeyError};
 
     #[test]
     fn decoding_invalid_base64_fails() {

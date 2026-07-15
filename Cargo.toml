@@ -27,6 +27,7 @@ unsafe_op_in_unsafe_fn = "deny"
 unused_extern_crates = "deny"
 unused_import_braces = "deny"
 unused_qualifications = "deny"
+unreachable_pub = "deny"
 rust_2018_idioms = "deny"
 
 [lints.clippy]

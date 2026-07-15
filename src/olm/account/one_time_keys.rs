@@ -44,7 +44,7 @@ pub struct OneTimeKeyGenerationResult {
 impl OneTimeKeys {
     const MAX_ONE_TIME_KEYS: usize = 100 * PUBLIC_MAX_ONE_TIME_KEYS;
 
-    pub fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             next_key_id: 0,
             unpublished_public_keys: Default::default(),
@@ -53,15 +53,18 @@ impl OneTimeKeys {
         }
     }
 
-    pub fn mark_as_published(&mut self) {
+    pub(super) fn mark_as_published(&mut self) {
         self.unpublished_public_keys.clear();
     }
 
-    pub fn get_secret_key(&self, public_key: &Curve25519PublicKey) -> Option<&Curve25519SecretKey> {
+    pub(super) fn get_secret_key(
+        &self,
+        public_key: &Curve25519PublicKey,
+    ) -> Option<&Curve25519SecretKey> {
         self.key_ids_by_key.get(public_key).and_then(|key_id| self.private_keys.get(key_id))
     }
 
-    pub fn remove_secret_key(
+    pub(super) fn remove_secret_key(
         &mut self,
         public_key: &Curve25519PublicKey,
     ) -> Option<Curve25519SecretKey> {
@@ -127,7 +130,7 @@ impl OneTimeKeys {
         !self.unpublished_public_keys.contains_key(key_id)
     }
 
-    pub fn generate(&mut self, count: usize) -> OneTimeKeyGenerationResult {
+    pub(super) fn generate(&mut self, count: usize) -> OneTimeKeyGenerationResult {
         let mut removed_keys = Vec::new();
         let mut created_keys = Vec::new();
 

@@ -15,9 +15,8 @@
 
 mod libolm_compat;
 
-pub use base64::DecodeError;
 use base64::{
-    Engine, alphabet,
+    DecodeError, Engine, alphabet,
     engine::{GeneralPurpose, general_purpose},
 };
 pub(crate) use libolm_compat::get_version as get_pickle_version;

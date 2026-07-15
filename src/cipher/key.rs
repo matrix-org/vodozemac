@@ -70,19 +70,19 @@ pub(crate) struct CipherKeys {
 }
 
 impl CipherKeys {
-    pub fn new(message_key: &[u8; 32]) -> Self {
+    pub(crate) fn new(message_key: &[u8; 32]) -> Self {
         let expanded_keys = ExpandedKeys::new(message_key);
 
         Self::from_expanded_keys(expanded_keys)
     }
 
-    pub fn new_megolm(message_key: &[u8; 128]) -> Self {
+    pub(crate) fn new_megolm(message_key: &[u8; 128]) -> Self {
         let expanded_keys = ExpandedKeys::new_megolm(message_key);
 
         Self::from_expanded_keys(expanded_keys)
     }
 
-    pub fn new_pickle(pickle_key: &[u8]) -> Self {
+    pub(crate) fn new_pickle(pickle_key: &[u8]) -> Self {
         let expanded_keys = ExpandedKeys::new_pickle(pickle_key);
 
         Self::from_expanded_keys(expanded_keys)
@@ -100,16 +100,16 @@ impl CipherKeys {
         Self { aes_key, aes_iv, mac_key }
     }
 
-    pub fn aes_key(&self) -> &Aes256Key {
+    pub(crate) fn aes_key(&self) -> &Aes256Key {
         #[allow(deprecated)]
         Aes256Key::from_slice(self.aes_key.as_slice())
     }
 
-    pub const fn mac_key(&self) -> &HmacSha256Key {
+    pub(crate) const fn mac_key(&self) -> &HmacSha256Key {
         &self.mac_key
     }
 
-    pub fn iv(&self) -> &Aes256Iv {
+    pub(crate) fn iv(&self) -> &Aes256Iv {
         #[allow(deprecated)]
         Aes256Iv::from_slice(self.aes_iv.as_slice())
     }
