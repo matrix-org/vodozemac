@@ -1341,7 +1341,8 @@ mod test {
 
     #[test]
     #[cfg(feature = "libolm-compat")]
-    fn libolm_unpickling_without_fallback_key_does_not_invalidate_last_one_time_key() -> Result<()> {
+    fn libolm_unpickling_without_fallback_key_does_not_invalidate_last_one_time_key() -> Result<()>
+    {
         let olm = OlmAccount::new();
         olm.generate_one_time_keys(5);
         olm.mark_keys_as_published();
