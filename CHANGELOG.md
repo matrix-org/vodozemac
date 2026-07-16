@@ -16,6 +16,15 @@ All notable changes to this project will be documented in this file.
 - Add a new `olm::Session` constructor which allows the 3DH step to be skipped.
   ([#341](https://github.com/matrix-org/vodozemac/pull/341))
 
+### Bug fixes
+
+- Fix an off-by-one error in the one-time key id counter in
+  `Account::from_libolm_pickle()`, which caused the first
+  `generate_one_time_keys()` call after an import to overwrite the newest
+  imported one-time key. If that key had already been published, pre-key
+  messages using it could no longer be decrypted.
+  ([#382](https://github.com/matrix-org/vodozemac/issues/382))
+
 ## [0.10.0] - 2026-04-13
 
 ### Features
