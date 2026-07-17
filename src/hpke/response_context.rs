@@ -106,9 +106,12 @@ impl CreateResponseContext for AeadCtxS<Aead, Kdf, Kem> {
         response_key: &AeadKey<Aead>,
         response_nonce: AeadNonce<Aead>,
     ) -> Self::ResponseContext {
-        // We create a default, all zeroes exporter secret as the HPKE
-        // `create_ROLE_context()` methods require it, but we never use the
-        // export interface of this HPKE context.
+        // Response contexts (unlike sender contexts) will never export anything
+        // so we don't need an exporter secret. And yet the hpke crate's
+        // `create_ROLE_context` functions require it and we need to provide
+        // some value, so we provide a dummy default value. This is okay because
+        // our API doesn't expose an `export` method so this dummy exporter
+        // secret can never be accessed.
         let exporter_secret = ExporterSecret::default();
         create_receiver_context(response_key, response_nonce, exporter_secret)
     }
@@ -126,9 +129,12 @@ impl CreateResponseContext for AeadCtxR<Aead, Kdf, Kem> {
         response_key: &AeadKey<Aead>,
         response_nonce: AeadNonce<Aead>,
     ) -> Self::ResponseContext {
-        // We create a default, all zeroes exporter secret as the HPKE
-        // `create_ROLE_context()` methods require it, but we never use the
-        // export interface of this HPKE context.
+        // Response contexts (unlike sender contexts) will never export anything
+        // so we don't need an exporter secret. And yet the hpke crate's
+        // `create_ROLE_context` functions require it and we need to provide
+        // some value, so we provide a dummy default value. This is okay because
+        // our API doesn't expose an `export` method so this dummy exporter
+        // secret can never be accessed.
         let exporter_secret = ExporterSecret::default();
         create_sender_context(response_key, response_nonce, exporter_secret)
     }
