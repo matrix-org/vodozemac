@@ -88,7 +88,7 @@ impl HpkeSenderChannel {
         let our_public_key = encapsulated_key;
 
         let channel = UnidirectionalSenderChannel(UnidirectionalHkpeChannel {
-            context,
+            sender_context: context,
             application_info_prefix,
             our_public_key,
             their_public_key,
@@ -150,13 +150,13 @@ impl UnidirectionalSenderChannel {
         aad: &[u8],
     ) -> Result<BidirectionalCreationResult<Vec<u8>>, Error> {
         let Self(UnidirectionalHkpeChannel {
-            context,
+            sender_context,
             application_info_prefix,
             our_public_key,
             their_public_key,
         }) = self;
 
-        let mut response_context = context.create_response_context(
+        let mut response_context = sender_context.create_response_context(
             &application_info_prefix,
             our_public_key,
             &message.base_response_nonce,
@@ -165,7 +165,7 @@ impl UnidirectionalSenderChannel {
         let plaintext =
             response_context.open(&message.ciphertext, aad).map_err(|_| Error::Decryption)?;
 
-        let role = Role::Sender { context, response_context };
+        let role = Role::Sender { sender_context, response_context };
         let check_code =
             role.check_code(&application_info_prefix, our_public_key, their_public_key);
 

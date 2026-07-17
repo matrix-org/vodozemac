@@ -92,7 +92,7 @@ impl HpkeRecipientChannel {
         let secret_key = convert_secret_key(&secret_key);
         let encapsulated_key = convert_encapsulated_key(encapsulated_key);
 
-        let mut context: RecipientContext = hpke::setup_receiver(
+        let mut sender_context: RecipientContext = hpke::setup_receiver(
             &hpke::OpModeR::Base,
             &secret_key,
             &encapsulated_key,
@@ -100,11 +100,11 @@ impl HpkeRecipientChannel {
         )
         .map_err(|_| Error::Decryption)?;
 
-        let message = context.open(ciphertext, aad).map_err(|_| Error::Decryption)?;
+        let message = sender_context.open(ciphertext, aad).map_err(|_| Error::Decryption)?;
 
         let channel = UnidirectionalRecipientChannel(UnidirectionalHkpeChannel {
             application_info_prefix,
-            context,
+            sender_context,
             their_public_key,
             our_public_key,
         });
@@ -180,7 +180,7 @@ impl UnidirectionalRecipientChannel {
         aad: &[u8],
     ) -> BidirectionalCreationResult<InitialResponse> {
         let Self(UnidirectionalHkpeChannel {
-            context,
+            sender_context,
             their_public_key,
             our_public_key,
             application_info_prefix,
@@ -188,7 +188,7 @@ impl UnidirectionalRecipientChannel {
 
         let base_response_nonce = Array::<u8, U32>::generate();
 
-        let mut response_context = context.create_response_context(
+        let mut response_context = sender_context.create_response_context(
             &application_info_prefix,
             their_public_key,
             &base_response_nonce,
@@ -199,7 +199,7 @@ impl UnidirectionalRecipientChannel {
             .seal(plaintext, aad)
             .expect("We should be able to seal the initial response");
 
-        let role = Role::Recipient { context, response_context };
+        let role = Role::Recipient { sender_context, response_context };
         let check_code =
             role.check_code(&application_info_prefix, our_public_key, their_public_key);
 

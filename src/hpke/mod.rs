@@ -97,7 +97,7 @@ enum Role {
     /// The role representing the side that sent the initial message.
     Sender {
         /// The established HPKE sender context.
-        context: SenderContext,
+        sender_context: SenderContext,
         /// The HPKE response context enabling the sender to receive messages
         /// from the recipient.
         response_context: SenderResponseContext,
@@ -106,7 +106,7 @@ enum Role {
     /// sent the initial response.
     Recipient {
         /// The established HPKE recipient context.
-        context: RecipientContext,
+        sender_context: RecipientContext,
         /// The HPKE response context enabling the recipient to send messages
         /// to the sender.
         response_context: RecipientResponseContext,
@@ -169,8 +169,12 @@ impl Role {
         let info = self.check_code_info(app_info, our_public_key, their_public_key);
 
         let ret = match self {
-            Role::Sender { context, .. } => context.export(info.as_bytes(), &mut bytes),
-            Role::Recipient { context, .. } => context.export(info.as_bytes(), &mut bytes),
+            Role::Sender { sender_context, .. } => {
+                sender_context.export(info.as_bytes(), &mut bytes)
+            }
+            Role::Recipient { sender_context, .. } => {
+                sender_context.export(info.as_bytes(), &mut bytes)
+            }
         };
 
         #[allow(clippy::expect_used)]
@@ -182,7 +186,7 @@ impl Role {
 
 struct UnidirectionalHkpeChannel<T> {
     /// The established HPKE context.
-    context: T,
+    sender_context: T,
 
     /// The application prefix which will be used as the info string to derive
     /// secrets.
@@ -276,7 +280,7 @@ impl EstablishedHpkeChannel {
     /// 2^64 bytes.
     pub fn seal(&mut self, plaintext: &[u8], aad: &[u8]) -> Message {
         let ret = match &mut self.role {
-            Role::Sender { context, .. } => context.seal(plaintext, aad),
+            Role::Sender { sender_context, .. } => sender_context.seal(plaintext, aad),
             Role::Recipient { response_context, .. } => response_context.seal(plaintext, aad),
         };
 
@@ -298,7 +302,7 @@ impl EstablishedHpkeChannel {
             Role::Sender { response_context, .. } => {
                 response_context.open(&message.ciphertext, aad)
             }
-            Role::Recipient { context, .. } => context.open(&message.ciphertext, aad),
+            Role::Recipient { sender_context, .. } => sender_context.open(&message.ciphertext, aad),
         };
 
         ret.map_err(|_| Error::Decryption)
