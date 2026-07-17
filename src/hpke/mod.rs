@@ -42,7 +42,7 @@
 //! let plaintext = b"Not a secret to me!";
 //!
 //! let BidirectionalCreationResult { channel: mut bob, message } = bob.establish_bidirectional_channel(plaintext, &[]);
-//! let BidirectionalCreationResult { channel: mut alice, message} = alice.establish_bidirectional_channel(&message, &[])?;
+//! let BidirectionalCreationResult { channel: mut alice, message } = alice.establish_bidirectional_channel(&message, &[])?;
 //!
 //! assert_eq!(message, plaintext);
 //!
