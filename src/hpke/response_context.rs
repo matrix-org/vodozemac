@@ -33,6 +33,15 @@ use zeroize::Zeroize;
 use super::{Aead, Kdf, Kem};
 use crate::Curve25519PublicKey;
 
+/// A trait representing the creation of the paired context necessary to convert
+/// the inherently unidirectional HPKE channel into a bidirectional channel.
+///
+/// So for example, the original sender context gets a corresponding *receiver*
+/// context, allowing it to open (receive, decrypt) the receiver's responses.
+///
+/// Looking at it from the other side, the original receiver context gets a
+/// corresponding *sender* context, allowing it to seal (encrypt, send)
+/// responses to the original sender.
 pub(super) trait CreateResponseContext {
     type ResponseContext;
 
