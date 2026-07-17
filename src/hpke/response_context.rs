@@ -74,7 +74,7 @@ pub(super) trait CreateResponseContext {
 
         #[allow(clippy::expect_used)]
         hkdf.expand(b"key", aead_key.0.as_mut_slice())
-            .expect("We should be able to expand the base response secret into a AEAD key");
+            .expect("We should be able to expand the base response secret into an AEAD key");
 
         #[allow(clippy::expect_used)]
         hkdf.expand(b"nonce", aead_nonce.0.as_mut_slice())
@@ -106,7 +106,7 @@ impl CreateResponseContext for AeadCtxS<Aead, Kdf, Kem> {
         response_key: &AeadKey<Aead>,
         response_nonce: AeadNonce<Aead>,
     ) -> Self::ResponseContext {
-        // We create an default, all zeroes exporter secret as the HPKE
+        // We create a default, all zeroes exporter secret as the HPKE
         // `create_ROLE_context()` methods require it, but we never use the
         // export interface of this HPKE context.
         let exporter_secret = ExporterSecret::default();
@@ -126,7 +126,7 @@ impl CreateResponseContext for AeadCtxR<Aead, Kdf, Kem> {
         response_key: &AeadKey<Aead>,
         response_nonce: AeadNonce<Aead>,
     ) -> Self::ResponseContext {
-        // We create an default, all zeroes exporter secret as the HPKE
+        // We create a default, all zeroes exporter secret as the HPKE
         // `create_ROLE_context()` methods require it, but we never use the
         // export interface of this HPKE context.
         let exporter_secret = ExporterSecret::default();
