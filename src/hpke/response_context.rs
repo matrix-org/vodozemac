@@ -21,6 +21,8 @@
 //!
 //! [section 4.4]: https://www.rfc-editor.org/rfc/rfc9458#name-encapsulation-of-responses
 
+use chacha20poly1305::ChaCha20Poly1305;
+use cipher::{KeySizeUser, typenum::Unsigned};
 use hkdf::Hkdf;
 use hpke::{
     HpkeError,
@@ -32,6 +34,8 @@ use zeroize::Zeroize;
 
 use super::{Aead, Kdf, Kem};
 use crate::Curve25519PublicKey;
+
+pub(super) type AeadKeySize = <ChaCha20Poly1305 as KeySizeUser>::KeySize;
 
 /// A trait representing the creation of the paired context necessary to convert
 /// the inherently unidirectional HPKE channel into a bidirectional channel.
@@ -59,7 +63,7 @@ pub(super) trait CreateResponseContext {
         encapsulated_key: Curve25519PublicKey,
         response_nonce: &[u8],
     ) -> Self::ResponseContext {
-        let mut secret = [0u8; 32];
+        let mut secret = [0u8; AeadKeySize::USIZE];
 
         // Export a secret from the HPKE context, we use our application info prefix and
         // append "_RESPONSE" to it.

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use cipher::{Array, common::Generate, consts::U32};
+use cipher::{Array, common::Generate};
 use hpke::{Deserializable as _, aead::AeadCtxR, kem::X25519HkdfSha256};
 
 use crate::{
@@ -20,7 +20,7 @@ use crate::{
     hpke::{
         Aead, BidirectionalCreationResult, CreateResponseContext, Error, EstablishedHpkeChannel,
         InitialMessage, InitialResponse, Kdf, Kem, MATRIX_QR_LOGIN_INFO_PREFIX, RecipientContext,
-        Role, UnidirectionalHkpeChannel,
+        Role, UnidirectionalHkpeChannel, response_context::AeadKeySize,
     },
 };
 
@@ -186,7 +186,12 @@ impl UnidirectionalRecipientChannel {
             application_info_prefix,
         }) = self;
 
-        let base_response_nonce = Array::<u8, U32>::generate();
+        // Per [MSC4388] (and the HTTP [RFC 9458] where this trick is cribbed from), the
+        // length of the response nonce should be equal to the AEAD key size
+        //
+        // [MSC4388]: https://github.com/matrix-org/matrix-spec-proposals/pull/4388
+        // [RFC9458]: https://datatracker.ietf.org/doc/html/rfc9458
+        let base_response_nonce = Array::<u8, AeadKeySize>::generate();
 
         let mut response_context = sender_context.create_response_context(
             &application_info_prefix,
