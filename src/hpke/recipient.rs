@@ -13,10 +13,10 @@
 // limitations under the License.
 
 use cipher::{Array, common::Generate};
-use hpke::{Deserializable as _, aead::AeadCtxR, kem::X25519HkdfSha256};
+use hpke::{Deserializable as _, Serializable, aead::AeadCtxR, kem::X25519HkdfSha256};
 
 use crate::{
-    Curve25519PublicKey, Curve25519SecretKey,
+    Curve25519PublicKey,
     hpke::{
         Aead, BidirectionalCreationResult, CreateResponseContext, Error, EstablishedHpkeChannel,
         InitialMessage, InitialResponse, Kdf, Kem, MATRIX_QR_LOGIN_INFO_PREFIX, RecipientContext,
@@ -38,7 +38,10 @@ pub struct RecipientCreationResult {
 pub struct HpkeRecipientChannel {
     /// The secret key which will be used to establish a shared secret between
     /// the recipient and sender.
-    secret_key: Curve25519SecretKey,
+    secret_key: <X25519HkdfSha256 as hpke::Kem>::PrivateKey,
+
+    /// The matching public key, converted to our own Curve25519 type.
+    public_key: Curve25519PublicKey,
 
     /// The application prefix which will be used as the info string to derive
     /// secrets.
@@ -47,10 +50,8 @@ pub struct HpkeRecipientChannel {
 
 impl std::fmt::Debug for HpkeRecipientChannel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let public_key = Curve25519PublicKey::from(&self.secret_key);
-
         f.debug_struct("HpkeRecipientChannel")
-            .field("our_public_key", &public_key)
+            .field("our_public_key", &self.public_key)
             .field("application_info_prefix", &self.application_info_prefix)
             .finish_non_exhaustive()
     }
@@ -73,7 +74,10 @@ impl HpkeRecipientChannel {
     /// The application info will be used to derive the various secrets and
     /// provide domain separation.
     pub fn with_info(info: &str) -> Self {
-        Self { secret_key: Curve25519SecretKey::new(), application_info_prefix: info.to_owned() }
+        let (secret_key, public_key) = <X25519HkdfSha256 as hpke::Kem>::gen_keypair();
+        let public_key = convert_public_key(public_key);
+
+        Self { secret_key, public_key, application_info_prefix: info.to_owned() }
     }
 
     /// Create a [`EstablishedHpkeChannel`] from an [`InitialMessage`] encrypted
@@ -83,13 +87,12 @@ impl HpkeRecipientChannel {
         message: &InitialMessage,
         aad: &[u8],
     ) -> Result<RecipientCreationResult, Error> {
-        let Self { secret_key, application_info_prefix } = self;
+        let Self { secret_key, public_key, application_info_prefix } = self;
         let InitialMessage { encapsulated_key, ciphertext } = message;
 
         let their_public_key = *encapsulated_key;
-        let our_public_key = Curve25519PublicKey::from(&secret_key);
+        let our_public_key = public_key;
 
-        let secret_key = convert_secret_key(&secret_key);
         let encapsulated_key = convert_encapsulated_key(encapsulated_key);
 
         let mut sender_context: RecipientContext = hpke::setup_receiver(
@@ -117,23 +120,20 @@ impl HpkeRecipientChannel {
     /// This public key needs to be sent to the other side to be able to
     /// establish an HPKE channel.
     pub fn public_key(&self) -> Curve25519PublicKey {
-        Curve25519PublicKey::from(&self.secret_key)
+        self.public_key
     }
 }
 
-// Convert our Curve25519 secret key type into the PrivateKey type the HPKE
-// crate expects.
+// Convert our the HPKE public key type into the Curve25519PublicKey type.
 //
 // Underneath those types are the same but we are forced to go through the byte
 // interface due to the HPKE crate not exposing methods to do direct
 // conversions.
-fn convert_secret_key(
-    secret_key: &Curve25519SecretKey,
-) -> <X25519HkdfSha256 as hpke::Kem>::PrivateKey {
+fn convert_public_key(
+    public_key: <X25519HkdfSha256 as hpke::Kem>::PublicKey,
+) -> Curve25519PublicKey {
     #[allow(clippy::expect_used)]
-    <X25519HkdfSha256 as hpke::Kem>::PrivateKey::from_bytes(secret_key.as_bytes()).expect(
-        "Converting from our PrivateKey type to the HPKE private key type should never fail",
-    )
+    Curve25519PublicKey::from_bytes(public_key.to_bytes().0)
 }
 
 /// Same as [`convert_secret_key()`] just for the encapsulated key.
@@ -222,15 +222,18 @@ impl UnidirectionalRecipientChannel {
 
 #[cfg(test)]
 mod tests {
+    use hpke::Kem as _;
     use insta::assert_debug_snapshot;
+    use rand::{SeedableRng, rngs::StdRng};
 
     use super::*;
     use crate::hpke::{HpkeSenderChannel, SenderCreationResult};
 
     #[test]
     fn snapshot_debug() {
-        let key = Curve25519SecretKey::from_slice(&[0; 32]);
+        let key = <X25519HkdfSha256 as hpke::Kem>::PrivateKey::from_bytes(&[0; 32]).unwrap();
         let mut bob = HpkeRecipientChannel::new();
+        bob.public_key = Curve25519PublicKey::from_bytes([0; 32]);
         bob.secret_key = key;
 
         assert_debug_snapshot!(bob);
@@ -238,11 +241,15 @@ mod tests {
 
     #[test]
     fn snapshot_debug_unidirectional_channel() {
-        let key = Curve25519SecretKey::from_slice(&[0; 32]);
+        let mut rng = StdRng::seed_from_u64(0);
+
+        let (secret_key, public_key) = X25519HkdfSha256::gen_keypair_with_rng(&mut rng);
+        let public_key = convert_public_key(public_key);
 
         let alice = HpkeSenderChannel::new();
         let mut bob = HpkeRecipientChannel::new();
-        bob.secret_key = key;
+        bob.secret_key = secret_key;
+        bob.public_key = public_key;
 
         assert_debug_snapshot!(bob);
 

@@ -3,7 +3,7 @@ source: src/hpke/recipient.rs
 expression: bob
 ---
 HpkeRecipientChannel {
-    our_public_key: "curve25519:L+V9o0fNYkMVKNqsX7spBzD/9oSvxM/C7ZCZX1jLO3Q",
+    our_public_key: "curve25519:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
     application_info_prefix: "MATRIX_QR_CODE_LOGIN",
     ..
 }
