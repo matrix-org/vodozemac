@@ -1,0 +1,9 @@
+---
+source: src/hpke/recipient.rs
+expression: bob
+---
+HpkeRecipientChannel {
+    our_public_key: "curve25519:qizKqCTtBqc0Ca9HbwFmq3+LJdyMIVnmYaBx3WBXizA",
+    application_info_prefix: "MATRIX_QR_CODE_LOGIN",
+    ..
+}
