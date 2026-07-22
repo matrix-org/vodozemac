@@ -8,6 +8,15 @@ All notable changes to this project will be documented in this file.
 
 ### Features
 
+- Add additive `*_with_rng` variants to every `olm` key-generation entry point
+  (`Account::new`, `Account::generate_one_time_keys`,
+  `Account::generate_fallback_key`, `Account::create_outbound_session` and
+  `Session::encrypt`, plus the `Curve25519SecretKey`/`Ed25519Keypair`/
+  `Ed25519SecretKey` constructors). These accept a caller-supplied
+  `impl CryptoRng` so randomness can be injected for deterministic testing,
+  reproducible builds and custom/hardware entropy sources. The existing
+  `OsRng`-backed methods are unchanged.
+  ([#379](https://github.com/matrix-org/vodozemac/pull/379))
 - Add a new default-enabled `precomputed-tables` feature flag which controls
   curve25519-dalek's precomputed basepoint tables. Size-sensitive builds can
   now disable the default features to drop roughly 40 KB of lookup tables from
