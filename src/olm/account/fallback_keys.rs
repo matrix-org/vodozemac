@@ -33,23 +33,23 @@ impl FallbackKey {
         Self { key_id, key, published: false }
     }
 
-    pub fn public_key(&self) -> Curve25519PublicKey {
+    pub(super) fn public_key(&self) -> Curve25519PublicKey {
         Curve25519PublicKey::from(&self.key)
     }
 
-    pub const fn secret_key(&self) -> &Curve25519SecretKey {
+    pub(super) const fn secret_key(&self) -> &Curve25519SecretKey {
         &self.key
     }
 
-    pub const fn key_id(&self) -> KeyId {
+    pub(super) const fn key_id(&self) -> KeyId {
         self.key_id
     }
 
-    pub fn mark_as_published(&mut self) {
+    pub(super) fn mark_as_published(&mut self) {
         self.published = true;
     }
 
-    pub const fn published(&self) -> bool {
+    pub(super) const fn published(&self) -> bool {
         self.published
     }
 }
@@ -62,17 +62,17 @@ pub(super) struct FallbackKeys {
 }
 
 impl FallbackKeys {
-    pub const fn new() -> Self {
+    pub(super) const fn new() -> Self {
         Self { key_id: 0, fallback_key: None, previous_fallback_key: None }
     }
 
-    pub fn mark_as_published(&mut self) {
+    pub(super) fn mark_as_published(&mut self) {
         if let Some(f) = self.fallback_key.as_mut() {
             f.mark_as_published()
         }
     }
 
-    pub fn generate_fallback_key(&mut self) -> Option<Curve25519PublicKey> {
+    pub(super) fn generate_fallback_key(&mut self) -> Option<Curve25519PublicKey> {
         let key_id = KeyId(self.key_id);
         self.key_id += 1;
 
@@ -84,7 +84,10 @@ impl FallbackKeys {
         ret
     }
 
-    pub fn get_secret_key(&self, public_key: &Curve25519PublicKey) -> Option<&Curve25519SecretKey> {
+    pub(super) fn get_secret_key(
+        &self,
+        public_key: &Curve25519PublicKey,
+    ) -> Option<&Curve25519SecretKey> {
         self.fallback_key
             .as_ref()
             .filter(|f| f.public_key() == *public_key)
@@ -94,11 +97,11 @@ impl FallbackKeys {
             .map(|f| f.secret_key())
     }
 
-    pub fn forget_previous_fallback_key(&mut self) -> Option<FallbackKey> {
+    pub(super) fn forget_previous_fallback_key(&mut self) -> Option<FallbackKey> {
         self.previous_fallback_key.take()
     }
 
-    pub fn unpublished_fallback_key(&self) -> Option<&FallbackKey> {
+    pub(super) fn unpublished_fallback_key(&self) -> Option<&FallbackKey> {
         self.fallback_key.as_ref().filter(|f| !f.published())
     }
 }

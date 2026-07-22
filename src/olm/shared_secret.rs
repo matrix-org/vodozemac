@@ -39,10 +39,10 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 use crate::{Curve25519PublicKey as PublicKey, types::Curve25519SecretKey as StaticSecret};
 
 #[derive(Zeroize, ZeroizeOnDrop)]
-pub struct Shared3DHSecret(Box<[u8; 96]>);
+pub(super) struct Shared3DHSecret(Box<[u8; 96]>);
 
 #[derive(Zeroize, ZeroizeOnDrop)]
-pub struct RemoteShared3DHSecret(Box<[u8; 96]>);
+pub(super) struct RemoteShared3DHSecret(Box<[u8; 96]>);
 
 fn expand(shared_secret: &[u8; 96]) -> (Box<[u8; 32]>, Box<[u8; 32]>) {
     let hkdf: Hkdf<Sha256> = Hkdf::new(Some(&[0]), shared_secret);
@@ -91,7 +91,7 @@ impl RemoteShared3DHSecret {
         Some(Self(merge_secrets(first_secret, second_secret, third_secret)))
     }
 
-    pub fn expand(self) -> (Box<[u8; 32]>, Box<[u8; 32]>) {
+    pub(super) fn expand(self) -> (Box<[u8; 32]>, Box<[u8; 32]>) {
         expand(&self.0)
     }
 }
@@ -110,7 +110,7 @@ impl Shared3DHSecret {
         Some(Self(merge_secrets(first_secret, second_secret, third_secret)))
     }
 
-    pub fn expand(self) -> (Box<[u8; 32]>, Box<[u8; 32]>) {
+    pub(super) fn expand(self) -> (Box<[u8; 32]>, Box<[u8; 32]>) {
         expand(&self.0)
     }
 }
