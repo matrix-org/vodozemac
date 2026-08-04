@@ -14,6 +14,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
+use rand::CryptoRng;
 use serde::{Deserialize, Serialize};
 
 use super::PUBLIC_MAX_ONE_TIME_KEYS;
@@ -118,6 +119,15 @@ impl OneTimeKeys {
         self.insert_secret_key(key_id, key, false)
     }
 
+    fn generate_one_time_key_with_rng<R: CryptoRng>(
+        &mut self,
+        rng: &mut R,
+    ) -> (Curve25519PublicKey, Option<Curve25519PublicKey>) {
+        let key_id = KeyId(self.next_key_id);
+        let key = Curve25519SecretKey::new_with_rng(rng);
+        self.insert_secret_key(key_id, key, false)
+    }
+
     pub(crate) const fn secret_keys(&self) -> &BTreeMap<KeyId, Curve25519SecretKey> {
         &self.private_keys
     }
@@ -133,6 +143,28 @@ impl OneTimeKeys {
 
         for _ in 0..count {
             let (created, removed) = self.generate_one_time_key();
+
+            created_keys.push(created);
+            if let Some(removed) = removed {
+                removed_keys.push(removed);
+            }
+
+            self.next_key_id = self.next_key_id.wrapping_add(1);
+        }
+
+        OneTimeKeyGenerationResult { created: created_keys, removed: removed_keys }
+    }
+
+    pub fn generate_with_rng<R: CryptoRng>(
+        &mut self,
+        count: usize,
+        rng: &mut R,
+    ) -> OneTimeKeyGenerationResult {
+        let mut removed_keys = Vec::new();
+        let mut created_keys = Vec::new();
+
+        for _ in 0..count {
+            let (created, removed) = self.generate_one_time_key_with_rng(rng);
 
             created_keys.push(created);
             if let Some(removed) = removed {

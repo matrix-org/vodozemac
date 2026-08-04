@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use rand::CryptoRng;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -29,6 +30,12 @@ pub(super) struct FallbackKey {
 impl FallbackKey {
     fn new(key_id: KeyId) -> Self {
         let key = Curve25519SecretKey::new();
+
+        Self { key_id, key, published: false }
+    }
+
+    fn new_with_rng<R: CryptoRng>(key_id: KeyId, rng: &mut R) -> Self {
+        let key = Curve25519SecretKey::new_with_rng(rng);
 
         Self { key_id, key, published: false }
     }
@@ -80,6 +87,21 @@ impl FallbackKeys {
 
         self.previous_fallback_key = self.fallback_key.take();
         self.fallback_key = Some(FallbackKey::new(key_id));
+
+        ret
+    }
+
+    pub fn generate_fallback_key_with_rng<R: CryptoRng>(
+        &mut self,
+        rng: &mut R,
+    ) -> Option<Curve25519PublicKey> {
+        let key_id = KeyId(self.key_id);
+        self.key_id += 1;
+
+        let ret = self.previous_fallback_key.take().map(|f| f.public_key());
+
+        self.previous_fallback_key = self.fallback_key.take();
+        self.fallback_key = Some(FallbackKey::new_with_rng(key_id, rng));
 
         ret
     }
