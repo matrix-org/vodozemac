@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["DigitMode","Error","MessageDecodeError"],"struct":["BidirectionalCreationResult","CheckCode","EstablishedHpkeChannel","HpkeRecipientChannel","HpkeSenderChannel","InitialMessage","InitialResponse","Message","RecipientCreationResult","SenderCreationResult","UnidirectionalRecipientChannel","UnidirectionalSenderChannel"]};
