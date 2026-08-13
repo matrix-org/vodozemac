@@ -52,10 +52,10 @@ experimental-session-config = []
 low-level-api = []
 
 [dependencies]
-aes = { version = "0.9.1" }
+aes = { version = "0.9.2" }
 cipher = { version = "0.5.2", features = ["alloc"] }
 arrayvec = { version = "0.7.8", features = ["serde"] }
-base64 = "0.22.1"
+base64 = "0.23.1"
 base64ct = { version = "1.8.3", features = ["std", "alloc"] }
 cbc = { version = "0.2.1" }
 chacha20poly1305 = "0.11.0"
@@ -68,17 +68,17 @@ hpke = { version = "0.14.0", default-features = false, features = ["alloc", "cha
 matrix-pickle = { version = "0.2.3" }
 prost = "0.14.4"
 rand = "0.10.2"
-serde = { version = "1.0.228", features = ["derive"] }
+serde = { version = "1.0.229", features = ["derive"] }
 serde_bytes = "0.11.19"
-serde_json = "1.0.150"
+serde_json = "1.0.151"
 sha2 = "0.11.0"
 subtle = "2.6.1"
-thiserror = "2.0.18"
+thiserror = "2.0.20"
 x25519-dalek = { version = "3.0.0", default-features = false, features = ["serde", "reusable_secrets", "static_secrets", "zeroize"] }
 zeroize = { version = "1.9.0", features = ["derive"] }
 
 [dev-dependencies]
-anyhow = "1.0.103"
+anyhow = "1.0.104"
 assert_matches2 = "0.1.2"
 criterion = { version = "5.0.1", package = "codspeed-criterion-compat" }
 ntest = "0.9.5"
