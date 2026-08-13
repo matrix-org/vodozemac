@@ -8,6 +8,13 @@ All notable changes to this project will be documented in this file.
 
 ### Features
 
+- **BREAKING** Bumped the minimal supported Rust version to 1.89 as the AES
+  crate requires this Rust version.
+  ([#399](https://github.com/matrix-org/vodozemac/pull/399))
+- **BREAKING** Bump the Base64 crate version. This changes the
+  `DecodeError::InvalidLastSymbol` error variant from a tuple variant to a
+  struct variant. This type is contained inside the `KeyError::Base64Error` enum
+  variant. ([#399](https://github.com/matrix-org/vodozemac/pull/399))
 - **BREAKING** Added support for Hybrid Public Key Encryption (HPKE) to enable
   standards-based public-key encryption in Matrix. The implementation uses
   X25519 for key encapsulation (KEM) and ChaCha20-Poly1305 for authenticated
