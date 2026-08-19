@@ -19,9 +19,14 @@ use base64::{
     DecodeError, Engine, alphabet,
     engine::{GeneralPurpose, general_purpose},
 };
+#[cfg(feature = "os-rng")]
+use getrandom::SysRng;
 pub(crate) use libolm_compat::get_version as get_pickle_version;
 #[cfg(feature = "libolm-compat")]
 pub(crate) use libolm_compat::{LibolmEd25519Keypair, pickle_libolm, unpickle_libolm};
+use rand::CryptoRng;
+#[cfg(feature = "os-rng")]
+use rand_core::UnwrapErr;
 
 const STANDARD_NO_PAD: GeneralPurpose = GeneralPurpose::new(
     &alphabet::STANDARD,
@@ -151,6 +156,16 @@ impl VarInt for u64 {
 
         v
     }
+}
+
+#[cfg(feature = "os-rng")]
+pub(crate) fn rng() -> impl CryptoRng {
+    UnwrapErr(SysRng)
+}
+
+#[cfg(not(feature = "os-rng"))]
+pub(crate) fn rng() -> impl CryptoRng {
+    rand::rng()
 }
 
 #[cfg(test)]

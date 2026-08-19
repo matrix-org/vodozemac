@@ -16,13 +16,12 @@ use std::fmt::Display;
 
 use base64::decoded_len_estimate;
 use matrix_pickle::{Decode, DecodeError};
-use rand::rng;
 use serde::{Deserialize, Serialize};
 use x25519_dalek::{EphemeralSecret, PublicKey, ReusableSecret, SharedSecret, StaticSecret};
 use zeroize::Zeroize;
 
 use super::KeyError;
-use crate::utilities::{base64_decode, base64_encode};
+use crate::utilities::{base64_decode, base64_encode, rng};
 
 /// Struct representing a Curve25519 secret key.
 #[derive(Clone, Deserialize, Serialize)]

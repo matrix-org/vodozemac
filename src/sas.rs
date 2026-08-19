@@ -53,14 +53,13 @@
 
 use hkdf::Hkdf;
 use hmac::{Hmac, KeyInit, Mac as _, digest::MacError};
-use rand::rng;
 use sha2::Sha256;
 use thiserror::Error;
 use x25519_dalek::{EphemeralSecret, SharedSecret};
 
 use crate::{
     Curve25519PublicKey, KeyError,
-    utilities::{base64_decode, base64_encode},
+    utilities::{base64_decode, base64_encode, rng},
 };
 
 type HmacSha256Key = Box<[u8; 32]>;

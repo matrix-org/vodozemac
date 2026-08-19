@@ -50,6 +50,11 @@ experimental-session-config = []
 # The low-level-api feature exposes extra APIs that are only useful in advanced
 # use cases and require extra care to use.
 low-level-api = []
+# The os-rng feature enables the use of the operating system's RNG instead of
+# the default random number generator provided by the `rand` crate, which is not
+# backtracking resistant. This is usually not necessary, but can be enabled
+# for security-critical applications or compliance purposes.
+os-rng = []
 
 [dependencies]
 aes = { version = "0.9.1" }
@@ -68,6 +73,7 @@ hpke = { version = "0.14.0", default-features = false, features = ["alloc", "cha
 matrix-pickle = { version = "0.2.3" }
 prost = "0.14.4"
 rand = "0.10.2"
+rand_core = "0.10.1"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_bytes = "0.11.19"
 serde_json = "1.0.150"

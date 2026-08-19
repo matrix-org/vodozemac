@@ -118,6 +118,19 @@
 //! vodozemac = { version = "0.10.0", default-features = false, features = ["libolm-compat"] }
 //! ```
 //!
+//! ## OS RNG
+//!
+//! Feature: `os-rng` (default: off)
+//!
+//! Enabling this feature will use the operating system's RNG instead of the
+//! default random number generator provided by the `rand` crate, which is not
+//! backtracking resistant. This is usually not necessary, but can be enabled
+//! for security-critical applications or compliance purposes.
+//!
+//! Please note that OS RNG is not guaranteed to be backtracking resistant either
+//! since it will depend on the underlying OS implementation, but the RNG state
+//! will be available in kernel space instead of user space so harder to extract.
+//!
 //! # Pickling
 //!
 //! vodozemac supports serializing its entire internal state into a form

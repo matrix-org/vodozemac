@@ -14,12 +14,14 @@
 // limitations under the License.
 
 use hmac::{Hmac, KeyInit, Mac as _};
-use rand::{Rng, rng};
+use rand::Rng;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Sha256, digest::CtOutput};
 use subtle::{Choice, ConstantTimeEq};
 use thiserror::Error;
 use zeroize::{Zeroize, ZeroizeOnDrop};
+
+use crate::utilities::rng;
 
 const ADVANCEMENT_SEEDS: [&[u8; 1]; Ratchet::RATCHET_PART_COUNT] =
     [b"\x00", b"\x01", b"\x02", b"\x03"];

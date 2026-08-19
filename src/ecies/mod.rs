@@ -82,15 +82,14 @@
 
 use chacha20poly1305::{ChaCha20Poly1305, Key as Chacha20Key, KeyInit, Nonce, aead::Aead};
 use hkdf::Hkdf;
-use rand::rng;
 use sha2::Sha512;
 use thiserror::Error;
 use x25519_dalek::{EphemeralSecret, SharedSecret};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 pub use self::messages::{InitialMessage, Message, MessageDecodeError};
-use crate::Curve25519PublicKey;
 pub use crate::hpke::{CheckCode, DigitMode};
+use crate::{Curve25519PublicKey, utilities::rng};
 
 mod messages;
 

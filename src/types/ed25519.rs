@@ -20,14 +20,13 @@ use curve25519_dalek::EdwardsPoint;
 use ed25519_dalek::{
     PUBLIC_KEY_LENGTH, SIGNATURE_LENGTH, Signature, Signer, SigningKey, VerifyingKey,
 };
-use rand::rng;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_bytes::{ByteBuf as SerdeByteBuf, Bytes as SerdeBytes};
 use sha2::Sha512;
 use thiserror::Error;
 use zeroize::Zeroize;
 
-use crate::utilities::{base64_decode, base64_encode};
+use crate::utilities::{base64_decode, base64_encode, rng};
 
 /// Error type describing signature verification failures.
 #[derive(Debug, Error)]
