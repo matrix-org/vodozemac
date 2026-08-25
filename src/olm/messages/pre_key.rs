@@ -21,7 +21,7 @@ use super::Message;
 use crate::{
     Curve25519PublicKey, DecodeError,
     olm::SessionKeys,
-    utilities::{base64_decode, base64_encode},
+    utilities::{base64_decode, base64_encode, encode_protobuf_message},
 };
 
 /// An encrypted Olm pre-key message.
@@ -125,15 +125,7 @@ impl PreKeyMessage {
             message: self.message.to_bytes(),
         };
 
-        let mut output: Vec<u8> = vec![0u8; message.encoded_len() + 1];
-        output[0] = Self::VERSION;
-
-        #[allow(clippy::expect_used)]
-        message
-            .encode(&mut output[1..].as_mut())
-            .expect("We should be able to encode a pre-key message into protobuf.");
-
-        output
+        encode_protobuf_message(message, Self::VERSION)
     }
 
     /// Try to decode the given string as a Olm [`PreKeyMessage`].
