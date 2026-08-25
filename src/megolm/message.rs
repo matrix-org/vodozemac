@@ -22,7 +22,7 @@ use crate::{
     DecodeError,
     cipher::{Cipher, Mac, MessageMac},
     types::{Ed25519Keypair, Ed25519Signature},
-    utilities::{VarInt, base64_decode, base64_encode, extract_mac},
+    utilities::{base64_decode, base64_encode, extract_mac},
 };
 #[cfg(feature = "low-level-api")]
 use crate::{Ed25519PublicKey, SignatureError};
@@ -143,7 +143,15 @@ impl MegolmMessage {
             ciphertext: self.ciphertext.clone(),
         };
 
-        message.encode_manual(self.version)
+        let mut output: Vec<u8> = vec![0u8; message.encoded_len() + 1];
+        output[0] = self.version;
+
+        #[allow(clippy::expect_used)]
+        message
+            .encode(&mut output[1..].as_mut())
+            .expect("We should be able to encode a megolm message into protobuf.");
+
+        output
     }
 
     fn set_mac(&mut self, mac: Mac) {
@@ -322,32 +330,10 @@ impl Debug for MegolmMessage {
 
 #[derive(Clone, Message, PartialEq, Eq)]
 struct ProtobufMegolmMessage {
-    #[prost(uint32, tag = "1")]
+    #[prost(uint32, required, tag = "1")]
     pub message_index: u32,
     #[prost(bytes, tag = "2")]
     pub ciphertext: Vec<u8>,
-}
-
-impl ProtobufMegolmMessage {
-    const INDEX_TAG: &'static [u8; 1] = b"\x08";
-    const CIPHER_TAG: &'static [u8; 1] = b"\x12";
-
-    fn encode_manual(&self, version: u8) -> Vec<u8> {
-        // Prost optimizes away the message index if it's 0, libolm can't decode
-        // this, so encode our messages the pedestrian way instead.
-        let index = self.message_index.to_var_int();
-        let ciphertext_len = self.ciphertext.len().to_var_int();
-
-        [
-            [version].as_ref(),
-            Self::INDEX_TAG.as_slice(),
-            &index,
-            Self::CIPHER_TAG.as_slice(),
-            &ciphertext_len,
-            &self.ciphertext,
-        ]
-        .concat()
-    }
 }
 
 #[cfg(test)]

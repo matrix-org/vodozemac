@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     Curve25519PublicKey, DecodeError,
     cipher::{Mac, MessageMac},
-    utilities::{VarInt, base64_decode, base64_encode, extract_mac},
+    utilities::{base64_decode, base64_encode, extract_mac},
 };
 
 pub(crate) const MAC_TRUNCATED_VERSION: u8 = 3;
@@ -143,12 +143,21 @@ impl Message {
     }
 
     fn encode(&self) -> Vec<u8> {
-        ProtoBufMessage {
+        let message = ProtoBufMessage {
             ratchet_key: self.ratchet_key.to_bytes().to_vec(),
             chain_index: self.chain_index,
             ciphertext: self.ciphertext.clone(),
-        }
-        .encode_manual(self.version)
+        };
+
+        let mut output: Vec<u8> = vec![0u8; message.encoded_len() + 1];
+        output[0] = self.version();
+
+        #[allow(clippy::expect_used)]
+        message
+            .encode(&mut output[1..].as_mut())
+            .expect("We should be able to encode an Olm message into protobuf.");
+
+        output
     }
 
     pub(crate) fn to_mac_bytes(&self) -> Vec<u8> {
@@ -254,35 +263,10 @@ impl Debug for Message {
 struct ProtoBufMessage {
     #[prost(bytes, tag = "1")]
     ratchet_key: Vec<u8>,
-    #[prost(uint64, tag = "2")]
+    #[prost(uint64, required, tag = "2")]
     chain_index: u64,
     #[prost(bytes, tag = "4")]
     ciphertext: Vec<u8>,
-}
-
-impl ProtoBufMessage {
-    const RATCHET_TAG: &'static [u8; 1] = b"\x0A";
-    const INDEX_TAG: &'static [u8; 1] = b"\x10";
-    const CIPHER_TAG: &'static [u8; 1] = b"\x22";
-
-    fn encode_manual(&self, version: u8) -> Vec<u8> {
-        let index = self.chain_index.to_var_int();
-        let ratchet_len = self.ratchet_key.len().to_var_int();
-        let ciphertext_len = self.ciphertext.len().to_var_int();
-
-        [
-            [version].as_ref(),
-            Self::RATCHET_TAG.as_slice(),
-            &ratchet_len,
-            &self.ratchet_key,
-            Self::INDEX_TAG.as_slice(),
-            &index,
-            Self::CIPHER_TAG.as_slice(),
-            &ciphertext_len,
-            &self.ciphertext,
-        ]
-        .concat()
-    }
 }
 
 #[cfg(test)]
