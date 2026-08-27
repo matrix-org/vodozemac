@@ -31,4 +31,6 @@ exclude_re = [
   # This test successfully fails if we replace the condition manually, under
   # cargo-mutants it still times out.
   "src/utilities/mod.rs:118:13: replace > with >= in required_encoded_space_unsigned",
+  # Causes an infinite loop
+  "replace > with >= in required_encoded_space_unsigned",
 ]
