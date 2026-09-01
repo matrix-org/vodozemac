@@ -322,28 +322,13 @@ impl Session {
 }
 
 impl Session {
-    pub(super) fn new(
-        config: SessionConfig,
-        shared_secret: Shared3DHSecret,
-        session_keys: SessionKeys,
-    ) -> Self {
-        let local_ratchet = DoubleRatchet::active(shared_secret);
-
-        Self {
-            session_keys,
-            sending_ratchet: local_ratchet,
-            receiving_chains: Default::default(),
-            config,
-        }
-    }
-
     pub(super) fn new_with_rng<R: CryptoRng>(
         config: SessionConfig,
         shared_secret: Shared3DHSecret,
         session_keys: SessionKeys,
         rng: &mut R,
     ) -> Self {
-        let local_ratchet = DoubleRatchet::active_with_rng(shared_secret, rng);
+        let local_ratchet = DoubleRatchet::active(shared_secret, rng);
 
         Self {
             session_keys,
@@ -402,19 +387,7 @@ impl Session {
     /// fully established once you receive (and decrypt) at least one
     /// message from the other side.
     pub fn encrypt(&mut self, plaintext: impl AsRef<[u8]>) -> Result<OlmMessage, EncryptionError> {
-        let message = match self.config.version {
-            Version::V1 => self.sending_ratchet.encrypt_truncated_mac(plaintext.as_ref()),
-            #[cfg(feature = "experimental-session-config")]
-            Version::V2 => self.sending_ratchet.encrypt(plaintext.as_ref()),
-        }?;
-
-        if self.has_received_message() {
-            Ok(OlmMessage::Normal(message))
-        } else {
-            let message = PreKeyMessage::new(self.session_keys, message);
-
-            Ok(OlmMessage::PreKey(message))
-        }
+        self.encrypt_with_rng(plaintext, &mut rand::rng())
     }
 
     /// Encrypt the `plaintext` and construct an [`OlmMessage`], drawing any
@@ -441,11 +414,9 @@ impl Session {
         rng: &mut R,
     ) -> Result<OlmMessage, EncryptionError> {
         let message = match self.config.version {
-            Version::V1 => {
-                self.sending_ratchet.encrypt_truncated_mac_with_rng(plaintext.as_ref(), rng)
-            }
+            Version::V1 => self.sending_ratchet.encrypt_truncated_mac(plaintext.as_ref(), rng),
             #[cfg(feature = "experimental-session-config")]
-            Version::V2 => self.sending_ratchet.encrypt_with_rng(plaintext.as_ref(), rng),
+            Version::V2 => self.sending_ratchet.encrypt(plaintext.as_ref(), rng),
         }?;
 
         if self.has_received_message() {
@@ -484,27 +455,38 @@ impl Session {
     /// Try to decrypt an Olm message, which will either return the plaintext or
     /// result in a [`DecryptionError`].
     pub fn decrypt(&mut self, message: &OlmMessage) -> Result<Vec<u8>, DecryptionError> {
+        self.decrypt_with_rng(message, &mut rand::rng())
+    }
+
+    /// Try to decrypt an Olm message, which will either return the plaintext or
+    /// result in a [`DecryptionError`].
+    pub fn decrypt_with_rng<R: CryptoRng>(
+        &mut self,
+        message: &OlmMessage,
+        rng: &mut R,
+    ) -> Result<Vec<u8>, DecryptionError> {
         let decrypted = match message {
-            OlmMessage::Normal(m) => self.decrypt_decoded(m)?,
-            OlmMessage::PreKey(m) => self.decrypt_decoded(&m.message)?,
+            OlmMessage::Normal(m) => self.decrypt_decoded(m, rng)?,
+            OlmMessage::PreKey(m) => self.decrypt_decoded(&m.message, rng)?,
         };
 
         Ok(decrypted)
     }
 
-    pub(super) fn decrypt_decoded(
+    pub(super) fn decrypt_decoded<R: CryptoRng>(
         &mut self,
         message: &Message,
+        rng: &mut R,
     ) -> Result<Vec<u8>, DecryptionError> {
         let ratchet_key = RemoteRatchetKey::from(message.ratchet_key);
 
         if let Some(ratchet) = self.receiving_chains.find_ratchet(&ratchet_key) {
             ratchet.decrypt(message, &self.config)
         } else {
-            let (sending_ratchet, mut remote_ratchet) =
-                self.sending_ratchet
-                    .advance(ratchet_key)
-                    .ok_or(DecryptionError::NonContributoryKey)?;
+            let (sending_ratchet, mut remote_ratchet) = self
+                .sending_ratchet
+                .advance(ratchet_key, rng)
+                .ok_or(DecryptionError::NonContributoryKey)?;
 
             let plaintext = remote_ratchet.decrypt(message, &self.config)?;
 

@@ -113,13 +113,7 @@ impl OneTimeKeys {
         (public_key, removed)
     }
 
-    fn generate_one_time_key(&mut self) -> (Curve25519PublicKey, Option<Curve25519PublicKey>) {
-        let key_id = KeyId(self.next_key_id);
-        let key = Curve25519SecretKey::new();
-        self.insert_secret_key(key_id, key, false)
-    }
-
-    fn generate_one_time_key_with_rng<R: CryptoRng>(
+    fn generate_one_time_key<R: CryptoRng>(
         &mut self,
         rng: &mut R,
     ) -> (Curve25519PublicKey, Option<Curve25519PublicKey>) {
@@ -137,25 +131,7 @@ impl OneTimeKeys {
         !self.unpublished_public_keys.contains_key(key_id)
     }
 
-    pub fn generate(&mut self, count: usize) -> OneTimeKeyGenerationResult {
-        let mut removed_keys = Vec::new();
-        let mut created_keys = Vec::new();
-
-        for _ in 0..count {
-            let (created, removed) = self.generate_one_time_key();
-
-            created_keys.push(created);
-            if let Some(removed) = removed {
-                removed_keys.push(removed);
-            }
-
-            self.next_key_id = self.next_key_id.wrapping_add(1);
-        }
-
-        OneTimeKeyGenerationResult { created: created_keys, removed: removed_keys }
-    }
-
-    pub fn generate_with_rng<R: CryptoRng>(
+    pub fn generate<R: CryptoRng>(
         &mut self,
         count: usize,
         rng: &mut R,
@@ -164,7 +140,7 @@ impl OneTimeKeys {
         let mut created_keys = Vec::new();
 
         for _ in 0..count {
-            let (created, removed) = self.generate_one_time_key_with_rng(rng);
+            let (created, removed) = self.generate_one_time_key(rng);
 
             created_keys.push(created);
             if let Some(removed) = removed {
@@ -224,7 +200,7 @@ mod test {
 
         assert!(store.private_keys.is_empty());
 
-        store.generate(OneTimeKeys::MAX_ONE_TIME_KEYS);
+        store.generate(OneTimeKeys::MAX_ONE_TIME_KEYS, &mut rand::rng());
         assert_eq!(store.unpublished_public_keys.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
         assert_eq!(store.private_keys.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
         assert_eq!(store.key_ids_by_key.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
@@ -245,7 +221,7 @@ mod test {
             store.private_keys.keys().next().copied().expect("Couldn't get the first key ID");
         assert_eq!(oldest_key_id, KeyId(0));
 
-        store.generate(10);
+        store.generate(10, &mut rand::rng());
         assert_eq!(store.unpublished_public_keys.len(), 10);
         assert_eq!(store.private_keys.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
         assert_eq!(store.key_ids_by_key.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);

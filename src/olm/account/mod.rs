@@ -143,12 +143,7 @@ pub struct Account {
 impl Account {
     /// Create a new [`Account`] with new random identity keys.
     pub fn new() -> Self {
-        Self {
-            signing_key: Ed25519Keypair::new(),
-            diffie_hellman_key: Curve25519Keypair::new(),
-            one_time_keys: OneTimeKeys::new(),
-            fallback_keys: FallbackKeys::new(),
-        }
+        Self::new_with_rng(&mut rand::rng())
     }
 
     /// Create a new [`Account`] with new random identity keys, drawing entropy
@@ -167,7 +162,7 @@ impl Account {
     pub fn new_with_rng<R: CryptoRng>(rng: &mut R) -> Self {
         Self {
             signing_key: Ed25519Keypair::new_with_rng(rng),
-            diffie_hellman_key: Curve25519Keypair::new_with_rng(rng),
+            diffie_hellman_key: Curve25519Keypair::new(rng),
             one_time_keys: OneTimeKeys::new(),
             fallback_keys: FallbackKeys::new(),
         }
@@ -219,24 +214,12 @@ impl Account {
         identity_key: Curve25519PublicKey,
         one_time_key: Curve25519PublicKey,
     ) -> Result<Session, SessionCreationError> {
-        let base_key = Curve25519SecretKey::new();
-        let public_base_key = Curve25519PublicKey::from(&base_key);
-
-        let shared_secret = Shared3DHSecret::new(
-            self.diffie_hellman_key.secret_key(),
-            &base_key,
-            &identity_key,
-            &one_time_key,
-        )
-        .ok_or(SessionCreationError::NonContributoryKey)?;
-
-        let session_keys = SessionKeys {
-            identity_key: self.curve25519_key(),
-            base_key: public_base_key,
+        self.create_outbound_session_with_rng(
+            session_config,
+            identity_key,
             one_time_key,
-        };
-
-        Ok(Session::new(session_config, shared_secret, session_keys))
+            &mut rand::rng(),
+        )
     }
 
     /// Create a [`Session`] with the given identity key and one-time key,
@@ -318,6 +301,23 @@ impl Account {
         their_identity_key: Curve25519PublicKey,
         pre_key_message: &PreKeyMessage,
     ) -> Result<InboundCreationResult, SessionCreationError> {
+        self.create_inbound_session_with_rng(
+            expected_config,
+            their_identity_key,
+            pre_key_message,
+            &mut rand::rng(),
+        )
+    }
+
+    /// Create a [`Session`] from the given [`PreKeyMessage`] message and
+    /// identity key with a custom RNG.
+    pub fn create_inbound_session_with_rng<R: CryptoRng>(
+        &mut self,
+        expected_config: SessionConfig,
+        their_identity_key: Curve25519PublicKey,
+        pre_key_message: &PreKeyMessage,
+        rng: &mut R,
+    ) -> Result<InboundCreationResult, SessionCreationError> {
         if their_identity_key != pre_key_message.identity_key() {
             Err(SessionCreationError::MismatchedIdentityKey(
                 their_identity_key,
@@ -376,7 +376,7 @@ impl Account {
             );
 
             // Decrypt the message to check if the Session is actually valid.
-            let plaintext = session.decrypt_decoded(&pre_key_message.message)?;
+            let plaintext = session.decrypt_decoded(&pre_key_message.message, rng)?;
 
             // We only drop the one-time key now, this is why we can't use a
             // one-time key type that takes `self`. If we didn't do this,
@@ -400,7 +400,7 @@ impl Account {
     /// is completely populated, the oldest one-time keys will get discarded
     /// to make place for new ones.
     pub fn generate_one_time_keys(&mut self, count: usize) -> OneTimeKeyGenerationResult {
-        self.one_time_keys.generate(count)
+        self.generate_one_time_keys_with_rng(count, &mut rand::rng())
     }
 
     /// Generates the supplied number of one time keys, drawing entropy from the
@@ -420,7 +420,7 @@ impl Account {
         count: usize,
         rng: &mut R,
     ) -> OneTimeKeyGenerationResult {
-        self.one_time_keys.generate_with_rng(count, rng)
+        self.one_time_keys.generate(count, rng)
     }
 
     /// Get the number of one-time keys we have stored locally.
@@ -454,7 +454,7 @@ impl Account {
     /// is, the one that will get removed from the [`Account`] when this method
     /// is called. This return value is mostly useful for logging purposes.
     pub fn generate_fallback_key(&mut self) -> Option<Curve25519PublicKey> {
-        self.fallback_keys.generate_fallback_key()
+        self.generate_fallback_key_with_rng(&mut rand::rng())
     }
 
     /// Generate a single new fallback key, drawing entropy from the provided
@@ -473,7 +473,7 @@ impl Account {
         &mut self,
         rng: &mut R,
     ) -> Option<Curve25519PublicKey> {
-        self.fallback_keys.generate_fallback_key_with_rng(rng)
+        self.fallback_keys.generate_fallback_key(rng)
     }
 
     /// Get the currently unpublished fallback key.

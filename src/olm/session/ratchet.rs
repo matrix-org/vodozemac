@@ -60,11 +60,7 @@ impl Debug for RemoteRatchetKey {
 }
 
 impl RatchetKey {
-    pub fn new() -> Self {
-        Self(Curve25519SecretKey::new())
-    }
-
-    pub fn new_with_rng<R: CryptoRng>(rng: &mut R) -> Self {
+    pub fn new<R: CryptoRng>(rng: &mut R) -> Self {
         Self(Curve25519SecretKey::new_with_rng(rng))
     }
 
@@ -75,7 +71,7 @@ impl RatchetKey {
 
 impl Default for RatchetKey {
     fn default() -> Self {
-        Self::new()
+        Self::new(&mut rand::rng())
     }
 }
 
@@ -128,14 +124,8 @@ pub(super) struct Ratchet {
 }
 
 impl Ratchet {
-    pub fn new(root_key: RootKey) -> Self {
-        let ratchet_key = RatchetKey::new();
-
-        Self { root_key, ratchet_key }
-    }
-
-    pub fn new_with_rng<R: CryptoRng>(root_key: RootKey, rng: &mut R) -> Self {
-        let ratchet_key = RatchetKey::new_with_rng(rng);
+    pub fn new<R: CryptoRng>(root_key: RootKey, rng: &mut R) -> Self {
+        let ratchet_key = RatchetKey::new(rng);
 
         Self { root_key, ratchet_key }
     }
