@@ -142,6 +142,7 @@ pub struct Account {
 
 impl Account {
     /// Create a new [`Account`] with new random identity keys.
+    #[cfg(not(feature = "disallow-default-rng"))]
     pub fn new() -> Self {
         Self::new_with_rng(&mut rand::rng())
     }
@@ -208,6 +209,7 @@ impl Account {
     }
 
     /// Create a [`Session`] with the given identity key and one-time key.
+    #[cfg(not(feature = "disallow-default-rng"))]
     pub fn create_outbound_session(
         &self,
         session_config: SessionConfig,
@@ -295,6 +297,7 @@ impl Account {
 
     /// Create a [`Session`] from the given [`PreKeyMessage`] message and
     /// identity key
+    #[cfg(not(feature = "disallow-default-rng"))]
     pub fn create_inbound_session(
         &mut self,
         expected_config: SessionConfig,
@@ -399,6 +402,7 @@ impl Account {
     /// places for one-time keys, If we try to generate new ones while the store
     /// is completely populated, the oldest one-time keys will get discarded
     /// to make place for new ones.
+    #[cfg(not(feature = "disallow-default-rng"))]
     pub fn generate_one_time_keys(&mut self, count: usize) -> OneTimeKeyGenerationResult {
         self.generate_one_time_keys_with_rng(count, &mut rand::rng())
     }
@@ -453,6 +457,7 @@ impl Account {
     /// Returns the public Curve25519 key of the *previous* fallback key, that
     /// is, the one that will get removed from the [`Account`] when this method
     /// is called. This return value is mostly useful for logging purposes.
+    #[cfg(not(feature = "disallow-default-rng"))]
     pub fn generate_fallback_key(&mut self) -> Option<Curve25519PublicKey> {
         self.generate_fallback_key_with_rng(&mut rand::rng())
     }
@@ -697,6 +702,7 @@ impl Account {
     }
 }
 
+#[cfg(not(feature = "disallow-default-rng"))]
 impl Default for Account {
     fn default() -> Self {
         Self::new()

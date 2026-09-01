@@ -69,6 +69,7 @@ impl RatchetKey {
     }
 }
 
+#[cfg(not(feature = "disallow-default-rng"))]
 impl Default for RatchetKey {
     fn default() -> Self {
         Self::new(&mut rand::rng())

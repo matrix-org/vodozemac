@@ -209,6 +209,7 @@ impl SasBytes {
     }
 }
 
+#[cfg(not(feature = "disallow-default-rng"))]
 impl Default for Sas {
     fn default() -> Self {
         Self::new()
@@ -220,6 +221,7 @@ impl Sas {
     ///
     /// This creates an ephemeral curve25519 keypair that can be used to
     /// establish a shared secret.
+    #[cfg(not(feature = "disallow-default-rng"))]
     pub fn new() -> Self {
         Self::new_with_rng(&mut rand::rng())
     }

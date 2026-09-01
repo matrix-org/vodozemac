@@ -126,6 +126,7 @@ impl<'d> Deserialize<'d> for ExpandedSecretKey {
 
 impl Ed25519Keypair {
     /// Create a new, random, `Ed25519Keypair`.
+    #[cfg(not(feature = "disallow-default-rng"))]
     pub fn new() -> Self {
         Self::new_with_rng(&mut rand::rng())
     }
@@ -204,6 +205,7 @@ impl Ed25519Keypair {
     }
 }
 
+#[cfg(not(feature = "disallow-default-rng"))]
 impl Default for Ed25519Keypair {
     fn default() -> Self {
         Self::new()
@@ -223,6 +225,7 @@ impl Ed25519SecretKey {
     const PADDED_BASE64_LENGTH: usize = 44;
 
     /// Create a new random `Ed25519SecretKey`.
+    #[cfg(not(feature = "disallow-default-rng"))]
     pub fn new() -> Self {
         Self::new_with_rng(&mut rand::rng())
     }
@@ -332,6 +335,7 @@ impl Ed25519SecretKey {
     }
 }
 
+#[cfg(not(feature = "disallow-default-rng"))]
 impl Default for Ed25519SecretKey {
     fn default() -> Self {
         Self::new()

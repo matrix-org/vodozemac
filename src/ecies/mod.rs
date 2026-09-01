@@ -229,6 +229,7 @@ impl Ecies {
     /// this for a different purpose, consider using the [`Ecies::with_info()`]
     /// method.
     #[allow(clippy::new_without_default)]
+    #[cfg(not(feature = "disallow-default-rng"))]
     pub fn new() -> Self {
         Self::with_info(MATRIX_QR_LOGIN_INFO_PREFIX)
     }
@@ -238,6 +239,7 @@ impl Ecies {
     ///
     /// The application info will be used to derive the various secrets and
     /// provide domain separation.
+    #[cfg(not(feature = "disallow-default-rng"))]
     pub fn with_info(info: &str) -> Self {
         Self::with_info_and_rng(info, &mut rand::rng())
     }

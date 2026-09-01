@@ -46,6 +46,7 @@ pub struct GroupSession {
     config: SessionConfig,
 }
 
+#[cfg(not(feature = "disallow-default-rng"))]
 impl Default for GroupSession {
     fn default() -> Self {
         Self::new(Default::default())
@@ -55,6 +56,7 @@ impl Default for GroupSession {
 impl GroupSession {
     /// Construct a new group session, with a random ratchet state and signing
     /// key pair.
+    #[cfg(not(feature = "disallow-default-rng"))]
     pub fn new(config: SessionConfig) -> Self {
         Self::new_with_rng(config, &mut rand::rng())
     }
