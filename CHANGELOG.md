@@ -12,7 +12,8 @@ All notable changes to this project will be documented in this file.
   (`Account::new`, `Account::generate_one_time_keys`,
   `Account::generate_fallback_key`, `Account::create_inbound_session`,
   `Account::create_outbound_session`, `Account::generate_fallback_key`,
-  `Account::generate_one_time_keys`, `Session::encrypt`, `Sas::new` plus the
+  `Account::generate_one_time_keys`, `Session::encrypt`, `Sas::new`,
+  `GroupSession::new` plus the
   `Curve25519Keypair`/`Curve25519SecretKey`/`Ed25519Keypair`/`Ed25519SecretKey`
   constructors).
   These accept a caller-supplied `impl CryptoRng`

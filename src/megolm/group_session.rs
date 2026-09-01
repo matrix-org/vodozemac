@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use rand::CryptoRng;
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -55,8 +56,14 @@ impl GroupSession {
     /// Construct a new group session, with a random ratchet state and signing
     /// key pair.
     pub fn new(config: SessionConfig) -> Self {
-        let signing_key = Ed25519Keypair::new();
-        Self { signing_key, ratchet: Ratchet::new(), config }
+        Self::new_with_rng(config, &mut rand::rng())
+    }
+
+    /// Construct a new group session, with a random ratchet state, a signing
+    /// key pair and a random number generator.
+    pub fn new_with_rng<R: CryptoRng>(config: SessionConfig, rng: &mut R) -> Self {
+        let signing_key = Ed25519Keypair::new_with_rng(rng);
+        Self { signing_key, ratchet: Ratchet::new(rng), config }
     }
 
     /// Returns the globally unique session ID, in base64-encoded form.
