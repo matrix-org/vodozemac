@@ -27,6 +27,7 @@ use arrayvec::ArrayVec;
 use chain_key::RemoteChainKey;
 use double_ratchet::DoubleRatchet;
 use hmac::digest::MacError;
+use rand::CryptoRng;
 use ratchet::RemoteRatchetKey;
 use receiver_chain::ReceiverChain;
 use root_key::RemoteRootKey;
@@ -321,12 +322,13 @@ impl Session {
 }
 
 impl Session {
-    pub(super) fn new(
+    pub(super) fn new_with_rng<R: CryptoRng>(
         config: SessionConfig,
         shared_secret: Shared3DHSecret,
         session_keys: SessionKeys,
+        rng: &mut R,
     ) -> Self {
-        let local_ratchet = DoubleRatchet::active(shared_secret);
+        let local_ratchet = DoubleRatchet::active(shared_secret, rng);
 
         Self {
             session_keys,
@@ -384,11 +386,38 @@ impl Session {
     /// depending on whether the session is fully established. A [`Session`] is
     /// fully established once you receive (and decrypt) at least one
     /// message from the other side.
+    #[cfg(not(feature = "disallow-default-rng"))]
     pub fn encrypt(&mut self, plaintext: impl AsRef<[u8]>) -> Result<OlmMessage, EncryptionError> {
+        self.encrypt_with_rng(plaintext, &mut rand::rng())
+    }
+
+    /// Encrypt the `plaintext` and construct an [`OlmMessage`], drawing any
+    /// required entropy from the provided random number generator.
+    ///
+    /// This behaves exactly like [`Session::encrypt`] but sources its
+    /// randomness from the caller-supplied `rng` instead of the thread-local
+    /// generator. Randomness is consumed **only** when the ratchet advances the
+    /// Diffie-Hellman step (i.e. the first message sent after receiving a
+    /// reply, which mints a fresh ratchet key); messages that merely
+    /// advance the symmetric chain draw nothing from `rng`. This enables
+    /// deterministic testing, reproducible builds, and custom/hardware
+    /// entropy sources.
+    ///
+    /// **Warning**: the forward secrecy and post-compromise security of the
+    /// session depend on each genuinely-new ratchet step drawing *fresh*,
+    /// high-quality randomness. Supplying a low-entropy, predictable, or reused
+    /// generator across two distinct ratchet advances collapses the ephemeral
+    /// ratchet keys and breaks these guarantees. Pass a cryptographically
+    /// secure generator seeded with sufficient entropy.
+    pub fn encrypt_with_rng<R: CryptoRng>(
+        &mut self,
+        plaintext: impl AsRef<[u8]>,
+        rng: &mut R,
+    ) -> Result<OlmMessage, EncryptionError> {
         let message = match self.config.version {
-            Version::V1 => self.sending_ratchet.encrypt_truncated_mac(plaintext.as_ref()),
+            Version::V1 => self.sending_ratchet.encrypt_truncated_mac(plaintext.as_ref(), rng),
             #[cfg(feature = "experimental-session-config")]
-            Version::V2 => self.sending_ratchet.encrypt(plaintext.as_ref()),
+            Version::V2 => self.sending_ratchet.encrypt(plaintext.as_ref(), rng),
         }?;
 
         if self.has_received_message() {
@@ -426,28 +455,40 @@ impl Session {
 
     /// Try to decrypt an Olm message, which will either return the plaintext or
     /// result in a [`DecryptionError`].
+    #[cfg(not(feature = "disallow-default-rng"))]
     pub fn decrypt(&mut self, message: &OlmMessage) -> Result<Vec<u8>, DecryptionError> {
+        self.decrypt_with_rng(message, &mut rand::rng())
+    }
+
+    /// Try to decrypt an Olm message, which will either return the plaintext or
+    /// result in a [`DecryptionError`].
+    pub fn decrypt_with_rng<R: CryptoRng>(
+        &mut self,
+        message: &OlmMessage,
+        rng: &mut R,
+    ) -> Result<Vec<u8>, DecryptionError> {
         let decrypted = match message {
-            OlmMessage::Normal(m) => self.decrypt_decoded(m)?,
-            OlmMessage::PreKey(m) => self.decrypt_decoded(&m.message)?,
+            OlmMessage::Normal(m) => self.decrypt_decoded(m, rng)?,
+            OlmMessage::PreKey(m) => self.decrypt_decoded(&m.message, rng)?,
         };
 
         Ok(decrypted)
     }
 
-    pub(super) fn decrypt_decoded(
+    pub(super) fn decrypt_decoded<R: CryptoRng>(
         &mut self,
         message: &Message,
+        rng: &mut R,
     ) -> Result<Vec<u8>, DecryptionError> {
         let ratchet_key = RemoteRatchetKey::from(message.ratchet_key);
 
         if let Some(ratchet) = self.receiving_chains.find_ratchet(&ratchet_key) {
             ratchet.decrypt(message, &self.config)
         } else {
-            let (sending_ratchet, mut remote_ratchet) =
-                self.sending_ratchet
-                    .advance(ratchet_key)
-                    .ok_or(DecryptionError::NonContributoryKey)?;
+            let (sending_ratchet, mut remote_ratchet) = self
+                .sending_ratchet
+                .advance(ratchet_key, rng)
+                .ok_or(DecryptionError::NonContributoryKey)?;
 
             let plaintext = remote_ratchet.decrypt(message, &self.config)?;
 

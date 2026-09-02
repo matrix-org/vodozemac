@@ -14,6 +14,7 @@
 
 use std::fmt::{Debug, Formatter};
 
+use rand::CryptoRng;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "low-level-api")]
@@ -49,10 +50,10 @@ pub(super) struct DoubleRatchet {
 }
 
 impl DoubleRatchet {
-    pub(super) fn next_message_key(&mut self) -> Option<MessageKey> {
+    pub(super) fn next_message_key<R: CryptoRng>(&mut self, rng: &mut R) -> Option<MessageKey> {
         match &mut self.inner {
             DoubleRatchetState::Inactive(ratchet) => {
-                let mut ratchet = ratchet.activate()?;
+                let mut ratchet = ratchet.activate(rng)?;
 
                 let message_key = ratchet.next_message_key();
                 self.inner = DoubleRatchetState::Active(ratchet);
@@ -64,23 +65,31 @@ impl DoubleRatchet {
     }
 
     #[cfg(feature = "experimental-session-config")]
-    pub(super) fn encrypt(&mut self, plaintext: &[u8]) -> Result<Message, EncryptionError> {
-        Ok(self.next_message_key().ok_or(EncryptionError::NonContributoryKey)?.encrypt(plaintext))
-    }
-
-    pub(super) fn encrypt_truncated_mac(
+    pub(super) fn encrypt<R: CryptoRng>(
         &mut self,
         plaintext: &[u8],
+        rng: &mut R,
     ) -> Result<Message, EncryptionError> {
         Ok(self
-            .next_message_key()
+            .next_message_key(rng)
+            .ok_or(EncryptionError::NonContributoryKey)?
+            .encrypt(plaintext))
+    }
+
+    pub(super) fn encrypt_truncated_mac<R: CryptoRng>(
+        &mut self,
+        plaintext: &[u8],
+        rng: &mut R,
+    ) -> Result<Message, EncryptionError> {
+        Ok(self
+            .next_message_key(rng)
             .ok_or(EncryptionError::NonContributoryKey)?
             .encrypt_truncated_mac(plaintext))
     }
 
     /// Create a new `DoubleRatchet` instance, based on a newly-calculated
     /// shared secret.
-    pub(super) fn active(shared_secret: Shared3DHSecret) -> Self {
+    pub(super) fn active<R: CryptoRng>(shared_secret: Shared3DHSecret, rng: &mut R) -> Self {
         let (root_key, chain_key) = shared_secret.expand();
 
         let root_key = RootKey::new(root_key);
@@ -89,7 +98,7 @@ impl DoubleRatchet {
         let ratchet = ActiveDoubleRatchet {
             parent_ratchet_key: None, // First chain in a session lacks parent ratchet key
             ratchet_count: RatchetCount::new(),
-            active_ratchet: Ratchet::new(root_key),
+            active_ratchet: Ratchet::new(root_key, rng),
             symmetric_key_ratchet: chain_key,
         };
 
@@ -165,14 +174,15 @@ impl DoubleRatchet {
         })
     }
 
-    pub(super) fn advance(
+    pub(super) fn advance<R: CryptoRng>(
         &mut self,
         ratchet_key: RemoteRatchetKey,
+        rng: &mut R,
     ) -> Option<(DoubleRatchet, ReceiverChain)> {
         let (ratchet, receiver_chain) = match &self.inner {
             DoubleRatchetState::Active(r) => r.advance(ratchet_key)?,
             DoubleRatchetState::Inactive(r) => {
-                let ratchet = r.activate()?;
+                let ratchet = r.activate(rng)?;
                 // Advancing an inactive ratchet shouldn't be possible since the
                 // other side did not yet receive our new ratchet key.
                 //
@@ -242,8 +252,8 @@ struct InactiveDoubleRatchet {
 }
 
 impl InactiveDoubleRatchet {
-    fn activate(&self) -> Option<ActiveDoubleRatchet> {
-        let (root_key, chain_key, ratchet_key) = self.root_key.advance(&self.ratchet_key)?;
+    fn activate<R: CryptoRng>(&self, rng: &mut R) -> Option<ActiveDoubleRatchet> {
+        let (root_key, chain_key, ratchet_key) = self.root_key.advance(&self.ratchet_key, rng)?;
         let active_ratchet = Ratchet::new_with_ratchet_key(root_key, ratchet_key);
 
         Some(ActiveDoubleRatchet {
@@ -514,7 +524,7 @@ mod test {
         let ratchet_key = RemoteRatchetKey(Curve25519PublicKey::from_bytes([0u8; 32]));
 
         assert!(
-            ratchet.advance(ratchet_key).is_none(),
+            ratchet.advance(ratchet_key, &mut rand::rng()).is_none(),
             "We shouldn't be able to advance the session with a non-contributory remote ratchet key"
         );
     }

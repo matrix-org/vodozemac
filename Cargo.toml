@@ -50,6 +50,9 @@ experimental-session-config = []
 # The low-level-api feature exposes extra APIs that are only useful in advanced
 # use cases and require extra care to use.
 low-level-api = []
+# Disables public methods that use the default RNG. This will force the caller
+# to provide a custom RNG via `with_rng` methods instead.
+disallow-default-rng = []
 
 [dependencies]
 aes = { version = "0.9.1" }

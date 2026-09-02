@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use hkdf::Hkdf;
+use rand::CryptoRng;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use zeroize::{Zeroize, ZeroizeOnDrop};
@@ -70,11 +71,12 @@ impl RemoteRootKey {
         Self { key: bytes }
     }
 
-    pub(super) fn advance(
+    pub(super) fn advance<R: CryptoRng>(
         &self,
         remote_ratchet_key: &RemoteRatchetKey,
+        rng: &mut R,
     ) -> Option<(RootKey, ChainKey, RatchetKey)> {
-        let ratchet_key = RatchetKey::new();
+        let ratchet_key = RatchetKey::new(rng);
         let output = kdf(&self.key, &ratchet_key, remote_ratchet_key)?;
 
         let mut chain_key = Box::new([0u8; 32]);

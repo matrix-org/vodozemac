@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use rand::CryptoRng;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -27,8 +28,8 @@ pub(super) struct FallbackKey {
 }
 
 impl FallbackKey {
-    fn new(key_id: KeyId) -> Self {
-        let key = Curve25519SecretKey::new();
+    fn new<R: CryptoRng>(key_id: KeyId, rng: &mut R) -> Self {
+        let key = Curve25519SecretKey::new_with_rng(rng);
 
         Self { key_id, key, published: false }
     }
@@ -72,14 +73,17 @@ impl FallbackKeys {
         }
     }
 
-    pub(super) fn generate_fallback_key(&mut self) -> Option<Curve25519PublicKey> {
+    pub(super) fn generate_fallback_key<R: CryptoRng>(
+        &mut self,
+        rng: &mut R,
+    ) -> Option<Curve25519PublicKey> {
         let key_id = KeyId(self.key_id);
         self.key_id += 1;
 
         let ret = self.previous_fallback_key.take().map(|f| f.public_key());
 
         self.previous_fallback_key = self.fallback_key.take();
-        self.fallback_key = Some(FallbackKey::new(key_id));
+        self.fallback_key = Some(FallbackKey::new(key_id, rng));
 
         ret
     }
@@ -115,7 +119,7 @@ mod test {
         let err = "Missing fallback key";
         let mut fallback_keys = FallbackKeys::new();
 
-        fallback_keys.generate_fallback_key();
+        fallback_keys.generate_fallback_key(&mut rand::rng());
 
         let public_key = fallback_keys.fallback_key.as_ref().expect(err).public_key();
         let secret_bytes = fallback_keys.fallback_key.as_ref().expect(err).key.to_bytes();
@@ -124,7 +128,7 @@ mod test {
 
         assert_eq!(secret_bytes, fetched_key.to_bytes());
 
-        fallback_keys.generate_fallback_key();
+        fallback_keys.generate_fallback_key(&mut rand::rng());
 
         let fetched_key = fallback_keys.get_secret_key(&public_key).expect(err);
         assert_eq!(secret_bytes, fetched_key.to_bytes());
@@ -142,7 +146,7 @@ mod test {
         let mut fallback_keys = FallbackKeys::new();
         assert_eq!(fallback_keys.key_id, 0);
 
-        fallback_keys.generate_fallback_key();
+        fallback_keys.generate_fallback_key(&mut rand::rng());
         assert_eq!(fallback_keys.key_id, 1);
         assert!(fallback_keys.unpublished_fallback_key().is_some());
 

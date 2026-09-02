@@ -8,6 +8,19 @@ All notable changes to this project will be documented in this file.
 
 ### Features
 
+- Add additive `*_with_rng` variants to every key-generation entry point
+  (`Account::new`, `Account::generate_one_time_keys`,
+  `Account::generate_fallback_key`, `Account::create_inbound_session`,
+  `Account::create_outbound_session`, `Account::generate_fallback_key`,
+  `Account::generate_one_time_keys`, `Session::encrypt`, `Sas::new`,
+  `GroupSession::new`, `Ecies::with_info`, `PkEncryption::encrypt` plus the
+  `Curve25519Keypair`/`Curve25519SecretKey`/`Ed25519Keypair`/
+  `Ed25519SecretKey`/`PkDecryption` constructors).
+  These accept a caller-supplied `impl CryptoRng`
+  so randomness can be injected for deterministic testing, reproducible
+  builds and custom/hardware entropy sources. The existing `OsRng`-backed
+  methods are unchanged.
+  ([#379](https://github.com/matrix-org/vodozemac/pull/379))
 - **BREAKING** Added support for Hybrid Public Key Encryption (HPKE) to enable
   standards-based public-key encryption in Matrix. The implementation uses
   X25519 for key encapsulation (KEM) and ChaCha20-Poly1305 for authenticated

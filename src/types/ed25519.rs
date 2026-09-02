@@ -20,7 +20,7 @@ use curve25519_dalek::EdwardsPoint;
 use ed25519_dalek::{
     PUBLIC_KEY_LENGTH, SIGNATURE_LENGTH, Signature, Signer, SigningKey, VerifyingKey,
 };
-use rand::rng;
+use rand::CryptoRng;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_bytes::{ByteBuf as SerdeByteBuf, Bytes as SerdeBytes};
 use sha2::Sha512;
@@ -126,9 +126,25 @@ impl<'d> Deserialize<'d> for ExpandedSecretKey {
 
 impl Ed25519Keypair {
     /// Create a new, random, `Ed25519Keypair`.
+    #[cfg(not(feature = "disallow-default-rng"))]
     pub fn new() -> Self {
-        let mut rng = rng();
-        let signing_key = SigningKey::generate(&mut rng);
+        Self::new_with_rng(&mut rand::rng())
+    }
+
+    /// Create a new, random, `Ed25519Keypair`, drawing entropy from the
+    /// provided random number generator.
+    ///
+    /// This behaves exactly like [`Ed25519Keypair::new`] but sources its
+    /// randomness from the caller-supplied `rng` instead of the thread-local
+    /// generator (see [`Ed25519Keypair::new`]). It enables deterministic
+    /// testing, reproducible builds, and custom/hardware entropy sources.
+    ///
+    /// **Warning**: the security of the generated keypair rests entirely on the
+    /// quality of `rng`; a low-entropy, predictable, or reused generator yields
+    /// predictable or repeated keys. Pass a cryptographically secure generator
+    /// seeded with sufficient entropy.
+    pub fn new_with_rng<R: CryptoRng>(rng: &mut R) -> Self {
+        let signing_key = SigningKey::generate(rng);
 
         Self {
             public_key: Ed25519PublicKey(signing_key.verifying_key()),
@@ -189,6 +205,7 @@ impl Ed25519Keypair {
     }
 }
 
+#[cfg(not(feature = "disallow-default-rng"))]
 impl Default for Ed25519Keypair {
     fn default() -> Self {
         Self::new()
@@ -208,9 +225,25 @@ impl Ed25519SecretKey {
     const PADDED_BASE64_LENGTH: usize = 44;
 
     /// Create a new random `Ed25519SecretKey`.
+    #[cfg(not(feature = "disallow-default-rng"))]
     pub fn new() -> Self {
-        let mut rng = rng();
-        let signing_key = SigningKey::generate(&mut rng);
+        Self::new_with_rng(&mut rand::rng())
+    }
+
+    /// Create a new random `Ed25519SecretKey`, drawing entropy from the
+    /// provided random number generator.
+    ///
+    /// This behaves exactly like [`Ed25519SecretKey::new`] but sources its
+    /// randomness from the caller-supplied `rng` instead of the thread-local
+    /// generator. It enables deterministic testing, reproducible builds, and
+    /// custom/hardware entropy sources.
+    ///
+    /// **Warning**: the security of the generated key rests entirely on the
+    /// quality of `rng`; a low-entropy, predictable, or reused generator yields
+    /// predictable or repeated keys. Pass a cryptographically secure generator
+    /// seeded with sufficient entropy.
+    pub fn new_with_rng<R: CryptoRng>(rng: &mut R) -> Self {
+        let signing_key = SigningKey::generate(rng);
         let key = Box::new(signing_key);
 
         Self(key)
@@ -302,6 +335,7 @@ impl Ed25519SecretKey {
     }
 }
 
+#[cfg(not(feature = "disallow-default-rng"))]
 impl Default for Ed25519SecretKey {
     fn default() -> Self {
         Self::new()
