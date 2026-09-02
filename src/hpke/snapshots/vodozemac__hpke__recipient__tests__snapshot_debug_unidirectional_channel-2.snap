@@ -1,0 +1,10 @@
+---
+source: src/hpke/recipient.rs
+expression: bob
+---
+UnidirectionalRecipientChannel {
+    application_info_prefix: "MATRIX_QR_CODE_LOGIN",
+    their_public_key: "curve25519:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    our_public_key: "curve25519:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    ..
+}

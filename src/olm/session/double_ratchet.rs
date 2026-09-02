@@ -50,7 +50,7 @@ pub(super) struct DoubleRatchet {
 }
 
 impl DoubleRatchet {
-    pub fn next_message_key<R: CryptoRng>(&mut self, rng: &mut R) -> Option<MessageKey> {
+    pub(super) fn next_message_key<R: CryptoRng>(&mut self, rng: &mut R) -> Option<MessageKey> {
         match &mut self.inner {
             DoubleRatchetState::Inactive(ratchet) => {
                 let mut ratchet = ratchet.activate(rng)?;
@@ -65,7 +65,7 @@ impl DoubleRatchet {
     }
 
     #[cfg(feature = "experimental-session-config")]
-    pub fn encrypt<R: CryptoRng>(
+    pub(super) fn encrypt<R: CryptoRng>(
         &mut self,
         plaintext: &[u8],
         rng: &mut R,
@@ -76,7 +76,7 @@ impl DoubleRatchet {
             .encrypt(plaintext))
     }
 
-    pub fn encrypt_truncated_mac<R: CryptoRng>(
+    pub(super) fn encrypt_truncated_mac<R: CryptoRng>(
         &mut self,
         plaintext: &[u8],
         rng: &mut R,
@@ -89,7 +89,7 @@ impl DoubleRatchet {
 
     /// Create a new `DoubleRatchet` instance, based on a newly-calculated
     /// shared secret.
-    pub fn active<R: CryptoRng>(shared_secret: Shared3DHSecret, rng: &mut R) -> Self {
+    pub(super) fn active<R: CryptoRng>(shared_secret: Shared3DHSecret, rng: &mut R) -> Self {
         let (root_key, chain_key) = shared_secret.expand();
 
         let root_key = RootKey::new(root_key);
@@ -106,7 +106,7 @@ impl DoubleRatchet {
     }
 
     #[cfg(feature = "libolm-compat")]
-    pub fn from_ratchet_and_chain_key(ratchet: Ratchet, chain_key: ChainKey) -> Self {
+    pub(super) fn from_ratchet_and_chain_key(ratchet: Ratchet, chain_key: ChainKey) -> Self {
         Self {
             inner: ActiveDoubleRatchet {
                 parent_ratchet_key: None, // libolm pickle did not record parent ratchet key
@@ -118,7 +118,7 @@ impl DoubleRatchet {
         }
     }
 
-    pub fn inactive_from_prekey_data(
+    pub(super) fn inactive_from_prekey_data(
         root_key: RemoteRootKey,
         ratchet_key: RemoteRatchetKey,
     ) -> Self {
@@ -129,7 +129,7 @@ impl DoubleRatchet {
     }
 
     #[cfg(feature = "libolm-compat")]
-    pub fn inactive_from_libolm_pickle(
+    pub(super) fn inactive_from_libolm_pickle(
         root_key: RemoteRootKey,
         ratchet_key: RemoteRatchetKey,
     ) -> Self {
@@ -174,7 +174,7 @@ impl DoubleRatchet {
         })
     }
 
-    pub fn advance<R: CryptoRng>(
+    pub(super) fn advance<R: CryptoRng>(
         &mut self,
         ratchet_key: RemoteRatchetKey,
         rng: &mut R,
@@ -355,21 +355,21 @@ impl Debug for ActiveDoubleRatchet {
 /// It may be unknown, if the ratchet was restored from a pickle
 /// which didn't track it.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
-pub enum RatchetCount {
+pub(super) enum RatchetCount {
     Known(u64),
     Unknown(()),
 }
 
 impl RatchetCount {
-    pub const fn new() -> RatchetCount {
+    pub(super) const fn new() -> RatchetCount {
         RatchetCount::Known(0)
     }
 
-    pub const fn unknown() -> RatchetCount {
+    pub(super) const fn unknown() -> RatchetCount {
         RatchetCount::Unknown(())
     }
 
-    pub fn advance(&self) -> RatchetCount {
+    pub(super) fn advance(&self) -> RatchetCount {
         match self {
             RatchetCount::Known(count) => RatchetCount::Known(count + 1),
             RatchetCount::Unknown(_) => RatchetCount::Unknown(()),

@@ -65,27 +65,27 @@ pub(super) struct RemoteChainKey {
 }
 
 impl RemoteChainKey {
-    pub const fn new(bytes: Box<[u8; 32]>) -> Self {
+    pub(super) const fn new(bytes: Box<[u8; 32]>) -> Self {
         Self { key: bytes, index: 0 }
     }
 
-    pub const fn chain_index(&self) -> u64 {
+    pub(super) const fn chain_index(&self) -> u64 {
         self.index
     }
 
     #[cfg(feature = "libolm-compat")]
-    pub fn from_bytes_and_index(bytes: Box<[u8; 32]>, index: u32) -> Self {
+    pub(super) fn from_bytes_and_index(bytes: Box<[u8; 32]>, index: u32) -> Self {
         Self { key: bytes, index: index.into() }
     }
 
-    pub fn advance(&mut self) {
+    pub(super) fn advance(&mut self) {
         let output = advance(&self.key).into_bytes();
         #[allow(deprecated)]
         self.key.copy_from_slice(output.as_slice());
         self.index += 1;
     }
 
-    pub fn create_message_key(&mut self) -> RemoteMessageKey {
+    pub(super) fn create_message_key(&mut self) -> RemoteMessageKey {
         let key = expand_chain_key(&self.key);
         let message_key = RemoteMessageKey::new(key, self.index);
 
@@ -96,27 +96,27 @@ impl RemoteChainKey {
 }
 
 impl ChainKey {
-    pub const fn new(bytes: Box<[u8; 32]>) -> Self {
+    pub(super) const fn new(bytes: Box<[u8; 32]>) -> Self {
         Self { key: bytes, index: 0 }
     }
 
     #[cfg(feature = "libolm-compat")]
-    pub fn from_bytes_and_index(bytes: Box<[u8; 32]>, index: u32) -> Self {
+    pub(super) fn from_bytes_and_index(bytes: Box<[u8; 32]>, index: u32) -> Self {
         Self { key: bytes, index: index.into() }
     }
 
-    pub fn advance(&mut self) {
+    pub(super) fn advance(&mut self) {
         let output = advance(&self.key).into_bytes();
         #[allow(deprecated)]
         self.key.copy_from_slice(output.as_slice());
         self.index += 1;
     }
 
-    pub const fn index(&self) -> u64 {
+    pub(super) const fn index(&self) -> u64 {
         self.index
     }
 
-    pub fn create_message_key(&mut self, ratchet_key: RatchetPublicKey) -> MessageKey {
+    pub(super) fn create_message_key(&mut self, ratchet_key: RatchetPublicKey) -> MessageKey {
         let key = expand_chain_key(&self.key);
         let message_key = MessageKey::new(key, ratchet_key, self.index);
 

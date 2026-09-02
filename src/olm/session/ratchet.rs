@@ -60,11 +60,11 @@ impl Debug for RemoteRatchetKey {
 }
 
 impl RatchetKey {
-    pub fn new<R: CryptoRng>(rng: &mut R) -> Self {
+    pub(super) fn new<R: CryptoRng>(rng: &mut R) -> Self {
         Self(Curve25519SecretKey::new_with_rng(rng))
     }
 
-    pub fn diffie_hellman(&self, other: &RemoteRatchetKey) -> Option<SharedSecret> {
+    pub(super) fn diffie_hellman(&self, other: &RemoteRatchetKey) -> Option<SharedSecret> {
         self.0.diffie_hellman(&other.0)
     }
 }
@@ -125,24 +125,27 @@ pub(super) struct Ratchet {
 }
 
 impl Ratchet {
-    pub fn new<R: CryptoRng>(root_key: RootKey, rng: &mut R) -> Self {
+    pub(super) fn new<R: CryptoRng>(root_key: RootKey, rng: &mut R) -> Self {
         let ratchet_key = RatchetKey::new(rng);
 
         Self { root_key, ratchet_key }
     }
 
-    pub const fn new_with_ratchet_key(root_key: RootKey, ratchet_key: RatchetKey) -> Self {
+    pub(super) const fn new_with_ratchet_key(root_key: RootKey, ratchet_key: RatchetKey) -> Self {
         Self { root_key, ratchet_key }
     }
 
-    pub fn advance(&self, remote_key: RemoteRatchetKey) -> Option<(RemoteRootKey, RemoteChainKey)> {
+    pub(super) fn advance(
+        &self,
+        remote_key: RemoteRatchetKey,
+    ) -> Option<(RemoteRootKey, RemoteChainKey)> {
         let (remote_root_key, remote_chain_key) =
             self.root_key.advance(&self.ratchet_key, &remote_key)?;
 
         Some((remote_root_key, remote_chain_key))
     }
 
-    pub const fn ratchet_key(&self) -> &RatchetKey {
+    pub(super) const fn ratchet_key(&self) -> &RatchetKey {
         &self.ratchet_key
     }
 }

@@ -1,0 +1,15 @@
+---
+source: src/hpke/mod.rs
+expression: hpke
+---
+EstablishedHpkeChannel {
+    our_public_key: "curve25519:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    their_public_key: "curve25519:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    check_code: CheckCode {
+        bytes: [
+            0,
+            1,
+        ],
+    },
+    role: Sender,
+}

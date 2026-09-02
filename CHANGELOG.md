@@ -21,13 +21,28 @@ All notable changes to this project will be documented in this file.
   builds and custom/hardware entropy sources. The existing `OsRng`-backed
   methods are unchanged.
   ([#379](https://github.com/matrix-org/vodozemac/pull/379))
+- **BREAKING** Added support for Hybrid Public Key Encryption (HPKE) to enable
+  standards-based public-key encryption in Matrix. The implementation uses
+  X25519 for key encapsulation (KEM) and ChaCha20-Poly1305 for authenticated
+  encryption (AEAD). This modifies the `CheckCode::to_digis()` method. The
+  method now takes an argument controlling if a leading zero is allowed in the
+  resulting digits. ([#377](https://github.com/matrix-org/vodozemac/pull/377))
 - Add a new default-enabled `precomputed-tables` feature flag which controls
-  curve25519-dalek's precomputed basepoint tables. Size-sensitive builds can
+  curve25519-dalek's precomputed base-point tables. Size-sensitive builds can
   now disable the default features to drop roughly 40 KB of lookup tables from
   the final binary, at the cost of slower key generation and Ed25519 signing.
   ([#369](https://github.com/matrix-org/vodozemac/pull/369))
 - Add a new `olm::Session` constructor which allows the 3DH step to be skipped.
   ([#341](https://github.com/matrix-org/vodozemac/pull/341))
+
+### Bug fixes
+
+- Fix an off-by-one error in the one-time key id counter in
+  `Account::from_libolm_pickle()`, which caused the first
+  `generate_one_time_keys()` call after an import to overwrite the newest
+  imported one-time key. If that key had already been published, pre-key
+  messages using it could no longer be decrypted.
+  ([#382](https://github.com/matrix-org/vodozemac/issues/382))
 
 ## [0.10.0] - 2026-04-13
 
