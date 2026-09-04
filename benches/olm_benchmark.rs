@@ -1,19 +1,25 @@
 //! Benchmarks for the common Olm operations.
 //!
-//! Every benchmark is a group with a `vodozemac` and an `olm-rs` member, so
-//! that the two implementations can be compared directly. The `olm-rs` side is
-//! the [`olm_rs`] crate, which binds the C libolm library, so its measurements
-//! cover the bindings and libolm together.
+//! Every benchmark is a group with three members, so that the implementations
+//! can be compared directly:
+//!
+//! * `vodozemac` - this crate.
+//! * `olm-rs` - the [`olm_rs`] crate, a safe wrapper around the C libolm
+//!   library. Its measurements cover the wrapper and libolm together.
+//! * `libolm` - the same libolm entry points called directly through
+//!   [`olm_sys`], see the [`libolm`] module. The difference to the `olm-rs`
+//!   member is the overhead the wrapper adds.
 //!
 //! Where an operation needs a counterpart (an account to talk to, a message to
-//! decrypt), both implementations are given the same input: the keys and the
-//! ciphertexts are produced once, up front, and shared between the two members
-//! of a group.
+//! decrypt), every member is given the same input: the keys and the ciphertexts
+//! are produced once, up front, and shared across the group. The two libolm
+//! members share their accounts and sessions through pickles, so they start
+//! from the same state as well.
 //!
-//! The libolm API that `olm-rs` exposes is string based, so the `olm-rs`
-//! measurements include the base64 decoding of the keys and ciphertexts it is
-//! handed. For the operations benchmarked here that overhead is negligible next
-//! to the cryptographic work.
+//! The libolm API is string based, so the `olm-rs` and `libolm` measurements
+//! include the base64 decoding of the keys and ciphertexts they are handed. For
+//! the operations benchmarked here that overhead is negligible next to the
+//! cryptographic work.
 
 #![allow(clippy::expect_used, missing_docs)]
 
@@ -28,6 +34,10 @@ use vodozemac::{
     Curve25519PublicKey,
     olm::{Account, AccountPickle, OlmMessage, Session, SessionConfig, SessionPickle},
 };
+
+#[allow(dead_code, unsafe_code)]
+#[path = "support/libolm.rs"]
+mod libolm;
 
 /// The plaintext that gets encrypted in all encryption benchmarks.
 const MESSAGE: &str = "It's a secret to everybody";
@@ -185,6 +195,7 @@ pub fn account_creation(c: &mut Criterion) {
 
     group.bench_function("vodozemac", |b| b.iter(Account::new));
     group.bench_function("olm-rs", |b| b.iter(OlmAccount::new));
+    group.bench_function("libolm", |b| b.iter(libolm::Account::new));
 
     group.finish();
 }
@@ -209,6 +220,14 @@ pub fn one_time_key_generation(c: &mut Criterion) {
         );
     });
 
+    group.bench_function("libolm", |b| {
+        b.iter_batched_ref(
+            libolm::Account::new,
+            |account| account.generate_one_time_keys(ONE_TIME_KEY_COUNT),
+            BatchSize::SmallInput,
+        );
+    });
+
     group.finish();
 }
 
@@ -219,9 +238,11 @@ pub fn signing(c: &mut Criterion) {
 
     let account = Account::new();
     let olm_rs_account = OlmAccount::new();
+    let libolm_account = libolm::Account::new();
 
     group.bench_function("vodozemac", |b| b.iter(|| account.sign(MESSAGE)));
     group.bench_function("olm-rs", |b| b.iter(|| olm_rs_account.sign(MESSAGE)));
+    group.bench_function("libolm", |b| b.iter(|| libolm_account.sign(MESSAGE.as_bytes())));
 
     group.finish();
 }
@@ -237,6 +258,9 @@ pub fn account_pickling(c: &mut Criterion) {
     let olm_rs_account = OlmAccount::new();
     olm_rs_account.generate_one_time_keys(ONE_TIME_KEY_COUNT);
 
+    let mut libolm_account = libolm::Account::new();
+    libolm_account.generate_one_time_keys(ONE_TIME_KEY_COUNT);
+
     group.bench_function("vodozemac", |b| b.iter(|| account.pickle().encrypt(&PICKLE_KEY)));
 
     group.bench_function("olm-rs", |b| {
@@ -246,6 +270,8 @@ pub fn account_pickling(c: &mut Criterion) {
             BatchSize::SmallInput,
         );
     });
+
+    group.bench_function("libolm", |b| b.iter(|| libolm_account.pickle(&PICKLE_KEY)));
 
     group.finish();
 }
@@ -263,6 +289,10 @@ pub fn account_unpickling(c: &mut Criterion) {
     olm_rs_account.generate_one_time_keys(ONE_TIME_KEY_COUNT);
     let olm_rs_pickle = olm_rs_account.pickle(olm_rs_pickling_mode());
 
+    let mut libolm_account = libolm::Account::new();
+    libolm_account.generate_one_time_keys(ONE_TIME_KEY_COUNT);
+    let libolm_pickle = libolm_account.pickle(&PICKLE_KEY);
+
     group.bench_function("vodozemac", |b| {
         b.iter(|| {
             let pickle = AccountPickle::from_encrypted(&pickle, &PICKLE_KEY)
@@ -279,6 +309,14 @@ pub fn account_unpickling(c: &mut Criterion) {
                 OlmAccount::unpickle(pickle, mode)
                     .expect("olm-rs should be able to decrypt the account pickle")
             },
+            BatchSize::SmallInput,
+        );
+    });
+
+    group.bench_function("libolm", |b| {
+        b.iter_batched(
+            || libolm_pickle.clone(),
+            |pickle| libolm::Account::from_pickle(pickle, &PICKLE_KEY),
             BatchSize::SmallInput,
         );
     });
@@ -317,6 +355,14 @@ pub fn outbound_session_creation(c: &mut Criterion) {
                     .create_outbound_session(&identity_key, &one_time_key)
                     .expect("olm-rs should be able to create an outbound session")
             },
+            BatchSize::SmallInput,
+        );
+    });
+
+    group.bench_function("libolm", |b| {
+        b.iter_batched(
+            libolm::Account::new,
+            |alice| alice.create_outbound_session(identity_key.as_bytes(), one_time_key.as_bytes()),
             BatchSize::SmallInput,
         );
     });
@@ -395,6 +441,14 @@ pub fn inbound_session_creation(c: &mut Criterion) {
     let olm_rs_bob_pickle = olm_rs_bob.pickle(olm_rs_pickling_mode());
     let alice_identity_key_base64 = alice_identity_key.to_base64();
 
+    // The libolm side reuses Bob's olm-rs account and the pre-key message that
+    // was encrypted for it, both libolm members thus start from the same state.
+    let libolm_bob_pickle = olm_rs_bob_pickle.clone().into_bytes();
+
+    assert_let!(OlmMessage::PreKey(libolm_pre_key_message) = &olm_rs_message);
+
+    let libolm_pre_key_message = libolm_pre_key_message.to_base64().into_bytes();
+
     group.bench_function("vodozemac", |b| {
         b.iter_batched(
             || {
@@ -431,6 +485,20 @@ pub fn inbound_session_creation(c: &mut Criterion) {
         );
     });
 
+    group.bench_function("libolm", |b| {
+        b.iter_batched(
+            || {
+                let bob = libolm::Account::from_pickle(libolm_bob_pickle.clone(), &PICKLE_KEY);
+
+                (bob, libolm_pre_key_message.clone())
+            },
+            |(mut bob, pre_key_message)| {
+                bob.create_inbound_session(alice_identity_key_base64.as_bytes(), pre_key_message)
+            },
+            BatchSize::SmallInput,
+        );
+    });
+
     group.finish();
 }
 
@@ -451,11 +519,16 @@ pub fn encryption(c: &mut Criterion) {
         .create_outbound_session(&identity_key, &one_time_key)
         .expect("olm-rs should be able to create an outbound session");
 
+    let libolm_alice = libolm::Account::new();
+    let mut libolm_session =
+        libolm_alice.create_outbound_session(identity_key.as_bytes(), one_time_key.as_bytes());
+
     group.bench_function("vodozemac", |b| {
         b.iter(|| session.encrypt(MESSAGE).expect("We should be able to encrypt a message"));
     });
 
     group.bench_function("olm-rs", |b| b.iter(|| olm_rs_session.encrypt(MESSAGE)));
+    group.bench_function("libolm", |b| b.iter(|| libolm_session.encrypt(MESSAGE.as_bytes())));
 
     group.finish();
 }
@@ -476,8 +549,16 @@ pub fn decryption(c: &mut Criterion) {
     let olm_rs_message = olm_rs_alice_session
         .encrypt(MESSAGE)
         .expect("We should be able to encrypt another message");
-    let olm_rs_message = OlmRsMessage::PreKey(to_olm_rs_pre_key_message(&olm_rs_message));
     let olm_rs_bob_pickle = olm_rs_bob_session.pickle(olm_rs_pickling_mode());
+
+    // The libolm side reuses the olm-rs session and the message that was
+    // encrypted for it, both libolm members thus start from the same state.
+    let libolm_bob_pickle = olm_rs_bob_pickle.clone().into_bytes();
+
+    assert_let!(OlmMessage::PreKey(libolm_message) = &olm_rs_message);
+
+    let libolm_message = libolm_message.to_base64().into_bytes();
+    let olm_rs_message = OlmRsMessage::PreKey(to_olm_rs_pre_key_message(&olm_rs_message));
 
     group.bench_function("vodozemac", |b| {
         b.iter_batched_ref(
@@ -511,6 +592,22 @@ pub fn decryption(c: &mut Criterion) {
                     session.decrypt(message).expect("olm-rs should be able to decrypt the message");
 
                 assert_eq!(plaintext, MESSAGE);
+            },
+            BatchSize::SmallInput,
+        );
+    });
+
+    group.bench_function("libolm", |b| {
+        b.iter_batched(
+            || {
+                let session = libolm::Session::from_pickle(libolm_bob_pickle.clone(), &PICKLE_KEY);
+
+                (session, libolm_message.clone())
+            },
+            |(mut session, message)| {
+                let plaintext = session.decrypt(libolm::MESSAGE_TYPE_PRE_KEY, message);
+
+                assert_eq!(plaintext, MESSAGE.as_bytes());
             },
             BatchSize::SmallInput,
         );

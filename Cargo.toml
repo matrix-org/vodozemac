@@ -83,6 +83,7 @@ assert_matches2 = "0.1.2"
 criterion = { version = "5.0.1", package = "codspeed-criterion-compat" }
 ntest = "0.9.5"
 olm-rs = "2.2.0"
+olm-sys = { git = "https://github.com/poljar/olm-sys", rev = "fcd8f12352025df7fa666dd5be797dc97d1f3734" }
 proptest = "1.11.0"
 insta = "1.48.0"
 

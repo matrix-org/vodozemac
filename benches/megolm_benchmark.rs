@@ -1,14 +1,19 @@
 //! Benchmarks for the common Megolm operations.
 //!
-//! Every benchmark is a group with a `vodozemac` and an `olm-rs` member, so
-//! that the two implementations can be compared directly. The `olm-rs` side is
-//! the [`olm_rs`] crate, which binds the C libolm library, so its measurements
-//! cover the bindings and libolm together.
+//! Every benchmark is a group with three members, so that the implementations
+//! can be compared directly:
 //!
-//! The libolm API that `olm-rs` exposes is string based, so the `olm-rs`
-//! measurements include the base64 decoding of the keys and ciphertexts it is
-//! handed. For the operations benchmarked here that overhead is negligible next
-//! to the cryptographic work.
+//! * `vodozemac` - this crate.
+//! * `olm-rs` - the [`olm_rs`] crate, a safe wrapper around the C libolm
+//!   library. Its measurements cover the wrapper and libolm together.
+//! * `libolm` - the same libolm entry points called directly through
+//!   [`olm_sys`], see the [`libolm`] module. The difference to the `olm-rs`
+//!   member is the overhead the wrapper adds.
+//!
+//! The libolm API is string based, so the `olm-rs` and `libolm` measurements
+//! include the base64 decoding of the keys and ciphertexts they are handed. For
+//! the operations benchmarked here that overhead is negligible next to the
+//! cryptographic work.
 
 #![allow(clippy::expect_used, missing_docs)]
 
@@ -20,6 +25,10 @@ use olm_rs::{
 use vodozemac::megolm::{
     GroupSession, GroupSessionPickle, InboundGroupSession, SessionConfig, SessionKey,
 };
+
+#[allow(dead_code, unsafe_code)]
+#[path = "support/libolm.rs"]
+mod libolm;
 
 /// The plaintext that gets encrypted in all encryption benchmarks.
 const MESSAGE: &str = "It's a secret to everybody";
@@ -45,6 +54,7 @@ pub fn outbound_session_creation(c: &mut Criterion) {
     });
 
     group.bench_function("olm-rs", |b| b.iter(OlmOutboundGroupSession::new));
+    group.bench_function("libolm", |b| b.iter(libolm::GroupSession::new));
 
     group.finish();
 }
@@ -79,6 +89,10 @@ pub fn inbound_session_creation(c: &mut Criterion) {
         });
     });
 
+    group.bench_function("libolm", |b| {
+        b.iter(|| libolm::InboundGroupSession::new(session_key_base64.as_bytes()));
+    });
+
     group.finish();
 }
 
@@ -89,9 +103,11 @@ pub fn encryption(c: &mut Criterion) {
     // TODO: Compare `SessionConfig` v1 and v2.
     let mut session = GroupSession::new(SessionConfig::version_1());
     let olm_rs_session = OlmOutboundGroupSession::new();
+    let mut libolm_session = libolm::GroupSession::new();
 
     group.bench_function("vodozemac", |b| b.iter(|| session.encrypt(MESSAGE)));
     group.bench_function("olm-rs", |b| b.iter(|| olm_rs_session.encrypt(MESSAGE)));
+    group.bench_function("libolm", |b| b.iter(|| libolm_session.encrypt(MESSAGE.as_bytes())));
 
     group.finish();
 }
@@ -104,6 +120,7 @@ pub fn decryption(c: &mut Criterion) {
     // freshly imported at the message index of the message they decrypt.
     let mut session = GroupSession::new(SessionConfig::version_1());
     let mut olm_rs_session = GroupSession::new(SessionConfig::version_1());
+    let mut libolm_session = GroupSession::new(SessionConfig::version_1());
 
     // TODO: Compare `SessionConfig` v1 and v2.
     group.bench_function("vodozemac", |b| {
@@ -143,6 +160,24 @@ pub fn decryption(c: &mut Criterion) {
         );
     });
 
+    group.bench_function("libolm", |b| {
+        b.iter_batched(
+            || {
+                let inbound_session = libolm::InboundGroupSession::new(
+                    libolm_session.session_key().to_base64().as_bytes(),
+                );
+
+                (inbound_session, libolm_session.encrypt(MESSAGE).to_base64().into_bytes())
+            },
+            |(mut session, message)| {
+                let plaintext = session.decrypt(message);
+
+                assert_eq!(plaintext, MESSAGE.as_bytes());
+            },
+            BatchSize::LargeInput,
+        );
+    });
+
     group.finish();
 }
 
@@ -155,6 +190,7 @@ pub fn inbound_session_pickling(c: &mut Criterion) {
     let inbound_session = InboundGroupSession::new(&session_key, SessionConfig::version_1());
     let olm_rs_session = OlmInboundGroupSession::new(&session_key.to_base64())
         .expect("olm-rs should be able to import the session key");
+    let mut libolm_session = libolm::InboundGroupSession::new(session_key.to_base64().as_bytes());
 
     group.bench_function("vodozemac", |b| {
         b.iter(|| inbound_session.pickle().encrypt(&PICKLE_KEY));
@@ -167,6 +203,8 @@ pub fn inbound_session_pickling(c: &mut Criterion) {
             BatchSize::SmallInput,
         );
     });
+
+    group.bench_function("libolm", |b| b.iter(|| libolm_session.pickle(&PICKLE_KEY)));
 
     group.finish();
 }
@@ -181,6 +219,9 @@ pub fn outbound_session_unpickling(c: &mut Criterion) {
 
     let olm_rs_session = OlmOutboundGroupSession::new();
     let olm_rs_pickle = olm_rs_session.pickle(olm_rs_pickling_mode());
+
+    let mut libolm_session = libolm::GroupSession::new();
+    let libolm_pickle = libolm_session.pickle(&PICKLE_KEY);
 
     group.bench_function("vodozemac", |b| {
         b.iter(|| {
@@ -198,6 +239,14 @@ pub fn outbound_session_unpickling(c: &mut Criterion) {
                 OlmOutboundGroupSession::unpickle(pickle, mode)
                     .expect("olm-rs should be able to decrypt the session pickle")
             },
+            BatchSize::SmallInput,
+        );
+    });
+
+    group.bench_function("libolm", |b| {
+        b.iter_batched(
+            || libolm_pickle.clone(),
+            |pickle| libolm::GroupSession::from_pickle(pickle, &PICKLE_KEY),
             BatchSize::SmallInput,
         );
     });
