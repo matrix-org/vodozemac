@@ -1,12 +1,14 @@
 //! Benchmarks for the common Megolm operations.
 //!
-//! Every benchmark is a group with a `vodozemac` and a `libolm` member, so that
-//! the two implementations can be compared directly. The `libolm` side is
-//! driven through the [`olm_rs`] bindings.
+//! Every benchmark is a group with a `vodozemac` and an `olm-rs` member, so
+//! that the two implementations can be compared directly. The `olm-rs` side is
+//! the [`olm_rs`] crate, which binds the C libolm library, so its measurements
+//! cover the bindings and libolm together.
 //!
-//! The libolm API is string based, so the `libolm` measurements include the
-//! base64 decoding of the keys and ciphertexts it is handed. For the operations
-//! benchmarked here that overhead is negligible next to the cryptographic work.
+//! The libolm API that `olm-rs` exposes is string based, so the `olm-rs`
+//! measurements include the base64 decoding of the keys and ciphertexts it is
+//! handed. For the operations benchmarked here that overhead is negligible next
+//! to the cryptographic work.
 
 #![allow(clippy::expect_used, missing_docs)]
 
@@ -28,8 +30,8 @@ const PICKLE_KEY: [u8; 32] = [0u8; 32];
 /// The pickling mode matching [`PICKLE_KEY`].
 ///
 /// [`PicklingMode`] isn't `Clone` and takes ownership of the key, so it needs
-/// to be built anew for every libolm pickling call.
-fn libolm_pickling_mode() -> PicklingMode {
+/// to be built anew for every olm-rs pickling call.
+fn olm_rs_pickling_mode() -> PicklingMode {
     PicklingMode::Encrypted { key: PICKLE_KEY.to_vec() }
 }
 
@@ -42,7 +44,7 @@ pub fn outbound_session_creation(c: &mut Criterion) {
         b.iter(|| GroupSession::new(SessionConfig::version_1()));
     });
 
-    group.bench_function("libolm", |b| b.iter(OlmOutboundGroupSession::new));
+    group.bench_function("olm-rs", |b| b.iter(OlmOutboundGroupSession::new));
 
     group.finish();
 }
@@ -50,7 +52,7 @@ pub fn outbound_session_creation(c: &mut Criterion) {
 /// Benchmark how long it takes to create an inbound Megolm session from a
 /// session key.
 ///
-/// Both implementations start from the base64 encoded session key, since libolm
+/// Both implementations start from the base64 encoded session key, since olm-rs
 /// decodes and verifies the session key as part of the session creation while
 /// vodozemac does so when the [`SessionKey`] is decoded.
 pub fn inbound_session_creation(c: &mut Criterion) {
@@ -70,10 +72,10 @@ pub fn inbound_session_creation(c: &mut Criterion) {
         });
     });
 
-    group.bench_function("libolm", |b| {
+    group.bench_function("olm-rs", |b| {
         b.iter(|| {
             OlmInboundGroupSession::new(&session_key_base64)
-                .expect("libolm should be able to import the session key")
+                .expect("olm-rs should be able to import the session key")
         });
     });
 
@@ -86,10 +88,10 @@ pub fn encryption(c: &mut Criterion) {
 
     // TODO: Compare `SessionConfig` v1 and v2.
     let mut session = GroupSession::new(SessionConfig::version_1());
-    let libolm_session = OlmOutboundGroupSession::new();
+    let olm_rs_session = OlmOutboundGroupSession::new();
 
     group.bench_function("vodozemac", |b| b.iter(|| session.encrypt(MESSAGE)));
-    group.bench_function("libolm", |b| b.iter(|| libolm_session.encrypt(MESSAGE)));
+    group.bench_function("olm-rs", |b| b.iter(|| olm_rs_session.encrypt(MESSAGE)));
 
     group.finish();
 }
@@ -101,7 +103,7 @@ pub fn decryption(c: &mut Criterion) {
     // Decryption advances the ratchet, so both sides get a session that is
     // freshly imported at the message index of the message they decrypt.
     let mut session = GroupSession::new(SessionConfig::version_1());
-    let mut libolm_session = GroupSession::new(SessionConfig::version_1());
+    let mut olm_rs_session = GroupSession::new(SessionConfig::version_1());
 
     // TODO: Compare `SessionConfig` v1 and v2.
     group.bench_function("vodozemac", |b| {
@@ -122,18 +124,18 @@ pub fn decryption(c: &mut Criterion) {
         );
     });
 
-    group.bench_function("libolm", |b| {
+    group.bench_function("olm-rs", |b| {
         b.iter_batched(
             || {
                 let inbound_session =
-                    OlmInboundGroupSession::new(&libolm_session.session_key().to_base64())
-                        .expect("libolm should be able to import the session key");
+                    OlmInboundGroupSession::new(&olm_rs_session.session_key().to_base64())
+                        .expect("olm-rs should be able to import the session key");
 
-                (inbound_session, libolm_session.encrypt(MESSAGE).to_base64())
+                (inbound_session, olm_rs_session.encrypt(MESSAGE).to_base64())
             },
             |(session, message)| {
                 let (plaintext, _) =
-                    session.decrypt(message).expect("libolm should be able to decrypt the message");
+                    session.decrypt(message).expect("olm-rs should be able to decrypt the message");
 
                 assert_eq!(plaintext, MESSAGE);
             },
@@ -151,17 +153,17 @@ pub fn inbound_session_pickling(c: &mut Criterion) {
     let session = GroupSession::new(SessionConfig::version_1());
     let session_key = session.session_key();
     let inbound_session = InboundGroupSession::new(&session_key, SessionConfig::version_1());
-    let libolm_session = OlmInboundGroupSession::new(&session_key.to_base64())
-        .expect("libolm should be able to import the session key");
+    let olm_rs_session = OlmInboundGroupSession::new(&session_key.to_base64())
+        .expect("olm-rs should be able to import the session key");
 
     group.bench_function("vodozemac", |b| {
         b.iter(|| inbound_session.pickle().encrypt(&PICKLE_KEY));
     });
 
-    group.bench_function("libolm", |b| {
+    group.bench_function("olm-rs", |b| {
         b.iter_batched(
-            libolm_pickling_mode,
-            |mode| libolm_session.pickle(mode),
+            olm_rs_pickling_mode,
+            |mode| olm_rs_session.pickle(mode),
             BatchSize::SmallInput,
         );
     });
@@ -177,8 +179,8 @@ pub fn outbound_session_unpickling(c: &mut Criterion) {
     let session = GroupSession::new(SessionConfig::version_1());
     let pickle = session.pickle().encrypt(&PICKLE_KEY);
 
-    let libolm_session = OlmOutboundGroupSession::new();
-    let libolm_pickle = libolm_session.pickle(libolm_pickling_mode());
+    let olm_rs_session = OlmOutboundGroupSession::new();
+    let olm_rs_pickle = olm_rs_session.pickle(olm_rs_pickling_mode());
 
     group.bench_function("vodozemac", |b| {
         b.iter(|| {
@@ -189,12 +191,12 @@ pub fn outbound_session_unpickling(c: &mut Criterion) {
         });
     });
 
-    group.bench_function("libolm", |b| {
+    group.bench_function("olm-rs", |b| {
         b.iter_batched(
-            || (libolm_pickle.clone(), libolm_pickling_mode()),
+            || (olm_rs_pickle.clone(), olm_rs_pickling_mode()),
             |(pickle, mode)| {
                 OlmOutboundGroupSession::unpickle(pickle, mode)
-                    .expect("libolm should be able to decrypt the session pickle")
+                    .expect("olm-rs should be able to decrypt the session pickle")
             },
             BatchSize::SmallInput,
         );
