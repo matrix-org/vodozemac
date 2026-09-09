@@ -349,7 +349,8 @@ mod tests {
         {
             let parts = ratchet.as_parts();
 
-            // Now we advanced the zeroth part and put the result into the first part.
+            // Now we advanced the zeroth part and put the result into the first
+            // part.
             assert_eq!(parts.r_0.0, [0; 32]);
             assert_ne!(parts.r_1.0, [0; 32]);
             assert_eq!(parts.r_2.0, [0; 32]);
@@ -364,7 +365,8 @@ mod tests {
         {
             let parts = ratchet.as_parts();
 
-            // Now we advanced the third part and put the result into the second part.
+            // Now we advanced the third part and put the result into the second
+            // part.
             assert_eq!(parts.r_0.0, [0; 32]);
             assert_ne!(parts.r_1.0, [0; 32]);
             assert_ne!(parts.r_2.0, [0; 32]);
@@ -379,7 +381,8 @@ mod tests {
         {
             let parts = ratchet.as_parts();
 
-            // Now we advanced the second part and put the result into the zeroth part.
+            // Now we advanced the second part and put the result into the
+            // zeroth part.
             assert_eq!(parts.r_0.0, [0; 32]);
             assert_ne!(parts.r_1.0, [0; 32]);
             assert_ne!(parts.r_2.0, [0; 32]);
@@ -394,7 +397,8 @@ mod tests {
         {
             let parts = ratchet.as_parts();
 
-            // Now we advanced the second part and put the result into the zeroth part.
+            // Now we advanced the second part and put the result into the
+            // zeroth part.
             assert_ne!(parts.r_0.0, [0; 32]);
             assert_ne!(parts.r_1.0, [0; 32]);
             assert_ne!(parts.r_2.0, [0; 32]);

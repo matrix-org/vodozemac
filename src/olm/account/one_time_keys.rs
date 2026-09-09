@@ -80,8 +80,8 @@ impl OneTimeKeys {
         key: Curve25519SecretKey,
         published: bool,
     ) -> (Curve25519PublicKey, Option<Curve25519PublicKey>) {
-        // If we hit the max number of one-time keys we'd like to keep, first remove one
-        // before we create a new one.
+        // If we hit the max number of one-time keys we'd like to keep, first
+        // remove one before we create a new one.
         let removed = if self.private_keys.len() >= Self::MAX_ONE_TIME_KEYS {
             if let Some(key_id) = self.private_keys.keys().next().copied() {
                 let public_key = if let Some(private_key) = self.private_keys.remove(&key_id) {

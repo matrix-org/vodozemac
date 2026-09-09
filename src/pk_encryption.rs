@@ -242,8 +242,9 @@ impl PkDecryption {
         let hmac = HmacSha256::new_from_slice(cipher_keys.mac_key())
             .expect("We should be able to create a Hmac object from a 32 byte key");
 
-        // BUG: This is a know issue, we check the MAC of an empty message instead of
-        // updating the `hmac` object with the ciphertext bytes.
+        // BUG: This is a know issue, we check the MAC of an empty message
+        // instead of updating the `hmac` object with the ciphertext
+        // bytes.
         hmac.verify_truncated_left(&message.mac)?;
 
         let cipher = Aes256CbcDec::new(cipher_keys.aes_key(), cipher_keys.iv());
@@ -322,8 +323,9 @@ impl PkEncryption {
         let hmac = HmacSha256::new_from_slice(cipher_keys.mac_key())
             .expect("We should be able to create a Hmac object from a 32 byte key");
 
-        // BUG: This is a know issue, we create a MAC of an empty message instead of
-        // updating the `hmac` object with the ciphertext bytes.
+        // BUG: This is a know issue, we create a MAC of an empty message
+        // instead of updating the `hmac` object with the ciphertext
+        // bytes.
         let mut mac = hmac.finalize().into_bytes().to_vec();
         mac.truncate(Mac::TRUNCATED_LEN);
 
