@@ -481,7 +481,8 @@ mod test {
             RatchetCount::Unknown(())
         );
 
-        // Once Bob replies, Alice's count bumps to 1, but Bob's remains unknown.
+        // Once Bob replies, Alice's count bumps to 1, but Bob's remains
+        // unknown.
         let olm_message = bob_session.encrypt("sssh").unwrap();
         alice_session.decrypt(&olm_message).expect("Alice could not decrypt message from Bob");
         assert_eq!(

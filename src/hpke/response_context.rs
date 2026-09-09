@@ -65,20 +65,20 @@ pub(super) trait CreateResponseContext {
     ) -> Self::ResponseContext {
         let mut secret = [0u8; AeadKeySize::USIZE];
 
-        // Export a secret from the HPKE context, we use our application info prefix and
-        // append "_RESPONSE" to it.
+        // Export a secret from the HPKE context, we use our application info
+        // prefix and append "_RESPONSE" to it.
         let info = format!("{application_info_prefix}_RESPONSE");
 
         #[allow(clippy::expect_used)]
         self.export(info.as_bytes(), &mut secret)
             .expect("We should be able to export 32 bytes from the HPKE export interface");
 
-        // For the salt we concatenate the public key of the sender and the randomly
-        // generated response nonce.
+        // For the salt we concatenate the public key of the sender and the
+        // randomly generated response nonce.
         let salt: Vec<u8> = [encapsulated_key.as_bytes().as_slice(), response_nonce].concat();
 
-        // Now create a KDF from the salt and the previously secret exported from the
-        // HPKE context.
+        // Now create a KDF from the salt and the previously secret exported
+        // from the HPKE context.
         let hkdf = Hkdf::<Sha256>::new(Some(&salt), &secret);
 
         // From the KDF expand an AEAD key and nonce.
@@ -93,16 +93,16 @@ pub(super) trait CreateResponseContext {
         hkdf.expand(b"nonce", aead_nonce.0.as_mut_slice())
             .expect("We should be able to expand the base response secret into a response nonce");
 
-        // Check that our key and nonce aren't just zeroes, this is only checked in
-        // debug builds.
+        // Check that our key and nonce aren't just zeroes, this is only checked
+        // in debug builds.
         debug_assert_ne!(aead_nonce.0.as_slice(), [0u8; 12]);
         debug_assert_ne!(aead_key.0.as_slice(), [0u8; 32]);
 
         // Let's get rid of the secret.
         secret.zeroize();
 
-        // Now create a HPKE context which can be used to communicate in the other
-        // direction.
+        // Now create a HPKE context which can be used to communicate in the
+        // other direction.
         self.create_context(&aead_key, aead_nonce)
     }
 }

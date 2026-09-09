@@ -832,7 +832,8 @@ mod test {
                 .expect("Should be able to decrypt last message")
         );
 
-        // Cannot decrypt first message because it is more than MAX_MESSAGE_KEYS ago
+        // Cannot decrypt first message because it is more than MAX_MESSAGE_KEYS
+        // ago
         assert_matches!(
             alice_session.decrypt(&messages[0]),
             Err(DecryptionError::MissingMessageKey(_))

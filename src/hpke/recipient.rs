@@ -186,8 +186,9 @@ impl UnidirectionalRecipientChannel {
             application_info_prefix,
         }) = self;
 
-        // Per [MSC4388] (and the HTTP [RFC 9458] where this trick is cribbed from), the
-        // length of the response nonce should be equal to the AEAD key size
+        // Per [MSC4388] (and the HTTP [RFC 9458] where this trick is cribbed
+        // from), the length of the response nonce should be equal to
+        // the AEAD key size
         //
         // [MSC4388]: https://github.com/matrix-org/matrix-spec-proposals/pull/4388
         // [RFC9458]: https://datatracker.ietf.org/doc/html/rfc9458

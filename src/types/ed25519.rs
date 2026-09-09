@@ -254,9 +254,9 @@ impl Ed25519SecretKey {
                 length: decoded_len_estimate(input.len()),
             })
         } else {
-            // Ed25519 secret keys can sometimes be encoded with padding, don't ask me why.
-            // This means that if the unpadded decoding fails, we have to attempt the padded
-            // one.
+            // Ed25519 secret keys can sometimes be encoded with padding, don't
+            // ask me why. This means that if the unpadded decoding
+            // fails, we have to attempt the padded one.
             let mut bytes = if let Ok(bytes) = base64ct::Base64Unpadded::decode_vec(input) {
                 bytes
             } else {

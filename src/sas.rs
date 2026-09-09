@@ -172,8 +172,8 @@ impl SasBytes {
     /// [spec]: https://spec.matrix.org/unstable/client-server-api/#sas-method-emoji
     fn bytes_to_emoji_index(bytes: &[u8; 6]) -> [u8; 7] {
         let bytes: Vec<u64> = bytes.iter().map(|b| *b as u64).collect();
-        // Join the 6 bytes into one 64 bit unsigned int. This u64 will contain 48
-        // bits from our 6 bytes.
+        // Join the 6 bytes into one 64 bit unsigned int. This u64 will contain
+        // 48 bits from our 6 bytes.
         let mut num: u64 = bytes[0] << 40;
         num += bytes[1] << 32;
         num += bytes[2] << 24;
@@ -181,8 +181,8 @@ impl SasBytes {
         num += bytes[4] << 8;
         num += bytes[5];
 
-        // Take the top 42 bits of our 48 bits from the u64 and convert each 6 bits
-        // into a 6 bit number.
+        // Take the top 42 bits of our 48 bits from the u64 and convert each 6
+        // bits into a 6 bit number.
         [
             ((num >> 42) & 63) as u8,
             ((num >> 36) & 63) as u8,
