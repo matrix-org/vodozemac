@@ -82,7 +82,7 @@
 
 use chacha20poly1305::{ChaCha20Poly1305, Key as Chacha20Key, KeyInit, Nonce, aead::Aead};
 use hkdf::Hkdf;
-use rand::rng;
+use rand::CryptoRng;
 use sha2::Sha512;
 use thiserror::Error;
 use x25519_dalek::{EphemeralSecret, SharedSecret};
@@ -94,7 +94,8 @@ pub use crate::hpke::{CheckCode, DigitMode};
 
 mod messages;
 
-const MATRIX_QR_LOGIN_INFO_PREFIX: &str = "MATRIX_QR_CODE_LOGIN";
+/// The prefix used for Matrix QR login info in ECIES messages.
+pub const MATRIX_QR_LOGIN_INFO_PREFIX: &str = "MATRIX_QR_CODE_LOGIN";
 
 /// The Error type for the ECIES submodule.
 #[derive(Debug, Error)]
@@ -179,6 +180,7 @@ impl Ecies {
     /// this for a different purpose, consider using the [`Ecies::with_info()`]
     /// method.
     #[allow(clippy::new_without_default)]
+    #[cfg(not(feature = "disallow-default-rng"))]
     pub fn new() -> Self {
         Self::with_info(MATRIX_QR_LOGIN_INFO_PREFIX)
     }
@@ -188,9 +190,18 @@ impl Ecies {
     ///
     /// The application info will be used to derive the various secrets and
     /// provide domain separation.
+    #[cfg(not(feature = "disallow-default-rng"))]
     pub fn with_info(info: &str) -> Self {
-        let mut rng = rng();
-        let secret_key = EphemeralSecret::random_from_rng(&mut rng);
+        Self::with_info_and_rng(info, &mut rand::rng())
+    }
+
+    /// Create a new, random, unestablished ECIES session with the given
+    /// application info and random number generator.
+    ///
+    /// The application info will be used to derive the various secrets and
+    /// provide domain separation.
+    pub fn with_info_and_rng<R: CryptoRng + ?Sized>(info: &str, rng: &mut R) -> Self {
+        let secret_key = EphemeralSecret::random_from_rng(rng);
         let application_info_prefix = info.to_owned();
 
         Self { secret_key, application_info_prefix }
@@ -665,8 +676,8 @@ mod test {
         use crate::types::Curve25519Keypair;
 
         let app_info = "foobar";
-        let our_public_key = Curve25519Keypair::new().public_key;
-        let their_public_key = Curve25519Keypair::new().public_key;
+        let our_public_key = Curve25519Keypair::new(&mut rand::rng()).public_key;
+        let their_public_key = Curve25519Keypair::new(&mut rand::rng()).public_key;
 
         let check_code_info1 = EstablishedEcies::get_check_code_info(
             app_info,

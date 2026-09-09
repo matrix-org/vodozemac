@@ -15,6 +15,7 @@
 use std::fmt::Debug;
 
 use matrix_pickle::Decode;
+use rand::CryptoRng;
 use serde::{Deserialize, Serialize};
 use x25519_dalek::SharedSecret;
 
@@ -59,8 +60,8 @@ impl Debug for RemoteRatchetKey {
 }
 
 impl RatchetKey {
-    pub(super) fn new() -> Self {
-        Self(Curve25519SecretKey::new())
+    pub(super) fn new<R: CryptoRng>(rng: &mut R) -> Self {
+        Self(Curve25519SecretKey::new_with_rng(rng))
     }
 
     pub(super) fn diffie_hellman(&self, other: &RemoteRatchetKey) -> Option<SharedSecret> {
@@ -68,9 +69,10 @@ impl RatchetKey {
     }
 }
 
+#[cfg(not(feature = "disallow-default-rng"))]
 impl Default for RatchetKey {
     fn default() -> Self {
-        Self::new()
+        Self::new(&mut rand::rng())
     }
 }
 
@@ -123,8 +125,8 @@ pub(super) struct Ratchet {
 }
 
 impl Ratchet {
-    pub(super) fn new(root_key: RootKey) -> Self {
-        let ratchet_key = RatchetKey::new();
+    pub(super) fn new<R: CryptoRng>(root_key: RootKey, rng: &mut R) -> Self {
+        let ratchet_key = RatchetKey::new(rng);
 
         Self { root_key, ratchet_key }
     }

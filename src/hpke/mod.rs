@@ -429,8 +429,8 @@ mod tests {
         use crate::types::Curve25519Keypair;
 
         let app_info = "foobar";
-        let our_public_key = Curve25519Keypair::new().public_key;
-        let their_public_key = Curve25519Keypair::new().public_key;
+        let our_public_key = Curve25519Keypair::new(&mut rand::rng()).public_key;
+        let their_public_key = Curve25519Keypair::new(&mut rand::rng()).public_key;
 
         let alice = HpkeSenderChannel::new();
         let bob = HpkeRecipientChannel::new();
