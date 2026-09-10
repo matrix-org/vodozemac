@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased] - ReleaseDate
 
+## [0.11.0] - 2026-09-11
+
 ### Features
 
 - **BREAKING** Bumped the minimal supported Rust version to 1.89 as the AES
