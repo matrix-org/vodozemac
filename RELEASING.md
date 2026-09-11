@@ -16,8 +16,8 @@ The procedure is as follows:
 git switch -c release-x.y.z
 ```
 
-2. Prepare the release. This will update the README.md, prepend the CHANGELOG.md
-   file using `git cliff`, and bump the version in the `Cargo.toml` file.
+2. Prepare the release. This will update the README.md, prepend the
+   CHANGELOG.md, and bump the version in the `Cargo.toml` file.
 
 ```bash
 cargo release --no-publish --no-tag --no-push --execute major|minor|patch|rc
