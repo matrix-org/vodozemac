@@ -52,7 +52,7 @@ experimental-session-config = []
 low-level-api = []
 
 [dependencies]
-aes = { version = "0.9.2" }
+aes = { version = "0.9.3" }
 cipher = { version = "0.5.2", features = ["alloc"] }
 arrayvec = { version = "0.7.8", features = ["serde"] }
 base64 = "0.23.1"
