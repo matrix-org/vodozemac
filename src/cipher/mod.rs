@@ -297,7 +297,7 @@ impl Cipher {
 
 #[cfg(test)]
 mod test {
-    use assert_matches2::assert_matches;
+    use std::assert_matches;
 
     use super::{Cipher, Mac};
     use crate::cipher::DecryptionError;

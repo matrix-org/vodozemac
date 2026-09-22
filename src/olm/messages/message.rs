@@ -263,7 +263,9 @@ struct ProtoBufMessage {
 
 #[cfg(test)]
 mod test {
-    use assert_matches2::{assert_let, assert_matches};
+    use std::assert_matches;
+
+    use strass::assert_let;
 
     use super::Message;
     use crate::{
