@@ -230,9 +230,9 @@ pub use types::{
     Curve25519PublicKey, Curve25519SecretKey, Ed25519Keypair, Ed25519PublicKey, Ed25519SecretKey,
     Ed25519Signature, KeyError, KeyId, SharedSecret, SignatureError,
 };
-pub use utilities::{base64_decode, base64_encode};
 #[cfg(feature = "getrandom")]
 pub use utilities::rng;
+pub use utilities::{base64_decode, base64_encode};
 
 /// Error type describing the various ways vodozemac pickles can fail to be
 /// decoded.

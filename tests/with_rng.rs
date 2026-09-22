@@ -188,8 +188,9 @@ fn alice_ready_to_advance() -> Session {
 
 #[test]
 fn dh_ratchet_advance_is_reproducible_under_same_rng() {
-    // Same session state + same advance RNG => byte-identical advancing message,
-    // including the freshly minted ratchet public key embedded in the header.
+    // Same session state + same advance RNG => byte-identical advancing
+    // message, including the freshly minted ratchet public key embedded in
+    // the header.
     let mut a = alice_ready_to_advance();
     let mut b = alice_ready_to_advance();
 
@@ -222,14 +223,16 @@ fn dh_ratchet_advance_mints_fresh_ephemeral_under_distinct_rng() {
 
 #[test]
 fn ed25519_secret_key_with_rng_is_seed_driven() {
-    // Same seed => byte-identical key: the injected RNG fully determines the key.
+    // Same seed => byte-identical key: the injected RNG fully determines the
+    // key.
     let a = Ed25519SecretKey::new_with_rng(&mut seeded(1));
     let b = Ed25519SecretKey::new_with_rng(&mut seeded(1));
     assert_eq!(a.public_key(), b.public_key());
 
-    // Distinct seeds => distinct keys: the key genuinely comes from `rng`, not a
-    // constant. (Determinism alone would also hold for a key that ignored the
-    // RNG entirely; this divergence pins the RNG as the actual entropy source.)
+    // Distinct seeds => distinct keys: the key genuinely comes from `rng`, not
+    // a constant. (Determinism alone would also hold for a key that ignored
+    // the RNG entirely; this divergence pins the RNG as the actual entropy
+    // source.)
     let c = Ed25519SecretKey::new_with_rng(&mut seeded(2));
     assert_ne!(a.public_key(), c.public_key());
 }
