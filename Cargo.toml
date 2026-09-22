@@ -10,7 +10,7 @@ version = "0.11.0"
 edition = "2024"
 keywords = ["matrix", "chat", "messaging", "olm", "cryptography"]
 license = "Apache-2.0"
-rust-version = "1.89"
+rust-version = "1.96"
 
 [package.metadata.docs.rs]
 all-features = true
