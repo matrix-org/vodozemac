@@ -27,6 +27,7 @@
 //!     reproducible under the same RNG but produces a fresh ephemeral under a
 //!     different one.
 
+use assert_matches2::assert_matches;
 use rand::{SeedableRng, rngs::StdRng};
 use vodozemac::{
     Ed25519SecretKey,
@@ -121,7 +122,7 @@ fn outbound_session_and_first_message_with_rng_is_deterministic() {
 #[test]
 fn with_rng_session_interoperates_with_default_account() {
     // Bob is built with the default (OsRng) path; Alice uses the `_with_rng`
-    // path. If the seam is behaviour-preserving they must be able to talk.
+    // path. They must be able to talk.
     let mut bob = Account::new();
     let bob_otk = *bob.generate_one_time_keys(1).created.first().expect("one OTK");
 
@@ -137,9 +138,7 @@ fn with_rng_session_interoperates_with_default_account() {
 
     let message =
         alice_session.encrypt_with_rng("hello from with_rng", &mut seeded(22)).expect("encrypt");
-    let OlmMessage::PreKey(prekey) = message else {
-        panic!("first message must be a pre-key message");
-    };
+    assert_matches!(message, OlmMessage::PreKey(prekey));
 
     let result = bob
         .create_inbound_session(SessionConfig::version_1(), alice.curve25519_key(), &prekey)
@@ -173,7 +172,7 @@ fn alice_ready_to_advance() -> Session {
         .expect("outbound session");
 
     let prekey = alice_session.encrypt_with_rng("hi", &mut seeded(34)).expect("encrypt");
-    let OlmMessage::PreKey(prekey) = prekey else { panic!("expected pre-key message") };
+    assert_matches!(prekey, OlmMessage::PreKey(prekey));
 
     let mut bob_session = bob
         .create_inbound_session(SessionConfig::version_1(), alice.curve25519_key(), &prekey)
@@ -191,11 +190,6 @@ fn alice_ready_to_advance() -> Session {
 fn dh_ratchet_advance_is_reproducible_under_same_rng() {
     // Same session state + same advance RNG => byte-identical advancing message,
     // including the freshly minted ratchet public key embedded in the header.
-    //
-    // This is the load-bearing assertion for the encrypt seam: it pins that the
-    // *caller's* RNG (not a fresh internal `rng()`) drives the DH-ratchet mint.
-    // If `encrypt_with_rng` ever fell back to `OsRng`, this test would fail
-    // (whereas the distinct-RNG test below would still pass).
     let mut a = alice_ready_to_advance();
     let mut b = alice_ready_to_advance();
 
