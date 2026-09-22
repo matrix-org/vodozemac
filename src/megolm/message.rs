@@ -330,10 +330,9 @@ struct ProtobufMegolmMessage {
 
 #[cfg(test)]
 mod test {
+    use std::assert_matches;
     #[cfg(feature = "low-level-api")]
     use std::vec;
-
-    use assert_matches2::assert_matches;
 
     use crate::{
         DecodeError, Ed25519Signature,

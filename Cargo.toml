@@ -79,7 +79,7 @@ zeroize = { version = "1.9.0", features = ["derive"] }
 
 [dev-dependencies]
 anyhow = "1.0.104"
-assert_matches2 = "0.1.2"
+strass = "0.2.1"
 criterion = { version = "5.0.1", package = "codspeed-criterion-compat" }
 olm-rs = "2.2.0"
 proptest = "1.11.0"

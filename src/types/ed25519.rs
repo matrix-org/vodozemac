@@ -506,7 +506,7 @@ impl From<Ed25519KeypairPickle> for Ed25519Keypair {
 
 #[cfg(test)]
 mod tests {
-    use assert_matches2::assert_matches;
+    use std::assert_matches;
 
     use super::ExpandedSecretKey;
     use crate::{Ed25519Keypair, Ed25519PublicKey, Ed25519SecretKey, Ed25519Signature, KeyError};
