@@ -290,7 +290,7 @@ mod tests {
         let base64_payload = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAZ";
         assert_matches!(
             Curve25519PublicKey::from_base64(base64_payload),
-            Err(KeyError::Base64Error(DecodeError::InvalidLastSymbol(..)))
+            Err(KeyError::Base64Error(DecodeError::InvalidLastSymbol { .. }))
         );
     }
 

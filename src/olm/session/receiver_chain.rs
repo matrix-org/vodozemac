@@ -200,17 +200,20 @@ impl ReceiverChain {
             // Advance the ratchet up until our desired point.
             while ratchet.chain_index() < chain_index {
                 if chain_index - ratchet.chain_index() > MAX_MESSAGE_KEYS as u64 {
-                    // If we're still too many messages away for us to save the skipped message
-                    // keys just advance the ratchet by one index. This avoids the expansion of a
+                    // If we're still too many messages away for us to save the
+                    // skipped message keys just advance the
+                    // ratchet by one index. This avoids the expansion of a
                     // message key we're going to throw away.
                     //
-                    // NOTE: Messages that were encrypted with the chain index of this loop
-                    // iteration will not have their message key anymore around. This does not mean
-                    // that any messages new messages, following the message at `chain_index`, will
-                    // be undecryptable.
+                    // NOTE: Messages that were encrypted with the chain index
+                    // of this loop iteration will not have
+                    // their message key anymore around. This does not mean
+                    // that any messages new messages, following the message at
+                    // `chain_index`, will be undecryptable.
                     ratchet.advance();
                 } else {
-                    // Otherwise advance the ratchet using the `create_message_key()` method and
+                    // Otherwise advance the ratchet using the
+                    // `create_message_key()` method and
                     // store the skipped key.
                     let key = ratchet.create_message_key();
                     skipped_keys.push(key);

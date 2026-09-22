@@ -50,7 +50,7 @@ To install add the following to your project's `Cargo.toml`:
 
 ```toml
 [dependencies]
-vodozemac = "0.10.0"
+vodozemac = "0.11.0"
 ```
 
 ## Security notes

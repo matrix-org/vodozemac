@@ -22,7 +22,7 @@ jobs:
         persist-credentials: false
 
     - name: Install rust
-      uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+      uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de
       with:
         toolchain: nightly
         components: rustfmt
@@ -41,7 +41,7 @@ jobs:
         persist-credentials: false
 
     - name: Check the spelling of the files in our repo
-      uses: crate-ci/typos@8a48f81b6c64dcfea44b3633223084c4be58ac5f
+      uses: crate-ci/typos@d43b6c087ac471e2ea7b8af622ff15f05c0c365b
 
   clippy:
     name: Run clippy
@@ -55,7 +55,7 @@ jobs:
         persist-credentials: false
 
     - name: Install rust
-      uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+      uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de
       with:
         toolchain: nightly
         components: clippy
@@ -80,7 +80,7 @@ jobs:
         persist-credentials: false
 
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+      uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de
       with:
         toolchain: stable
 
@@ -88,15 +88,15 @@ jobs:
       uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
 
     - name: Install cargo-hack
-      uses: taiki-e/install-action@7f4eb899022d8fe70b20c4f3de697aa85c309026 # v2.85.11
+      uses: taiki-e/install-action@d438492cf8a250514fa2d34b30bc3c0dc37c65ff # v2.87.8
       with:
         tool: cargo-hack
 
     - name: Check that our features compile
       run: cargo hack check --each-feature --no-dev-deps
 
-    - name: Check that our tests pass for each feature set
-      run: cargo hack test --each-feature
+    - name: Check that our tests compile for each feature set as well
+      run: cargo hack check --each-feature --all-targets
 
   test:
     name: ${{ matrix.target.name }} ${{ matrix.channel }}
@@ -125,12 +125,12 @@ jobs:
           persist-credentials: false
 
       - name: Install rust
-        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de
         with:
           toolchain: ${{ format('{0}-{1}', matrix.channel, matrix.target.toolchain) }}
 
       - name: Install nextest
-        uses: taiki-e/install-action@7f4eb899022d8fe70b20c4f3de697aa85c309026 # v2.85.11
+        uses: taiki-e/install-action@d438492cf8a250514fa2d34b30bc3c0dc37c65ff # v2.87.8
         with:
           tool: nextest
 

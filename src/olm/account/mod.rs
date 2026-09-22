@@ -1384,7 +1384,8 @@ mod test {
 
         account.generate_one_time_keys(50);
 
-        // Generate two fallback keys so the previous fallback key field gets populated.
+        // Generate two fallback keys so the previous fallback key field gets
+        // populated.
         account.generate_fallback_key();
         account.generate_fallback_key();
 
@@ -1903,9 +1904,9 @@ mod test {
 
         assert_matches2::assert_let!(OlmMessage::PreKey(mut pre_key_message) = pre_key_message);
 
-        // Technically this can't happen as the pre-key message parsing will reject such
-        // a version, but let's double check if our session creation is robust against
-        // unknown versions.
+        // Technically this can't happen as the pre-key message parsing will
+        // reject such a version, but let's double check if our session
+        // creation is robust against unknown versions.
         pre_key_message.message.version = 0xFF;
 
         let result = bob.create_inbound_session(
