@@ -52,7 +52,7 @@ use aes::cipher::{
 };
 use hmac::{KeyInit as _, Mac as _, digest::MacError};
 use matrix_pickle::{Decode, Encode};
-use rand::CryptoRng;
+use rand_core::CryptoRng;
 use thiserror::Error;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -146,9 +146,9 @@ impl PkDecryption {
     /// This contains a fresh [`Curve25519SecretKey`] which is used as a
     /// long-term key to derive individual message keys and effectively serves
     /// as the decryption secret.
-    #[cfg(not(feature = "disallow-default-rng"))]
+    #[cfg(feature = "getrandom")]
     pub fn new() -> Self {
-        Self::new_with_rng(&mut rand::rng())
+        Self::new_with_rng(&mut crate::utilities::rng())
     }
 
     /// Create a new random [`PkDecryption`] object using the given RNG.
@@ -265,7 +265,7 @@ impl PkDecryption {
     }
 }
 
-#[cfg(not(feature = "disallow-default-rng"))]
+#[cfg(feature = "getrandom")]
 impl Default for PkDecryption {
     fn default() -> Self {
         Self::new()
@@ -319,9 +319,9 @@ impl PkEncryption {
         Self { public_key }
     }
     /// Encrypt a message using this [`PkEncryption`] object.
-    #[cfg(not(feature = "disallow-default-rng"))]
+    #[cfg(feature = "getrandom")]
     pub fn encrypt(&self, message: &[u8]) -> Result<Message, Error> {
-        self.encrypt_with_rng(message, &mut rand::rng())
+        self.encrypt_with_rng(message, &mut crate::utilities::rng())
     }
 
     /// Encrypt a message using this [`PkEncryption`] object.

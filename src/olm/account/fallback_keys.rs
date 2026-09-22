@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use rand::CryptoRng;
+use rand_core::CryptoRng;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -119,7 +119,7 @@ mod test {
         let err = "Missing fallback key";
         let mut fallback_keys = FallbackKeys::new();
 
-        fallback_keys.generate_fallback_key(&mut rand::rng());
+        fallback_keys.generate_fallback_key(&mut crate::utilities::rng());
 
         let public_key = fallback_keys.fallback_key.as_ref().expect(err).public_key();
         let secret_bytes = fallback_keys.fallback_key.as_ref().expect(err).key.to_bytes();
@@ -128,7 +128,7 @@ mod test {
 
         assert_eq!(secret_bytes, fetched_key.to_bytes());
 
-        fallback_keys.generate_fallback_key(&mut rand::rng());
+        fallback_keys.generate_fallback_key(&mut crate::utilities::rng());
 
         let fetched_key = fallback_keys.get_secret_key(&public_key).expect(err);
         assert_eq!(secret_bytes, fetched_key.to_bytes());
@@ -146,7 +146,7 @@ mod test {
         let mut fallback_keys = FallbackKeys::new();
         assert_eq!(fallback_keys.key_id, 0);
 
-        fallback_keys.generate_fallback_key(&mut rand::rng());
+        fallback_keys.generate_fallback_key(&mut crate::utilities::rng());
         assert_eq!(fallback_keys.key_id, 1);
         assert!(fallback_keys.unpublished_fallback_key().is_some());
 

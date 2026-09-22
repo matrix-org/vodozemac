@@ -14,7 +14,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use rand::CryptoRng;
+use rand_core::CryptoRng;
 use serde::{Deserialize, Serialize};
 
 use super::PUBLIC_MAX_ONE_TIME_KEYS;
@@ -203,7 +203,7 @@ mod test {
 
         assert!(store.private_keys.is_empty());
 
-        store.generate(OneTimeKeys::MAX_ONE_TIME_KEYS, &mut rand::rng());
+        store.generate(OneTimeKeys::MAX_ONE_TIME_KEYS, &mut crate::utilities::rng());
         assert_eq!(store.unpublished_public_keys.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
         assert_eq!(store.private_keys.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
         assert_eq!(store.key_ids_by_key.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
@@ -224,7 +224,7 @@ mod test {
             store.private_keys.keys().next().copied().expect("Couldn't get the first key ID");
         assert_eq!(oldest_key_id, KeyId(0));
 
-        store.generate(10, &mut rand::rng());
+        store.generate(10, &mut crate::utilities::rng());
         assert_eq!(store.unpublished_public_keys.len(), 10);
         assert_eq!(store.private_keys.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);
         assert_eq!(store.key_ids_by_key.len(), OneTimeKeys::MAX_ONE_TIME_KEYS);

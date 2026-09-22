@@ -15,7 +15,7 @@
 use std::fmt::Debug;
 
 use matrix_pickle::Decode;
-use rand::CryptoRng;
+use rand_core::CryptoRng;
 use serde::{Deserialize, Serialize};
 use x25519_dalek::SharedSecret;
 
@@ -69,10 +69,10 @@ impl RatchetKey {
     }
 }
 
-#[cfg(not(feature = "disallow-default-rng"))]
+#[cfg(feature = "getrandom")]
 impl Default for RatchetKey {
     fn default() -> Self {
-        Self::new(&mut rand::rng())
+        Self::new(&mut crate::utilities::rng())
     }
 }
 

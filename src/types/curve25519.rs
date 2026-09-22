@@ -16,7 +16,7 @@ use std::fmt::Display;
 
 use base64::decoded_len_estimate;
 use matrix_pickle::{Decode, DecodeError};
-use rand::CryptoRng;
+use rand_core::CryptoRng;
 use serde::{Deserialize, Serialize};
 use x25519_dalek::{EphemeralSecret, PublicKey, ReusableSecret, SharedSecret, StaticSecret};
 use zeroize::Zeroize;
@@ -31,9 +31,9 @@ pub struct Curve25519SecretKey(Box<StaticSecret>);
 
 impl Curve25519SecretKey {
     /// Generate a new, random, Curve25519SecretKey.
-    #[cfg(not(feature = "disallow-default-rng"))]
+    #[cfg(feature = "getrandom")]
     pub fn new() -> Self {
-        Self::new_with_rng(&mut rand::rng())
+        Self::new_with_rng(&mut crate::utilities::rng())
     }
 
     /// Generate a new, random, `Curve25519SecretKey`, drawing entropy from the
@@ -86,7 +86,7 @@ impl Curve25519SecretKey {
     }
 }
 
-#[cfg(not(feature = "disallow-default-rng"))]
+#[cfg(feature = "getrandom")]
 impl Default for Curve25519SecretKey {
     fn default() -> Self {
         Self::new()

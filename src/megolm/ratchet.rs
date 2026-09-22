@@ -14,7 +14,7 @@
 // limitations under the License.
 
 use hmac::{Hmac, KeyInit, Mac as _};
-use rand::CryptoRng;
+use rand_core::CryptoRng;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Sha256, digest::CtOutput};
 use subtle::{Choice, ConstantTimeEq};
@@ -264,21 +264,21 @@ mod tests {
 
     #[test]
     fn advancing_high_counter_ratchet_doesnt_panic() {
-        let mut ratchet = Ratchet::new(&mut rand::rng());
+        let mut ratchet = Ratchet::new(&mut crate::utilities::rng());
         ratchet.counter = 0x00FFFFFF;
         ratchet.advance();
     }
 
     #[test]
     fn advance_to_with_high_counter_doesnt_panic() {
-        let mut ratchet = Ratchet::new(&mut rand::rng());
+        let mut ratchet = Ratchet::new(&mut crate::utilities::rng());
         ratchet.counter = (1 << 24) - 1;
         ratchet.advance_to(1 << 24);
     }
 
     #[test]
     fn advance_forward_and_back() {
-        let mut ratchet = Ratchet::new(&mut rand::rng());
+        let mut ratchet = Ratchet::new(&mut crate::utilities::rng());
         assert_eq!(ratchet.counter, 0);
         ratchet.advance();
         assert_eq!(ratchet.counter, 1);

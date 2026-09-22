@@ -53,7 +53,7 @@
 
 use hkdf::Hkdf;
 use hmac::{Hmac, KeyInit, Mac as _, digest::MacError};
-use rand::CryptoRng;
+use rand_core::CryptoRng;
 use sha2::Sha256;
 use thiserror::Error;
 use x25519_dalek::{EphemeralSecret, SharedSecret};
@@ -209,7 +209,7 @@ impl SasBytes {
     }
 }
 
-#[cfg(not(feature = "disallow-default-rng"))]
+#[cfg(feature = "getrandom")]
 impl Default for Sas {
     fn default() -> Self {
         Self::new()
@@ -221,9 +221,9 @@ impl Sas {
     ///
     /// This creates an ephemeral curve25519 keypair that can be used to
     /// establish a shared secret.
-    #[cfg(not(feature = "disallow-default-rng"))]
+    #[cfg(feature = "getrandom")]
     pub fn new() -> Self {
-        Self::new_with_rng(&mut rand::rng())
+        Self::new_with_rng(&mut crate::utilities::rng())
     }
 
     /// Create a new random verification object with a custom RNG

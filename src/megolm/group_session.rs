@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use rand::CryptoRng;
+use rand_core::CryptoRng;
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -46,7 +46,7 @@ pub struct GroupSession {
     config: SessionConfig,
 }
 
-#[cfg(not(feature = "disallow-default-rng"))]
+#[cfg(feature = "getrandom")]
 impl Default for GroupSession {
     fn default() -> Self {
         Self::new(Default::default())
@@ -56,9 +56,9 @@ impl Default for GroupSession {
 impl GroupSession {
     /// Construct a new group session, with a random ratchet state and signing
     /// key pair.
-    #[cfg(not(feature = "disallow-default-rng"))]
+    #[cfg(feature = "getrandom")]
     pub fn new(config: SessionConfig) -> Self {
-        Self::new_with_rng(config, &mut rand::rng())
+        Self::new_with_rng(config, &mut crate::utilities::rng())
     }
 
     /// Construct a new group session, with a random ratchet state, a signing

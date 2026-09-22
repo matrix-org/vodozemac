@@ -20,7 +20,7 @@ use curve25519_dalek::EdwardsPoint;
 use ed25519_dalek::{
     PUBLIC_KEY_LENGTH, SIGNATURE_LENGTH, Signature, Signer, SigningKey, VerifyingKey,
 };
-use rand::CryptoRng;
+use rand_core::CryptoRng;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_bytes::{ByteBuf as SerdeByteBuf, Bytes as SerdeBytes};
 use sha2::Sha512;
@@ -126,9 +126,9 @@ impl<'d> Deserialize<'d> for ExpandedSecretKey {
 
 impl Ed25519Keypair {
     /// Create a new, random, `Ed25519Keypair`.
-    #[cfg(not(feature = "disallow-default-rng"))]
+    #[cfg(feature = "getrandom")]
     pub fn new() -> Self {
-        Self::new_with_rng(&mut rand::rng())
+        Self::new_with_rng(&mut crate::utilities::rng())
     }
 
     /// Create a new, random, `Ed25519Keypair`, drawing entropy from the
@@ -205,7 +205,7 @@ impl Ed25519Keypair {
     }
 }
 
-#[cfg(not(feature = "disallow-default-rng"))]
+#[cfg(feature = "getrandom")]
 impl Default for Ed25519Keypair {
     fn default() -> Self {
         Self::new()
@@ -225,9 +225,9 @@ impl Ed25519SecretKey {
     const PADDED_BASE64_LENGTH: usize = 44;
 
     /// Create a new random `Ed25519SecretKey`.
-    #[cfg(not(feature = "disallow-default-rng"))]
+    #[cfg(feature = "getrandom")]
     pub fn new() -> Self {
-        Self::new_with_rng(&mut rand::rng())
+        Self::new_with_rng(&mut crate::utilities::rng())
     }
 
     /// Create a new random `Ed25519SecretKey`, drawing entropy from the
@@ -335,7 +335,7 @@ impl Ed25519SecretKey {
     }
 }
 
-#[cfg(not(feature = "disallow-default-rng"))]
+#[cfg(feature = "getrandom")]
 impl Default for Ed25519SecretKey {
     fn default() -> Self {
         Self::new()

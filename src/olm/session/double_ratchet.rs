@@ -14,7 +14,7 @@
 
 use std::fmt::{Debug, Formatter};
 
-use rand::CryptoRng;
+use rand_core::CryptoRng;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "low-level-api")]
@@ -525,7 +525,7 @@ mod test {
         let ratchet_key = RemoteRatchetKey(Curve25519PublicKey::from_bytes([0u8; 32]));
 
         assert!(
-            ratchet.advance(ratchet_key, &mut rand::rng()).is_none(),
+            ratchet.advance(ratchet_key, &mut crate::utilities::rng()).is_none(),
             "We shouldn't be able to advance the session with a non-contributory remote ratchet key"
         );
     }

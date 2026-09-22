@@ -22,7 +22,7 @@ use chacha20poly1305::{
     aead::{Aead, KeyInit},
 };
 use cipher::common::Generate;
-use rand::CryptoRng;
+use rand_core::CryptoRng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use zeroize::Zeroize;
@@ -142,9 +142,9 @@ pub struct Account {
 
 impl Account {
     /// Create a new [`Account`] with new random identity keys.
-    #[cfg(not(feature = "disallow-default-rng"))]
+    #[cfg(feature = "getrandom")]
     pub fn new() -> Self {
-        Self::new_with_rng(&mut rand::rng())
+        Self::new_with_rng(&mut crate::utilities::rng())
     }
 
     /// Create a new [`Account`] with new random identity keys, drawing entropy
@@ -209,7 +209,7 @@ impl Account {
     }
 
     /// Create a [`Session`] with the given identity key and one-time key.
-    #[cfg(not(feature = "disallow-default-rng"))]
+    #[cfg(feature = "getrandom")]
     pub fn create_outbound_session(
         &self,
         session_config: SessionConfig,
@@ -220,7 +220,7 @@ impl Account {
             session_config,
             identity_key,
             one_time_key,
-            &mut rand::rng(),
+            &mut crate::utilities::rng(),
         )
     }
 
@@ -297,7 +297,7 @@ impl Account {
 
     /// Create a [`Session`] from the given [`PreKeyMessage`] message and
     /// identity key
-    #[cfg(not(feature = "disallow-default-rng"))]
+    #[cfg(feature = "getrandom")]
     pub fn create_inbound_session(
         &mut self,
         expected_config: SessionConfig,
@@ -308,7 +308,7 @@ impl Account {
             expected_config,
             their_identity_key,
             pre_key_message,
-            &mut rand::rng(),
+            &mut crate::utilities::rng(),
         )
     }
 
@@ -402,9 +402,9 @@ impl Account {
     /// places for one-time keys, If we try to generate new ones while the store
     /// is completely populated, the oldest one-time keys will get discarded
     /// to make place for new ones.
-    #[cfg(not(feature = "disallow-default-rng"))]
+    #[cfg(feature = "getrandom")]
     pub fn generate_one_time_keys(&mut self, count: usize) -> OneTimeKeyGenerationResult {
-        self.generate_one_time_keys_with_rng(count, &mut rand::rng())
+        self.generate_one_time_keys_with_rng(count, &mut crate::utilities::rng())
     }
 
     /// Generates the supplied number of one time keys, drawing entropy from the
@@ -457,9 +457,9 @@ impl Account {
     /// Returns the public Curve25519 key of the *previous* fallback key, that
     /// is, the one that will get removed from the [`Account`] when this method
     /// is called. This return value is mostly useful for logging purposes.
-    #[cfg(not(feature = "disallow-default-rng"))]
+    #[cfg(feature = "getrandom")]
     pub fn generate_fallback_key(&mut self) -> Option<Curve25519PublicKey> {
-        self.generate_fallback_key_with_rng(&mut rand::rng())
+        self.generate_fallback_key_with_rng(&mut crate::utilities::rng())
     }
 
     /// Generate a single new fallback key, drawing entropy from the provided
@@ -702,7 +702,7 @@ impl Account {
     }
 }
 
-#[cfg(not(feature = "disallow-default-rng"))]
+#[cfg(feature = "getrandom")]
 impl Default for Account {
     fn default() -> Self {
         Self::new()

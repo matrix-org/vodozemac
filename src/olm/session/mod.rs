@@ -27,7 +27,7 @@ use arrayvec::ArrayVec;
 use chain_key::RemoteChainKey;
 use double_ratchet::DoubleRatchet;
 use hmac::digest::MacError;
-use rand::CryptoRng;
+use rand_core::CryptoRng;
 use ratchet::RemoteRatchetKey;
 use receiver_chain::ReceiverChain;
 use root_key::RemoteRootKey;
@@ -386,9 +386,9 @@ impl Session {
     /// depending on whether the session is fully established. A [`Session`] is
     /// fully established once you receive (and decrypt) at least one
     /// message from the other side.
-    #[cfg(not(feature = "disallow-default-rng"))]
+    #[cfg(feature = "getrandom")]
     pub fn encrypt(&mut self, plaintext: impl AsRef<[u8]>) -> Result<OlmMessage, EncryptionError> {
-        self.encrypt_with_rng(plaintext, &mut rand::rng())
+        self.encrypt_with_rng(plaintext, &mut crate::utilities::rng())
     }
 
     /// Encrypt the `plaintext` and construct an [`OlmMessage`], drawing any
@@ -455,9 +455,9 @@ impl Session {
 
     /// Try to decrypt an Olm message, which will either return the plaintext or
     /// result in a [`DecryptionError`].
-    #[cfg(not(feature = "disallow-default-rng"))]
+    #[cfg(feature = "getrandom")]
     pub fn decrypt(&mut self, message: &OlmMessage) -> Result<Vec<u8>, DecryptionError> {
-        self.decrypt_with_rng(message, &mut rand::rng())
+        self.decrypt_with_rng(message, &mut crate::utilities::rng())
     }
 
     /// Try to decrypt an Olm message, which will either return the plaintext or

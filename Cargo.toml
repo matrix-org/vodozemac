@@ -38,7 +38,7 @@ unwrap_used = "deny"
 mem_forget = "deny"
 
 [features]
-default = ["libolm-compat", "precomputed-tables"]
+default = ["getrandom", "libolm-compat", "precomputed-tables"]
 wasm_js = ["getrandom/wasm_js"]
 libolm-compat = []
 # Enables curve25519-dalek's precomputed basepoint tables, speeding up
@@ -52,7 +52,7 @@ experimental-session-config = []
 low-level-api = []
 # Disables public methods that use the default RNG. This will force the caller
 # to provide a custom RNG via `with_rng` methods instead.
-disallow-default-rng = []
+getrandom = ["rand"]
 
 [dependencies]
 aes = { version = "0.9.3" }
@@ -70,7 +70,8 @@ hmac = "0.13.0"
 hpke = { version = "0.14.1", default-features = false, features = ["alloc", "chacha", "getrandom", "x25519"] }
 matrix-pickle = { version = "0.2.3" }
 prost = "0.14.4"
-rand = "0.10.2"
+rand_core = "0.10.1"
+rand = { version = "0.10.3", optional = true }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_bytes = "0.11.19"
 serde_json = "1.0.151"
