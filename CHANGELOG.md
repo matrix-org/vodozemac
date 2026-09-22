@@ -18,10 +18,9 @@ All notable changes to this project will be documented in this file.
   `GroupSession::new`, `Ecies::new`, `Ecies::with_info`, `PkEncryption::encrypt`
   plus the `Curve25519Keypair`/`Curve25519SecretKey`/`Ed25519Keypair`/
   `Ed25519SecretKey`/`PkDecryption` constructors).
-  These accept a caller-supplied `impl CryptoRng`
-  so randomness can be injected for deterministic testing, reproducible
-  builds and custom/hardware entropy sources. The existing `OsRng`-backed
-  methods are unchanged.
+  These accept a caller-supplied `impl CryptoRng` so randomness can be injected
+  for deterministic testing, reproducible builds and custom/hardware entropy
+  sources. The existing methods now use `OsRng` instead of the thread-local RNG.
   ([#379](https://github.com/matrix-org/vodozemac/pull/379))
 - **BREAKING** Bumped the minimal supported Rust version to 1.89 as the AES
   crate requires this Rust version.
