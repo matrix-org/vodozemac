@@ -6,6 +6,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased] - ReleaseDate
 
+- The minimally supported Rust version was bumped to 1.96.0
+  ([#424](https://github.com/matrix-org/vodozemac/pull/424))
+
 ## [0.11.0] - 2026-09-11
 
 ### Features
