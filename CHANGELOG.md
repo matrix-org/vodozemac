@@ -15,8 +15,8 @@ All notable changes to this project will be documented in this file.
   `Account::generate_fallback_key`, `Account::create_inbound_session`,
   `Account::create_outbound_session`, `Account::generate_fallback_key`,
   `Account::generate_one_time_keys`, `Session::encrypt`, `Sas::new`,
-  `GroupSession::new`, `Ecies::with_info`, `PkEncryption::encrypt` plus the
-  `Curve25519Keypair`/`Curve25519SecretKey`/`Ed25519Keypair`/
+  `GroupSession::new`, `Ecies::new`, `Ecies::with_info`, `PkEncryption::encrypt`
+  plus the `Curve25519Keypair`/`Curve25519SecretKey`/`Ed25519Keypair`/
   `Ed25519SecretKey`/`PkDecryption` constructors).
   These accept a caller-supplied `impl CryptoRng`
   so randomness can be injected for deterministic testing, reproducible

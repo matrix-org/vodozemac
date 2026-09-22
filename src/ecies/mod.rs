@@ -95,7 +95,7 @@ pub use crate::hpke::{CheckCode, DigitMode};
 mod messages;
 
 /// The prefix used for Matrix QR login info in ECIES messages.
-pub const MATRIX_QR_LOGIN_INFO_PREFIX: &str = "MATRIX_QR_CODE_LOGIN";
+const MATRIX_QR_LOGIN_INFO_PREFIX: &str = "MATRIX_QR_CODE_LOGIN";
 
 /// The Error type for the ECIES submodule.
 #[derive(Debug, Error)]
@@ -193,6 +193,16 @@ impl Ecies {
     #[cfg(feature = "getrandom")]
     pub fn with_info(info: &str) -> Self {
         Self::with_info_and_rng(info, &mut crate::utilities::rng())
+    }
+
+    /// Create a new, random, unestablished ECIES session, using the provided
+    /// random number generator.
+    ///
+    /// This method will use the `MATRIX_QR_CODE_LOGIN` info. If you are using
+    /// this for a different purpose, consider using the
+    /// [`Ecies::with_info_and_rng()`] method.
+    pub fn new_with_rng<R: CryptoRng + ?Sized>(rng: &mut R) -> Self {
+        Self::with_info_and_rng(MATRIX_QR_LOGIN_INFO_PREFIX, rng)
     }
 
     /// Create a new, random, unestablished ECIES session with the given
