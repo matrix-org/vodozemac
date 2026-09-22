@@ -189,8 +189,7 @@ fn alice_ready_to_advance() -> Session {
 #[test]
 fn dh_ratchet_advance_is_reproducible_under_same_rng() {
     // Same session state + same advance RNG => byte-identical advancing
-    // message, including the freshly minted ratchet public key embedded in
-    // the header.
+    // message.
     let mut a = alice_ready_to_advance();
     let mut b = alice_ready_to_advance();
 
@@ -205,13 +204,7 @@ fn dh_ratchet_advance_mints_fresh_ephemeral_under_distinct_rng() {
     // Same session state, *different* advance RNG => the two genuinely-new DH
     // steps produce distinct advancing messages (distinct ephemeral ratchet
     // keys). This shows the advancing output is not frozen and responds to the
-    // supplied RNG. Note: on its own this would also pass if the mint ignored
-    // the caller's RNG and drew from OsRng — it is the reproducibility test
-    // above that pins the caller's RNG as the actual entropy source. Together
-    // they show a genuinely-new ratchet step is both driven by and fully
-    // determined by the supplied RNG, which is why reusing an RNG state across
-    // two distinct advancing steps would collapse the ephemeral (the documented
-    // forward-secrecy footgun).
+    // supplied RNG.
     let mut a = alice_ready_to_advance();
     let mut b = alice_ready_to_advance();
 
