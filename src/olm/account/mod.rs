@@ -1111,10 +1111,12 @@ mod dehydrated_device {
 
 #[cfg(test)]
 mod test {
+    use std::assert_matches;
+
     use anyhow::{Context, Result, bail};
-    use assert_matches2::assert_matches;
     use matrix_pickle::{Decode, Encode};
     use olm_rs::{account::OlmAccount, session::OlmMessage as LibolmOlmMessage};
+    use strass::assert_let;
 
     #[cfg(feature = "libolm-compat")]
     use super::libolm::Pickle;
@@ -1723,7 +1725,7 @@ mod test {
         .expect("Should be able to rehydrate device");
 
         // make sure we can decrypt both messages
-        assert_matches!(bob_olm_message, OlmMessage::PreKey(prekey_message));
+        assert_let!(OlmMessage::PreKey(prekey_message) = bob_olm_message);
         let InboundCreationResult { session: alice_session, plaintext } = alice_rehydrated
             .create_inbound_session(
                 SessionConfig::version_1(),
@@ -1734,7 +1736,7 @@ mod test {
         assert_eq!(alice_session.session_id(), bob_session.session_id());
         assert_eq!(message.as_bytes(), plaintext);
 
-        assert_matches!(carol_olm_message, OlmMessage::PreKey(prekey_message));
+        assert_let!(OlmMessage::PreKey(prekey_message) = carol_olm_message);
         let InboundCreationResult { session: alice_session, plaintext } = alice_rehydrated
             .create_inbound_session(
                 SessionConfig::version_1(),
@@ -1847,7 +1849,7 @@ mod test {
         let pre_key_message =
             alice_session.encrypt(message).expect("We should be able to encrypt the first message");
 
-        assert_matches2::assert_let!(OlmMessage::PreKey(pre_key_message) = pre_key_message);
+        assert_let!(OlmMessage::PreKey(pre_key_message) = pre_key_message);
 
         let result = bob.create_inbound_session(
             SessionConfig::version_2(),
@@ -1880,7 +1882,7 @@ mod test {
         let pre_key_message =
             alice_session.encrypt(message).expect("We should be able to encrypt the first message");
 
-        assert_matches2::assert_let!(OlmMessage::PreKey(pre_key_message) = pre_key_message);
+        assert_let!(OlmMessage::PreKey(pre_key_message) = pre_key_message);
 
         let result = bob.create_inbound_session(
             SessionConfig::version_1(),
@@ -1912,7 +1914,7 @@ mod test {
         let pre_key_message =
             alice_session.encrypt(message).expect("We should be able to encrypt the first message");
 
-        assert_matches2::assert_let!(OlmMessage::PreKey(mut pre_key_message) = pre_key_message);
+        assert_let!(OlmMessage::PreKey(mut pre_key_message) = pre_key_message);
 
         // Technically this can't happen as the pre-key message parsing will
         // reject such a version, but let's double check if our session

@@ -151,8 +151,9 @@ impl From<MessageType> for usize {
 
 #[cfg(test)]
 mod tests {
+    use std::assert_matches;
+
     use anyhow::Result;
-    use assert_matches2::assert_matches;
     use olm_rs::session::OlmMessage as LibolmMessage;
     use serde_json::json;
 

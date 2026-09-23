@@ -2,8 +2,8 @@
 
 #![allow(clippy::expect_used, missing_docs)]
 
-use assert_matches2::assert_let;
 use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
+use strass::assert_let;
 use vodozemac::olm::{Account, AccountPickle, OlmMessage, SessionConfig};
 
 /// Benchmark how long it takes to create a 1-to-1 Olm session.

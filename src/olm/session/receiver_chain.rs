@@ -270,7 +270,9 @@ impl ReceiverChain {
 
 #[cfg(test)]
 mod test {
-    use assert_matches2::assert_matches;
+    use std::assert_matches;
+
+    use strass::assert_let;
 
     use super::MessageKeyStore;
     use crate::olm::{
@@ -290,7 +292,7 @@ mod test {
         let key = RemoteMessageKey::new(Box::new(key_bytes), chain_index);
         assert_matches!(store.get_message_key(chain_index), None);
         store.push(key);
-        assert_matches!(store.get_message_key(chain_index), Some(key));
+        assert_let!(Some(key) = store.get_message_key(chain_index));
         assert_eq!(key.key.as_ref(), &key_bytes);
         assert_eq!(key.index, chain_index);
         store.remove_message_key(chain_index);
@@ -329,9 +331,9 @@ mod test {
 
         let receiver_chain = ReceiverChain::new(ratchet_key, chain_key, RatchetCount::Known(0));
 
-        assert_matches!(
-            receiver_chain.find_message_key(MAX_MESSAGE_GAP + 1),
-            Err(DecryptionError::TooBigMessageGap(max_invalid_gap, MAX_MESSAGE_GAP))
+        assert_let!(
+            Err(DecryptionError::TooBigMessageGap(max_invalid_gap, MAX_MESSAGE_GAP)) =
+                receiver_chain.find_message_key(MAX_MESSAGE_GAP + 1)
         );
         assert_eq!(max_invalid_gap, MAX_MESSAGE_GAP + 1);
         assert_matches!(receiver_chain.find_message_key(MAX_MESSAGE_GAP), Ok(_));

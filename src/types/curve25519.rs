@@ -266,7 +266,8 @@ impl From<Curve25519Keypair> for Curve25519KeypairPickle {
 
 #[cfg(test)]
 mod tests {
-    use assert_matches2::assert_matches;
+    use std::assert_matches;
+
     use base64::DecodeError;
     use insta::assert_debug_snapshot;
 
