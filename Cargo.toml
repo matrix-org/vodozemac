@@ -50,7 +50,7 @@ experimental-session-config = []
 # The low-level-api feature exposes extra APIs that are only useful in advanced
 # use cases and require extra care to use.
 low-level-api = []
-# Enables public methods that use the default RNG. Otherwise the caller
+# Enables public methods that use the default OS RNG. Otherwise the caller
 # needs to provide a custom RNG via `with_rng` methods instead.
 getrandom = ["rand"]
 
