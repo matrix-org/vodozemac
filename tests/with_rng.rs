@@ -27,8 +27,8 @@
 //!     reproducible under the same RNG but produces a fresh ephemeral under a
 //!     different one.
 
-use assert_matches2::assert_matches;
 use rand::{SeedableRng, rngs::StdRng};
+use strass::assert_let;
 use vodozemac::{
     Ed25519SecretKey,
     olm::{Account, OlmMessage, Session, SessionConfig},
@@ -138,7 +138,7 @@ fn with_rng_session_interoperates_with_default_account() {
 
     let message =
         alice_session.encrypt_with_rng("hello from with_rng", &mut seeded(22)).expect("encrypt");
-    assert_matches!(message, OlmMessage::PreKey(prekey));
+    assert_let!(OlmMessage::PreKey(prekey) = message);
 
     let result = bob
         .create_inbound_session(SessionConfig::version_1(), alice.curve25519_key(), &prekey)
@@ -172,7 +172,7 @@ fn alice_ready_to_advance() -> Session {
         .expect("outbound session");
 
     let prekey = alice_session.encrypt_with_rng("hi", &mut seeded(34)).expect("encrypt");
-    assert_matches!(prekey, OlmMessage::PreKey(prekey));
+    assert_let!(OlmMessage::PreKey(prekey) = prekey);
 
     let mut bob_session = bob
         .create_inbound_session(SessionConfig::version_1(), alice.curve25519_key(), &prekey)

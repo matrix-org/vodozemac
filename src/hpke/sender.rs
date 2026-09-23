@@ -15,6 +15,7 @@
 use hpke::{
     Deserializable as _, OpModeS, Serializable as _, aead::AeadCtxS, kem::X25519HkdfSha256,
 };
+use rand_core::CryptoRng;
 
 use crate::{
     Curve25519PublicKey,
@@ -68,19 +69,41 @@ impl HpkeSenderChannel {
     /// After the channel has been established, we can encrypt messages to send
     /// to the other side. The other side uses the initial message to
     /// establishes the same channel on its side.
+    #[cfg(feature = "getrandom")]
     pub fn establish_channel(
         self,
         their_public_key: Curve25519PublicKey,
         initial_plaintext: &[u8],
         aad: &[u8],
     ) -> Result<SenderCreationResult, Error> {
+        self.establish_channel_with_rng(
+            their_public_key,
+            initial_plaintext,
+            aad,
+            &mut crate::utilities::rng(),
+        )
+    }
+
+    /// Create an [`EstablishedHpkeChannel`] session using the other side's
+    /// Curve25519 public key and an initial plaintext. The provided RNG
+    /// will be used.
+    pub fn establish_channel_with_rng<R: CryptoRng>(
+        self,
+        their_public_key: Curve25519PublicKey,
+        initial_plaintext: &[u8],
+        aad: &[u8],
+        rng: &mut R,
+    ) -> Result<SenderCreationResult, Error> {
         let Self { application_info_prefix } = self;
 
         let their_key = convert_public_key(their_public_key);
 
-        #[allow(clippy::expect_used)]
-        let (encapsulated_key, mut context) =
-            hpke::setup_sender(&OpModeS::Base, &their_key, application_info_prefix.as_bytes())?;
+        let (encapsulated_key, mut context) = hpke::setup_sender_with_rng(
+            &OpModeS::Base,
+            &their_key,
+            application_info_prefix.as_bytes(),
+            rng,
+        )?;
 
         let ciphertext = context.seal(initial_plaintext, aad)?;
 

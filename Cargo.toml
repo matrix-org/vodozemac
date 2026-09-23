@@ -52,7 +52,7 @@ experimental-session-config = []
 low-level-api = []
 # Enables public methods that use the default OS RNG. Otherwise the caller
 # needs to provide a custom RNG via `with_rng` methods instead.
-getrandom = ["rand"]
+getrandom = ["rand", "hpke/getrandom"]
 
 [dependencies]
 aes = { version = "0.9.3" }
@@ -67,7 +67,7 @@ ed25519-dalek = { version = "3.0.0", default-features = false, features = ["rand
 getrandom = "0.4.3"
 hkdf = "0.13.0"
 hmac = "0.13.0"
-hpke = { version = "0.14.1", default-features = false, features = ["alloc", "chacha", "getrandom", "x25519"] }
+hpke = { version = "0.14.1", default-features = false, features = ["alloc", "chacha", "x25519"] }
 matrix-pickle = { version = "0.2.3" }
 prost = "0.14.4"
 rand_core = "0.10.1"

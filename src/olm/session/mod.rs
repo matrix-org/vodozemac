@@ -448,9 +448,16 @@ impl Session {
     /// the recipient side. Given that a `Session` can only support a limited
     /// number of out-of-order messages, this will eventually lead to
     /// undecryptable messages.
-    #[cfg(feature = "low-level-api")]
+    #[cfg(all(feature = "low-level-api", feature = "getrandom"))]
     pub fn next_message_key(&mut self) -> Option<MessageKey> {
-        self.sending_ratchet.next_message_key()
+        self.next_message_key_with_rng(&mut crate::utilities::rng())
+    }
+
+    /// Get the [`MessageKey`] to encrypt the next message, using the provided
+    /// RNG.
+    #[cfg(feature = "low-level-api")]
+    pub fn next_message_key_with_rng<R: CryptoRng>(&mut self, rng: &mut R) -> Option<MessageKey> {
+        self.sending_ratchet.next_message_key(rng)
     }
 
     /// Try to decrypt an Olm message, which will either return the plaintext or
@@ -1001,7 +1008,7 @@ mod test {
     }
 
     #[test]
-    #[cfg(feature = "low-level-api")]
+    #[cfg(all(feature = "low-level-api", feature = "getrandom"))]
     fn next_message_key_returns_a_key() {
         let plaintext = "It's a secret to everybody";
         let (_, _, mut session, _) = session_and_libolm_pair().unwrap();

@@ -19,7 +19,9 @@ All notable changes to this project will be documented in this file.
   `Account::create_outbound_session`, `Account::generate_fallback_key`,
   `Account::to_dehydrated_device`, `Account::generate_one_time_keys`,
   `Session::encrypt`, `Sas::new`, `GroupSession::new`, `Ecies::new`,
-  `Ecies::with_info`, `PkEncryption::encrypt`,
+  `Ecies::with_info`, `PkEncryption::encrypt`, `HpkeRecipientChannel::new`,
+  `HpkeRecipientChannel::with_info`, `HpkeSenderChannel::establish_channel`,
+  `UnidirectionalRecipientChannel::establish_bidirectional_channel`,
   plus the `Curve25519Keypair`/`Curve25519SecretKey`/`Ed25519Keypair`/
   `Ed25519SecretKey`/`PkDecryption` constructors).
   These accept a caller-supplied `impl CryptoRng` so randomness can be injected
