@@ -613,9 +613,19 @@ impl Account {
     ///
     /// The format used here is defined in
     /// [MSC3814](https://github.com/matrix-org/matrix-spec-proposals/pull/3814).
+    #[cfg(feature = "getrandom")]
     pub fn to_dehydrated_device(
         &self,
         key: &[u8; 32],
+    ) -> Result<DehydratedDeviceResult, crate::DehydratedDeviceError> {
+        self.to_dehydrated_device_with_rng(key, &mut crate::utilities::rng())
+    }
+
+    /// Create a dehydrated device from the account using a custom RNG.
+    pub fn to_dehydrated_device_with_rng<R: CryptoRng>(
+        &self,
+        key: &[u8; 32],
+        rng: &mut R,
     ) -> Result<DehydratedDeviceResult, crate::DehydratedDeviceError> {
         use matrix_pickle::Encode;
 
@@ -628,7 +638,7 @@ impl Account {
             .map_err(|e| DehydratedDeviceError::LibolmPickle(LibolmPickleError::Encode(e)))?;
 
         let cipher = ChaCha20Poly1305::new(key.into());
-        let nonce = Nonce::generate();
+        let nonce = Nonce::generate_from_rng(rng);
         let ciphertext = cipher.encrypt(&nonce, encoded.as_slice());
 
         encoded.zeroize();
