@@ -123,40 +123,34 @@ impl std::fmt::Debug for Role {
 }
 
 impl Role {
-    fn construct_info_string(
-        &self,
-        partial_info: &str,
-        our_public_key: Curve25519PublicKey,
-        their_public_key: Curve25519PublicKey,
-    ) -> String {
-        match self {
-            Role::Recipient { .. } => {
-                // we are Device G. Gp = our_public_key, Sp = their_public_key
-                format!(
-                    "{partial_info}|{}|{}",
-                    our_public_key.to_base64(),
-                    their_public_key.to_base64(),
-                )
-            }
-            Role::Sender { .. } => {
-                // we are Device S. Gp = their_public_key, Sp = our_public_key
-                format!(
-                    "{partial_info}|{}|{}",
-                    their_public_key.to_base64(),
-                    our_public_key.to_base64(),
-                )
-            }
-        }
-    }
-
+    /// Construct the info used to export the check code from the HPKE context.
+    ///
+    /// As defined in [MSC4388], this is the byte concatenation
+    /// `"{app_info}_CHECKCODE" || Gp || Sp`, where `Gp` and `Sp` are the raw
+    /// Curve25519 public keys of Device G (the recipient) and Device S (the
+    /// sender).
+    ///
+    /// [MSC4388]: https://github.com/matrix-org/matrix-spec-proposals/pull/4388
     fn check_code_info(
         &self,
         app_info: &str,
         our_public_key: Curve25519PublicKey,
         their_public_key: Curve25519PublicKey,
-    ) -> String {
-        let partial_info = format!("{app_info}_CHECKCODE");
-        self.construct_info_string(&partial_info, our_public_key, their_public_key)
+    ) -> Vec<u8> {
+        let (g_public_key, s_public_key) = match self {
+            // We are Device G. Gp = our_public_key, Sp = their_public_key.
+            Role::Recipient { .. } => (our_public_key, their_public_key),
+            // We are Device S. Gp = their_public_key, Sp = our_public_key.
+            Role::Sender { .. } => (their_public_key, our_public_key),
+        };
+
+        [
+            app_info.as_bytes(),
+            b"_CHECKCODE",
+            g_public_key.as_bytes().as_slice(),
+            s_public_key.as_bytes().as_slice(),
+        ]
+        .concat()
     }
 
     fn check_code(
@@ -169,12 +163,8 @@ impl Role {
         let info = self.check_code_info(app_info, our_public_key, their_public_key);
 
         let ret = match self {
-            Role::Sender { sender_context, .. } => {
-                sender_context.export(info.as_bytes(), &mut bytes)
-            }
-            Role::Recipient { sender_context, .. } => {
-                sender_context.export(info.as_bytes(), &mut bytes)
-            }
+            Role::Sender { sender_context, .. } => sender_context.export(&info, &mut bytes),
+            Role::Recipient { sender_context, .. } => sender_context.export(&info, &mut bytes),
         };
 
         #[allow(clippy::expect_used)]
@@ -454,13 +444,25 @@ mod tests {
             alice.role.check_code_info(app_info, our_public_key, their_public_key);
         assert_eq!(
             check_code_info1,
-            format!("foobar_CHECKCODE|{their_public_key}|{our_public_key}")
+            [
+                b"foobar_CHECKCODE".as_slice(),
+                their_public_key.as_bytes(),
+                our_public_key.as_bytes()
+            ]
+            .concat(),
+            "The sender (Device S) should use Gp = their key and Sp = our key"
         );
 
         let check_code_info2 = bob.role.check_code_info(app_info, our_public_key, their_public_key);
         assert_eq!(
             check_code_info2,
-            format!("foobar_CHECKCODE|{our_public_key}|{their_public_key}")
+            [
+                b"foobar_CHECKCODE".as_slice(),
+                our_public_key.as_bytes(),
+                their_public_key.as_bytes()
+            ]
+            .concat(),
+            "The recipient (Device G) should use Gp = our key and Sp = their key"
         );
     }
 
