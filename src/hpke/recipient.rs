@@ -14,6 +14,7 @@
 
 use cipher::{Array, common::Generate};
 use hpke::{Deserializable as _, Serializable, aead::AeadCtxR, kem::X25519HkdfSha256};
+use rand_core::CryptoRng;
 
 use crate::{
     Curve25519PublicKey,
@@ -64,8 +65,14 @@ impl HpkeRecipientChannel {
     /// this for a different purpose, consider using the
     /// [`HpkeRecipientChannel::with_info()`] method.
     #[allow(clippy::new_without_default)]
+    #[cfg(feature = "getrandom")]
     pub fn new() -> Self {
         Self::with_info(MATRIX_QR_LOGIN_INFO_PREFIX)
+    }
+
+    /// Create a new, random unestablished HPKE session, using provided RNG.
+    pub fn new_with_rng<R: CryptoRng>(rng: &mut R) -> Self {
+        Self::with_info_and_rng(MATRIX_QR_LOGIN_INFO_PREFIX, rng)
     }
 
     /// Create a new, random, unestablished HPKE channel with the given
@@ -73,8 +80,15 @@ impl HpkeRecipientChannel {
     ///
     /// The application info will be used to derive the various secrets and
     /// provide domain separation.
+    #[cfg(feature = "getrandom")]
     pub fn with_info(info: &str) -> Self {
-        let (secret_key, public_key) = <X25519HkdfSha256 as hpke::Kem>::gen_keypair();
+        Self::with_info_and_rng(info, &mut crate::utilities::rng())
+    }
+
+    /// Create a new, random, unestablished HPKE channel with the given
+    /// application info and provided RNG.
+    pub fn with_info_and_rng<R: CryptoRng>(info: &str, rng: &mut R) -> Self {
+        let (secret_key, public_key) = <X25519HkdfSha256 as hpke::Kem>::gen_keypair_with_rng(rng);
         let public_key = convert_public_key(public_key);
 
         Self { secret_key, public_key, application_info_prefix: info.to_owned() }
@@ -174,10 +188,22 @@ impl UnidirectionalRecipientChannel {
     ///
     /// If the additional associated data is too big, it has to be shorter than
     /// 2^64 bytes.
+    #[cfg(feature = "getrandom")]
     pub fn establish_bidirectional_channel(
         self,
         plaintext: &[u8],
         aad: &[u8],
+    ) -> BidirectionalCreationResult<InitialResponse> {
+        self.establish_bidirectional_channel_with_rng(plaintext, aad, &mut crate::utilities::rng())
+    }
+
+    /// Seal the given plaintext using the associated data and this
+    /// [`UnidirectionalRecipientChannel`] using provided RNG.
+    pub fn establish_bidirectional_channel_with_rng<R: CryptoRng>(
+        self,
+        plaintext: &[u8],
+        aad: &[u8],
+        rng: &mut R,
     ) -> BidirectionalCreationResult<InitialResponse> {
         let Self(UnidirectionalHkpeChannel {
             sender_context,
@@ -192,7 +218,7 @@ impl UnidirectionalRecipientChannel {
         //
         // [MSC4388]: https://github.com/matrix-org/matrix-spec-proposals/pull/4388
         // [RFC9458]: https://datatracker.ietf.org/doc/html/rfc9458
-        let base_response_nonce = Array::<u8, AeadKeySize>::generate();
+        let base_response_nonce = Array::<u8, AeadKeySize>::generate_from_rng(rng);
 
         let mut response_context = sender_context.create_response_context(
             &application_info_prefix,

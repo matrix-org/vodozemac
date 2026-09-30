@@ -52,6 +52,7 @@ use aes::cipher::{
 };
 use hmac::{KeyInit as _, Mac as _, digest::MacError};
 use matrix_pickle::{Decode, Encode};
+use rand_core::CryptoRng;
 use thiserror::Error;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -145,8 +146,18 @@ impl PkDecryption {
     /// This contains a fresh [`Curve25519SecretKey`] which is used as a
     /// long-term key to derive individual message keys and effectively serves
     /// as the decryption secret.
+    #[cfg(feature = "getrandom")]
     pub fn new() -> Self {
-        let secret_key = Curve25519SecretKey::new();
+        Self::new_with_rng(&mut crate::utilities::rng())
+    }
+
+    /// Create a new random [`PkDecryption`] object using the given RNG.
+    ///
+    /// This contains a fresh [`Curve25519SecretKey`] which is used as a
+    /// long-term key to derive individual message keys and effectively serves
+    /// as the decryption secret.
+    pub fn new_with_rng<R: CryptoRng>(rng: &mut R) -> Self {
+        let secret_key = Curve25519SecretKey::new_with_rng(rng);
         let public_key = Curve25519PublicKey::from(&secret_key);
 
         Self { secret_key, public_key }
@@ -254,6 +265,7 @@ impl PkDecryption {
     }
 }
 
+#[cfg(feature = "getrandom")]
 impl Default for PkDecryption {
     fn default() -> Self {
         Self::new()
@@ -306,10 +318,19 @@ impl PkEncryption {
     pub const fn from_key(public_key: Curve25519PublicKey) -> Self {
         Self { public_key }
     }
+    /// Encrypt a message using this [`PkEncryption`] object.
+    #[cfg(feature = "getrandom")]
+    pub fn encrypt(&self, message: &[u8]) -> Result<Message, Error> {
+        self.encrypt_with_rng(message, &mut crate::utilities::rng())
+    }
 
     /// Encrypt a message using this [`PkEncryption`] object.
-    pub fn encrypt(&self, message: &[u8]) -> Result<Message, Error> {
-        let ephemeral_key = Curve25519SecretKey::new();
+    pub fn encrypt_with_rng<R: CryptoRng>(
+        &self,
+        message: &[u8],
+        rng: &mut R,
+    ) -> Result<Message, Error> {
+        let ephemeral_key = Curve25519SecretKey::new_with_rng(rng);
         let shared_secret =
             ephemeral_key.diffie_hellman(&self.public_key).ok_or(Error::NonContributoryKey)?;
 

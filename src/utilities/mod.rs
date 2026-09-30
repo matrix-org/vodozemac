@@ -30,6 +30,12 @@ const STANDARD_NO_PAD: GeneralPurpose = GeneralPurpose::new(
         .with_decode_padding_mode(base64::engine::DecodePaddingMode::Indifferent),
 );
 
+/// Returns a random number generator that uses the system's entropy source.
+#[cfg(feature = "getrandom")]
+pub fn rng() -> impl rand_core::CryptoRng {
+    rand_core::UnwrapErr(rand::rngs::SysRng)
+}
+
 /// Decode the input as base64 with no padding.
 pub fn base64_decode(input: impl AsRef<[u8]>) -> Result<Vec<u8>, DecodeError> {
     STANDARD_NO_PAD.decode(input)
