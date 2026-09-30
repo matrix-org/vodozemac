@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased] - ReleaseDate
 
+## [0.11.1] - 2026-09-30
+
 ### Bug fixes
 
 - Fixed the HPKE check code derivation to match MSC4388. The exporter info is
