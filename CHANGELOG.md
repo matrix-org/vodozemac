@@ -6,12 +6,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased] - ReleaseDate
 
-- The minimally supported Rust version was bumped to 1.96.0
+- The minimally supported Rust version was bumped to 1.96.0.
   ([#424](https://github.com/matrix-org/vodozemac/pull/424))
+
+## [0.11.1] - 2026-09-30
+
+### Bug fixes
+
 - Fixed the HPKE check code derivation to match MSC4388. The exporter info is
   now the byte concatenation `"MATRIX_QR_CODE_LOGIN_CHECKCODE" || Gp || Sp`
   using the raw public keys, instead of `|`-separated base64-encoded keys. Check
   codes are not compatible with those produced by vodozemac 0.11.0.
+  ([#425](https://github.com/matrix-org/vodozemac/pull/425))
 
 ## [0.11.0] - 2026-09-11
 
