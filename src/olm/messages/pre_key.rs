@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::fmt::Debug;
+use std::{fmt::Debug, str::FromStr};
 
 use prost::Message as ProstMessage;
 use serde::{Deserialize, Serialize};
@@ -133,7 +133,7 @@ impl PreKeyMessage {
     /// The string needs to be a base64 encoded byte array that follows the
     /// format described in the [`PreKeyMessage::to_bytes()`] method.
     pub fn from_base64(message: &str) -> Result<Self, DecodeError> {
-        Self::try_from(message)
+        Self::from_str(message)
     }
 
     /// Encode the [`PreKeyMessage`] as a string.
@@ -172,10 +172,10 @@ impl<'de> Deserialize<'de> for PreKeyMessage {
     }
 }
 
-impl TryFrom<&str> for PreKeyMessage {
-    type Error = DecodeError;
+impl FromStr for PreKeyMessage {
+    type Err = DecodeError;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
         let decoded = base64_decode(value)?;
 
         Self::try_from(decoded)

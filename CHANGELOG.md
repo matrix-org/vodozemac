@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased] - ReleaseDate
 
+### Features
+
+- **BREAKING** The `TryFrom<&str>` implementations for `olm::Message`,
+  `PreKeyMessage`, `MegolmMessage`, `SessionKey`, and `ExportedSessionKey` have
+  been changed to `FromStr` implementations.
+  ([#433](https://github.com/matrix-org/vodozemac/pull/433))
 - The minimally supported Rust version was bumped to 1.96.0.
   ([#424](https://github.com/matrix-org/vodozemac/pull/424))
 
