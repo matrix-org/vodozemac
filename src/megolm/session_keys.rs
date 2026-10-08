@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::{Cursor, Read};
+use std::{
+    io::{Cursor, Read},
+    str::FromStr,
+};
 
 use base64ct::Encoding;
 use serde::{Deserialize, Serialize};
@@ -155,10 +158,10 @@ impl TryFrom<&[u8]> for ExportedSessionKey {
     }
 }
 
-impl TryFrom<&str> for ExportedSessionKey {
-    type Error = SessionKeyDecodeError;
+impl FromStr for ExportedSessionKey {
+    type Err = SessionKeyDecodeError;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
         Self::from_base64(value)
     }
 }
@@ -305,10 +308,10 @@ impl TryFrom<&[u8]> for SessionKey {
     }
 }
 
-impl TryFrom<&str> for SessionKey {
-    type Error = SessionKeyDecodeError;
+impl FromStr for SessionKey {
+    type Err = SessionKeyDecodeError;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
         Self::from_base64(value)
     }
 }

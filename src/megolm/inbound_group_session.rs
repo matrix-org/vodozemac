@@ -550,7 +550,7 @@ mod test {
     use super::InboundGroupSession;
     use crate::{
         cipher::Cipher,
-        megolm::{GroupSession, SessionConfig, SessionKey, SessionOrdering},
+        megolm::{GroupSession, MegolmMessage, SessionConfig, SessionKey, SessionOrdering},
     };
 
     /// Helper function that verifies a MAC of an encrypted message depending on
@@ -688,7 +688,7 @@ mod test {
     fn verify_mac() {
         let olm_session = OlmOutboundGroupSession::new();
         let session_key = SessionKey::from_base64(&olm_session.session_key()).unwrap();
-        let message = olm_session.encrypt("Hello").as_str().try_into().unwrap();
+        let message = MegolmMessage::from_base64(olm_session.encrypt("Hello").as_str()).unwrap();
 
         let mut session = InboundGroupSession::new(&session_key, SessionConfig::version_1());
         let ratchet = session.find_ratchet(0).unwrap();

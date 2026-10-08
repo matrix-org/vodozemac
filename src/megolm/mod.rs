@@ -129,7 +129,7 @@ mod test {
         let mut session = InboundGroupSession::new(&session_key, SessionConfig::version_1());
 
         let plaintext = "Hello";
-        let message = olm_session.encrypt(plaintext).as_str().try_into()?;
+        let message = MegolmMessage::from_base64(olm_session.encrypt(plaintext).as_str())?;
 
         let decrypted = session.decrypt(&message)?;
 
@@ -137,7 +137,7 @@ mod test {
         assert_eq!(decrypted.message_index, 0);
 
         let plaintext = "Another secret";
-        let message = olm_session.encrypt(plaintext).as_str().try_into()?;
+        let message = MegolmMessage::from_base64(olm_session.encrypt(plaintext).as_str())?;
 
         let decrypted = session.decrypt(&message)?;
 
@@ -145,7 +145,8 @@ mod test {
         assert_eq!(decrypted.message_index, 1);
 
         let third_plaintext = "And another secret";
-        let third_message = olm_session.encrypt(third_plaintext).as_str().try_into()?;
+        let third_message =
+            MegolmMessage::from_base64(olm_session.encrypt(third_plaintext).as_str())?;
         let decrypted = session.decrypt(&third_message)?;
 
         assert_eq!(decrypted.plaintext, third_plaintext.as_bytes());
@@ -157,7 +158,7 @@ mod test {
             olm_session.encrypt(plaintext);
         }
 
-        let message = olm_session.encrypt(plaintext).as_str().try_into()?;
+        let message = MegolmMessage::from_base64(olm_session.encrypt(plaintext).as_str())?;
         let decrypted = session.decrypt(&message)?;
 
         assert_eq!(decrypted.plaintext, plaintext.as_bytes());
