@@ -99,3 +99,7 @@ harness = false
 [[bench]]
 name = "megolm_benchmark"
 harness = false
+
+[[test]]
+name = "with_rng"
+required-features = ["getrandom"]

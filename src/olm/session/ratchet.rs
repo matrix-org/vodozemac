@@ -151,6 +151,7 @@ impl Ratchet {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod test {
     use super::RatchetKey;
     use crate::{Curve25519SecretKey, olm::RatchetPublicKey};

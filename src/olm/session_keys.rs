@@ -67,6 +67,7 @@ impl std::fmt::Debug for SessionKeys {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod test {
     use insta::assert_debug_snapshot;
 

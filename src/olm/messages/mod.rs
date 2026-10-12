@@ -150,6 +150,7 @@ impl From<MessageType> for usize {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod tests {
     use std::assert_matches;
 

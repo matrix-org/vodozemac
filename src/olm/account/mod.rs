@@ -1110,6 +1110,7 @@ mod dehydrated_device {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod test {
     use std::assert_matches;
 

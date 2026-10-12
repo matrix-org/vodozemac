@@ -387,6 +387,7 @@ impl Debug for RatchetCount {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod test {
     use strass::assert_let;
 

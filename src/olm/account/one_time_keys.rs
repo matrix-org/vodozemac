@@ -129,6 +129,7 @@ impl OneTimeKeys {
         &self.private_keys
     }
 
+    #[allow(dead_code)]
     #[cfg(any(test, feature = "libolm-compat"))]
     pub(crate) fn is_secret_key_published(&self, key_id: &KeyId) -> bool {
         !self.unpublished_public_keys.contains_key(key_id)
@@ -193,6 +194,7 @@ impl From<OneTimeKeys> for OneTimeKeysPickle {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod test {
     use super::OneTimeKeys;
     use crate::types::KeyId;

@@ -433,6 +433,7 @@ impl EstablishedSas {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod test {
     use insta::assert_debug_snapshot;
     use olm_rs::sas::OlmSas;

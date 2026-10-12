@@ -8,11 +8,6 @@ All notable changes to this project will be documented in this file.
 
 - The minimally supported Rust version was bumped to 1.96.0
   ([#424](https://github.com/matrix-org/vodozemac/pull/424))
-
-## [0.11.0] - 2026-09-11
-
-### Features
-
 - Add additive `*_with_rng` variants to every key-generation entry point
   (`Account::new`, `Account::generate_one_time_keys`,
   `Account::generate_fallback_key`, `Account::create_inbound_session`,
@@ -28,6 +23,11 @@ All notable changes to this project will be documented in this file.
   for deterministic testing, reproducible builds and custom/hardware entropy
   sources. The existing methods now use `OsRng` instead of the thread-local RNG.
   ([#379](https://github.com/matrix-org/vodozemac/pull/379))
+
+## [0.11.0] - 2026-09-11
+
+### Features
+
 - **BREAKING** Bumped the minimal supported Rust version to 1.89 as the AES
   crate requires this Rust version.
   ([#399](https://github.com/matrix-org/vodozemac/pull/399))

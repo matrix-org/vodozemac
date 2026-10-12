@@ -539,6 +539,7 @@ impl From<Ed25519KeypairPickle> for Ed25519Keypair {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod tests {
     use std::assert_matches;
 

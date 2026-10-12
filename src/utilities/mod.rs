@@ -115,6 +115,7 @@ pub(crate) fn encode_protobuf_message(message: impl Message, message_version: u8
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod test {
     use super::*;
 

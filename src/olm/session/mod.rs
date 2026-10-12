@@ -126,6 +126,7 @@ impl ChainStore {
     }
 
     #[cfg(test)]
+    #[cfg(feature = "getrandom")]
     pub(crate) const fn len(&self) -> usize {
         self.inner.len()
     }
@@ -726,6 +727,7 @@ impl From<SessionPickle> for Session {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod test {
     use std::assert_matches;
 

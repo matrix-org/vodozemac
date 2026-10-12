@@ -111,6 +111,7 @@ impl FallbackKeys {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod test {
     use super::FallbackKeys;
 

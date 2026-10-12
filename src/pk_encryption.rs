@@ -367,6 +367,7 @@ impl From<Curve25519PublicKey> for PkEncryption {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod tests {
     use olm_rs::pk::{OlmPkDecryption, OlmPkEncryption, PkMessage};
 

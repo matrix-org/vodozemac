@@ -160,6 +160,7 @@ impl Ratchet {
     }
 
     #[cfg(test)]
+    #[cfg(feature = "getrandom")]
     pub(super) const fn ratchet_bytes_pointer(&self) -> *const [u8; 128] {
         &*self.inner.0
     }
@@ -259,6 +260,7 @@ enum RatchetBytesError {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod tests {
     use super::*;
 

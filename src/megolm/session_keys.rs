@@ -342,6 +342,7 @@ impl<'de> Deserialize<'de> for SessionKey {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod test {
     use crate::megolm::{ExportedSessionKey, GroupSession, InboundGroupSession, SessionKey};
 

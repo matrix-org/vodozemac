@@ -239,6 +239,7 @@ impl From<GroupSessionPickle> for GroupSession {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod test {
     use crate::megolm::{GroupSession, SessionConfig};
 

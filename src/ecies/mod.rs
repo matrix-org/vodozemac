@@ -563,6 +563,7 @@ impl EstablishedEcies {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod test {
     use insta::assert_debug_snapshot;
     use proptest::prelude::*;

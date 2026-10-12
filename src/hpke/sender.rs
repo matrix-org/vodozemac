@@ -200,6 +200,7 @@ impl UnidirectionalSenderChannel {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod tests {
     use insta::assert_debug_snapshot;
 

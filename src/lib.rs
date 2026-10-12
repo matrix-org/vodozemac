@@ -344,6 +344,7 @@ pub enum DecodeError {
 pub static VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 fn corpus_data_path(fuzz_target: &str) -> std::path::PathBuf {
     let manifest_dir =
         std::env::var("CARGO_MANIFEST_DIR").expect("Cargo always sets the manifest dir");
@@ -357,6 +358,7 @@ fn corpus_data_path(fuzz_target: &str) -> std::path::PathBuf {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 fn run_corpus<F>(fuzz_target: &str, method: F)
 where
     F: FnOnce(&[u8]) + Copy,

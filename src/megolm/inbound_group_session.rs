@@ -544,6 +544,7 @@ impl From<&GroupSession> for InboundGroupSession {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod test {
     use olm_rs::outbound_group_session::OlmOutboundGroupSession;
 

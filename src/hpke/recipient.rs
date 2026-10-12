@@ -248,6 +248,7 @@ impl UnidirectionalRecipientChannel {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod tests {
     use hpke::Kem as _;
     use insta::assert_debug_snapshot;

@@ -265,6 +265,7 @@ impl From<Curve25519Keypair> for Curve25519KeypairPickle {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod tests {
     use std::assert_matches;
 
