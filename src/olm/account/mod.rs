@@ -218,10 +218,44 @@ impl Account {
 
     /// Try to find a [`Curve25519SecretKey`] that forms a pair with the given
     /// [`Curve25519PublicKey`].
-    fn find_one_time_key(&self, public_key: &Curve25519PublicKey) -> Option<&Curve25519SecretKey> {
+    fn find_one_time_key_impl(
+        &self,
+        public_key: &Curve25519PublicKey,
+    ) -> Option<&Curve25519SecretKey> {
         self.one_time_keys
             .get_secret_key(public_key)
             .or_else(|| self.fallback_keys.get_secret_key(public_key))
+    }
+
+    /// hazmat: the secret half of the account's long-term Curve25519 identity
+    /// key, for a caller-run handshake that agrees keys with the same identity
+    /// Olm's 3DH uses (a Noise handshake, a hybrid post-quantum KEM) and then
+    /// feeds the result to [`Session::from_root_key_material`] or
+    /// [`Session::from_root_key_material_inbound`]. Never expose or persist
+    /// it outside such a derivation.
+    #[cfg(feature = "low-level-api")]
+    pub const fn curve25519_secret_key(&self) -> &Curve25519SecretKey {
+        self.diffie_hellman_key.secret_key()
+    }
+
+    /// hazmat: find the secret half of one of the account's one-time keys,
+    /// or of its current or previous fallback key, by its public key, for the
+    /// responder of a caller-run handshake (see
+    /// [`Account::curve25519_secret_key`]).
+    ///
+    /// Every one-time key the account holds is searched, whether or not it
+    /// has been marked as published yet. Returns `None` if the account holds
+    /// no such key.
+    ///
+    /// The key stays in the account: a one-time key the handshake has used up
+    /// is removed with [`Account::remove_one_time_key`] afterwards, as
+    /// [`Account::create_inbound_session`] does itself.
+    #[cfg(feature = "low-level-api")]
+    pub fn find_one_time_key(
+        &self,
+        public_key: &Curve25519PublicKey,
+    ) -> Option<&Curve25519SecretKey> {
+        self.find_one_time_key_impl(public_key)
     }
 
     /// Remove a one-time key that has previously been published but not yet
@@ -283,7 +317,7 @@ impl Account {
             // was used to create the session that encrypted it.
             let public_otk = pre_key_message.one_time_key();
             let private_otk = self
-                .find_one_time_key(&public_otk)
+                .find_one_time_key_impl(&public_otk)
                 .ok_or(SessionCreationError::MissingOneTimeKey(public_otk))?;
 
             // Construct a 3DH shared secret from the various curve25519 keys.
@@ -1037,7 +1071,7 @@ mod test {
             .copied()
             .expect("Should have an unpublished one-time key");
         let secret_key_bytes = alice
-            .find_one_time_key(&public_key)
+            .find_one_time_key_impl(&public_key)
             .expect("Should find secret key for public one-time key")
             .to_bytes();
         let removed_key_bytes = alice
