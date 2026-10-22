@@ -14,6 +14,15 @@ All notable changes to this project will be documented in this file.
   ([#433](https://github.com/matrix-org/vodozemac/pull/433))
 - The minimally supported Rust version was bumped to 1.96.0.
   ([#424](https://github.com/matrix-org/vodozemac/pull/424))
+- Add `Session::from_root_key_material_inbound()`, behind the `low-level-api`
+  feature, the receiving counterpart of `Session::from_root_key_material()`. It
+  builds the session that decrypts the first messages of a sender whose root
+  and chain keys were derived outside of Olm.
+  ([#442](https://github.com/matrix-org/vodozemac/pull/442))
+- Add `Account::curve25519_secret_key()` and `Account::find_one_time_key()`,
+  behind the `low-level-api` feature, so that a handshake run outside of Olm can
+  use the account's identity key and its one-time or fallback keys.
+  ([#442](https://github.com/matrix-org/vodozemac/pull/442))
 
 ## [0.11.2] - 2026-11-05
 
