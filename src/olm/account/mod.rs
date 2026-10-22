@@ -224,6 +224,31 @@ impl Account {
             .or_else(|| self.fallback_keys.get_secret_key(public_key))
     }
 
+    /// hazmat: the secret half of the account's long-term Curve25519 identity
+    /// key, for a caller-run handshake that agrees keys with the same identity
+    /// Olm's 3DH uses (a Noise handshake, a hybrid post-quantum KEM) and then
+    /// feeds the result to [`Session::from_root_key_material`] or
+    /// [`Session::from_root_key_material_inbound`]. Never expose or persist
+    /// it outside such a derivation.
+    #[cfg(feature = "low-level-api")]
+    pub const fn curve25519_secret_key(&self) -> &Curve25519SecretKey {
+        self.diffie_hellman_key.secret_key()
+    }
+
+    /// hazmat: the secret half of a published one-time key or of the current
+    /// or previous fallback key, found by its public key, for the responder
+    /// of a caller-run handshake (see [`Account::curve25519_secret_key`]). The
+    /// key stays in the account: a one-time key the handshake has used up is
+    /// removed with [`Account::remove_one_time_key`] afterwards, as
+    /// [`Account::create_inbound_session`] does itself.
+    #[cfg(feature = "low-level-api")]
+    pub fn one_time_key_secret(
+        &self,
+        public_key: &Curve25519PublicKey,
+    ) -> Option<&Curve25519SecretKey> {
+        self.find_one_time_key(public_key)
+    }
+
     /// Remove a one-time key that has previously been published but not yet
     /// used.
     ///
