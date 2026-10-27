@@ -1482,6 +1482,45 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "low-level-api")]
+    fn secret_keys_for_a_caller_run_handshake() {
+        use crate::Curve25519PublicKey;
+
+        let mut account = Account::new();
+        assert_eq!(
+            Curve25519PublicKey::from(account.curve25519_secret_key()),
+            account.curve25519_key()
+        );
+
+        account.generate_one_time_keys(2);
+        let fallback_key = account.generate_fallback_key();
+        assert!(fallback_key.is_none(), "the first fallback key replaces none");
+        let mut keys: Vec<_> = account.one_time_keys().into_values().collect();
+        keys.extend(account.fallback_key().into_values());
+        assert_eq!(keys.len(), 3);
+
+        // Keys are found whether or not they have been published yet.
+        for public_key in &keys {
+            let secret_key = account.find_one_time_key(public_key).expect("an unpublished key");
+            assert_eq!(Curve25519PublicKey::from(secret_key), *public_key);
+        }
+        account.mark_keys_as_published();
+        for public_key in &keys {
+            let secret_key = account.find_one_time_key(public_key).expect("a published key");
+            assert_eq!(Curve25519PublicKey::from(secret_key), *public_key);
+        }
+
+        // The previous fallback key still answers once a new one replaces it.
+        let previous = *keys.last().unwrap();
+        account.generate_fallback_key();
+        let secret_key = account.find_one_time_key(&previous).expect("the previous fallback key");
+        assert_eq!(Curve25519PublicKey::from(secret_key), previous);
+
+        // A key the account never made has no secret here.
+        assert!(account.find_one_time_key(&Account::new().curve25519_key()).is_none());
+    }
+
+    #[test]
     fn invalid_session_creation_does_not_remove_otk() -> Result<()> {
         let mut alice = Account::new();
         let malory = Account::new();
