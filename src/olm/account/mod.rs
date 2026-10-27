@@ -224,6 +224,31 @@ impl Account {
             .or_else(|| self.fallback_keys.get_secret_key(public_key))
     }
 
+    /// hazmat: the secret half of the account's long-term Curve25519 identity
+    /// key, for a caller-run handshake that agrees keys with the same identity
+    /// Olm's 3DH uses (a Noise handshake, a hybrid post-quantum KEM) and then
+    /// feeds the result to [`Session::from_root_key_material`] or
+    /// [`Session::from_root_key_material_inbound`]. Never expose or persist
+    /// it outside such a derivation.
+    #[cfg(feature = "low-level-api")]
+    pub const fn curve25519_secret_key(&self) -> &Curve25519SecretKey {
+        self.diffie_hellman_key.secret_key()
+    }
+
+    /// hazmat: the secret half of a published one-time key or of the current
+    /// or previous fallback key, found by its public key, for the responder
+    /// of a caller-run handshake (see [`Account::curve25519_secret_key`]). The
+    /// key stays in the account: a one-time key the handshake has used up is
+    /// removed with [`Account::remove_one_time_key`] afterwards, as
+    /// [`Account::create_inbound_session`] does itself.
+    #[cfg(feature = "low-level-api")]
+    pub fn one_time_key_secret(
+        &self,
+        public_key: &Curve25519PublicKey,
+    ) -> Option<&Curve25519SecretKey> {
+        self.find_one_time_key(public_key)
+    }
+
     /// Remove a one-time key that has previously been published but not yet
     /// used.
     ///
@@ -1446,6 +1471,39 @@ mod test {
         account_with_expanded_key.sign("You met with a terrible fate, haven’t you?".as_bytes());
 
         Ok(())
+    }
+
+    #[test]
+    #[cfg(feature = "low-level-api")]
+    fn secret_keys_for_a_caller_run_handshake() {
+        use crate::Curve25519PublicKey;
+
+        let mut account = Account::new();
+        assert_eq!(
+            Curve25519PublicKey::from(account.curve25519_secret_key()),
+            account.curve25519_key()
+        );
+
+        account.generate_one_time_keys(2);
+        let fallback_key = account.generate_fallback_key();
+        assert!(fallback_key.is_none(), "the first fallback key replaces none");
+        let mut published: Vec<_> = account.one_time_keys().into_values().collect();
+        published.extend(account.fallback_key().into_values());
+        assert_eq!(published.len(), 3);
+        for public_key in published {
+            let secret_key =
+                account.one_time_key_secret(&public_key).expect("a published key's secret");
+            assert_eq!(Curve25519PublicKey::from(secret_key), public_key);
+        }
+
+        // The previous fallback key still answers once a new one replaces it.
+        let previous = *account.fallback_key().values().next().unwrap();
+        account.generate_fallback_key();
+        let secret_key = account.one_time_key_secret(&previous).expect("the previous fallback key");
+        assert_eq!(Curve25519PublicKey::from(secret_key), previous);
+
+        // A key the account never made has no secret here.
+        assert!(account.one_time_key_secret(&Account::new().curve25519_key()).is_none());
     }
 
     #[test]
