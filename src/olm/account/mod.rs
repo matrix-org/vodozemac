@@ -1474,6 +1474,39 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "low-level-api")]
+    fn secret_keys_for_a_caller_run_handshake() {
+        use crate::Curve25519PublicKey;
+
+        let mut account = Account::new();
+        assert_eq!(
+            Curve25519PublicKey::from(account.curve25519_secret_key()),
+            account.curve25519_key()
+        );
+
+        account.generate_one_time_keys(2);
+        let fallback_key = account.generate_fallback_key();
+        assert!(fallback_key.is_none(), "the first fallback key replaces none");
+        let mut published: Vec<_> = account.one_time_keys().into_values().collect();
+        published.extend(account.fallback_key().into_values());
+        assert_eq!(published.len(), 3);
+        for public_key in published {
+            let secret_key =
+                account.one_time_key_secret(&public_key).expect("a published key's secret");
+            assert_eq!(Curve25519PublicKey::from(secret_key), public_key);
+        }
+
+        // The previous fallback key still answers once a new one replaces it.
+        let previous = *account.fallback_key().values().next().unwrap();
+        account.generate_fallback_key();
+        let secret_key = account.one_time_key_secret(&previous).expect("the previous fallback key");
+        assert_eq!(Curve25519PublicKey::from(secret_key), previous);
+
+        // A key the account never made has no secret here.
+        assert!(account.one_time_key_secret(&Account::new().curve25519_key()).is_none());
+    }
+
+    #[test]
     fn invalid_session_creation_does_not_remove_otk() -> Result<()> {
         let mut alice = Account::new();
         let malory = Account::new();
