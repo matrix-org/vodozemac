@@ -22,7 +22,7 @@ jobs:
         persist-credentials: false
 
     - name: Install rust
-      uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de
+      uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8
       with:
         toolchain: nightly
         components: rustfmt
@@ -41,7 +41,7 @@ jobs:
         persist-credentials: false
 
     - name: Check the spelling of the files in our repo
-      uses: crate-ci/typos@d43b6c087ac471e2ea7b8af622ff15f05c0c365b
+      uses: crate-ci/typos@7f9d0819ca1c008ade73f4b41fa9d258d48f605b
 
   clippy:
     name: Run clippy
@@ -55,7 +55,7 @@ jobs:
         persist-credentials: false
 
     - name: Install rust
-      uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de
+      uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8
       with:
         toolchain: nightly
         components: clippy
@@ -80,7 +80,7 @@ jobs:
         persist-credentials: false
 
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de
+      uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8
       with:
         toolchain: stable
 
@@ -88,7 +88,7 @@ jobs:
       uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
 
     - name: Install cargo-hack
-      uses: taiki-e/install-action@d438492cf8a250514fa2d34b30bc3c0dc37c65ff # v2.87.8
+      uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
       with:
         tool: cargo-hack
 
@@ -112,7 +112,7 @@ jobs:
       matrix:
         target: [
           { "os": "ubuntu-latest",  "toolchain": "x86_64-unknown-linux-gnu", "name": "Linux GNU" },
-          { "os": "macos-15-intel", "toolchain": "x86_64-apple-darwin ",     "name": "macOS x86" },
+          { "os": "macos-15-intel", "toolchain": "x86_64-apple-darwin",     "name": "macOS x86" },
           { "os": "macos-latest",   "toolchain": "aarch64-apple-darwin",     "name": "macOS arm" },
           { "os": "windows-latest", "toolchain": "x86_64-pc-windows-msvc",   "name": "Windows MSVC" },
         ]
@@ -125,12 +125,12 @@ jobs:
           persist-credentials: false
 
       - name: Install rust
-        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8
         with:
           toolchain: ${{ format('{0}-{1}', matrix.channel, matrix.target.toolchain) }}
 
       - name: Install nextest
-        uses: taiki-e/install-action@d438492cf8a250514fa2d34b30bc3c0dc37c65ff # v2.87.8
+        uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
         with:
           tool: nextest
 
@@ -141,7 +141,7 @@ jobs:
 
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5
         with:
           use_oidc: true
           report_type: "test_results"

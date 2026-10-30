@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::fmt::Debug;
+use std::{fmt::Debug, str::FromStr};
 
 use prost::Message;
 use serde::{Deserialize, Serialize};
@@ -111,7 +111,7 @@ impl MegolmMessage {
     /// The string needs to be a base64 encoded byte array that follows the
     /// format described in the [`MegolmMessage::to_bytes()`] method.
     pub fn from_base64(message: &str) -> Result<Self, DecodeError> {
-        Self::try_from(message)
+        Self::from_str(message)
     }
 
     /// Encode the [`MegolmMessage`] as a string.
@@ -252,10 +252,10 @@ impl<'de> Deserialize<'de> for MegolmMessage {
     }
 }
 
-impl TryFrom<&str> for MegolmMessage {
-    type Error = DecodeError;
+impl FromStr for MegolmMessage {
+    type Err = DecodeError;
 
-    fn try_from(message: &str) -> Result<Self, Self::Error> {
+    fn from_str(message: &str) -> Result<Self, Self::Err> {
         let decoded = base64_decode(message)?;
 
         Self::try_from(decoded)

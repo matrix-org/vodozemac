@@ -6,7 +6,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased] - ReleaseDate
 
-- The minimally supported Rust version was bumped to 1.96.0
+### Features
+
+- **BREAKING** The `TryFrom<&str>` implementations for `olm::Message`,
+  `PreKeyMessage`, `MegolmMessage`, `SessionKey`, and `ExportedSessionKey` have
+  been changed to `FromStr` implementations.
+  ([#433](https://github.com/matrix-org/vodozemac/pull/433))
+- The minimally supported Rust version was bumped to 1.96.0.
   ([#424](https://github.com/matrix-org/vodozemac/pull/424))
 - Add additive `*_with_rng` variants to every key-generation entry point
   (`Account::new`, `Account::generate_one_time_keys`,
@@ -24,6 +30,16 @@ All notable changes to this project will be documented in this file.
   sources. The existing methods now use `OsRng` instead of the thread-local RNG.
   ([#379](https://github.com/matrix-org/vodozemac/pull/379))
 
+## [0.11.1] - 2026-09-30
+
+### Bug fixes
+
+- Fixed the HPKE check code derivation to match MSC4388. The exporter info is
+  now the byte concatenation `"MATRIX_QR_CODE_LOGIN_CHECKCODE" || Gp || Sp`
+  using the raw public keys, instead of `|`-separated base64-encoded keys. Check
+  codes are not compatible with those produced by vodozemac 0.11.0.
+  ([#425](https://github.com/matrix-org/vodozemac/pull/425))
+
 ## [0.11.0] - 2026-09-11
 
 ### Features
@@ -38,7 +54,7 @@ All notable changes to this project will be documented in this file.
 - **BREAKING** Added support for Hybrid Public Key Encryption (HPKE) to enable
   standards-based public-key encryption in Matrix. The implementation uses
   X25519 for key encapsulation (KEM) and ChaCha20-Poly1305 for authenticated
-  encryption (AEAD). This modifies the `CheckCode::to_digis()` method. The
+  encryption (AEAD). This modifies the `CheckCode::to_digit()` method. The
   method now takes an argument controlling if a leading zero is allowed in the
   resulting digits. ([#377](https://github.com/matrix-org/vodozemac/pull/377))
 - Add a new default-enabled `precomputed-tables` feature flag which controls
