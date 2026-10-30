@@ -90,6 +90,7 @@ impl CheckCode {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod tests {
     use proptest::prelude::*;
 

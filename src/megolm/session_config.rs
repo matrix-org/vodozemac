@@ -57,6 +57,7 @@ impl Default for SessionConfig {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod test {
     use crate::megolm::{SessionConfig, session_config::Version};
 

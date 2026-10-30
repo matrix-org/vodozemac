@@ -149,6 +149,7 @@ impl Message {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod test {
     use super::*;
 

@@ -56,6 +56,7 @@ mod libolm {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod test {
     use anyhow::Result;
     use olm_rs::{

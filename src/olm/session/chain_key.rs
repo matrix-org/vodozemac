@@ -127,6 +127,7 @@ impl ChainKey {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod tests {
     use super::ChainKey;
     use crate::olm::session::chain_key::RemoteChainKey;

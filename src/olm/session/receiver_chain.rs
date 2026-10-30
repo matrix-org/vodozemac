@@ -269,6 +269,7 @@ impl ReceiverChain {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod test {
     use std::assert_matches;
 

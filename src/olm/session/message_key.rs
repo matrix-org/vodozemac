@@ -167,6 +167,7 @@ impl RemoteMessageKey {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 #[cfg(feature = "low-level-api")]
 mod test {
     use super::MessageKey;

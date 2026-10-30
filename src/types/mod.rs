@@ -92,6 +92,7 @@ pub enum KeyError {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod test {
     use crate::KeyId;
 

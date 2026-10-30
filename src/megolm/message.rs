@@ -329,6 +329,7 @@ struct ProtobufMegolmMessage {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod test {
     use std::assert_matches;
     #[cfg(feature = "low-level-api")]

@@ -116,6 +116,7 @@ impl Shared3DHSecret {
 }
 
 #[cfg(test)]
+#[cfg(feature = "getrandom")]
 mod test {
     use super::{RemoteShared3DHSecret, Shared3DHSecret};
     use crate::{Curve25519PublicKey as PublicKey, types::Curve25519SecretKey as StaticSecret};
