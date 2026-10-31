@@ -263,14 +263,23 @@ impl Ed25519SecretKey {
                 base64ct::Base64::decode_vec(input)?
             };
 
-            let mut key_bytes = [0u8; 32];
-            key_bytes.copy_from_slice(&bytes);
-            let key = Self::from_slice(&key_bytes);
+            let result = if bytes.len() == ed25519_dalek::SECRET_KEY_LENGTH {
+                let mut key_bytes = [0u8; ed25519_dalek::SECRET_KEY_LENGTH];
+                key_bytes.copy_from_slice(&bytes);
+                let key = Self::from_slice(&key_bytes);
+                key_bytes.zeroize();
+
+                Ok(key)
+            } else {
+                Err(crate::KeyError::InvalidKeyLength {
+                    key_type: "Ed25519",
+                    expected_length: ed25519_dalek::SECRET_KEY_LENGTH,
+                    length: bytes.len(),
+                })
+            };
 
             bytes.zeroize();
-            key_bytes.zeroize();
-
-            Ok(key)
+            result
         }
     }
 
@@ -365,15 +374,23 @@ impl Ed25519PublicKey {
             })
         } else {
             let mut bytes = base64_decode(input)?;
-            let mut key_bytes = [0u8; 32];
+            let mut key_bytes = [0u8; Self::LENGTH];
 
-            key_bytes.copy_from_slice(&bytes);
-            let key = Self::from_slice(&key_bytes);
+            if bytes.len() == Self::LENGTH {
+                key_bytes.copy_from_slice(&bytes);
+                let key = Self::from_slice(&key_bytes);
 
-            bytes.zeroize();
-            key_bytes.zeroize();
+                bytes.zeroize();
+                key_bytes.zeroize();
 
-            key
+                key
+            } else {
+                Err(crate::KeyError::InvalidKeyLength {
+                    key_type: "Ed25519",
+                    expected_length: Self::LENGTH,
+                    length: bytes.len(),
+                })
+            }
         }
     }
 
@@ -519,6 +536,24 @@ mod tests {
     }
 
     #[test]
+    fn base_64_decoding_too_long_unpadded_secret_key_fails() {
+        let base64 = "MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTEE";
+        assert!(matches!(
+            Ed25519SecretKey::from_base64(base64),
+            Err(KeyError::InvalidKeyLength { expected_length: 32, length: 33, .. })
+        ));
+    }
+
+    #[test]
+    fn base_64_decoding_too_short_unpadded_secret_key_fails() {
+        let base64 = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
+        assert!(matches!(
+            Ed25519SecretKey::from_base64(base64),
+            Err(KeyError::InvalidKeyLength { expected_length: 32, length: 31, .. })
+        ));
+    }
+
+    #[test]
     fn base64_decoding_incorrect_num_of_bytes_fails_for_secret_key() {
         assert!(matches!(
             Ed25519SecretKey::from_base64("foo"),
@@ -553,6 +588,24 @@ mod tests {
             Ed25519PublicKey::from_base64("foo"),
             Err(KeyError::InvalidKeyLength { .. })
         );
+    }
+
+    #[test]
+    fn base_64_decoding_too_long_unpadded_public_key_fails() {
+        let base64 = "b29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb288";
+        assert_matches!(
+            Ed25519PublicKey::from_base64(base64),
+            Err(KeyError::InvalidKeyLength { expected_length: 32, length: 33, .. })
+        )
+    }
+
+    #[test]
+    fn base_64_decoding_too_short_unpadded_public_key_fails() {
+        let base64 = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
+        assert_matches!(
+            Ed25519PublicKey::from_base64(base64),
+            Err(KeyError::InvalidKeyLength { expected_length: 32, length: 31, .. })
+        )
     }
 
     #[test]
