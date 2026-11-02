@@ -50,15 +50,17 @@ impl ExpandedKeys {
     }
 
     pub(crate) fn new_helper(message_key: &[u8], info: &[u8]) -> Self {
-        let mut expanded_keys = [0u8; 80];
+        // Expand directly into the heap allocation so no copy of the keys is
+        // left behind on the stack.
+        let mut expanded_keys = Box::new([0u8; 80]);
 
         let hkdf: Hkdf<Sha256> = Hkdf::new(Some(&[0]), message_key);
 
         #[allow(clippy::expect_used)]
-        hkdf.expand(info, &mut expanded_keys)
+        hkdf.expand(info, expanded_keys.as_mut_slice())
             .expect("HKDF should be able to expand a 32 byte key into 80 bytes");
 
-        Self(Box::new(expanded_keys))
+        Self(expanded_keys)
     }
 }
 
