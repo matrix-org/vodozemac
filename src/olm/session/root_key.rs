@@ -15,7 +15,7 @@
 use hkdf::Hkdf;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use super::{
     chain_key::{ChainKey, RemoteChainKey},
@@ -53,10 +53,10 @@ fn kdf(
     root_key: &[u8; 32],
     ratchet_key: &RatchetKey,
     remote_ratchet_key: &RemoteRatchetKey,
-) -> Option<Box<[u8; 64]>> {
+) -> Option<Box<Zeroizing<[u8; 64]>>> {
     let shared_secret = ratchet_key.diffie_hellman(remote_ratchet_key)?;
     let hkdf: Hkdf<Sha256> = Hkdf::new(Some(root_key.as_ref()), shared_secret.as_bytes());
-    let mut output = Box::new([0u8; 64]);
+    let mut output = Box::new(Zeroizing::new([0u8; 64]));
 
     #[allow(clippy::expect_used)]
     hkdf.expand(ADVANCEMENT_SEED, output.as_mut_slice())
