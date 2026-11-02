@@ -394,8 +394,8 @@ impl Ed25519PublicKey {
         Ok(self.0.verify_strict(message, &signature.0)?)
     }
 
+    /// Fuzzing-only stub of verify().
     #[cfg(fuzzing)]
-    #[allow(missing_docs)]
     pub fn verify(
         &self,
         _message: &[u8],

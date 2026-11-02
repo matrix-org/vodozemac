@@ -556,9 +556,15 @@ mod libolm_compat {
 
     #[derive(Decode)]
     pub(super) struct Pickle {
-        #[allow(dead_code)]
+        #[expect(
+            dead_code,
+            reason = "part of the libolm pickle format but not needed by vodozemac"
+        )]
         version: u32,
-        #[allow(dead_code)]
+        #[expect(
+            dead_code,
+            reason = "part of the libolm pickle format but not needed by vodozemac"
+        )]
         received_message: bool,
         session_keys: SessionKeys,
         #[secret]

@@ -87,7 +87,10 @@ struct RatchetPart<'a>(&'a mut [u8]);
 
 impl RatchetPart<'_> {
     fn hash(&self, seed: &[u8; 1]) -> CtOutput<Hmac<Sha256>> {
-        #[allow(clippy::expect_used)]
+        #[expect(
+            clippy::expect_used,
+            reason = "HMAC accepts keys of any length, so creating it cannot fail"
+        )]
         let mut hmac = Hmac::<Sha256>::new_from_slice(self.0)
             .expect("We should be able to create a HMAC object from a ratchet part");
         hmac.update(seed);
@@ -109,7 +112,10 @@ struct RatchetParts<'a> {
 
 impl<'a> RatchetParts<'a> {
     fn update(&'a mut self, from: usize, to: usize) {
-        #[allow(clippy::unreachable)]
+        #[expect(
+            clippy::unreachable,
+            reason = "`Ratchet::advance` only passes indices in 0..=3; anything else is a bug"
+        )]
         let from = match from {
             0 => &self.r_0,
             1 => &self.r_1,
@@ -120,7 +126,10 @@ impl<'a> RatchetParts<'a> {
 
         let result = from.hash(ADVANCEMENT_SEEDS[to]);
 
-        #[allow(clippy::unreachable)]
+        #[expect(
+            clippy::unreachable,
+            reason = "an out-of-range `to` already panics when indexing `ADVANCEMENT_SEEDS` above"
+        )]
         let to = match to {
             0 => &mut self.r_0,
             1 => &mut self.r_1,
