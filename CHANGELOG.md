@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased] - ReleaseDate
 
+## [0.11.2] - 2026-11-05
+
 ### Bug fixes
 
 - Fix a panic in `Ed25519PublicKey::from_base64()` and
