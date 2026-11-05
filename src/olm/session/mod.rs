@@ -313,6 +313,42 @@ impl Session {
         Self { session_keys, sending_ratchet, receiving_chains: ChainStore::new(), config }
     }
 
+    /// hazmat: build the *receiving* side of a [`Session`] from raw key
+    /// material derived outside of Olm — the counterpart of
+    /// [`Session::from_root_key_material`].
+    ///
+    /// The responder of a caller-run handshake (a Noise handshake, a hybrid
+    /// post-quantum KEM) derives the same `root_key` and the sender's
+    /// `remote_chain_key`, and knows the sender's current ratchet public key
+    /// (it is carried in every Olm message, [`Message::ratchet_key`]). This
+    /// builds the session that decrypts the sender's first messages and, on
+    /// the first reply, performs the DH ratchet step — exactly what
+    /// [`Account::create_inbound_session`] does after Olm's own 3DH. No key
+    /// derivation, KDF or AEAD step is performed here; the [`SessionKeys`]
+    /// only compute the session ID and must be the ones the sender used.
+    ///
+    /// [`Account::create_inbound_session`]: crate::olm::Account::create_inbound_session
+    pub fn from_root_key_material_inbound(
+        config: SessionConfig,
+        session_keys: SessionKeys,
+        root_key: [u8; 32],
+        remote_chain_key: [u8; 32],
+        remote_ratchet_key: Curve25519PublicKey,
+    ) -> Self {
+        let remote_ratchet_key = RemoteRatchetKey::from(remote_ratchet_key);
+        let root_key = RemoteRootKey::new(Box::new(root_key));
+        let remote_chain_key = RemoteChainKey::new(Box::new(remote_chain_key));
+
+        let local_ratchet = DoubleRatchet::inactive_from_prekey_data(root_key, remote_ratchet_key);
+        let remote_ratchet =
+            ReceiverChain::new(remote_ratchet_key, remote_chain_key, RatchetCount::new());
+
+        let mut receiving_chains = ChainStore::new();
+        receiving_chains.push(remote_ratchet);
+
+        Self { session_keys, sending_ratchet: local_ratchet, receiving_chains, config }
+    }
+
     /// hazmat: read out the active sender chain's raw key material for
     /// equivalence testing. Returns `None` if there is no active sender chain.
     pub fn active_sending_state(&self) -> Option<ActiveSendingState> {
@@ -1004,5 +1040,94 @@ mod test {
         assert_eq!(state.chain_index, 0);
         let expected_ratchet_key = *Curve25519SecretKey::from_slice(&ratchet_key_secret).to_bytes();
         assert_eq!(*state.ratchet_key, expected_ratchet_key);
+    }
+
+    /// A receiver built with `from_root_key_material_inbound` from the same
+    /// root key, the sender's chain key and the sender's ratchet key
+    /// converges with a sender built with `from_root_key_material`: the first
+    /// messages decrypt, the first reply performs the DH ratchet step, later
+    /// messages flow both ways and out of order, both sides survive a pickle
+    /// round trip, and wrong material decrypts nothing.
+    #[test]
+    #[cfg(feature = "low-level-api")]
+    fn from_root_key_material_inbound_converges_with_the_sender() {
+        use crate::{Curve25519SecretKey, olm::SessionKeys};
+
+        let alice = Account::new();
+        let bob = Account::new();
+        let base_key = Curve25519SecretKey::new();
+        let session_keys = || SessionKeys {
+            identity_key: alice.curve25519_key(),
+            base_key: Curve25519PublicKey::from(&base_key),
+            one_time_key: bob.curve25519_key(),
+        };
+        // Stand-ins for what a caller-run handshake derives on both sides.
+        let (root_key, chain_key, ratchet_key_secret) = ([7u8; 32], [8u8; 32], [9u8; 32]);
+
+        let mut sender = Session::from_root_key_material(
+            SessionConfig::version_1(),
+            session_keys(),
+            root_key,
+            chain_key,
+            ratchet_key_secret,
+        );
+        let ratchet_key =
+            Curve25519PublicKey::from(&Curve25519SecretKey::from_slice(&ratchet_key_secret));
+        let mut receiver = Session::from_root_key_material_inbound(
+            SessionConfig::version_1(),
+            session_keys(),
+            root_key,
+            chain_key,
+            ratchet_key,
+        );
+        assert_eq!(sender.session_id(), receiver.session_id(), "one session id on both sides");
+
+        let first = sender.encrypt("one").unwrap();
+        // The responder can take the ratchet key from the message itself.
+        let messages::OlmMessage::PreKey(pre_key) = &first else {
+            panic!("a fresh sender sends pre-key messages");
+        };
+        assert_eq!(pre_key.message().ratchet_key(), ratchet_key);
+
+        assert_eq!(receiver.decrypt(&first).unwrap(), b"one");
+        assert_eq!(receiver.decrypt(&sender.encrypt("two").unwrap()).unwrap(), b"two");
+        // The first reply: a DH ratchet step on both sides.
+        assert_eq!(sender.decrypt(&receiver.encrypt("three").unwrap()).unwrap(), b"three");
+        assert_eq!(receiver.decrypt(&sender.encrypt("four").unwrap()).unwrap(), b"four");
+        assert_eq!(sender.decrypt(&receiver.encrypt("five").unwrap()).unwrap(), b"five");
+        // Out of order within a chain: the skipped message key is kept.
+        let six = sender.encrypt("six").unwrap();
+        let seven = sender.encrypt("seven").unwrap();
+        assert_eq!(receiver.decrypt(&seven).unwrap(), b"seven");
+        assert_eq!(receiver.decrypt(&six).unwrap(), b"six");
+
+        // Both sides survive a pickle round trip.
+        let mut sender = Session::from_pickle(
+            SessionPickle::from_encrypted(&sender.pickle().encrypt(&PICKLE_KEY), &PICKLE_KEY)
+                .unwrap(),
+        );
+        let mut receiver = Session::from_pickle(
+            SessionPickle::from_encrypted(&receiver.pickle().encrypt(&PICKLE_KEY), &PICKLE_KEY)
+                .unwrap(),
+        );
+        assert_eq!(sender.decrypt(&receiver.encrypt("eight").unwrap()).unwrap(), b"eight");
+        assert_eq!(receiver.decrypt(&sender.encrypt("nine").unwrap()).unwrap(), b"nine");
+
+        // Wrong material on the receiving side decrypts nothing.
+        let mut wrong = Session::from_root_key_material_inbound(
+            SessionConfig::version_1(),
+            session_keys(),
+            root_key,
+            [0u8; 32],
+            ratchet_key,
+        );
+        let mut fresh_sender = Session::from_root_key_material(
+            SessionConfig::version_1(),
+            session_keys(),
+            root_key,
+            chain_key,
+            ratchet_key_secret,
+        );
+        assert!(wrong.decrypt(&fresh_sender.encrypt("ten").unwrap()).is_err());
     }
 }
