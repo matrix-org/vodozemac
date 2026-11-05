@@ -1,6 +1,11 @@
 //! Benchmark for the common Olm operations.
 
-#![allow(clippy::expect_used, missing_docs)]
+#![expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    missing_docs,
+    reason = "benchmark setup may panic, and benchmarks are not public API"
+)]
 
 use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
 use strass::assert_let;
@@ -25,7 +30,6 @@ pub fn outbound_session_creation(c: &mut Criterion) {
         b.iter_batched(
             Account::new,
             |alice| {
-                #[allow(clippy::unwrap_used)]
                 alice
                     .create_outbound_session(SessionConfig::version_1(), identity_key, one_time_key)
                     .unwrap();
@@ -51,16 +55,12 @@ pub fn encryption(c: &mut Criterion) {
 
     bob.mark_keys_as_published();
 
-    #[allow(clippy::unwrap_used)]
     let mut session = alice
         .create_outbound_session(SessionConfig::version_1(), identity_key, one_time_key)
         .unwrap();
 
     c.bench_function("Encrypting a message", |b| {
-        b.iter(|| {
-            #[allow(clippy::unwrap_used)]
-            session.encrypt("It's a secret to everybody").unwrap()
-        });
+        b.iter(|| session.encrypt("It's a secret to everybody").unwrap());
     });
 }
 
@@ -81,12 +81,10 @@ pub fn inbound_session_creation(c: &mut Criterion) {
 
     bob.mark_keys_as_published();
 
-    #[allow(clippy::unwrap_used)]
     let mut session = alice
         .create_outbound_session(SessionConfig::version_1(), identity_key, one_time_key)
         .unwrap();
 
-    #[allow(clippy::unwrap_used)]
     let pre_key_message = session.encrypt("It's a secret to everybody").unwrap();
     assert_let!(OlmMessage::PreKey(pre_key_message) = pre_key_message);
 

@@ -184,9 +184,6 @@ mod libolm_compat {
         type Error = crate::LibolmPickleError;
 
         fn try_from(pickle: Pickle) -> Result<Self, Self::Error> {
-            // Removing the borrow doesn't work and clippy complains about
-            // this on nightly.
-            #[allow(clippy::needless_borrow)]
             let ratchet = (&pickle.ratchet).into();
             let signing_key =
                 Ed25519Keypair::from_expanded_key(&pickle.ed25519_keypair.private_key)?;

@@ -26,7 +26,13 @@ use crate::{
 /// A single-use encryption key for per-message encryption.
 ///
 /// This key is used to encrypt a single message in an Olm session.
-#[allow(unreachable_pub)]
+#[cfg_attr(
+    not(feature = "low-level-api"),
+    expect(
+        unreachable_pub,
+        reason = "only part of the public API when the `low-level-api` feature is enabled"
+    )
+)]
 pub struct MessageKey {
     key: Box<[u8; 32]>,
     ratchet_key: RatchetPublicKey,
@@ -59,13 +65,19 @@ impl Drop for RemoteMessageKey {
     }
 }
 
+#[cfg_attr(
+    not(feature = "low-level-api"),
+    expect(
+        unreachable_pub,
+        reason = "only part of the public API when the `low-level-api` feature is enabled"
+    )
+)]
 impl MessageKey {
     /// Creates a new [`MessageKey`] from the provided raw 32 bytes, along with
     /// a public ratchet key and index.
     ///
     /// The ratchet key and index will be included in the created [`Message`],
     /// allowing the message recipient to derive the same [`MessageKey`].
-    #[allow(unreachable_pub)]
     pub const fn new(key: Box<[u8; 32]>, ratchet_key: RatchetPublicKey, index: u64) -> Self {
         Self { key, ratchet_key, index }
     }
@@ -77,7 +89,6 @@ impl MessageKey {
     /// to be truncated, please take a look at the
     /// [`MessageKey::encrypt_truncated_mac()`] method instead.
     #[cfg(feature = "experimental-session-config")]
-    #[allow(unreachable_pub)]
     pub fn encrypt(self, plaintext: &[u8]) -> Message {
         let cipher = Cipher::new(&self.key);
 
@@ -96,7 +107,6 @@ impl MessageKey {
     /// This method authenticates the ciphertext with an 8-byte message
     /// authentication code (MAC). If you require the full, non-truncated
     /// MAC, refer to the [`MessageKey::encrypt()`] method.
-    #[allow(unreachable_pub)]
     pub fn encrypt_truncated_mac(self, plaintext: &[u8]) -> Message {
         let cipher = Cipher::new(&self.key);
 

@@ -26,7 +26,10 @@ const MESSAGE_KEY_SEED: &[u8; 1] = b"\x01";
 const ADVANCEMENT_SEED: &[u8; 1] = b"\x02";
 
 fn expand_chain_key(key: &[u8; 32]) -> Box<[u8; 32]> {
-    #[allow(clippy::expect_used)]
+    #[expect(
+        clippy::expect_used,
+        reason = "HMAC accepts keys of any length, so creating it cannot fail"
+    )]
     let mut mac = Hmac::<Sha256>::new_from_slice(key)
         .expect("We should be able to create a HMAC object from a 32-byte key");
     mac.update(MESSAGE_KEY_SEED);
@@ -34,7 +37,6 @@ fn expand_chain_key(key: &[u8; 32]) -> Box<[u8; 32]> {
     let mut output = mac.finalize().into_bytes();
 
     let mut key = Box::new([0u8; 32]);
-    #[allow(deprecated)]
     key.copy_from_slice(output.as_slice());
 
     output.zeroize();
@@ -43,7 +45,10 @@ fn expand_chain_key(key: &[u8; 32]) -> Box<[u8; 32]> {
 }
 
 fn advance(key: &[u8; 32]) -> CtOutput<Hmac<Sha256>> {
-    #[allow(clippy::expect_used)]
+    #[expect(
+        clippy::expect_used,
+        reason = "HMAC accepts keys of any length, so creating it cannot fail"
+    )]
     let mut mac = Hmac::<Sha256>::new_from_slice(key).expect(
         "We should be able to create a HMAC object from a 32-byte key to advance the ratchet",
     );
@@ -80,7 +85,6 @@ impl RemoteChainKey {
 
     pub(super) fn advance(&mut self) {
         let output = advance(&self.key).into_bytes();
-        #[allow(deprecated)]
         self.key.copy_from_slice(output.as_slice());
         self.index += 1;
     }
@@ -107,7 +111,6 @@ impl ChainKey {
 
     pub(super) fn advance(&mut self) {
         let output = advance(&self.key).into_bytes();
-        #[allow(deprecated)]
         self.key.copy_from_slice(output.as_slice());
         self.index += 1;
     }

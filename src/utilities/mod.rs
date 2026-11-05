@@ -60,7 +60,10 @@ pub(crate) fn unpickle<T: for<'b> serde::Deserialize<'b>>(
 pub(crate) fn pickle<T: serde::Serialize>(thing: &T, pickle_key: &[u8; 32]) -> String {
     use zeroize::Zeroize;
 
-    #[allow(clippy::expect_used)]
+    #[expect(
+        clippy::expect_used,
+        reason = "pickles are plain data with string keys, so JSON serialization cannot fail"
+    )]
     let mut json = serde_json::to_vec(&thing)
         .expect("A pickled object should always be serializable into JSON");
     let cipher = crate::cipher::Cipher::new_pickle(pickle_key);
@@ -100,7 +103,10 @@ pub(crate) fn encode_protobuf_message(message: impl Message, message_version: u8
     let mut output: Vec<u8> = vec![0u8; message.encoded_len() + 1];
     output[0] = message_version;
 
-    #[allow(clippy::expect_used)]
+    #[expect(
+        clippy::expect_used,
+        reason = "the buffer is allocated from `encoded_len()`, so encoding cannot run out of space"
+    )]
     message
         .encode(&mut output[1..].as_mut())
         .expect("We should be able to encode a message into protobuf.");

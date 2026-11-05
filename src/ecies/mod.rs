@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![allow(unused_assignments)]
-
 //! Implementation of an integrated encryption scheme.
 //!
 //! This module implements
@@ -178,7 +176,10 @@ impl Ecies {
     /// This method will use the `MATRIX_QR_CODE_LOGIN` info. If you are using
     /// this for a different purpose, consider using the [`Ecies::with_info()`]
     /// method.
-    #[allow(clippy::new_without_default)]
+    #[expect(
+        clippy::new_without_default,
+        reason = "`new()` generates fresh random keys, which a `Default` impl would hide"
+    )]
     pub fn new() -> Self {
         Self::with_info(MATRIX_QR_LOGIN_INFO_PREFIX)
     }
@@ -334,10 +335,12 @@ impl EstablishedEcies {
 
         let info = Self::get_check_code_info(info, role, our_public_key, their_public_key);
 
-        #[allow(clippy::expect_used)]
-        kdf.expand(info.as_bytes(), bytes.as_mut_slice()).expect(
-            "We should be able to expand the 32-byte long shared secret into a 32 byte key.",
-        );
+        #[expect(
+            clippy::expect_used,
+            reason = "HKDF-SHA512 can expand up to 16320 bytes and we request 2"
+        )]
+        kdf.expand(info.as_bytes(), bytes.as_mut_slice())
+            .expect("We should be able to expand the shared secret into a 2-byte check code.");
 
         CheckCode { bytes }
     }
@@ -346,7 +349,10 @@ impl EstablishedEcies {
         let mut key = Box::new([0u8; 32]);
         let kdf: Hkdf<Sha512> = Hkdf::new(None, shared_secret.as_bytes());
 
-        #[allow(clippy::expect_used)]
+        #[expect(
+            clippy::expect_used,
+            reason = "HKDF-SHA512 can expand up to 16320 bytes and we request 32"
+        )]
         kdf.expand(info.as_bytes(), key.as_mut_slice()).expect(
             "We should be able to expand the 32-byte long shared secret into a 32 byte key.",
         );
@@ -442,12 +448,18 @@ impl EstablishedEcies {
     }
 
     fn encryption_key(&self) -> &Chacha20Key {
-        #[allow(deprecated)]
+        #[expect(
+            deprecated,
+            reason = "hybrid-array deprecates `from_slice` in favour of a fallible `TryFrom`; the input here is a fixed-size array of the right length"
+        )]
         Chacha20Key::from_slice(self.encryption_key.as_slice())
     }
 
     fn decryption_key(&self) -> &Chacha20Key {
-        #[allow(deprecated)]
+        #[expect(
+            deprecated,
+            reason = "hybrid-array deprecates `from_slice` in favour of a fallible `TryFrom`; the input here is a fixed-size array of the right length"
+        )]
         Chacha20Key::from_slice(self.decryption_key.as_slice())
     }
 
@@ -456,7 +468,10 @@ impl EstablishedEcies {
         let nonce = self.encryption_nonce.get();
 
         let cipher = ChaCha20Poly1305::new(self.encryption_key());
-        #[allow(clippy::expect_used)]
+        #[expect(
+            clippy::expect_used,
+            reason = "ChaCha20-Poly1305 only rejects plaintexts larger than 256 GiB"
+        )]
         let ciphertext = cipher.encrypt(&nonce, plaintext).expect(
             "We should always be able to encrypt a message since we provide the correct nonce",
         );
@@ -614,7 +629,6 @@ mod test {
             "After the first nonce is returned, the counter should have been incremented"
         );
 
-        #[allow(deprecated)]
         let first = first.as_slice();
         assert_eq!(first, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
 
@@ -625,7 +639,6 @@ mod test {
             "After the first nonce is returned, the counter should have been incremented"
         );
 
-        #[allow(deprecated)]
         let second = second.as_slice();
         assert_eq!(second, [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     }

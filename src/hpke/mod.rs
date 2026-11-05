@@ -167,7 +167,10 @@ impl Role {
             Role::Recipient { sender_context, .. } => sender_context.export(&info, &mut bytes),
         };
 
-        #[allow(clippy::expect_used)]
+        #[expect(
+            clippy::expect_used,
+            reason = "exporting 2 bytes is well within the HPKE export limit"
+        )]
         ret.expect("We should be able to generate a check code, as it's just two bytes");
 
         CheckCode { bytes }
@@ -274,7 +277,10 @@ impl EstablishedHpkeChannel {
             Role::Recipient { response_context, .. } => response_context.seal(plaintext, aad),
         };
 
-        #[allow(clippy::expect_used)]
+        #[expect(
+            clippy::expect_used,
+            reason = "sealing only fails once the 2^64 message sequence counter overflows"
+        )]
         let ciphertext = ret.expect(
             "We should be able to seal a plaintext, unless we're overflowed the sequence counter",
         );

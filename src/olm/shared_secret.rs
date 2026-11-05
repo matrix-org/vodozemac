@@ -51,7 +51,10 @@ fn expand(shared_secret: &[u8; 96]) -> (Box<[u8; 32]>, Box<[u8; 32]>) {
 
     let mut expanded_keys = [0u8; 64];
 
-    #[allow(clippy::expect_used)]
+    #[expect(
+        clippy::expect_used,
+        reason = "HKDF-SHA256 can expand up to 8160 bytes and we request 64"
+    )]
     hkdf.expand(b"OLM_ROOT", &mut expanded_keys)
         .expect("We should be able to expand the shared 3DH secret into the Olm root");
 

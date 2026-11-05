@@ -33,20 +33,30 @@ pub(crate) type HmacSha256 = Hmac<Sha256>;
 
 /// The message authentication code of a ciphertext.
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[allow(unreachable_pub)]
+#[cfg_attr(
+    not(feature = "low-level-api"),
+    expect(
+        unreachable_pub,
+        reason = "only part of the public API when the `low-level-api` feature is enabled"
+    )
+)]
 pub struct Mac(pub(crate) [u8; Self::LENGTH]);
 
+#[cfg_attr(
+    not(feature = "low-level-api"),
+    expect(
+        unreachable_pub,
+        reason = "only part of the public API when the `low-level-api` feature is enabled"
+    )
+)]
 impl Mac {
     /// The expected length of the message authentication code (MAC).
-    #[allow(unreachable_pub)]
     pub const LENGTH: usize = 32;
     /// The expected length of the message authentication code (MAC) if
     /// truncation is applied.
-    #[allow(unreachable_pub)]
     pub const TRUNCATED_LEN: usize = 8;
 
     /// Truncates and converts the [`Mac`] into a byte array.
-    #[allow(unreachable_pub)]
     pub fn truncate(&self) -> [u8; Self::TRUNCATED_LEN] {
         let mut truncated = [0u8; Self::TRUNCATED_LEN];
         truncated.copy_from_slice(&self.0[0..Self::TRUNCATED_LEN]);
@@ -55,7 +65,6 @@ impl Mac {
     }
 
     /// Return the [`Mac`] as a byte slice.
-    #[allow(unreachable_pub)]
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_ref()
     }
@@ -99,11 +108,24 @@ pub enum DecryptionError {
 }
 
 /// A cipher used for encrypting and decrypting messages.
-#[allow(unreachable_pub)]
+#[cfg_attr(
+    not(feature = "low-level-api"),
+    expect(
+        unreachable_pub,
+        reason = "only part of the public API when the `low-level-api` feature is enabled"
+    )
+)]
 pub struct Cipher {
     keys: CipherKeys,
 }
 
+#[cfg_attr(
+    not(feature = "low-level-api"),
+    expect(
+        unreachable_pub,
+        reason = "only part of the public API when the `low-level-api` feature is enabled"
+    )
+)]
 impl Cipher {
     /// Creates a new [`Cipher`] from the given 32-byte raw key.
     ///
@@ -113,7 +135,6 @@ impl Cipher {
     ///
     /// This key derivation format is typically used for generating individual
     /// message keys in the Olm double ratchet.
-    #[allow(unreachable_pub)]
     pub fn new(key: &[u8; 32]) -> Self {
         let keys = CipherKeys::new(key);
 
@@ -129,7 +150,6 @@ impl Cipher {
     ///
     /// This key derivation format is typically used for generating individual
     /// message keys in the Megolm ratchet.
-    #[allow(unreachable_pub)]
     pub fn new_megolm(&key: &[u8; 128]) -> Self {
         let keys = CipherKeys::new_megolm(&key);
 
@@ -146,7 +166,6 @@ impl Cipher {
     ///
     /// This key derivation format is typically used for libolm-compatible
     /// encrypted pickle formats.
-    #[allow(unreachable_pub)]
     pub fn new_pickle(key: &[u8]) -> Self {
         let keys = CipherKeys::new_pickle(key);
 
@@ -158,7 +177,10 @@ impl Cipher {
         // large HMAC key while the Olm spec defines a 32-byte one instead.
         //
         // https://gitlab.matrix.org/matrix-org/olm/-/blob/master/docs/olm.md#version-1
-        #[allow(clippy::expect_used)]
+        #[expect(
+            clippy::expect_used,
+            reason = "HMAC accepts keys of any length, so creating it cannot fail"
+        )]
         HmacSha256::new_from_slice(self.keys.mac_key())
             .expect("We should be able to create a HmacSha256 from a 32 byte key")
     }
@@ -169,7 +191,6 @@ impl Cipher {
     /// **Warning**: This is a low-level function and does not provide
     /// authentication for the ciphertext. You must call [`Cipher::mac()`]
     /// separately to generate the message authentication code (MAC).
-    #[allow(unreachable_pub)]
     pub fn encrypt(&self, plaintext: &[u8]) -> Vec<u8> {
         let cipher = Aes256CbcEnc::new(self.keys.aes_key(), self.keys.iv());
         cipher.encrypt_padded_vec::<Pkcs7>(plaintext)
@@ -180,7 +201,6 @@ impl Cipher {
     /// **Warning**: This is a low-level function and must be called after the
     /// [`Cipher::encrypt`] method. The ciphertext produced by
     /// [`Cipher::encrypt`] must be passed as the argument to this method.
-    #[allow(unreachable_pub)]
     pub fn mac(&self, message: &[u8]) -> Mac {
         let mut hmac = self.get_hmac();
         hmac.update(message);
@@ -198,7 +218,6 @@ impl Cipher {
     /// **Warning**: This is a low-level function. Before calling this, you must
     /// call [`Cipher::verify_mac()`] or [`Cipher::verify_truncated_mac()`]
     /// to ensure the integrity of the ciphertext.
-    #[allow(unreachable_pub)]
     pub fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>, UnpadError> {
         let cipher = Aes256CbcDec::new(self.keys.aes_key(), self.keys.iv());
         cipher.decrypt_padded_vec::<Pkcs7>(ciphertext)
@@ -210,7 +229,6 @@ impl Cipher {
     /// **Warning**: This is a low-level function and must be called before
     /// invoking the [`Cipher::decrypt()`] method.
     #[cfg(all(not(fuzzing), feature = "experimental-session-config"))]
-    #[allow(unreachable_pub)]
     pub fn verify_mac(&self, message: &[u8], tag: &Mac) -> Result<(), MacError> {
         let mut hmac = self.get_hmac();
 
@@ -224,7 +242,6 @@ impl Cipher {
     /// **Warning**: This is a low-level function and must be called before
     /// invoking the [`Cipher::decrypt()`] method.
     #[cfg(not(fuzzing))]
-    #[allow(unreachable_pub)]
     pub fn verify_truncated_mac(&self, message: &[u8], tag: &[u8]) -> Result<(), MacError> {
         let mut hmac = self.get_hmac();
 
@@ -240,7 +257,7 @@ impl Cipher {
     ///
     /// This mode is intended only for fuzzing vodozemac, as MAC verification
     /// typically filters out many inputs early in the process.
-    #[cfg(fuzzing)]
+    #[cfg(all(fuzzing, feature = "experimental-session-config"))]
     pub fn verify_mac(&self, _: &[u8], _: &Mac) -> Result<(), MacError> {
         Ok(())
     }
@@ -265,7 +282,6 @@ impl Cipher {
     /// message authentication tag to it.
     ///
     /// This follows the encryption method used by the libolm pickle format.
-    #[allow(unreachable_pub)]
     pub fn encrypt_pickle(&self, plaintext: &[u8]) -> Vec<u8> {
         let mut ciphertext = self.encrypt(plaintext);
         let mac = self.mac(&ciphertext);
@@ -282,7 +298,6 @@ impl Cipher {
     /// MAC before decrypting the ciphertext.
     ///
     /// This follows the encryption method used by the libolm pickle format.
-    #[allow(unreachable_pub)]
     pub fn decrypt_pickle(&self, ciphertext: &[u8]) -> Result<Vec<u8>, DecryptionError> {
         if ciphertext.len() < Mac::TRUNCATED_LEN + 1 {
             Err(DecryptionError::MacMissing)

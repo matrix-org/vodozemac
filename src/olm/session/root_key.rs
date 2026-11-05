@@ -58,7 +58,10 @@ fn kdf(
     let hkdf: Hkdf<Sha256> = Hkdf::new(Some(root_key.as_ref()), shared_secret.as_bytes());
     let mut output = Box::new(Zeroizing::new([0u8; 64]));
 
-    #[allow(clippy::expect_used)]
+    #[expect(
+        clippy::expect_used,
+        reason = "HKDF-SHA256 can expand up to 8160 bytes and we request 64"
+    )]
     hkdf.expand(ADVANCEMENT_SEED, output.as_mut_slice())
         .expect("We should be able to expand the shared secret.");
 
