@@ -174,7 +174,7 @@ impl Role {
     }
 }
 
-struct UnidirectionalHkpeChannel<T> {
+struct UnidirectionalHpkeChannel<T> {
     /// The established HPKE context.
     sender_context: T,
 

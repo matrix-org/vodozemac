@@ -20,7 +20,7 @@ use crate::{
     hpke::{
         Aead, BidirectionalCreationResult, CreateResponseContext, Error, EstablishedHpkeChannel,
         InitialMessage, InitialResponse, Kdf, Kem, MATRIX_QR_LOGIN_INFO_PREFIX, RecipientContext,
-        Role, UnidirectionalHkpeChannel, response_context::AeadKeySize,
+        Role, UnidirectionalHpkeChannel, response_context::AeadKeySize,
     },
 };
 
@@ -105,7 +105,7 @@ impl HpkeRecipientChannel {
 
         let message = sender_context.open(ciphertext, aad).map_err(|_| Error::Decryption)?;
 
-        let channel = UnidirectionalRecipientChannel(UnidirectionalHkpeChannel {
+        let channel = UnidirectionalRecipientChannel(UnidirectionalHpkeChannel {
             application_info_prefix,
             sender_context,
             their_public_key,
@@ -150,7 +150,7 @@ fn convert_encapsulated_key(
 /// This channel is created when we open the initial message. It allows us to
 /// seal the initial response at which point the channel gets transformed into a
 /// fully established and bidirectional HPKE channel.
-pub struct UnidirectionalRecipientChannel(UnidirectionalHkpeChannel<AeadCtxR<Aead, Kdf, Kem>>);
+pub struct UnidirectionalRecipientChannel(UnidirectionalHpkeChannel<AeadCtxR<Aead, Kdf, Kem>>);
 
 impl std::fmt::Debug for UnidirectionalRecipientChannel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -179,7 +179,7 @@ impl UnidirectionalRecipientChannel {
         plaintext: &[u8],
         aad: &[u8],
     ) -> BidirectionalCreationResult<InitialResponse> {
-        let Self(UnidirectionalHkpeChannel {
+        let Self(UnidirectionalHpkeChannel {
             sender_context,
             their_public_key,
             our_public_key,

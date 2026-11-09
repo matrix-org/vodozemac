@@ -21,7 +21,7 @@ use crate::{
     hpke::{
         Aead, BidirectionalCreationResult, CreateResponseContext, Error, EstablishedHpkeChannel,
         InitialMessage, InitialResponse, Kdf, Kem, MATRIX_QR_LOGIN_INFO_PREFIX, Role,
-        UnidirectionalHkpeChannel,
+        UnidirectionalHpkeChannel,
     },
 };
 
@@ -87,7 +87,7 @@ impl HpkeSenderChannel {
         let encapsulated_key = convert_encapsulated_key(encapsulated_key);
         let our_public_key = encapsulated_key;
 
-        let channel = UnidirectionalSenderChannel(UnidirectionalHkpeChannel {
+        let channel = UnidirectionalSenderChannel(UnidirectionalHpkeChannel {
             sender_context: context,
             application_info_prefix,
             our_public_key,
@@ -125,7 +125,7 @@ fn convert_encapsulated_key(
 ///
 /// This channel is created when we seal the initial plaintext and we wait for
 /// the initial response. from the other side.
-pub struct UnidirectionalSenderChannel(UnidirectionalHkpeChannel<AeadCtxS<Aead, Kdf, Kem>>);
+pub struct UnidirectionalSenderChannel(UnidirectionalHpkeChannel<AeadCtxS<Aead, Kdf, Kem>>);
 
 impl std::fmt::Debug for UnidirectionalSenderChannel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -149,7 +149,7 @@ impl UnidirectionalSenderChannel {
         message: &InitialResponse,
         aad: &[u8],
     ) -> Result<BidirectionalCreationResult<Vec<u8>>, Error> {
-        let Self(UnidirectionalHkpeChannel {
+        let Self(UnidirectionalHpkeChannel {
             sender_context,
             application_info_prefix,
             our_public_key,
