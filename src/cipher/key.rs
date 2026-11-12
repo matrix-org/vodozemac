@@ -103,11 +103,7 @@ impl CipherKeys {
     }
 
     pub(crate) fn aes_key(&self) -> &Aes256Key {
-        #[expect(
-            deprecated,
-            reason = "hybrid-array deprecates `from_slice` in favour of a fallible `TryFrom`; the input here is a fixed-size array of the right length"
-        )]
-        Aes256Key::from_slice(self.aes_key.as_slice())
+        Aes256Key::cast_from_core(&self.aes_key)
     }
 
     pub(crate) const fn mac_key(&self) -> &HmacSha256Key {
@@ -115,10 +111,6 @@ impl CipherKeys {
     }
 
     pub(crate) fn iv(&self) -> &Aes256Iv {
-        #[expect(
-            deprecated,
-            reason = "hybrid-array deprecates `from_slice` in favour of a fallible `TryFrom`; the input here is a fixed-size array of the right length"
-        )]
-        Aes256Iv::from_slice(self.aes_iv.as_slice())
+        Aes256Iv::cast_from_core(&self.aes_iv)
     }
 }

@@ -448,19 +448,11 @@ impl EstablishedEcies {
     }
 
     fn encryption_key(&self) -> &Chacha20Key {
-        #[expect(
-            deprecated,
-            reason = "hybrid-array deprecates `from_slice` in favour of a fallible `TryFrom`; the input here is a fixed-size array of the right length"
-        )]
-        Chacha20Key::from_slice(self.encryption_key.as_slice())
+        Chacha20Key::cast_from_core(&self.encryption_key)
     }
 
     fn decryption_key(&self) -> &Chacha20Key {
-        #[expect(
-            deprecated,
-            reason = "hybrid-array deprecates `from_slice` in favour of a fallible `TryFrom`; the input here is a fixed-size array of the right length"
-        )]
-        Chacha20Key::from_slice(self.decryption_key.as_slice())
+        Chacha20Key::cast_from_core(&self.decryption_key)
     }
 
     /// Encrypt the given plaintext using this [`EstablishedEcies`] session.
