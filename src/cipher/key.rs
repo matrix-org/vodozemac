@@ -13,7 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[allow(deprecated)]
 use aes::{
     Aes256,
     cipher::{Array, IvSizeUser, KeySizeUser},
@@ -24,9 +23,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use super::Aes256CbcEnc;
 
-#[allow(deprecated)]
 type Aes256Key = Array<u8, <Aes256 as KeySizeUser>::KeySize>;
-#[allow(deprecated)]
 type Aes256Iv = Array<u8, <Aes256CbcEnc as IvSizeUser>::IvSize>;
 type HmacSha256Key = [u8; 32];
 
@@ -56,7 +53,10 @@ impl ExpandedKeys {
 
         let hkdf: Hkdf<Sha256> = Hkdf::new(Some(&[0]), message_key);
 
-        #[allow(clippy::expect_used)]
+        #[expect(
+            clippy::expect_used,
+            reason = "HKDF-SHA256 can expand up to 8160 bytes and we request 80"
+        )]
         hkdf.expand(info, expanded_keys.as_mut_slice())
             .expect("HKDF should be able to expand a 32 byte key into 80 bytes");
 
@@ -103,8 +103,7 @@ impl CipherKeys {
     }
 
     pub(crate) fn aes_key(&self) -> &Aes256Key {
-        #[allow(deprecated)]
-        Aes256Key::from_slice(self.aes_key.as_slice())
+        Aes256Key::cast_from_core(&self.aes_key)
     }
 
     pub(crate) const fn mac_key(&self) -> &HmacSha256Key {
@@ -112,7 +111,6 @@ impl CipherKeys {
     }
 
     pub(crate) fn iv(&self) -> &Aes256Iv {
-        #[allow(deprecated)]
-        Aes256Iv::from_slice(self.aes_iv.as_slice())
+        Aes256Iv::cast_from_core(&self.aes_iv)
     }
 }

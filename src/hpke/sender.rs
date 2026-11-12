@@ -48,7 +48,10 @@ impl HpkeSenderChannel {
     /// This method will use the `MATRIX_QR_CODE_LOGIN` info. If you are using
     /// this for a different purpose, consider using the
     /// [`HpkeSenderChannel::with_info()`] method.
-    #[allow(clippy::new_without_default)]
+    #[expect(
+        clippy::new_without_default,
+        reason = "`new()` generates fresh random keys, which a `Default` impl would hide"
+    )]
     pub fn new() -> Self {
         Self::with_info(MATRIX_QR_LOGIN_INFO_PREFIX)
     }
@@ -78,7 +81,6 @@ impl HpkeSenderChannel {
 
         let their_key = convert_public_key(their_public_key);
 
-        #[allow(clippy::expect_used)]
         let (encapsulated_key, mut context) =
             hpke::setup_sender(&OpModeS::Base, &their_key, application_info_prefix.as_bytes())?;
 
@@ -105,7 +107,7 @@ impl HpkeSenderChannel {
 fn convert_public_key(
     public_key: Curve25519PublicKey,
 ) -> <X25519HkdfSha256 as hpke::Kem>::PublicKey {
-    #[allow(clippy::expect_used)]
+    #[expect(clippy::expect_used, reason = "both types are 32-byte X25519 public keys")]
     <X25519HkdfSha256 as hpke::Kem>::PublicKey::from_bytes(public_key.as_bytes())
         .expect("Converting the Dalek public key to the HPKE public key should always work")
 }
@@ -116,7 +118,7 @@ fn convert_encapsulated_key(
     encapsulated_key: <X25519HkdfSha256 as hpke::Kem>::EncappedKey,
 ) -> Curve25519PublicKey {
     let encapsulated_key = encapsulated_key.to_bytes();
-    #[allow(clippy::expect_used)]
+    #[expect(clippy::expect_used, reason = "both types are 32-byte X25519 public keys")]
     Curve25519PublicKey::from_slice(encapsulated_key.as_slice())
         .expect("Converting from the HPKE public key to the Dalek public key should always work")
 }

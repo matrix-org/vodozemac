@@ -180,7 +180,10 @@ impl MegolmMessage {
             ciphertext,
             message_index,
             mac: Mac([0u8; Mac::LENGTH]).into(),
-            #[allow(clippy::expect_used)]
+            #[expect(
+                clippy::expect_used,
+                reason = "a zeroed slice of exactly `Ed25519Signature::LENGTH` bytes is always accepted"
+            )]
             signature: Ed25519Signature::from_slice(&[0; Ed25519Signature::LENGTH])
                 .expect("We should be able to create a signature from an empty zero slice"),
         };
@@ -201,7 +204,10 @@ impl MegolmMessage {
             ciphertext,
             message_index,
             mac: [0u8; Mac::TRUNCATED_LEN].into(),
-            #[allow(clippy::expect_used)]
+            #[expect(
+                clippy::expect_used,
+                reason = "a zeroed slice of exactly `Ed25519Signature::LENGTH` bytes is always accepted"
+            )]
             signature: Ed25519Signature::from_slice(&[0; Ed25519Signature::LENGTH])
                 .expect("We should be able to create a signature from an empty zero slice"),
         };

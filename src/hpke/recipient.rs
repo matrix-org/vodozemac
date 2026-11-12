@@ -63,7 +63,10 @@ impl HpkeRecipientChannel {
     /// This method will use the `MATRIX_QR_CODE_LOGIN` info. If you are using
     /// this for a different purpose, consider using the
     /// [`HpkeRecipientChannel::with_info()`] method.
-    #[allow(clippy::new_without_default)]
+    #[expect(
+        clippy::new_without_default,
+        reason = "`new()` generates fresh random keys, which a `Default` impl would hide"
+    )]
     pub fn new() -> Self {
         Self::with_info(MATRIX_QR_LOGIN_INFO_PREFIX)
     }
@@ -132,7 +135,6 @@ impl HpkeRecipientChannel {
 fn convert_public_key(
     public_key: <X25519HkdfSha256 as hpke::Kem>::PublicKey,
 ) -> Curve25519PublicKey {
-    #[allow(clippy::expect_used)]
     Curve25519PublicKey::from_bytes(public_key.to_bytes().0)
 }
 
@@ -140,7 +142,7 @@ fn convert_public_key(
 fn convert_encapsulated_key(
     public_key: &Curve25519PublicKey,
 ) -> <X25519HkdfSha256 as hpke::Kem>::EncappedKey {
-    #[allow(clippy::expect_used)]
+    #[expect(clippy::expect_used, reason = "both types are 32-byte X25519 public keys")]
     <X25519HkdfSha256 as hpke::Kem>::EncappedKey::from_bytes(public_key.as_bytes())
         .expect("Converting to the HPKE EncappedKey type should never fail")
 }
@@ -200,7 +202,10 @@ impl UnidirectionalRecipientChannel {
             &base_response_nonce,
         );
 
-        #[allow(clippy::expect_used)]
+        #[expect(
+            clippy::expect_used,
+            reason = "the first message sealed with a fresh context cannot overflow the sequence counter"
+        )]
         let ciphertext = response_context
             .seal(plaintext, aad)
             .expect("We should be able to seal the initial response");

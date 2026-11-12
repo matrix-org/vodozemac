@@ -1,6 +1,10 @@
 //! Benchmark for the common Megolm operations.
 
-#![allow(clippy::expect_used, missing_docs)]
+#![expect(
+    clippy::expect_used,
+    missing_docs,
+    reason = "benchmark setup may panic, and benchmarks are not public API"
+)]
 
 use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
 use vodozemac::megolm::{GroupSession, InboundGroupSession, SessionConfig};

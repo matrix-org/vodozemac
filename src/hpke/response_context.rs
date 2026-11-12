@@ -69,7 +69,10 @@ pub(super) trait CreateResponseContext {
         // prefix and append "_RESPONSE" to it.
         let info = format!("{application_info_prefix}_RESPONSE");
 
-        #[allow(clippy::expect_used)]
+        #[expect(
+            clippy::expect_used,
+            reason = "exporting 32 bytes is well within the HPKE export limit"
+        )]
         self.export(info.as_bytes(), &mut secret)
             .expect("We should be able to export 32 bytes from the HPKE export interface");
 
@@ -85,11 +88,17 @@ pub(super) trait CreateResponseContext {
         let mut aead_key = AeadKey::default();
         let mut aead_nonce = AeadNonce::default();
 
-        #[allow(clippy::expect_used)]
+        #[expect(
+            clippy::expect_used,
+            reason = "HKDF-SHA256 can expand up to 8160 bytes and we request 32"
+        )]
         hkdf.expand(b"key", aead_key.0.as_mut_slice())
             .expect("We should be able to expand the base response secret into an AEAD key");
 
-        #[allow(clippy::expect_used)]
+        #[expect(
+            clippy::expect_used,
+            reason = "HKDF-SHA256 can expand up to 8160 bytes and we request 12"
+        )]
         hkdf.expand(b"nonce", aead_nonce.0.as_mut_slice())
             .expect("We should be able to expand the base response secret into a response nonce");
 
