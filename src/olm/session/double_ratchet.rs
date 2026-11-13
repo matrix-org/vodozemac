@@ -189,6 +189,13 @@ impl DoubleRatchet {
 
         Some((Self { inner: DoubleRatchetState::Inactive(ratchet) }, receiver_chain))
     }
+
+    /// Get a borrow of the underlying [`DoubleRatchetState`] of this
+    /// [`DoubleRatchet`].
+    #[cfg(feature = "libolm-compat")]
+    pub(super) fn state(&self) -> &DoubleRatchetState {
+        &self.inner
+    }
 }
 
 impl Debug for DoubleRatchet {
@@ -205,7 +212,7 @@ impl Debug for DoubleRatchet {
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "type")]
-enum DoubleRatchetState {
+pub(super) enum DoubleRatchetState {
     Inactive(InactiveDoubleRatchet),
     Active(ActiveDoubleRatchet),
 }
@@ -227,7 +234,7 @@ impl From<ActiveDoubleRatchet> for DoubleRatchetState {
 ///
 /// See [`DoubleRatchet`] for more explanation.
 #[derive(Serialize, Deserialize, Clone)]
-struct InactiveDoubleRatchet {
+pub(super) struct InactiveDoubleRatchet {
     root_key: RemoteRootKey,
     ratchet_key: RemoteRatchetKey,
 
@@ -242,6 +249,13 @@ struct InactiveDoubleRatchet {
 }
 
 impl InactiveDoubleRatchet {
+    /// Get the [`RemoteRootKey`] which will be used to transition the
+    /// [`InactiveDoubleRatchet`] into an [`ActiveDoubleRatchet`].
+    #[cfg(feature = "libolm-compat")]
+    pub(super) fn root_key(&self) -> &RemoteRootKey {
+        &self.root_key
+    }
+
     fn activate(&self) -> Option<ActiveDoubleRatchet> {
         let (root_key, chain_key, ratchet_key) = self.root_key.advance(&self.ratchet_key)?;
         let active_ratchet = Ratchet::new_with_ratchet_key(root_key, ratchet_key);
@@ -270,7 +284,7 @@ impl Debug for InactiveDoubleRatchet {
 ///
 /// See [`DoubleRatchet`] for more explanation.
 #[derive(Serialize, Deserialize, Clone)]
-struct ActiveDoubleRatchet {
+pub(super) struct ActiveDoubleRatchet {
     /// The other side's most recent ratchet key, which was used to calculate
     /// the root key in `active_ratchet` and the chain key in
     /// `symmetric_key_ratchet`.
@@ -293,8 +307,8 @@ struct ActiveDoubleRatchet {
     #[serde(default = "RatchetCount::unknown")]
     ratchet_count: RatchetCount,
 
-    active_ratchet: Ratchet,
-    symmetric_key_ratchet: ChainKey,
+    pub(super) active_ratchet: Ratchet,
+    pub(super) symmetric_key_ratchet: ChainKey,
 }
 
 impl ActiveDoubleRatchet {
@@ -315,7 +329,7 @@ impl ActiveDoubleRatchet {
         Some((ratchet, receiver_chain))
     }
 
-    fn ratchet_key(&self) -> RatchetPublicKey {
+    pub(super) fn ratchet_key(&self) -> RatchetPublicKey {
         RatchetPublicKey::from(self.active_ratchet.ratchet_key())
     }
 
