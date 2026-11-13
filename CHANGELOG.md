@@ -17,24 +17,30 @@ All notable changes to this project will be documented in this file.
 
 ## [0.11.2] - 2026-11-05
 
-### Bug fixes
+### Security fixes
 
 - Fix a panic in `Ed25519PublicKey::from_base64()` and
   `Ed25519SecretKey::from_base64()` when decoding malformed input. Previously,
   both functions panicked if the input decoded to 31 or 33 bytes instead of the
   expected 32.
-  ([#453](https://github.com/matrix-org/vodozemac/pull/453))
+  ([#453](https://github.com/matrix-org/vodozemac/pull/453)) (Medium,
+  [GHSA-pqp6-f7wc-6498](https://github.com/matrix-org/vodozemac/security/advisories/GHSA-pqp6-f7wc-6498))
 - Enable the `zeroize` feature on the RustCrypto crates that vodozemac depends
   on. Without it, sensitive data in those crates was not fully zeroized.
-  ([#448](https://github.com/matrix-org/vodozemac/pull/448))
+  ([#448](https://github.com/matrix-org/vodozemac/pull/448)) (Low,
+  [GHSA-mxcm-mrw6-c446](https://github.com/matrix-org/vodozemac/security/advisories/GHSA-mxcm-mrw6-c446))
+- Zeroize the output of the Olm root key ratchet after use. Previously, each
+  ratchet step left a copy of the new root key and chain key in freed heap
+  memory.
+  ([#446](https://github.com/matrix-org/vodozemac/pull/446)) (Low,
+  [GHSA-v27v-f96q-qhjq](https://github.com/matrix-org/vodozemac/security/advisories/GHSA-v27v-f96q-qhjq))
+
+### Bug fixes
+
 - Expand the per-message Olm and Megolm cipher keys directly into a
   heap-allocated value instead of using an intermediate stack value, which
   could leave key material behind on the stack.
   ([#447](https://github.com/matrix-org/vodozemac/pull/447))
-- Zeroize the output of the Olm root key ratchet after use. Previously, each
-  ratchet step left a copy of the new root key and chain key in freed heap
-  memory.
-  ([#446](https://github.com/matrix-org/vodozemac/pull/446))
 
 ## [0.11.1] - 2026-09-30
 
