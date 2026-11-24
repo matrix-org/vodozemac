@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Error","MessageDecodeError"],"struct":["Ecies","EstablishedEcies","InboundCreationResult","InitialMessage","Message","OutboundCreationResult"]};
